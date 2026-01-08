@@ -1,146 +1,704 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <meta name="theme-color" content="#000000" />
-  <meta name="description" content="빈크래프트 영업관리 시스템" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="빈크래프트" />
-  
-  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
-  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-  <link rel="manifest" href="/manifest.webmanifest" />
-  
-  <!-- 네이버 지도 API -->
-  <script type="text/javascript" src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpClientId=ozqqwlst31&submodules=geocoder"></script>
-  
-  <title>빈크래프트 영업관리</title>
-  
-  <style>
-    /* 초기 로딩 화면 (React 로드 전) */
-    #initial-loading {
-      position: fixed;
-      inset: 0;
-      background: #000000;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      z-index: 9999;
-    }
-    #initial-loading.hidden {
-      opacity: 0;
-      visibility: hidden;
-      transition: opacity 0.3s, visibility 0.3s;
-    }
-    .loading-logo {
-      width: 200px;
-      height: 200px;
-      margin-bottom: 20px;
-    }
-    .loading-title {
-      color: #cbd5e1;
-      font-size: 20px;
-      letter-spacing: 3px;
-      margin-bottom: 40px;
-      font-weight: 600;
-    }
-    .loading-spinner {
-      width: 50px;
-      height: 50px;
-      border: 4px solid #334155;
-      border-top-color: #0e7cc6;
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-    }
-    .loading-text {
-      color: #94a3b8;
-      font-size: 13px;
-      margin-top: 20px;
-    }
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-    
-    /* 에러 화면 */
-    .error-screen {
-      text-align: center;
-      padding: 40px;
-    }
-    .error-title {
-      font-size: 24px;
-      color: #ef4444;
-      margin-bottom: 20px;
-    }
-    .error-message {
-      color: #94a3b8;
-      font-size: 14px;
-      margin-bottom: 10px;
-    }
-    .error-detail {
-      color: #64748b;
-      font-size: 12px;
-      margin-bottom: 20px;
-    }
-    .error-button {
-      padding: 10px 20px;
-      background: #0e7cc6;
-      color: white;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 14px;
-    }
-    .error-button:hover {
-      background: #0c6eb5;
-    }
-  </style>
-</head>
-<body>
-  <!-- 초기 로딩 화면 -->
-  <div id="initial-loading">
-    <img src="/icons/icon-192.png" alt="BEANCRAFT" class="loading-logo" />
-    <div class="loading-title">빈크래프트 영업관리</div>
-    <div class="loading-spinner"></div>
-    <div class="loading-text">로딩 중...</div>
-  </div>
-  
-  <!-- React 앱 루트 -->
-  <div id="root"></div>
-  
-  <!-- 에러 핸들러 (React 로드 전 실행) -->
-  <script>
-    // 전역 에러 핸들러
-    window.onerror = function(msg, url, line, col, error) {
-      console.error('[BeanCraft Error]', msg, 'at line:', line);
-      var loading = document.getElementById('initial-loading');
-      if (loading) {
-        loading.innerHTML = '<div class="error-screen">' +
-          '<div class="error-title">⚠️ 앱 로딩 오류</div>' +
-          '<div class="error-message">오류: ' + msg + '</div>' +
-          '<div class="error-detail">위치: line ' + line + '</div>' +
-          '<button class="error-button" onclick="location.reload()">새로고침</button>' +
-          '</div>';
-      }
-      return true;
-    };
-    
-    // 타임아웃 방어 (10초)
-    setTimeout(function() {
-      var loading = document.getElementById('initial-loading');
-      if (loading && !loading.classList.contains('hidden')) {
-        loading.innerHTML = '<div class="error-screen">' +
-          '<div class="error-title">⏱️ 로딩 시간 초과</div>' +
-          '<div class="error-message">앱을 불러오는 데 시간이 오래 걸립니다.</div>' +
-          '<button class="error-button" onclick="location.reload()">새로고침</button>' +
-          '</div>';
-      }
-    }, 10000);
-  </script>
-  
-  <!-- Vite 진입점 -->
-  <script type="module" src="/src/main.jsx"></script>
-</body>
-</html>
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ═══════════════════════════════════════════════════════════════════
+ 기본 반응형 설정
+ ═══════════════════════════════════════════════════════════════════ */
+ :root {
+ --safe-top: env(safe-area-inset-top, 0px);
+ --safe-bottom: env(safe-area-inset-bottom, 0px);
+ --safe-left: env(safe-area-inset-left, 0px);
+ --safe-right: env(safe-area-inset-right, 0px);
+ }
+ 
+ * { 
+ font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif; 
+ box-sizing: border-box;
+ -webkit-font-smoothing: antialiased;
+ -moz-osx-font-smoothing: grayscale;
+ text-rendering: optimizeLegibility;
+ }
+ 
+ html {
+ font-size: 16px;
+ -webkit-text-size-adjust: 100%;
+ -ms-text-size-adjust: 100%;
+ }
+ 
+ body { 
+ min-height: 100vh; 
+ min-height: 100dvh;
+ padding-top: var(--safe-top);
+ padding-bottom: var(--safe-bottom);
+ padding-left: var(--safe-left);
+ padding-right: var(--safe-right);
+ overflow-x: hidden;
+ transition: background-color 0.3s ease, color 0.3s ease;
+ }
+ /* 다크 모드 (기본) */
+ .dark body, body { 
+ background: #0d0d0f; 
+ color: #e2e8f0;
+ }
+ /* 라이트 모드 */
+ html:not(.dark) body { 
+ background: #f8fafc !important; 
+ color: #1e293b !important;
+ }
+ 
+ /* 이미지 선명도 최적화 */
+ img, svg {
+ image-rendering: -webkit-optimize-contrast;
+ image-rendering: crisp-edges;
+ max-width: 100%;
+ height: auto;
+ }
+ 
+ /* ═══════════════════════════════════════════════════════════════════
+ 로그인 화면 반응형
+ ═══════════════════════════════════════════════════════════════════ */
+ .login-container {
+ min-height: 100vh;
+ min-height: 100dvh;
+ display: flex;
+ flex-direction: column;
+ align-items: center;
+ justify-content: center;
+ padding: clamp(16px, 4vw, 32px);
+ }
+ 
+ .login-logo {
+ width: clamp(120px, 25vw, 200px);
+ height: auto;
+ margin-bottom: clamp(24px, 5vw, 48px);
+ }
+ 
+ .login-title {
+ font-size: clamp(1.25rem, 4vw, 1.75rem);
+ font-weight: 700;
+ margin-bottom: clamp(8px, 2vw, 16px);
+ }
+ 
+ .login-quote {
+ font-size: clamp(0.75rem, 2.5vw, 0.9rem);
+ text-align: center;
+ max-width: min(90vw, 400px);
+ line-height: 1.6;
+ word-break: keep-all;
+ }
+ 
+ .login-form {
+ width: min(90vw, 380px);
+ padding: clamp(20px, 5vw, 32px);
+ margin-top: clamp(24px, 5vw, 40px);
+ }
+ 
+ .login-input {
+ font-size: clamp(0.875rem, 2.5vw, 1rem) !important;
+ padding: clamp(12px, 3vw, 16px) !important;
+ }
+ 
+ .login-btn {
+ font-size: clamp(0.875rem, 2.5vw, 1rem) !important;
+ padding: clamp(12px, 3vw, 16px) !important;
+ }
+ 
+ /* ═══════════════════════════════════════════════════════════════════
+ 캘린더 반응형
+ ═══════════════════════════════════════════════════════════════════ */
+ .calendar-grid {
+ display: grid;
+ grid-template-columns: repeat(7, 1fr);
+ gap: clamp(2px, 0.5vw, 4px);
+ }
+ 
+ .calendar-header {
+ font-size: clamp(0.625rem, 2vw, 0.75rem);
+ padding: clamp(4px, 1vw, 8px);
+ text-align: center;
+ font-weight: 600;
+ }
+ 
+ .calendar-day {
+ aspect-ratio: 1;
+ min-height: clamp(36px, 8vw, 48px);
+ font-size: clamp(0.7rem, 2vw, 0.875rem);
+ display: flex;
+ flex-direction: column;
+ align-items: center;
+ justify-content: flex-start;
+ padding: clamp(2px, 0.5vw, 4px);
+ border-radius: clamp(6px, 1.5vw, 10px);
+ cursor: pointer;
+ transition: all 0.2s;
+ }
+ 
+ .calendar-day-number {
+ font-size: clamp(0.7rem, 2vw, 0.875rem);
+ font-weight: 500;
+ }
+ 
+ .calendar-event-dot {
+ width: clamp(4px, 1vw, 6px);
+ height: clamp(4px, 1vw, 6px);
+ border-radius: 50%;
+ margin-top: clamp(2px, 0.5vw, 4px);
+ }
+ 
+ /* ═══════════════════════════════════════════════════════════════════
+ 탭 네비게이션 반응형
+ ═══════════════════════════════════════════════════════════════════ */
+ .tab-btn { 
+ position: relative; 
+ padding: clamp(12px, 3vw, 18px) clamp(10px, 2.5vw, 16px); 
+ font-size: clamp(0.75rem, 2.2vw, 0.875rem); 
+ font-weight: 500; 
+ color: #cbd5e1; 
+ transition: all 0.2s ease; 
+ white-space: nowrap; 
+ }
+ 
+ .tabs-container { 
+ overflow-x: auto; 
+ scroll-snap-type: x mandatory; 
+ -webkit-overflow-scrolling: touch; 
+ background: #0d0d0f; 
+ border-bottom: 1px solid #334155;
+ scrollbar-width: none;
+ -ms-overflow-style: none;
+ }
+ .tabs-container::-webkit-scrollbar { display: none; }
+ 
+ /* ═══════════════════════════════════════════════════════════════════
+ 카드 및 모달 반응형
+ ═══════════════════════════════════════════════════════════════════ */
+ .card { 
+ background: transparent; 
+ border-radius: clamp(10px, 2vw, 12px); 
+ box-shadow: none; 
+ border: 1px solid rgba(255,255,255,0.08); 
+ transition: all 0.3s ease;
+ padding: clamp(12px, 3vw, 16px);
+ }
+ 
+ .modal-overlay { 
+ position: fixed; 
+ inset: 0; 
+ background: rgba(0, 0, 0, 0.8); 
+ backdrop-filter: blur(4px); 
+ display: flex; 
+ align-items: center; 
+ justify-content: center; 
+ z-index: 1000; 
+ padding: clamp(12px, 3vw, 16px);
+ padding-top: max(var(--safe-top), clamp(12px, 3vw, 16px));
+ padding-bottom: max(var(--safe-bottom), clamp(12px, 3vw, 16px));
+ overflow: hidden; 
+ }
+ 
+ .modal-content { 
+ background: #1e293b; 
+ border-radius: clamp(16px, 3vw, 20px); 
+ padding: clamp(16px, 4vw, 24px); 
+ max-width: min(95vw, 560px); 
+ width: 100%; 
+ max-height: 85vh;
+ max-height: 85dvh;
+ overflow-y: auto; 
+ box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); 
+ border: 1px solid #334155; 
+ }
+ 
+ .modal-title {
+ font-size: clamp(1rem, 3vw, 1.25rem);
+ font-weight: 700;
+ }
+ 
+ /* ═══════════════════════════════════════════════════════════════════
+ 입력 필드 반응형
+ ═══════════════════════════════════════════════════════════════════ */
+ .input-premium { 
+ border: 1px solid #475569; 
+ border-radius: clamp(8px, 2vw, 10px); 
+ padding: clamp(10px, 2.5vw, 12px) clamp(12px, 3vw, 16px); 
+ width: 100%; 
+ transition: all 0.2s ease; 
+ background: #0f172a; 
+ color: #e2e8f0; 
+ font-size: clamp(0.875rem, 2.5vw, 1rem); 
+ }
+ 
+ .select-premium { 
+ border: 1px solid #475569; 
+ border-radius: clamp(8px, 2vw, 10px); 
+ padding: clamp(10px, 2.5vw, 12px) clamp(12px, 3vw, 16px); 
+ width: 100%; 
+ background: #0f172a url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e") right 12px center no-repeat; 
+ background-size: clamp(16px, 4vw, 20px); 
+ appearance: none; 
+ cursor: pointer; 
+ font-size: clamp(0.875rem, 2.5vw, 1rem); 
+ color: #e2e8f0; 
+ }
+ 
+ .btn-premium { 
+ padding: clamp(10px, 2.5vw, 12px) clamp(16px, 4vw, 24px); 
+ border-radius: clamp(8px, 2vw, 10px); 
+ font-weight: 600; 
+ transition: all 0.2s ease; 
+ font-size: clamp(0.8rem, 2.3vw, 0.875rem); 
+ }
+ 
+ /* ═══════════════════════════════════════════════════════════════════
+ 테이블 반응형
+ ═══════════════════════════════════════════════════════════════════ */
+ .thevc-table { width: 100%; border-collapse: collapse; }
+ .thevc-table th { 
+ padding: clamp(8px, 2vw, 12px) clamp(10px, 2.5vw, 16px); 
+ text-align: left; 
+ font-size: clamp(0.65rem, 2vw, 0.75rem); 
+ font-weight: 600; 
+ color: #94a3b8; 
+ border-bottom: 1px solid #303946; 
+ background: #1e242e;
+ white-space: nowrap;
+ }
+ .thevc-table td { 
+ padding: clamp(10px, 2.5vw, 14px) clamp(10px, 2.5vw, 16px); 
+ border-bottom: 1px solid rgba(48, 57, 70, 0.5); 
+ color: #f3f5f8; 
+ font-size: clamp(0.75rem, 2.2vw, 0.875rem); 
+ }
+ 
+ /* ═══════════════════════════════════════════════════════════════════
+ 맵 컨테이너 반응형
+ ═══════════════════════════════════════════════════════════════════ */
+ .map-container { 
+ width: 100%; 
+ height: clamp(300px, 60vh, 900px); 
+ min-height: 280px;
+ border-radius: clamp(10px, 2vw, 12px); 
+ border: 1px solid #334155; 
+ position: relative; 
+ display: block !important; 
+ touch-action: none; 
+ }
+ .map-container > div { width: 100% !important; height: 100% !important; }
+ 
+ .route-map-container { 
+ width: 100%; 
+ height: clamp(250px, 50vh, 800px);
+ min-height: 230px;
+ border-radius: clamp(10px, 2vw, 12px); 
+ border: 1px solid #334155; 
+ position: relative; 
+ display: block !important; 
+ touch-action: none; 
+ }
+ .route-map-container > div { width: 100% !important; height: 100% !important; }
+ 
+ .map-scroll-hint { 
+ background: linear-gradient(to bottom, rgba(15,23,42,0.9), transparent); 
+ padding: clamp(6px, 1.5vw, 8px); 
+ text-align: center; 
+ font-size: clamp(0.65rem, 2vw, 0.75rem); 
+ color: #94a3b8; 
+ }
+ 
+ /* ═══════════════════════════════════════════════════════════════════
+ 상태 칩 및 태그 반응형
+ ═══════════════════════════════════════════════════════════════════ */
+ .status-chip { 
+ display: inline-flex; 
+ align-items: center; 
+ padding: clamp(3px, 0.8vw, 4px) clamp(8px, 2vw, 10px); 
+ border-radius: clamp(5px, 1.2vw, 6px); 
+ font-size: clamp(0.65rem, 2vw, 0.75rem); 
+ font-weight: 600; 
+ }
+ 
+ .tag { 
+ display: inline-flex; 
+ align-items: center; 
+ padding: clamp(4px, 1vw, 6px) clamp(8px, 2vw, 12px); 
+ border-radius: clamp(6px, 1.5vw, 8px); 
+ font-size: clamp(0.65rem, 2vw, 0.75rem); 
+ font-weight: 600; 
+ }
+ 
+ /* ═══════════════════════════════════════════════════════════════════
+ 미디어 쿼리 - 태블릿
+ ═══════════════════════════════════════════════════════════════════ */
+ @media (min-width: 768px) { 
+ .map-container { height: 75vh; min-height: 550px; }
+ .route-map-container { height: 70vh; min-height: 500px; }
+ 
+ .calendar-day {
+ min-height: 52px;
+ }
+ 
+ .modal-content {
+ max-width: 560px;
+ padding: 24px;
+ }
+ }
+ 
+ /* ═══════════════════════════════════════════════════════════════════
+ 미디어 쿼리 - 데스크톱
+ ═══════════════════════════════════════════════════════════════════ */
+ @media (min-width: 1024px) { 
+ .map-container { height: 80vh; min-height: 650px; }
+ .route-map-container { height: 75vh; min-height: 600px; }
+ 
+ .calendar-day {
+ min-height: 56px;
+ }
+ 
+ .tab-btn {
+ padding: 18px 20px;
+ font-size: 14px;
+ }
+ }
+ 
+ /* ═══════════════════════════════════════════════════════════════════
+ 미디어 쿼리 - 작은 모바일
+ ═══════════════════════════════════════════════════════════════════ */
+ @media (max-width: 360px) {
+ html { font-size: 14px; }
+ 
+ .tab-btn {
+ padding: 10px 8px;
+ font-size: 11px;
+ }
+ 
+ .calendar-day {
+ min-height: 32px;
+ }
+ 
+ .login-form {
+ padding: 16px;
+ }
+ 
+ .modal-content {
+ padding: 14px;
+ border-radius: 14px;
+ }
+ }
+ 
+ /* ═══════════════════════════════════════════════════════════════════
+ 가로 모드 최적화
+ ═══════════════════════════════════════════════════════════════════ */
+ @media (orientation: landscape) and (max-height: 500px) {
+ .login-container {
+ padding: 12px;
+ }
+ 
+ .login-logo {
+ width: 80px;
+ margin-bottom: 12px;
+ }
+ 
+ .login-form {
+ margin-top: 12px;
+ }
+ 
+ .map-container, .route-map-container {
+ height: 70vh;
+ min-height: 200px;
+ }
+ }
+ 
+ /* ═══════════════════════════════════════════════════════════════════
+ 고해상도 디스플레이
+ ═══════════════════════════════════════════════════════════════════ */
+ @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+ img, svg {
+ image-rendering: -webkit-optimize-contrast;
+ }
+ }
+ /* 텍스트 선택 색상 */
+ ::selection { background: rgba(20, 184, 166, 0.3); color: #ffffff; }
+ /* 다크 모드 텍스트 가독성 향상 */
+ .text-slate-400 { color: #94a3b8 !important; }
+ .text-slate-500 { color: #94a3b8 !important; }
+ .text-slate-600 { color: #cbd5e1 !important; }
+ .text-brand-purple { color: #60a5fa !important; }
+ .bg-brand-purple { background-color: #1e3a5f !important; }
+ /* 라이트 모드 스타일 */
+ html:not(.dark), html:not(.dark) body { background: #f8fafc !important; color: #1e293b !important; }
+ html:not(.dark) .min-h-screen { background-color: #f8fafc !important; }
+ html:not(.dark) .bg-black { background-color: #f8fafc !important; }
+ html:not(.dark) .bg-\[\\#0d0d0f\], html:not(.dark) .bg-\[\\#0a0a0a\] { background-color: #f8fafc !important; }
+ html:not(.dark) .tabs-container { background: #ffffff !important; border-color: #e2e8f0 !important; }
+ html:not(.dark) .tab-btn.active::after { background: #1e3a5f !important; }
+ html:not(.dark) .card { background: #ffffff !important; border-color: #e2e8f0 !important; box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important; }
+ html:not(.dark) .card:hover { border-color: #cbd5e1 !important; box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important; }
+ html:not(.dark) .modal-content { background: #ffffff !important; border-color: #e2e8f0 !important; }
+ html:not(.dark) .modal-overlay { background: rgba(0,0,0,0.5) !important; }
+ html:not(.dark) .input-premium { background: #ffffff !important; border-color: #d1d5db !important; color: #1e293b !important; }
+ html:not(.dark) .input-premium::placeholder { color: #9ca3af !important; }
+ html:not(.dark) .input-premium:focus { border-color: #14b8a6 !important; background: #f0fdfa !important; }
+ html:not(.dark) .select-premium { background-color: #ffffff !important; border-color: #d1d5db !important; color: #1e293b !important; }
+ html:not(.dark) .btn-outline { color: #1e293b !important; border-color: #d1d5db !important; }
+ html:not(.dark) .btn-outline:hover { background: #f1f5f9 !important; }
+ html:not(.dark) .tab-btn { color: #64748b !important; }
+ html:not(.dark) .tab-btn:hover { color: #1e293b !important; }
+ html:not(.dark) .tab-btn.active { color: #1e3a5f !important; }
+ html:not(.dark) .thevc-table th { background: #f8fafc !important; color: #475569 !important; border-color: #e2e8f0 !important; }
+ html:not(.dark) .thevc-table td { color: #1e293b !important; border-color: #f1f5f9 !important; }
+ html:not(.dark) .thevc-table tr:hover td { background: #f8fafc !important; }
+ html:not(.dark) .text-slate-100, html:not(.dark) .text-slate-200, html:not(.dark) .text-slate-300 { color: #1e293b !important; }
+ html:not(.dark) .text-slate-400, html:not(.dark) .text-slate-500 { color: #64748b !important; }
+ html:not(.dark) .text-white:not(.bg-brand-purple *):not(.bg-\[\#1e3a5f\] *) { color: #1e293b !important; }
+ html:not(.dark) .bg-slate-700, html:not(.dark) .bg-slate-800, html:not(.dark) .bg-slate-900 { background-color: #ffffff !important; border-color: #e2e8f0 !important; }
+ html:not(.dark) .bg-slate-700\/50, html:not(.dark) .bg-slate-900\/80 { background-color: rgba(255,255,255,0.95) !important; }
+ html:not(.dark) .border-slate-600, html:not(.dark) .border-slate-700, html:not(.dark) .border-slate-800 { border-color: #e2e8f0 !important; }
+ html:not(.dark) .bg-brand-purple { background-color: #1e3a5f !important; }
+ html:not(.dark) .bg-brand-purple .text-white, html:not(.dark) .bg-\[\#1e3a5f\] .text-white { color: #ffffff !important; }
+ html:not(.dark) .bg-transparent { background-color: transparent !important; }
+ html:not(.dark) .bg-bg-card, html:not(.dark) .bg-\[\#1e242e\] { background-color: #ffffff !important; }
+ html:not(.dark) .bg-bg-main, html:not(.dark) .bg-\[\#0a0a0a\] { background-color: #f8fafc !important; }
+ html:not(.dark) ::-webkit-scrollbar-track { background: #f1f5f9 !important; }
+ html:not(.dark) ::-webkit-scrollbar-thumb { background: #cbd5e1 !important; }
+ html:not(.dark) details > summary { background: #f8fafc !important; }
+ html:not(.dark) details[open] > summary { background: #f0fdfa !important; }
+ html:not(.dark) input[type="date"], html:not(.dark) input[type="time"] { color-scheme: light !important; }
+ 
+ /* ═══════════════════════════════════════════════════════════════
+    반응형 최적화 (모바일/태블릿/PC)
+ ═══════════════════════════════════════════════════════════════ */
+ 
+ /* 기본 폰트 크기 - clamp()로 반응형 */
+ html { font-size: clamp(14px, 2.5vw, 16px); }
+ 
+ /* 이미지 최적화 - 선명도 유지 */
+ img, svg { 
+   max-width: 100%; 
+   height: auto; 
+   image-rendering: -webkit-optimize-contrast;
+   image-rendering: crisp-edges;
+ }
+ 
+ /* 로그인 화면 반응형 */
+ .login-container {
+   width: 100%;
+   max-width: min(90vw, 420px);
+   padding: clamp(16px, 4vw, 32px);
+ }
+ .login-logo {
+   width: clamp(80px, 20vw, 120px);
+   height: auto;
+ }
+ .login-title {
+   font-size: clamp(18px, 4vw, 24px);
+   letter-spacing: clamp(1px, 0.5vw, 3px);
+ }
+ .login-quote {
+   font-size: clamp(12px, 2.5vw, 14px);
+   line-height: 1.6;
+   padding: 0 clamp(8px, 2vw, 16px);
+ }
+ .login-input {
+   font-size: clamp(14px, 3vw, 16px);
+   padding: clamp(10px, 2.5vw, 14px) clamp(12px, 3vw, 16px);
+ }
+ .login-btn {
+   font-size: clamp(14px, 3vw, 16px);
+   padding: clamp(12px, 3vw, 16px);
+ }
+ 
+ /* 캘린더 반응형 */
+ .calendar-cell {
+   width: clamp(32px, 10vw, 48px);
+   height: clamp(32px, 10vw, 48px);
+   font-size: clamp(11px, 2.5vw, 14px);
+ }
+ .calendar-header {
+   font-size: clamp(14px, 3vw, 18px);
+ }
+ .calendar-weekday {
+   font-size: clamp(10px, 2vw, 12px);
+ }
+ 
+ /* 명언/인용구 반응형 */
+ .quote-text {
+   font-size: clamp(12px, 2.8vw, 15px);
+   line-height: 1.7;
+ }
+ 
+ /* 카드 패딩 반응형 */
+ .card-responsive {
+   padding: clamp(12px, 3vw, 20px);
+ }
+ 
+ /* 탭 버튼 반응형 */
+ .tab-btn {
+   padding: clamp(12px, 3vw, 18px) clamp(10px, 2.5vw, 16px);
+   font-size: clamp(12px, 2.5vw, 14px);
+ }
+ 
+ /* 테이블 반응형 */
+ .thevc-table th, .thevc-table td {
+   padding: clamp(8px, 2vw, 14px) clamp(10px, 2.5vw, 16px);
+   font-size: clamp(11px, 2.5vw, 14px);
+ }
+ 
+ /* 모달 반응형 */
+ .modal-content {
+   max-width: min(95vw, 560px);
+   padding: clamp(16px, 4vw, 24px);
+   max-height: 90vh;
+ }
+ 
+ /* 버튼 반응형 */
+ .btn-responsive {
+   padding: clamp(8px, 2vw, 12px) clamp(12px, 3vw, 24px);
+   font-size: clamp(12px, 2.5vw, 14px);
+ }
+ 
+ /* 입력 필드 반응형 */
+ .input-responsive {
+   font-size: clamp(13px, 2.8vw, 15px);
+   padding: clamp(10px, 2.5vw, 14px);
+ }
+ 
+ /* 제목 반응형 */
+ .title-xl { font-size: clamp(18px, 4vw, 24px); }
+ .title-lg { font-size: clamp(16px, 3.5vw, 20px); }
+ .title-md { font-size: clamp(14px, 3vw, 16px); }
+ .title-sm { font-size: clamp(12px, 2.5vw, 14px); }
+ 
+ /* 본문 텍스트 반응형 */
+ .text-responsive { font-size: clamp(13px, 2.8vw, 15px); }
+ .text-sm-responsive { font-size: clamp(11px, 2.2vw, 13px); }
+ .text-xs-responsive { font-size: clamp(10px, 2vw, 12px); }
+ 
+ /* 모바일 전용 (max-width: 480px) */
+ @media (max-width: 480px) {
+   .modal-content { 
+     max-height: 85vh; 
+     border-radius: 16px 16px 0 0;
+     margin-top: auto;
+   }
+   .card { border-radius: 10px; }
+   .tabs-container { padding: 0 8px; }
+   .tab-btn { padding: 14px 12px; }
+ }
+ 
+ /* 태블릿 (481px ~ 1024px) */
+ @media (min-width: 481px) and (max-width: 1024px) {
+   .login-container { max-width: 380px; }
+   .modal-content { max-width: 500px; }
+ }
+ 
+ /* PC (1025px+) */
+ @media (min-width: 1025px) {
+   html { font-size: 16px; }
+   .login-container { max-width: 420px; }
+ }
+ 
+ /* 텍스트 오버플로우 방지 */
+ .text-ellipsis {
+   overflow: hidden;
+   text-overflow: ellipsis;
+   white-space: nowrap;
+ }
+ .line-clamp-2 {
+   display: -webkit-box;
+   -webkit-line-clamp: 2;
+   -webkit-box-orient: vertical;
+   overflow: hidden;
+ }
+ /* 이모지 크기 조절 */
+ .card span:first-child:not(.text-xs) { font-size: 0.9em; opacity: 0.8; }
+ 
+ @keyframes spin {
+   0% { transform: rotate(0deg); }
+   100% { transform: rotate(360deg); }
+ }
+ 
+ /* 로그인 화면 고급 애니메이션 */
+ @keyframes loginFadeIn {
+   0% { 
+     opacity: 0; 
+     transform: translateY(20px); 
+   }
+   100% { 
+     opacity: 1; 
+     transform: translateY(0); 
+   }
+ }
+ 
+ @keyframes logoFadeIn {
+   0% { 
+     opacity: 0; 
+     transform: translateY(30px) scale(0.95); 
+   }
+   100% { 
+     opacity: 1; 
+     transform: translateY(0) scale(1); 
+   }
+ }
+ 
+ @keyframes gradientShift {
+   0% { background-position: 0% 50%; }
+   50% { background-position: 100% 50%; }
+   100% { background-position: 0% 50%; }
+ }
+ 
+ @keyframes special-blink {
+   0%, 100% { opacity: 1; transform: scale(1); }
+   50% { opacity: 0.5; transform: scale(1.1); }
+ }
+ 
+ @keyframes marker-pulse {
+   0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
+   50% { opacity: 0.8; box-shadow: 0 0 0 8px rgba(59, 130, 246, 0); }
+ }
+ 
+ .special-blink {
+   animation: special-blink 1s ease-in-out infinite;
+ }
+ 
+ .marker-pulse {
+   animation: marker-pulse 1.5s ease-in-out infinite;
+ }
+ 
+ .login-fade-in {
+   animation: loginFadeIn 0.8s ease-out forwards;
+ }
+ 
+ .login-fade-in-delay-1 {
+   opacity: 0;
+   animation: loginFadeIn 0.8s ease-out 0.2s forwards;
+ }
+ 
+ .login-fade-in-delay-2 {
+   opacity: 0;
+   animation: loginFadeIn 0.8s ease-out 0.4s forwards;
+ }
+ 
+ .login-fade-in-delay-3 {
+   opacity: 0;
+   animation: loginFadeIn 0.8s ease-out 0.6s forwards;
+ }
+ 
+ .logo-animate {
+   animation: logoFadeIn 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+ }
+ 
+ .login-gradient-bg {
+   background: #000000 !important;
+   
+   
+ }
+ 
+ /* [핵심] CSS 애니메이션으로 무한 로딩 절대 방지 - JS 에러와 무관하게 작동 */
+ @keyframes forceHideLoading {
+   0%, 99% { opacity: 1; visibility: visible; }
+   100% { opacity: 0; visibility: hidden; display: none; }
+ }
+ #loading-screen {
+   animation: forceHideLoading 3s forwards !important;
+ }
