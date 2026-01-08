@@ -31633,7 +31633,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <input type="password" placeholder="비밀번호" value={pw} onChange={e => setPw(e.target.value)} onKeyPress={e => e.key === 'Enter' && login()} className="w-full p-2.5 sm:p-3 rounded-lg mb-2 sm:mb-3 text-sm bg-slate-700/50 text-white placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/50 border border-slate-600 text-sm font-medium" />
  <label className="flex items-center gap-2 text-slate-300 text-sm mb-4 cursor-pointer">
  <input type="checkbox" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)} className="w-4 h-4 rounded accent-primary-500" />
- 로그인 상태 유지 (30일)
+ 로그인 상태 유지
  </label>
  <button type="button" onClick={login} className="w-full p-3 bg-[#1e3a5f] hover:bg-[#264a73] text-white rounded-lg font-semibold transition-all text-sm login-fade-in-delay-3">로그인</button>
  </div>
