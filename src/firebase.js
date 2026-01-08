@@ -4,7 +4,7 @@ import 'firebase/compat/database';
 import 'firebase/compat/auth';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBRrxkXnyGd3HKXFKEUB2o15sY8U2Mic",
+  apiKey: "AIzaSyBRrxkXnyGd3HKXFKEUB2o15sY8U2N2Mic",
   authDomain: "beancraft-sales-team.firebaseapp.com",
   databaseURL: "https://beancraft-sales-team-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "beancraft-sales-team",
