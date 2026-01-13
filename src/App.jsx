@@ -525,22 +525,6 @@ const COMPANY_QUOTES = [
  const [rememberMe, setRememberMe] = useState(false);
  const [adminPassword, setAdminPassword] = useState('admin');
  const [loginQuote] = useState(() => LOGIN_QUOTES[Math.floor(Math.random() * LOGIN_QUOTES.length)]);
- const [loginPhase, setLoginPhase] = useState(0); // 0: 명언, 1: 로고, 2: 폼
- 
- // 로그인 화면 시퀀스 애니메이션
- useEffect(() => {
-   if (loggedIn) return;
-   // Phase 0 → 1: 명언 표시 후 2.5초 뒤 로고로 전환
-   if (loginPhase === 0) {
-     const timer = setTimeout(() => setLoginPhase(1), 2500);
-     return () => clearTimeout(timer);
-   }
-   // Phase 1 → 2: 로고 표시 후 1.5초 뒤 폼 표시
-   if (loginPhase === 1) {
-     const timer = setTimeout(() => setLoginPhase(2), 1500);
-     return () => clearTimeout(timer);
-   }
- }, [loginPhase, loggedIn]);
  
  const [syncStatus, setSyncStatus] = useState('connecting');
  const [dataLoaded, setDataLoaded] = useState(false);
@@ -31696,35 +31680,25 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  };
  if (!loggedIn) {
    return (
-     <div className="min-h-screen flex items-center justify-center p-4 bg-black">
-       {loginPhase === 0 && (
-         <div className="text-center px-8 animate-pulse">
-           <p className="text-slate-200 text-xl sm:text-2xl font-light leading-relaxed max-w-lg">"{loginQuote}"</p>
-         </div>
-       )}
-       {loginPhase === 1 && (
-         <div className="text-center">
-           <img src="data:image/webp;base64,UklGRr4EAABXRUJQVlA4WAoAAAAQAAAAPwAAPwAAQUxQSHACAAABkARJtmlbvfbe59k699m2bVvftm1rZNu2bdu2hrZ9vq+mbxARE4AabgmkV8QgQY8JPDI8JsSEQHoChnIP2EWAABDpnqElIS4Z8JUgG0H3CZ6egHOeBVylwNhwU1dZ6Bp5OoIMcz1h5+pq0jLKN9AcpFOAdTQDsjOgCglPSAcA0hIJzokEFwxMEEnR8c2zQiW5g7FTRTiLE/grF4JzwQXThPoxEguxSTfpaBdcCE8jmDk7WbkIaJ6gqtWyob15rWZtEuBby45lV/oX1ncXPr2nT7FIH9G4eVRoh/neLKlh6wZlTSqaJYLU4ahS1t05lazs39kRm5RBOPnV+dzBkrieP24+3XLjxXGlr8MZpTVOv9y2avk95UZ/cPXK33e8sC/y29TRseYPj1ywPPZj9Z5NlolvT+xcMvnGkXbvu1g9OX8c+y+NGIDIb7ZgUK/48/yFFws+zpsaWa7c/pF3eOW+97MdMj/u2LMu99DLF2+seyjPvltuerB8Jkv+6k6aqKWM3KQ0U+ZPqnX0esPHo3YtLlWO1Ouw9d2OTztvnghUelw+Xe9D7yOrAGQqHlCPwW/45Im58vCJ0xv3Ckfp4OnD4yY3twuXpm7dlNawS3yHcSM90aB+g2phCLehliC11BW2QdEqGYg3t6xCi8hAuNrAx0BAuySE4CSE4IJBAgDh4WFYK5bnFxilBDYIz7WH4JwDIKEZdYkB8EiNivSHU0Nj2Idnm0LHyc3Tu3ay5OdEBjk+AEJAOgZbb9klLtLSyRAx8SAeR9BHNzN4mZJcxSFUIF0jIgAkhwB1raGvBCK/0IhEFYj046+GEgygz4SabgFWUDggKAIAAFAMAJ0BKkAAQAA+kUSbSiWjoiGoCACwEglmAGfeUxQgPwpogPOK9AG8Abwx+5PpYuC+6BvgaQL3p0B+cX6Z9gPoNegx+ma0WlJLPs3Uq6HpBvu3yeQNnHXcLF7xMkOCHb7DYSjiFNKNcDIgAP78+FvR///1DBc+ORrUZzISuYmqOMLGOQ/zaUuKRTrF5Nm80r/X2D8lpeyCr0VQwyjiFS8DDfgE6JM3/kNY8uesZuvLeAgUWzW2/yTv2RX77/90+//MvU+3GHZ+wj7MMyxX/8Tnf/sBlAFR/wEVTP3poHuNCgOGRGdoxgHqJIukm4pn+zYgHieAatex072s5dd2+Lx/9DS/8T7XCBQrCGWMRlC/sf8CdIFFhER6nC5qFmw+O/O3U8s0uflu5GSfvuhDLLJ3gpdV80qfvHZqyqS8oWBZDTFAlndM0W+oe7H/9z2mihm/+kd8Jf+Pleu//Y8hsyT///T7XSVtjZprjyqVNxSxLioafMN77Sib2Ti40AuU3PY8GmXiY0US8I9G9DEJj8CoEDPzOdU7Qh/VRQDNleg/omm79j3+gUnP8V4sPPrddRMS0nCxuPAD4Ssvaf7lLlThPKhJA+Xm+Ah4ioajzkN+VIb8C73pZ1aotgCR5QL4o5qwD44BKG1RaUMJrwM27h8XLrQStXQ95pkw1SlgLxba/oWuIjtQ2N1aZt75fVZPEVPXXB8lNRc24F5hakDsw4Tep00AAAAAAA==" alt="BEANCRAFT" className="w-40 h-40 sm:w-56 sm:h-56 mx-auto mb-4 object-contain" />
-           <p className="text-slate-200 text-lg sm:text-xl tracking-widest font-semibold">빈크래프트 영업관리</p>
-         </div>
-       )}
-       {loginPhase >= 2 && (
-       <div className="w-full max-w-md">
-         <div className="text-center mb-8">
-           <img src="data:image/webp;base64,UklGRr4EAABXRUJQVlA4WAoAAAAQAAAAPwAAPwAAQUxQSHACAAABkARJtmlbvfbe59k699m2bVvftm1rZNu2bdu2hrZ9vq+mbxARE4AabgmkV8QgQY8JPDI8JsSEQHoChnIP2EWAABDpnqElIS4Z8JUgG0H3CZ6egHOeBVylwNhwU1dZ6Bp5OoIMcz1h5+pq0jLKN9AcpFOAdTQDsjOgCglPSAcA0hIJzokEFwxMEEnR8c2zQiW5g7FTRTiLE/grF4JzwQXThPoxEguxSTfpaBdcCE8jmDk7WbkIaJ6gqtWyob15rWZtEuBby45lV/oX1ncXPr2nT7FIH9G4eVRoh/neLKlh6wZlTSqaJYLU4ahS1t05lazs39kRm5RBOPnV+dzBkrieP24+3XLjxXGlr8MZpTVOv9y2avk95UZ/cPXK33e8sC/y29TRseYPj1ywPPZj9Z5NlolvT+xcMvnGkXbvu1g9OX8c+y+NGIDIb7ZgUK/48/yFFws+zpsaWa7c/pF3eOW+97MdMj/u2LMu99DLF2+seyjPvltuerB8Jkv+6k6aqKWM3KQ0U+ZPqnX0esPHo3YtLlWO1Ouw9d2OTztvnghUelw+Xe9D7yOrAGQqHlCPwW/45Im58vCJ0xv3Ckfp4OnD4yY3twuXpm7dlNawS3yHcSM90aB+g2phCLehliC11BW2QdEqGYg3t6xCi8hAuNrAx0BAuySE4CSE4IJBAgDh4WFYK5bnFxilBDYIz7WH4JwDIKEZdYkB8EiNivSHU0Nj2Idnm0LHyc3Tu3ay5OdEBjk+AEJAOgZbb9klLtLSyRAx8SAeR9BHNzN4mZJcxSFUIF0jIgAkhwB1raGvBCK/0IhEFYj046+GEgygz4SabgFWUDggKAIAAFAMAJ0BKkAAQAA+kUSbSiWjoiGoCACwEglmAGfeUxQgPwpogPOK9AG8Abwx+5PpYuC+6BvgaQL3p0B+cX6Z9gPoNegx+ma0WlJLPs3Uq6HpBvu3yeQNnHXcLF7xMkOCHb7DYSjiFNKNcDIgAP78+FvR///1DBc+ORrUZzISuYmqOMLGOQ/zaUuKRTrF5Nm80r/X2D8lpeyCr0VQwyjiFS8DDfgE6JM3/kNY8uesZuvLeAgUWzW2/yTv2RX77/90+//MvU+3GHZ+wj7MMyxX/8Tnf/sBlAFR/wEVTP3poHuNCgOGRGdoxgHqJIukm4pn+zYgHieAatex072s5dd2+Lx/9DS/8T7XCBQrCGWMRlC/sf8CdIFFhER6nC5qFmw+O/O3U8s0uflu5GSfvuhDLLJ3gpdV80qfvHZqyqS8oWBZDTFAlndM0W+oe7H/9z2mihm/+kd8Jf+Pleu//Y8hsyT///T7XSVtjZprjyqVNxSxLioafMN77Sib2Ti40AuU3PY8GmXiY0US8I9G9DEJj8CoEDPzOdU7Qh/VRQDNleg/omm79j3+gUnP8V4sPPrddRMS0nCxuPAD4Ssvaf7lLlThPKhJA+Xm+Ah4ioajzkN+VIb8C73pZ1aotgCR5QL4o5qwD44BKG1RaUMJrwM27h8XLrQStXQ95pkw1SlgLxba/oWuIjtQ2N1aZt75fVZPEVPXXB8lNRc24F5hakDsw4Tep00AAAAAAA==" alt="BEANCRAFT" className="w-32 h-32 sm:w-40 sm:h-40 mx-auto mb-4 object-contain" />
+     <div className="min-h-screen flex items-center justify-center p-4 login-gradient-bg">
+       <div className="w-full max-w-md login-fade-in">
+         <div className="text-center mb-8 logo-animate">
+           <img src="data:image/webp;base64,UklGRr4EAABXRUJQVlA4WAoAAAAQAAAAPwAAPwAAQUxQSHACAAABkARJtmlbvfbe59k699m2bVvftm1rZNu2bdu2hrZ9vq+mbxARE4AabgmkV8QgQY8JPDI8JsSEQHoChnIP2EWAABDpnqElIS4Z8JUgG0H3CZ6egHOeBVylwNhwU1dZ6Bp5OoIMcz1h5+pq0jLKN9AcpFOAdTQDsjOgCglPSAcA0hIJzokEFwxMEEnR8c2zQiW5g7FTRTiLE/grF4JzwQXThPoxEguxSTfpaBdcCE8jmDk7WbkIaJ6gqtWyob15rWZtEuBby45lV/oX1ncXPr2nT7FIH9G4eVRoh/neLKlh6wZlTSqaJYLU4ahS1t05lazs39kRm5RBOPnV+dzBkrieP24+3XLjxXGlr8MZpTVOv9y2avk95UZ/cPXK33e8sC/y29TRseYPj1ywPPZj9Z5NlolvT+xcMvnGkXbvu1g9OX8c+y+NGIDIb7ZgUK/48/yFFws+zpsaWa7c/pF3eOW+97MdMj/u2LMu99DLF2+seyjPvltuerB8Jkv+6k6aqKWM3KQ0U+ZPqnX0esPHo3YtLlWO1Ouw9d2OTztvnghUelw+Xe9D7yOrAGQqHlCPwW/45Im58vCJ0xv3Ckfp4OnD4yY3twuXpm7dlNawS3yHcSM90aB+g2phCLehliC11BW2QdEqGYg3t6xCi8hAuNrAx0BAuySE4CSE4IJBAgDh4WFYK5bnFxilBDYIz7WH4JwDIKEZdYkB8EiNivSHU0Nj2Idnm0LHyc3Tu3ay5OdEBjk+AEJAOgZbb9klLtLSyRAx8SAeR9BHNzN4mZJcxSFUIF0jIgAkhwB1raGvBCK/0IhEFYj046+GEgygz4SabgFWUDggKAIAAFAMAJ0BKkAAQAA+kUSbSiWjoiGoCACwEglmAGfeUxQgPwpogPOK9AG8Abwx+5PpYuC+6BvgaQL3p0B+cX6Z9gPoNegx+ma0WlJLPs3Uq6HpBvu3yeQNnHXcLF7xMkOCHb7DYSjiFNKNcDIgAP78+FvR///1DBc+ORrUZzISuYmqOMLGOQ/zaUuKRTrF5Nm80r/X2D8lpeyCr0VQwyjiFS8DDfgE6JM3/kNY8uesZuvLeAgUWzW2/yTv2RX77/90+//MvU+3GHZ+wj7MMyxX/8Tnf/sBlAFR/wEVTP3poHuNCgOGRGdoxgHqJIukm4pn+zYgHieAatex072s5dd2+Lx/9DS/8T7XCBQrCGWMRlC/sf8CdIFFhER6nC5qFmw+O/O3U8s0uflu5GSfvuhDLLJ3gpdV80qfvHZqyqS8oWBZDTFAlndM0W+oe7H/9z2mihm/+kd8Jf+Pleu//Y8hsyT///T7XSVtjZprjyqVNxSxLioafMN77Sib2Ti40AuU3PY8GmXiY0US8I9G9DEJj8CoEDPzOdU7Qh/VRQDNleg/omm79j3+gUnP8V4sPPrddRMS0nCxuPAD4Ssvaf7lLlThPKhJA+Xm+Ah4ioajzkN+VIb8C73pZ1aotgCR5QL4o5qwD44BKG1RaUMJrwM27h8XLrQStXQ95pkw1SlgLxba/oWuIjtQ2N1aZt75fVZPEVPXXB8lNRc24F5hakDsw4Tep00AAAAAAA==" alt="BEANCRAFT" className="w-32 h-32 sm:w-48 sm:h-48 mx-auto mb-4 object-contain" />
            <p className="text-slate-200 text-base sm:text-lg tracking-widest font-semibold">빈크래프트 영업관리</p>
          </div>
-         <div className="bg-slate-900/80 rounded-xl p-4 sm:p-6 shadow-xl border border-slate-700">
+         <div className="text-center mb-6 px-4 login-fade-in-delay-1">
+           <p className="text-slate-300 text-xs sm:text-sm font-normal leading-relaxed max-w-xs sm:max-w-sm mx-auto">"{loginQuote}"</p>
+         </div>
+         <div className="bg-slate-900/80 rounded-xl p-4 sm:p-6 shadow-xl border border-slate-700 login-fade-in-delay-2">
            <input type="text" placeholder="아이디" value={id} onChange={e => setId(e.target.value)} className="w-full p-2.5 sm:p-3 rounded-lg mb-2 sm:mb-3 bg-slate-700/50 text-white placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/50 border border-slate-600 text-sm font-medium" />
            <input type="password" placeholder="비밀번호" value={pw} onChange={e => setPw(e.target.value)} onKeyPress={e => e.key === 'Enter' && login()} className="w-full p-2.5 sm:p-3 rounded-lg mb-2 sm:mb-3 bg-slate-700/50 text-white placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/50 border border-slate-600 text-sm font-medium" />
            <label className="flex items-center gap-2 text-slate-300 text-sm mb-4 cursor-pointer">
              <input type="checkbox" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)} className="w-4 h-4 rounded accent-primary-500" />
              로그인 상태 유지
            </label>
-           <button type="button" onClick={login} className="w-full p-3 bg-[#1e3a5f] hover:bg-[#264a73] text-white rounded-lg font-semibold transition-all text-sm">로그인</button>
+           <button type="button" onClick={login} className="w-full p-3 bg-[#1e3a5f] hover:bg-[#264a73] text-white rounded-lg font-semibold transition-all text-sm login-fade-in-delay-3">로그인</button>
          </div>
        </div>
-       )}
      </div>
    );
  }
