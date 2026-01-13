@@ -984,7 +984,7 @@ ${JSON.stringify(regionData, null, 2)}
  console.log('마이그레이션 완료!');
  };
  // 확장프로그램 연결 확인 (postMessage 방식)
- const pendingGeoRequests = React.useRef({});
+ const pendingGeoRequests = useRef({});
  
  // 테마 모드 적용
  useEffect(() => {
