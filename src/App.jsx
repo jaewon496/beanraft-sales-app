@@ -525,6 +525,7 @@ const COMPANY_QUOTES = [
  const [rememberMe, setRememberMe] = useState(false);
  const [adminPassword, setAdminPassword] = useState('admin');
  const [loginQuote] = useState(() => LOGIN_QUOTES[Math.floor(Math.random() * LOGIN_QUOTES.length)]);
+const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> 'form'
  
  const [syncStatus, setSyncStatus] = useState('connecting');
  const [dataLoaded, setDataLoaded] = useState(false);
@@ -1985,6 +1986,21 @@ ${JSON.stringify(regionData, null, 2)}
  if (currentHighlight.length > 0) setTimeout(() => setHighlightPins([]), 5000);
  }, [filterManager, filterStatus]);
  useEffect(() => { if (mapObj.current) renderMarkers(); }, [companies, managers, filterManager, filterStatus, highlightPins, renderMarkers]);
+  
+  // 로그인 시퀀스 애니메이션
+  useEffect(() => {
+    if (loggedIn) return;
+    
+    // 명언 표시 (2초) -> 로고 표시 (2초) -> 로그인 폼 표시
+    const timer1 = setTimeout(() => setLoginPhase('logo'), 2000);
+    const timer2 = setTimeout(() => setLoginPhase('form'), 4000);
+    
+    return () => {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+    };
+  }, [loggedIn]);
+  
   // 미표시 업체 자동 좌표 검색
   useEffect(() => {
     if (!loggedIn || companies.length === 0 || !window.naver?.maps?.Service) return;
@@ -31680,26 +31696,57 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  };
  if (!loggedIn) {
    return (
+     <>
+     <style>{`
+       @keyframes fadeIn {
+         from { opacity: 0; transform: translateY(10px); }
+         to { opacity: 1; transform: translateY(0); }
+       }
+       .animate-fade-in {
+         animation: fadeIn 0.8s ease-out forwards;
+       }
+     `}</style>
      <div className="min-h-screen flex items-center justify-center p-4 login-gradient-bg">
-       <div className="w-full max-w-md login-fade-in">
-         <div className="text-center mb-8 logo-animate">
-           <img src="data:image/webp;base64,UklGRr4EAABXRUJQVlA4WAoAAAAQAAAAPwAAPwAAQUxQSHACAAABkARJtmlbvfbe59k699m2bVvftm1rZNu2bdu2hrZ9vq+mbxARE4AabgmkV8QgQY8JPDI8JsSEQHoChnIP2EWAABDpnqElIS4Z8JUgG0H3CZ6egHOeBVylwNhwU1dZ6Bp5OoIMcz1h5+pq0jLKN9AcpFOAdTQDsjOgCglPSAcA0hIJzokEFwxMEEnR8c2zQiW5g7FTRTiLE/grF4JzwQXThPoxEguxSTfpaBdcCE8jmDk7WbkIaJ6gqtWyob15rWZtEuBby45lV/oX1ncXPr2nT7FIH9G4eVRoh/neLKlh6wZlTSqaJYLU4ahS1t05lazs39kRm5RBOPnV+dzBkrieP24+3XLjxXGlr8MZpTVOv9y2avk95UZ/cPXK33e8sC/y29TRseYPj1ywPPZj9Z5NlolvT+xcMvnGkXbvu1g9OX8c+y+NGIDIb7ZgUK/48/yFFws+zpsaWa7c/pF3eOW+97MdMj/u2LMu99DLF2+seyjPvltuerB8Jkv+6k6aqKWM3KQ0U+ZPqnX0esPHo3YtLlWO1Ouw9d2OTztvnghUelw+Xe9D7yOrAGQqHlCPwW/45Im58vCJ0xv3Ckfp4OnD4yY3twuXpm7dlNawS3yHcSM90aB+g2phCLehliC11BW2QdEqGYg3t6xCi8hAuNrAx0BAuySE4CSE4IJBAgDh4WFYK5bnFxilBDYIz7WH4JwDIKEZdYkB8EiNivSHU0Nj2Idnm0LHyc3Tu3ay5OdEBjk+AEJAOgZbb9klLtLSyRAx8SAeR9BHNzN4mZJcxSFUIF0jIgAkhwB1raGvBCK/0IhEFYj046+GEgygz4SabgFWUDggKAIAAFAMAJ0BKkAAQAA+kUSbSiWjoiGoCACwEglmAGfeUxQgPwpogPOK9AG8Abwx+5PpYuC+6BvgaQL3p0B+cX6Z9gPoNegx+ma0WlJLPs3Uq6HpBvu3yeQNnHXcLF7xMkOCHb7DYSjiFNKNcDIgAP78+FvR///1DBc+ORrUZzISuYmqOMLGOQ/zaUuKRTrF5Nm80r/X2D8lpeyCr0VQwyjiFS8DDfgE6JM3/kNY8uesZuvLeAgUWzW2/yTv2RX77/90+//MvU+3GHZ+wj7MMyxX/8Tnf/sBlAFR/wEVTP3poHuNCgOGRGdoxgHqJIukm4pn+zYgHieAatex072s5dd2+Lx/9DS/8T7XCBQrCGWMRlC/sf8CdIFFhER6nC5qFmw+O/O3U8s0uflu5GSfvuhDLLJ3gpdV80qfvHZqyqS8oWBZDTFAlndM0W+oe7H/9z2mihm/+kd8Jf+Pleu//Y8hsyT///T7XSVtjZprjyqVNxSxLioafMN77Sib2Ti40AuU3PY8GmXiY0US8I9G9DEJj8CoEDPzOdU7Qh/VRQDNleg/omm79j3+gUnP8V4sPPrddRMS0nCxuPAD4Ssvaf7lLlThPKhJA+Xm+Ah4ioajzkN+VIb8C73pZ1aotgCR5QL4o5qwD44BKG1RaUMJrwM27h8XLrQStXQ95pkw1SlgLxba/oWuIjtQ2N1aZt75fVZPEVPXXB8lNRc24F5hakDsw4Tep00AAAAAAA==" alt="BEANCRAFT" className="w-32 h-32 sm:w-48 sm:h-48 mx-auto mb-4 object-contain" />
-           <p className="text-slate-200 text-base sm:text-lg tracking-widest font-semibold">빈크래프트 영업관리</p>
-         </div>
-         <div className="text-center mb-6 px-4 login-fade-in-delay-1">
-           <p className="text-slate-300 text-xs sm:text-sm font-normal leading-relaxed max-w-xs sm:max-w-sm mx-auto">"{loginQuote}"</p>
-         </div>
-         <div className="bg-slate-900/80 rounded-xl p-4 sm:p-6 shadow-xl border border-slate-700 login-fade-in-delay-2">
-           <input type="text" placeholder="아이디" value={id} onChange={e => setId(e.target.value)} className="w-full p-2.5 sm:p-3 rounded-lg mb-2 sm:mb-3 bg-slate-700/50 text-white placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/50 border border-slate-600 text-sm font-medium" />
-           <input type="password" placeholder="비밀번호" value={pw} onChange={e => setPw(e.target.value)} onKeyPress={e => e.key === 'Enter' && login()} className="w-full p-2.5 sm:p-3 rounded-lg mb-2 sm:mb-3 bg-slate-700/50 text-white placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/50 border border-slate-600 text-sm font-medium" />
-           <label className="flex items-center gap-2 text-slate-300 text-sm mb-4 cursor-pointer">
-             <input type="checkbox" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)} className="w-4 h-4 rounded accent-primary-500" />
-             로그인 상태 유지
-           </label>
-           <button type="button" onClick={login} className="w-full p-3 bg-[#1e3a5f] hover:bg-[#264a73] text-white rounded-lg font-semibold transition-all text-sm login-fade-in-delay-3">로그인</button>
-         </div>
+       <div className="w-full max-w-md">
+         {/* Phase 1: 명언 */}
+         {loginPhase === 'quote' && (
+           <div className="text-center animate-fade-in">
+             <p className="text-slate-300 text-sm sm:text-base font-normal leading-relaxed max-w-xs sm:max-w-sm mx-auto">"{loginQuote}"</p>
+           </div>
+         )}
+         
+         {/* Phase 2: 로고 */}
+         {loginPhase === 'logo' && (
+           <div className="text-center animate-fade-in">
+             <img src="/logo.png" alt="BEANCRAFT" className="w-40 h-40 sm:w-56 sm:h-56 mx-auto mb-4 object-contain" />
+             <p className="text-slate-200 text-base sm:text-lg tracking-widest font-semibold">빈크래프트 영업관리</p>
+           </div>
+         )}
+         
+         {/* Phase 3: 로그인 폼 */}
+         {loginPhase === 'form' && (
+           <div className="animate-fade-in">
+             <div className="text-center mb-8">
+               <img src="/logo.png" alt="BEANCRAFT" className="w-32 h-32 sm:w-48 sm:h-48 mx-auto mb-4 object-contain" />
+               <p className="text-slate-200 text-base sm:text-lg tracking-widest font-semibold">빈크래프트 영업관리</p>
+             </div>
+             <div className="text-center mb-6 px-4">
+               <p className="text-slate-300 text-xs sm:text-sm font-normal leading-relaxed max-w-xs sm:max-w-sm mx-auto">"{loginQuote}"</p>
+             </div>
+             <div className="bg-slate-900/80 rounded-xl p-4 sm:p-6 shadow-xl border border-slate-700">
+               <input type="text" placeholder="아이디" value={id} onChange={e => setId(e.target.value)} className="w-full p-2.5 sm:p-3 rounded-lg mb-2 sm:mb-3 bg-slate-700/50 text-white placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/50 border border-slate-600 text-sm font-medium" />
+               <input type="password" placeholder="비밀번호" value={pw} onChange={e => setPw(e.target.value)} onKeyPress={e => e.key === 'Enter' && login()} className="w-full p-2.5 sm:p-3 rounded-lg mb-2 sm:mb-3 bg-slate-700/50 text-white placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/50 border border-slate-600 text-sm font-medium" />
+               <label className="flex items-center gap-2 text-slate-300 text-sm mb-4 cursor-pointer">
+                 <input type="checkbox" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)} className="w-4 h-4 rounded accent-primary-500" />
+                 로그인 상태 유지
+               </label>
+               <button type="button" onClick={login} className="w-full p-3 bg-[#1e3a5f] hover:bg-[#264a73] text-white rounded-lg font-semibold transition-all text-sm">로그인</button>
+             </div>
+           </div>
+         )}
        </div>
      </div>
+     </>
    );
  }
  const tabs = [
@@ -31718,7 +31765,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className={`min-h-screen pb-6 ${effectiveTheme === 'dark' ? 'bg-black' : 'bg-slate-50'}`}>
  <div className="bg-slate-800 border-b border-slate-600 px-4 py-3 flex justify-between items-center sticky top-0 z-50 shadow-sm">
  <div className="flex items-center gap-2 sm:gap-3">
- <img src="data:image/webp;base64,UklGRr4EAABXRUJQVlA4WAoAAAAQAAAAPwAAPwAAQUxQSHACAAABkARJtmlbvfbe59k699m2bVvftm1rZNu2bdu2hrZ9vq+mbxARE4AabgmkV8QgQY8JPDI8JsSEQHoChnIP2EWAABDpnqElIS4Z8JUgG0H3CZ6egHOeBVylwNhwU1dZ6Bp5OoIMcz1h5+pq0jLKN9AcpFOAdTQDsjOgCglPSAcA0hIJzokEFwxMEEnR8c2zQiW5g7FTRTiLE/grF4JzwQXThPoxEguxSTfpaBdcCE8jmDk7WbkIaJ6gqtWyob15rWZtEuBby45lV/oX1ncXPr2nT7FIH9G4eVRoh/neLKlh6wZlTSqaJYLU4ahS1t05lazs39kRm5RBOPnV+dzBkrieP24+3XLjxXGlr8MZpTVOv9y2avk95UZ/cPXK33e8sC/y29TRseYPj1ywPPZj9Z5NlolvT+xcMvnGkXbvu1g9OX8c+y+NGIDIb7ZgUK/48/yFFws+zpsaWa7c/pF3eOW+97MdMj/u2LMu99DLF2+seyjPvltuerB8Jkv+6k6aqKWM3KQ0U+ZPqnX0esPHo3YtLlWO1Ouw9d2OTztvnghUelw+Xe9D7yOrAGQqHlCPwW/45Im58vCJ0xv3Ckfp4OnD4yY3twuXpm7dlNawS3yHcSM90aB+g2phCLehliC11BW2QdEqGYg3t6xCi8hAuNrAx0BAuySE4CSE4IJBAgDh4WFYK5bnFxilBDYIz7WH4JwDIKEZdYkB8EiNivSHU0Nj2Idnm0LHyc3Tu3ay5OdEBjk+AEJAOgZbb9klLtLSyRAx8SAeR9BHNzN4mZJcxSFUIF0jIgAkhwB1raGvBCK/0IhEFYj046+GEgygz4SabgFWUDggKAIAAFAMAJ0BKkAAQAA+kUSbSiWjoiGoCACwEglmAGfeUxQgPwpogPOK9AG8Abwx+5PpYuC+6BvgaQL3p0B+cX6Z9gPoNegx+ma0WlJLPs3Uq6HpBvu3yeQNnHXcLF7xMkOCHb7DYSjiFNKNcDIgAP78+FvR///1DBc+ORrUZzISuYmqOMLGOQ/zaUuKRTrF5Nm80r/X2D8lpeyCr0VQwyjiFS8DDfgE6JM3/kNY8uesZuvLeAgUWzW2/yTv2RX77/90+//MvU+3GHZ+wj7MMyxX/8Tnf/sBlAFR/wEVTP3poHuNCgOGRGdoxgHqJIukm4pn+zYgHieAatex072s5dd2+Lx/9DS/8T7XCBQrCGWMRlC/sf8CdIFFhER6nC5qFmw+O/O3U8s0uflu5GSfvuhDLLJ3gpdV80qfvHZqyqS8oWBZDTFAlndM0W+oe7H/9z2mihm/+kd8Jf+Pleu//Y8hsyT///T7XSVtjZprjyqVNxSxLioafMN77Sib2Ti40AuU3PY8GmXiY0US8I9G9DEJj8CoEDPzOdU7Qh/VRQDNleg/omm79j3+gUnP8V4sPPrddRMS0nCxuPAD4Ssvaf7lLlThPKhJA+Xm+Ah4ioajzkN+VIb8C73pZ1aotgCR5QL4o5qwD44BKG1RaUMJrwM27h8XLrQStXQ95pkw1SlgLxba/oWuIjtQ2N1aZt75fVZPEVPXXB8lNRc24F5hakDsw4Tep00AAAAAAA==" alt="BEANCRAFT" className="w-8 h-8 object-contain" />
+ <img src="/logo.png" alt="BEANCRAFT" className="w-8 h-8 object-contain" />
  <span className="font-semibold text-slate-200 text-sm tracking-wide">BEANCRAFT</span>
  </div>
  <div className="flex items-center gap-2 sm:gap-3">
@@ -34666,7 +34713,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div key={item} className="text-center">
  <p className="text-xs text-slate-200 mb-1">{item}</p>
  {canEdit ? (
- <input type="number" value={m.promo?.[item] || 0} onChange={e => updateManagerPromo(m.id, item, e.target.value)} className="w-full text-center p-2 border rounded-lg text-sm font-bold" />
+ <input type="number" value={m.promo?.[item] || 0} onChange={e => updateManagerPromo(m.id, item, e.target.value)} className="w-full text-center p-2 border rounded-lg text-sm font-bold bg-white text-slate-900" />
  ) : (<p className="font-bold text-slate-100">{m.promo?.[item] || 0}</p>)}
  </div>
  ))}
@@ -34807,6 +34854,34 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  seen.set(key, { data: r, index: rawValidRealtors.indexOf(r) });
  return true;
  }).filter(r => r !== null);
+ 
+ // 등록된 업체 중 수집 안 된 것들을 중개사 리스트에 추가
+ const realtorKeys = new Set(validRealtors.map(r => {
+   const name = normalizeNameForDuplicate(getOfficeName(r));
+   const { city, district } = extractCityDistrict(r.address);
+   return `${name}-${city}-${district}`;
+ }));
+ 
+ companies.forEach(company => {
+   const companyName = normalizeNameForDuplicate(company.name || '');
+   const { city, district } = extractCityDistrict(company.address);
+   const key = `${companyName}-${city}-${district}`;
+   
+   // 이미 수집된 중개사에 있으면 스킵
+   if (realtorKeys.has(key)) return;
+   
+   // 등록된 업체를 중개사 형식으로 변환해서 추가
+   validRealtors.push({
+     id: `company-${company.id}`,
+     name: company.name,
+     address: company.address,
+     phone: company.phone,
+     listings: 0, // 수집 안 됐으므로 매물 수 없음
+     isFromCompany: true, // 등록된 업체 표시
+     managerId: company.managerId,
+     collected_at: company.createdAt
+   });
+ });
  
  // 시/도 > 구/군 계층 구조 생성
  const regionHierarchy = {};
@@ -34969,9 +35044,12 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  const officeName = getOfficeName(realtor);
  const listingCount = getListingCount(realtor);
  const duplicateCheck = checkDuplicate(realtor, companies);
- const isRegistered = duplicateCheck.isDuplicate;
+ const isRegistered = duplicateCheck.isDuplicate || realtor.isFromCompany;
  const matchedCompany = duplicateCheck.matchedCompany;
- const assignedManager = matchedCompany ? managers.find(m => m.id === matchedCompany.managerId) : null;
+ // 등록된 업체인 경우 직접 managerId로 담당자 찾기
+ const assignedManager = realtor.isFromCompany 
+   ? managers.find(m => m.id === realtor.managerId)
+   : (matchedCompany ? managers.find(m => m.id === matchedCompany.managerId) : null);
  const isInRoute = routeStops.some(s => s.name === officeName);
  
  return (
@@ -34995,7 +35073,11 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <span className="px-2 py-0.5 text-xs rounded-full bg-teal-900 text-teal-300 font-bold">{listingCount}건</span>
  {isInRoute && <span className="px-2 py-0.5 text-xs rounded-full bg-purple-900 text-purple-300">동선</span>}
  {isRegistered && <span className="px-2 py-0.5 text-xs rounded-full bg-green-900 text-green-300">방문</span>}
- {assignedManager && <span className="px-1.5 py-0.5 text-xs rounded-full text-white font-bold" style={{backgroundColor: assignedManager.color}}>{assignedManager.name?.slice(0,1)}</span>}
+ {assignedManager ? (
+   <span className="px-1.5 py-0.5 text-xs rounded-full text-white font-bold" style={{backgroundColor: assignedManager.color}}>{assignedManager.name}</span>
+ ) : (
+   <span className="px-1.5 py-0.5 text-xs rounded-full bg-slate-600 text-slate-300 font-bold">미배정</span>
+ )}
  </div>
  <span className="text-slate-500 text-sm">›</span>
  </div>
@@ -35220,7 +35302,6 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  >
  <div className="flex items-center gap-2 min-w-0 flex-1">
  <span className="font-bold text-slate-100 text-sm truncate">{c.name}</span>
- {c.phone && <span className="text-xs text-slate-200 hidden sm:inline">{c.phone}</span>}
  </div>
  <div className="flex gap-2 flex-shrink-0">
  <button type="button" onClick={(e) => { e.stopPropagation(); setShowCompanyEditModal({ ...c }); }} className="text-slate-200 font-bold text-xs">수정</button>
@@ -35676,7 +35757,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {showCompanyMapModal.phone && (
  <div className="flex items-center gap-2">
  <span className="text-slate-200 text-sm w-16">연락처</span>
- <a href={`tel:${showCompanyMapModal.phone}`} className="font-bold text-primary-600">{showCompanyMapModal.phone}</a>
+ <a href={`tel:${showCompanyMapModal.phone}`} className="font-bold text-primary-600 md:pointer-events-none md:text-slate-200">{showCompanyMapModal.phone}</a>
  </div>
  )}
  {showCompanyMapModal.address && (
