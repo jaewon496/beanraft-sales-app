@@ -849,6 +849,7 @@ ${JSON.stringify(regionData, null, 2)}
  const [showCalendarModal, setShowCalendarModal] = useState(false);
  const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
  const [showUnvisitedModal, setShowUnvisitedModal] = useState(null); // 미방문 업체 처리 모달
+ const [addressIssueAlert, setAddressIssueAlert] = useState(null); // 주소 오류 알림
  const [calendarEventInput, setCalendarEventInput] = useState({ title: '', time: '09:00', memo: '' });
  const [editingEventId, setEditingEventId] = useState(null);
  const [placeSearchQuery, setPlaceSearchQuery] = useState('');
@@ -1369,6 +1370,94 @@ ${JSON.stringify(regionData, null, 2)}
           setIncompleteRouteAlert(null);
         }
       }, [loggedIn, calendarEvents, routes]);
+
+ // 주소 오류 감지 및 담당자 알림
+ useEffect(() => {
+   if (!loggedIn || !currentUser || companies.length === 0) return;
+   
+   // 주소 오류 감지 함수
+   const detectAddressIssues = (address) => {
+     if (!address) return { hasIssue: true, issue: '주소 없음' };
+     
+     // 오타 패턴 감지
+     const typoPatterns = [
+       { pattern: /님양주/, correct: '남양주', issue: '오타: 님양주 → 남양주' },
+       { pattern: /님원/, correct: '남원', issue: '오타: 님원 → 남원' },
+       { pattern: /서율/, correct: '서울', issue: '오타: 서율 → 서울' },
+       { pattern: /겅기/, correct: '경기', issue: '오타: 겅기 → 경기' },
+       { pattern: /인쳔/, correct: '인천', issue: '오타: 인쳔 → 인천' },
+     ];
+     
+     for (const { pattern, issue } of typoPatterns) {
+       if (pattern.test(address)) {
+         return { hasIssue: true, issue };
+       }
+     }
+     
+     // 각 도별 시 목록 (시/도 없어도 인식 가능)
+     const allProvinceCities = [
+       '수원', '성남', '고양', '용인', '부천', '안산', '안양', '남양주', '화성', '평택', '의정부', '시흥', '파주', '광명', '김포', '군포', '이천', '양주', '오산', '구리', '안성', '포천', '의왕', '하남', '여주', '양평', '동두천', '과천', // 경기
+       '춘천', '원주', '강릉', '동해', '삼척', '속초', '태백', // 강원
+       '청주', '충주', '제천', // 충북
+       '천안', '공주', '보령', '아산', '서산', '논산', '계룡', '당진', // 충남
+       '전주', '군산', '익산', '정읍', '남원', '김제', // 전북
+       '목포', '여수', '순천', '나주', '광양', // 전남
+       '포항', '경주', '김천', '안동', '구미', '영주', '영천', '상주', '문경', '경산', // 경북
+       '창원', '진주', '통영', '사천', '김해', '밀양', '거제', '양산', // 경남
+       '제주', '서귀포' // 제주
+     ];
+     // 서울 구 목록
+     const seoulDistricts = ['종로', '중구', '용산', '성동', '광진', '동대문', '중랑', '성북', '강북', '도봉', '노원', '은평', '서대문', '마포', '양천', '강서', '구로', '금천', '영등포', '동작', '관악', '서초', '강남', '송파', '강동'];
+     
+     // 시/도 정보 확인
+     const hasCity = /서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충청|충북|충남|전라|전북|전남|경상|경북|경남|제주/.test(address);
+     // 각 도별 시 이름만 있어도 OK
+     const hasProvinceCity = allProvinceCities.some(city => address.includes(city + '시') || address.includes(city + ' '));
+     // 서울 구 이름만 있어도 OK
+     const hasSeoulGu = seoulDistricts.some(gu => address.includes(gu + '구') || address.includes(gu + ' ') || address.includes(gu + '동'));
+     
+     if (!hasCity && !hasProvinceCity && !hasSeoulGu && address.length > 5) {
+       return { hasIssue: true, issue: '시/도 정보 누락' };
+     }
+     
+     // 좌표 변환 실패 가능성 (특수한 주소 형식)
+     const hasValidFormat = /[가-힣]+(시|도|구|군|읍|면|동|리|로|길)\s*\d*/.test(address);
+     if (!hasValidFormat && address.length > 3) {
+       return { hasIssue: true, issue: '주소 형식 확인 필요' };
+     }
+     
+     return { hasIssue: false };
+   };
+   
+   // 현재 담당자의 업체 중 주소 오류 확인
+   const currentManagerId = currentUser.managerId || currentUser.id;
+   const myCompanies = companies.filter(c => c.managerId === currentManagerId);
+   
+   const issueCompanies = [];
+   myCompanies.forEach(company => {
+     const { hasIssue, issue } = detectAddressIssues(company.address);
+     // 좌표가 없는 경우도 오류로 처리
+     const noCoords = !company.lat || !company.lng;
+     
+     if (hasIssue || noCoords) {
+       issueCompanies.push({
+         id: company.id,
+         name: company.name,
+         address: company.address,
+         issue: hasIssue ? issue : '좌표 변환 실패 (주소 확인 필요)'
+       });
+     }
+   });
+   
+   if (issueCompanies.length > 0) {
+     setAddressIssueAlert({
+       count: issueCompanies.length,
+       companies: issueCompanies
+     });
+   } else {
+     setAddressIssueAlert(null);
+   }
+ }, [loggedIn, currentUser, companies]);
 
  
  const saveManager = (manager) => database.ref('managers/' + manager.id).set(manager);
@@ -2752,10 +2841,7 @@ ${JSON.stringify(regionData, null, 2)}
        }
      }
      
-     // 6순위: 주소키만 일치 (이름 무관 - 같은 건물)
-     if (realtorAddrKey && companyAddrKey && realtorAddrKey === companyAddrKey) {
-       return { isDuplicate: true, matchedCompany: company, reason: 'address' };
-     }
+     // 6순위 제거: 주소키만 일치는 같은 건물 다른 업체 오매칭 위험
    }
    
    return { isDuplicate: false, matchedCompany: null };
@@ -31958,6 +32044,37 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
    </div>
  </div>
  )}
+ {/* 주소 오류 알림 배너 (담당자 본인만) */}
+ {addressIssueAlert && (
+ <div className="bg-gradient-to-r from-rose-600 to-pink-600 px-4 py-3 flex items-center justify-between">
+   <div className="flex items-center gap-3">
+     <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
+       <span className="text-white text-lg">📍</span>
+     </div>
+     <div>
+       <p className="text-white font-bold text-sm">주소 확인 필요 {addressIssueAlert.count}개</p>
+       <p className="text-white/80 text-xs">등록 업체 중 주소 오류가 있습니다</p>
+     </div>
+   </div>
+   <div className="flex items-center gap-2">
+     <button 
+       onClick={() => { 
+         const firstIssue = addressIssueAlert.companies[0];
+         alert(`[주소 수정 필요]\n\n${addressIssueAlert.companies.map((c, i) => `${i+1}. ${c.name}\n   현재: ${c.address || '없음'}\n   문제: ${c.issue}`).join('\n\n')}\n\n업체 탭에서 해당 업체 주소를 수정해주세요.`);
+       }}
+       className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-bold rounded-lg transition-all"
+     >
+       확인하기
+     </button>
+     <button 
+       onClick={() => setAddressIssueAlert(null)}
+       className="w-6 h-6 flex items-center justify-center text-white/60 hover:text-white transition-colors"
+     >
+       ✕
+     </button>
+   </div>
+ </div>
+ )}
  <div className="p-3 sm:p-4 max-w-6xl mx-auto">
  {tab === 'report' && (
  <div className="space-y-3 sm:space-y-4">
@@ -34886,8 +35003,24 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  const extractCityDistrict = (address) => {
  if (!address) return { city: '기타', district: '기타' };
  
+ // 서울 구 목록 (구 없이 이름만 나와도 인식)
+ const seoulDistricts = ['종로', '중구', '용산', '성동', '광진', '동대문', '중랑', '성북', '강북', '도봉', '노원', '은평', '서대문', '마포', '양천', '강서', '구로', '금천', '영등포', '동작', '관악', '서초', '강남', '송파', '강동'];
+ 
+ // 각 도별 시 목록 (시/도 없이 시 이름만 나와도 해당 도로 인식)
+ const provinceCities = {
+   '경기도': ['수원', '성남', '고양', '용인', '부천', '안산', '안양', '남양주', '화성', '평택', '의정부', '시흥', '파주', '광명', '김포', '군포', '광주', '이천', '양주', '오산', '구리', '안성', '포천', '의왕', '하남', '여주', '양평', '동두천', '과천', '가평', '연천'],
+   '강원특별자치도': ['춘천', '원주', '강릉', '동해', '삼척', '속초', '태백', '홍천', '횡성', '영월', '평창', '정선', '철원', '화천', '양구', '인제', '고성', '양양'],
+   '충청북도': ['청주', '충주', '제천', '보은', '옥천', '영동', '증평', '진천', '괴산', '음성', '단양'],
+   '충청남도': ['천안', '공주', '보령', '아산', '서산', '논산', '계룡', '당진', '금산', '부여', '서천', '청양', '홍성', '예산', '태안'],
+   '전북특별자치도': ['전주', '군산', '익산', '정읍', '남원', '김제', '완주', '진안', '무주', '장수', '임실', '순창', '고창', '부안'],
+   '전라남도': ['목포', '여수', '순천', '나주', '광양', '담양', '곡성', '구례', '고흥', '보성', '화순', '장흥', '강진', '해남', '영암', '무안', '함평', '영광', '장성', '완도', '진도', '신안'],
+   '경상북도': ['포항', '경주', '김천', '안동', '구미', '영주', '영천', '상주', '문경', '경산', '군위', '의성', '청송', '영양', '영덕', '청도', '고령', '성주', '칠곡', '예천', '봉화', '울진', '울릉'],
+   '경상남도': ['창원', '진주', '통영', '사천', '김해', '밀양', '거제', '양산', '의령', '함안', '창녕', '고성', '남해', '하동', '산청', '함양', '거창', '합천'],
+   '제주특별자치도': ['제주', '서귀포']
+ };
+ 
  const cityPatterns = [
- { pattern: /서울(특별시)?/, city: '서울특별시' },
+ { pattern: /서울(특별시|시)?/, city: '서울특별시' },
  { pattern: /부산(광역시)?/, city: '부산광역시' },
  { pattern: /대구(광역시)?/, city: '대구광역시' },
  { pattern: /인천(광역시)?/, city: '인천광역시' },
@@ -34914,22 +35047,59 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  }
  }
  
- // 구/군/시 추출
+ // 구/군 추출
  let district = '기타';
-      const districtMatch = address.match(/([가-힣]{1,4})(구|군)/);
+ const districtMatch = address.match(/([가-힣]{1,4})(구|군)/);
  if (districtMatch) {
-      const matched = districtMatch[1] + districtMatch[2];
- // 시/도 이름이 아닌 경우만
- if (!matched.includes('특별') && !matched.includes('광역') && matched.length <= 5) {
- district = matched;
- }
+   const matched = districtMatch[1] + districtMatch[2];
+   if (!matched.includes('특별') && !matched.includes('광역') && matched.length <= 5) {
+     district = matched;
+   }
  }
  
- // 구/군이 없으면 시(市) 단위 추출 (예: 수원시, 성남시)
+ // 구 없이 이름만 있는 경우 (예: "서울시 종로 134" → 종로구)
+ if (district === '기타' && city === '서울특별시') {
+   for (const gu of seoulDistricts) {
+     // 주소에 구 이름이 포함되어 있으면 (단, 다른 단어의 일부가 아닌 경우)
+     const guRegex = new RegExp(`${gu}(?!\\S*구)\\s|${gu}(?!\\S*구)$|\\s${gu}\\s`);
+     if (guRegex.test(address) || address.includes(gu + ' ') || address.includes(gu + '동')) {
+       district = gu + '구';
+       break;
+     }
+   }
+ }
+ 
+ // 각 도별 시 이름으로 city 설정 (시/도 없이 시 이름만 있어도 인식)
+ if (city === '기타') {
+   const cityMatch = address.match(/([가-힣]{2,4})시(?![도특])/);
+   if (cityMatch) {
+     const cityName = cityMatch[1];
+     // 모든 도에서 해당 시 이름 찾기
+     for (const [province, cities] of Object.entries(provinceCities)) {
+       if (cities.includes(cityName)) {
+         city = province;
+         if (district === '기타') {
+           district = cityName + '시';
+         }
+         break;
+       }
+     }
+   }
+ }
+ 
+ // 구/군이 없으면 시(市) 단위 추출
  if (district === '기타') {
    const cityMatch = address.match(/([가-힣]{2,4})시(?![도특])/);
    if (cityMatch) {
      district = cityMatch[1] + '시';
+   }
+ }
+ 
+ // 서울 구 이름만 있고 시/도 정보 없으면 서울로 설정
+ if (city === '기타' && district !== '기타' && district.endsWith('구')) {
+   const guName = district.replace('구', '');
+   if (seoulDistricts.includes(guName)) {
+     city = '서울특별시';
    }
  }
  
