@@ -2669,41 +2669,92 @@ ${JSON.stringify(regionData, null, 2)}
    if (!realtor || !companyList || companyList.length === 0) return { isDuplicate: false, matchedCompany: null };
    
    const realtorName = realtor.name || realtor.officeName || realtor.realtorName || '';
-   const realtorPhone = normalizePhone(realtor.phone || realtor.cellPhone || '');
-   const realtorAddr = normalizeAddress(realtor.address || '');
+   const realtorAddr = realtor.address || '';
    const realtorRegNo = realtor.regNo || '';
    const realtorLat = realtor.lat;
    const realtorLng = realtor.lng;
    
+   // 전화번호 여러 필드 수집
+   const realtorPhones = [
+     normalizePhone(realtor.phone || ''),
+     normalizePhone(realtor.cellPhone || ''),
+     normalizePhone(realtor.officePhone || ''),
+     normalizePhone(realtor.mobile || '')
+   ].filter(p => p && p.length >= 4);
+   
+   // 핵심 이름 추출 (공인중개사, 부동산 등 제거)
+   const extractCoreName = (name) => {
+     return (name || '')
+       .replace(/공인중개사사무소|공인중개사|부동산중개|부동산|중개사무소|공인|사무소/g, '')
+       .replace(/\s+/g, '')
+       .trim();
+   };
+   
+   // 주소 키 추출 (구 + 도로명 + 번지)
+   const extractAddressKey = (addr) => {
+     if (!addr) return '';
+     const norm = addr.replace(/서울특별시|서울시|서울|경기도|인천광역시|부산광역시/g, '')
+                      .replace(/\([^)]*\)/g, '').trim();
+     const match = norm.match(/(\S+구)\s*(\S+(?:로|길|동))\s*(\d+(?:-\d+)?)/);
+     if (match) return `${match[1]}_${match[2]}_${match[3]}`;
+     return '';
+   };
+   
+   const realtorCoreName = extractCoreName(realtorName);
+   const realtorAddrKey = extractAddressKey(realtorAddr);
+   
    for (const company of companyList) {
      const companyName = company.name || '';
-     const companyPhone = normalizePhone(company.phone || company.contact || '');
-     const companyAddr = normalizeAddress(company.address || '');
+     const companyAddr = company.address || '';
      const companyRegNo = company.regNo || '';
      const companyLat = company.lat;
      const companyLng = company.lng;
+     
+     const companyPhones = [
+       normalizePhone(company.phone || ''),
+       normalizePhone(company.contact || ''),
+       normalizePhone(company.mobile || '')
+     ].filter(p => p && p.length >= 4);
+     
+     const companyCoreName = extractCoreName(companyName);
+     const companyAddrKey = extractAddressKey(companyAddr);
      
      // 1순위: 등록번호 일치 (100% 확실)
      if (realtorRegNo && companyRegNo && realtorRegNo === companyRegNo) {
        return { isDuplicate: true, matchedCompany: company, reason: 'regNo' };
      }
      
-     // 2순위: 좌표 50m 이내 + 이름 일치
+     // 2순위: 좌표 30m 이내 + 핵심이름 일치
      const distance = calcDistanceMeters(realtorLat, realtorLng, companyLat, companyLng);
-     if (distance < 50 && realtorName === companyName) {
+     if (distance <= 30 && realtorCoreName && companyCoreName && realtorCoreName === companyCoreName) {
        return { isDuplicate: true, matchedCompany: company, reason: 'location+name' };
      }
      
-     // 3순위: 전화번호 일치 (4자리 이상만)
-     if (realtorPhone && companyPhone && realtorPhone.length >= 4 && realtorPhone === companyPhone) {
+     // 3순위: 전화번호 일치 (모든 필드 비교)
+     const phoneMatch = realtorPhones.some(rp => companyPhones.some(cp => rp === cp));
+     if (phoneMatch) {
        return { isDuplicate: true, matchedCompany: company, reason: 'phone' };
      }
      
-     // 4순위: 이름 + 주소 핵심부분 모두 일치
-     if (realtorName && companyName && realtorName === companyName) {
-       if (realtorAddr && companyAddr && realtorAddr.includes(companyAddr.slice(0, 10)) || companyAddr.includes(realtorAddr.slice(0, 10))) {
-         return { isDuplicate: true, matchedCompany: company, reason: 'name+address' };
+     // 4순위: 주소키 + 핵심이름 모두 일치
+     if (realtorAddrKey && companyAddrKey && realtorAddrKey === companyAddrKey) {
+       if (realtorCoreName && companyCoreName && realtorCoreName === companyCoreName) {
+         return { isDuplicate: true, matchedCompany: company, reason: 'address+name' };
        }
+     }
+     
+     // 5순위: 같은 구 내 핵심이름 일치
+     if (realtorCoreName && companyCoreName && realtorCoreName === companyCoreName) {
+       const realtorGu = realtorAddr.match(/(\S+구)/);
+       const companyGu = companyAddr.match(/(\S+구)/);
+       if (realtorGu && companyGu && realtorGu[1] === companyGu[1]) {
+         return { isDuplicate: true, matchedCompany: company, reason: 'name_in_gu' };
+       }
+     }
+     
+     // 6순위: 주소키만 일치 (이름 무관 - 같은 건물)
+     if (realtorAddrKey && companyAddrKey && realtorAddrKey === companyAddrKey) {
+       return { isDuplicate: true, matchedCompany: company, reason: 'address' };
      }
    }
    
@@ -34921,22 +34972,15 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  return true;
  }).filter(r => r !== null);
  
- // 등록된 업체 중 수집 안 된 것들을 중개사 리스트에 추가
- const realtorKeys = new Set(validRealtors.map(r => {
-   const name = normalizeNameForDuplicate(getOfficeName(r));
-   const { city, district } = extractCityDistrict(r.address);
-   return `${name}-${city}-${district}`;
- }));
- 
+ // 등록된 업체 중 수집된 중개사와 매칭 안 되는 것만 추가
  companies.forEach(company => {
-   const companyName = normalizeNameForDuplicate(company.name || '');
-   const { city, district } = extractCityDistrict(company.address);
-   const key = `${companyName}-${city}-${district}`;
+   // checkDuplicate로 매칭 확인 (개선된 A~C 로직 사용)
+   const matchResult = checkDuplicate(company, validRealtors);
    
-   // 이미 수집된 중개사에 있으면 스킵
-   if (realtorKeys.has(key)) return;
+   // 이미 수집된 중개사와 매칭되면 스킵
+   if (matchResult.isDuplicate) return;
    
-   // 등록된 업체를 중개사 형식으로 변환해서 추가
+   // 매칭 안 되는 등록 업체만 중개사 형식으로 추가
    validRealtors.push({
      id: `company-${company.id}`,
      name: company.name,
