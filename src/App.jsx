@@ -34986,6 +34986,28 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  // 직급 가져오기
  const getAgentPosition = (r) => r.agentPosition || '';
  
+ // 수집일 포맷 함수 (다양한 형식 지원)
+ const formatCollectedDate = (dateStr) => {
+   if (!dateStr) return '';
+   
+   // ISO 형식 (2025-12-28T22:04:19.325Z)
+   if (dateStr.includes('T')) {
+     const date = new Date(dateStr);
+     if (!isNaN(date.getTime())) {
+       return date.toLocaleDateString('ko-KR');
+     }
+   }
+   
+   // 한국어 형식 (2026. 1. 7. 오후 1:40:15)
+   const koreanMatch = dateStr.match(/(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})/);
+   if (koreanMatch) {
+     const [, year, month, day] = koreanMatch;
+     return `${year}. ${month}. ${day}.`;
+   }
+   
+   return dateStr;
+ };
+ 
  // 시/도 표준 순서
  const CITY_ORDER = ['서울특별시', '경기도', '인천광역시', '부산광역시', '대구광역시', '광주광역시', '대전광역시', '울산광역시', '세종특별자치시', '강원특별자치도', '충청북도', '충청남도', '전북특별자치도', '전라남도', '경상북도', '경상남도', '제주특별자치도'];
  
@@ -35156,10 +35178,18 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
      name: company.name,
      address: company.address,
      phone: company.phone,
+     cellPhone: company.phone, // 휴대폰도 동일하게
      listings: 0, // 수집 안 됐으므로 매물 수 없음
      isFromCompany: true, // 등록된 업체 표시
      managerId: company.managerId,
-     collected_at: company.createdAt
+     collected_at: company.createdAt,
+     // 등록 업체 추가 정보
+     agentName: company.contact || '', // 연락처 담당자
+     memo: company.memo || '',
+     reaction: company.reaction || '',
+     lat: company.lat,
+     lng: company.lng,
+     companyId: company.id // 원본 업체 ID
    });
  });
  
@@ -35340,11 +35370,13 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  ...realtor,
  officeName,
  listingCount,
- agentName: getAgentName(realtor),
+ agentName: realtor.isFromCompany ? realtor.agentName : getAgentName(realtor), // 등록 업체는 연락처 담당자 유지
  agentPosition: getAgentPosition(realtor),
  isRegistered,
  isInRoute,
- collectedDate: realtor.collected_at ? new Date(realtor.collected_at).toLocaleDateString('ko-KR') : ''
+ assignedManager: assignedManager, // 시스템 담당자 전달
+ matchedCompany: matchedCompany, // 매칭된 업체 정보 전달
+ collectedDate: realtor.collected_at ? formatCollectedDate(realtor.collected_at) : ''
  })}
  >
  <div className="flex justify-between items-center">
@@ -35938,13 +35970,46 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <p className="font-bold text-slate-200">{showRealtorDetailModal.cellPhone || '-'}</p>
  </div>
  <div className="bg-slate-800 border border-slate-600 rounded-lg p-3">
- <p className="text-slate-400 text-xs mb-1">담당자</p>
- <p className="font-bold text-slate-200">{showRealtorDetailModal.agentPosition} {showRealtorDetailModal.agentName}</p>
+ <p className="text-slate-400 text-xs mb-1">{showRealtorDetailModal.isFromCompany ? '배정 담당자' : '담당자'}</p>
+ <p className="font-bold text-slate-200">
+   {showRealtorDetailModal.assignedManager 
+     ? <span className="px-2 py-0.5 rounded-full text-white text-xs" style={{backgroundColor: showRealtorDetailModal.assignedManager.color}}>{showRealtorDetailModal.assignedManager.name}</span>
+     : (showRealtorDetailModal.agentPosition || showRealtorDetailModal.agentName 
+       ? `${showRealtorDetailModal.agentPosition} ${showRealtorDetailModal.agentName}`.trim() 
+       : '미정')}
+ </p>
  </div>
  <div className="bg-slate-800 border border-slate-600 rounded-lg p-3">
- <p className="text-slate-400 text-xs mb-1">수집일</p>
+ <p className="text-slate-400 text-xs mb-1">{showRealtorDetailModal.isFromCompany ? '등록일' : '수집일'}</p>
  <p className="font-bold text-slate-200">{showRealtorDetailModal.collectedDate || '-'}</p>
  </div>
+ {/* 등록 업체인 경우 연락처 담당자 표시 */}
+ {showRealtorDetailModal.isFromCompany && showRealtorDetailModal.agentName && (
+ <div className="bg-slate-800 border border-slate-600 rounded-lg p-3 col-span-2">
+ <p className="text-slate-400 text-xs mb-1">연락처 담당자</p>
+ <p className="font-bold text-slate-200">{showRealtorDetailModal.agentName}</p>
+ </div>
+ )}
+ {/* 등록 업체인 경우 반응 표시 */}
+ {showRealtorDetailModal.isFromCompany && showRealtorDetailModal.reaction && (
+ <div className="bg-slate-800 border border-slate-600 rounded-lg p-3 col-span-2">
+ <p className="text-slate-400 text-xs mb-1">반응</p>
+ <p className="font-bold text-slate-200">
+   {showRealtorDetailModal.reaction === 'negative' && <span className="px-2 py-0.5 rounded bg-slate-600 text-slate-300">부정</span>}
+   {showRealtorDetailModal.reaction === 'positive' && <span className="px-2 py-0.5 rounded bg-amber-600 text-white">양호</span>}
+   {showRealtorDetailModal.reaction === 'good' && <span className="px-2 py-0.5 rounded bg-green-600 text-white">긍정</span>}
+   {showRealtorDetailModal.reaction === 'special' && <span className="px-2 py-0.5 rounded bg-red-600 text-white">특별</span>}
+   {showRealtorDetailModal.reaction === 'skip' && <span className="px-2 py-0.5 rounded bg-yellow-600 text-white">누락</span>}
+ </p>
+ </div>
+ )}
+ {/* 등록 업체인 경우 메모 표시 */}
+ {showRealtorDetailModal.isFromCompany && showRealtorDetailModal.memo && (
+ <div className="bg-slate-800 border border-slate-600 rounded-lg p-3 col-span-2">
+ <p className="text-slate-400 text-xs mb-1">메모</p>
+ <p className="text-slate-200 text-sm">{showRealtorDetailModal.memo}</p>
+ </div>
+ )}
  </div>
  {showRealtorDetailModal.articleCounts && (
  <div className="flex flex-wrap gap-1">
@@ -35975,12 +36040,16 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  lat: lat,
  lng: lng,
  visited: false,
- listings: showRealtorDetailModal.listingCount
+ listings: showRealtorDetailModal.listingCount,
+ companyId: showRealtorDetailModal.companyId || null // 등록 업체 ID 연결
  }]);
  setShowRealtorDetailModal(null);
  alert('동선에 추가되었습니다!');
  };
- if (address && window.naver?.maps?.Service) {
+ // 이미 좌표가 있으면 바로 사용 (등록 업체)
+ if (showRealtorDetailModal.lat && showRealtorDetailModal.lng) {
+ addStop(showRealtorDetailModal.lat, showRealtorDetailModal.lng);
+ } else if (address && window.naver?.maps?.Service) {
  naver.maps.Service.geocode({ query: address }, (status, response) => {
  if (status === naver.maps.Service.Status.OK && response.v2.addresses.length > 0) {
  const result = response.v2.addresses[0];
