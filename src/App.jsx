@@ -1991,13 +1991,15 @@ ${JSON.stringify(regionData, null, 2)}
   useEffect(() => {
     if (loggedIn) return;
     
-    // 명언 표시 (2초) -> 로고 표시 (2초) -> 로그인 폼 표시
-    const timer1 = setTimeout(() => setLoginPhase('logo'), 2000);
-    const timer2 = setTimeout(() => setLoginPhase('form'), 4000);
+    // 명언 표시 (4초) -> 페이드아웃 시작 -> 로고 표시 (2초) -> 로그인 폼 표시
+    const timer1 = setTimeout(() => setLoginPhase('transition'), 3000); // 명언 페이드아웃 시작
+    const timer2 = setTimeout(() => setLoginPhase('logo'), 4500); // 로고만 표시
+    const timer3 = setTimeout(() => setLoginPhase('form'), 6500); // 로그인 폼 표시
     
     return () => {
       clearTimeout(timer1);
       clearTimeout(timer2);
+      clearTimeout(timer3);
     };
   }, [loggedIn]);
   
@@ -31699,41 +31701,75 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
      <>
      <style>{`
        @keyframes fadeIn {
-         from { opacity: 0; transform: translateY(10px); }
+         from { opacity: 0; }
+         to { opacity: 1; }
+       }
+       @keyframes fadeOut {
+         from { opacity: 1; }
+         to { opacity: 0; }
+       }
+       @keyframes slideUp {
+         from { opacity: 0; transform: translateY(30px); }
          to { opacity: 1; transform: translateY(0); }
        }
+       @keyframes logoFadeIn {
+         from { opacity: 0; transform: scale(0.9); }
+         to { opacity: 1; transform: scale(1); }
+       }
        .animate-fade-in {
-         animation: fadeIn 0.8s ease-out forwards;
+         animation: fadeIn 1.2s ease-out forwards;
+       }
+       .animate-fade-out {
+         animation: fadeOut 1.5s ease-out forwards;
+       }
+       .animate-logo-in {
+         animation: logoFadeIn 1.5s ease-out forwards;
+       }
+       .animate-slide-up {
+         animation: slideUp 1s ease-out forwards;
        }
      `}</style>
      <div className="min-h-screen flex items-center justify-center p-4 login-gradient-bg">
-       <div className="w-full max-w-md">
-         {/* Phase 1: 명언 */}
+       <div className="w-full max-w-md relative">
+         {/* Phase 1: 명언만 */}
          {loginPhase === 'quote' && (
            <div className="text-center animate-fade-in">
              <p className="text-slate-300 text-sm sm:text-base font-normal leading-relaxed max-w-xs sm:max-w-sm mx-auto">"{loginQuote}"</p>
            </div>
          )}
          
-         {/* Phase 2: 로고 */}
+         {/* Phase 2: 명언 사라지면서 로고 나타남 */}
+         {loginPhase === 'transition' && (
+           <div className="relative">
+             <div className="text-center animate-fade-out absolute inset-0">
+               <p className="text-slate-300 text-sm sm:text-base font-normal leading-relaxed max-w-xs sm:max-w-sm mx-auto">"{loginQuote}"</p>
+             </div>
+             <div className="text-center animate-logo-in" style={{animationDelay: '0.5s', opacity: 0}}>
+               <img src="/logo.png" alt="BEANCRAFT" className="w-40 h-40 sm:w-56 sm:h-56 mx-auto mb-4 object-contain" />
+               <p className="text-slate-200 text-base sm:text-lg tracking-widest font-semibold">빈크래프트 영업관리</p>
+             </div>
+           </div>
+         )}
+         
+         {/* Phase 3: 로고만 */}
          {loginPhase === 'logo' && (
-           <div className="text-center animate-fade-in">
+           <div className="text-center">
              <img src="/logo.png" alt="BEANCRAFT" className="w-40 h-40 sm:w-56 sm:h-56 mx-auto mb-4 object-contain" />
              <p className="text-slate-200 text-base sm:text-lg tracking-widest font-semibold">빈크래프트 영업관리</p>
            </div>
          )}
          
-         {/* Phase 3: 로그인 폼 */}
+         {/* Phase 4: 로고 + 로그인 폼 (폼은 아래에서 슬라이드) */}
          {loginPhase === 'form' && (
-           <div className="animate-fade-in">
+           <div>
              <div className="text-center mb-8">
                <img src="/logo.png" alt="BEANCRAFT" className="w-32 h-32 sm:w-48 sm:h-48 mx-auto mb-4 object-contain" />
                <p className="text-slate-200 text-base sm:text-lg tracking-widest font-semibold">빈크래프트 영업관리</p>
              </div>
-             <div className="text-center mb-6 px-4">
+             <div className="text-center mb-6 px-4 animate-fade-in" style={{animationDelay: '0.2s', opacity: 0}}>
                <p className="text-slate-300 text-xs sm:text-sm font-normal leading-relaxed max-w-xs sm:max-w-sm mx-auto">"{loginQuote}"</p>
              </div>
-             <div className="bg-slate-900/80 rounded-xl p-4 sm:p-6 shadow-xl border border-slate-700">
+             <div className="bg-slate-900/80 rounded-xl p-4 sm:p-6 shadow-xl border border-slate-700 animate-slide-up" style={{animationDelay: '0.4s', opacity: 0}}>
                <input type="text" placeholder="아이디" value={id} onChange={e => setId(e.target.value)} className="w-full p-2.5 sm:p-3 rounded-lg mb-2 sm:mb-3 bg-slate-700/50 text-white placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/50 border border-slate-600 text-sm font-medium" />
                <input type="password" placeholder="비밀번호" value={pw} onChange={e => setPw(e.target.value)} onKeyPress={e => e.key === 'Enter' && login()} className="w-full p-2.5 sm:p-3 rounded-lg mb-2 sm:mb-3 bg-slate-700/50 text-white placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/50 border border-slate-600 text-sm font-medium" />
                <label className="flex items-center gap-2 text-slate-300 text-sm mb-4 cursor-pointer">
