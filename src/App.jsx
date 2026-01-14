@@ -31695,73 +31695,74 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  return date.toLocaleDateString('ko-KR');
  };
  if (!loggedIn) {
+   const transitionStyle = {
+     transition: 'opacity 1.5s ease-in-out, transform 1.5s ease-in-out',
+     willChange: 'opacity, transform'
+   };
+   
    return (
-     <>
-     <style>{`
-       .login-element {
-         transition: opacity 1.5s cubic-bezier(0.4, 0, 0.2, 1), transform 1.5s cubic-bezier(0.4, 0, 0.2, 1);
-         will-change: opacity, transform;
-       }
-       .login-quote {
-         opacity: ${loginPhase === 'quote' ? 1 : 0};
-         transform: ${loginPhase === 'quote' ? 'translateY(0)' : 'translateY(-20px)'};
-         position: ${loginPhase === 'quote' ? 'relative' : 'absolute'};
-         pointer-events: ${loginPhase === 'quote' ? 'auto' : 'none'};
-       }
-       .login-logo-wrapper {
-         opacity: ${loginPhase === 'quote' ? 0 : 1};
-         transform: ${loginPhase === 'quote' ? 'scale(0.95)' : 'scale(1)'};
-       }
-       .login-form-wrapper {
-         opacity: ${loginPhase === 'form' ? 1 : 0};
-         transform: ${loginPhase === 'form' ? 'translateY(0)' : 'translateY(40px)'};
-         pointer-events: ${loginPhase === 'form' ? 'auto' : 'none'};
-       }
-       .login-logo-size {
-         transition: all 1s cubic-bezier(0.4, 0, 0.2, 1);
-         width: ${loginPhase === 'form' ? '8rem' : '10rem'};
-         height: ${loginPhase === 'form' ? '8rem' : '10rem'};
-       }
-       @media (min-width: 640px) {
-         .login-logo-size {
-           width: ${loginPhase === 'form' ? '12rem' : '14rem'};
-           height: ${loginPhase === 'form' ? '12rem' : '14rem'};
-         }
-       }
-     `}</style>
-     <div className="min-h-screen flex items-center justify-center p-4 login-gradient-bg">
-       <div className="w-full max-w-md">
-         {/* 명언 (처음만 보이고 서서히 사라짐) */}
-         <div className="login-element login-quote text-center inset-0 flex items-center justify-center">
-           <p className="text-slate-300 text-sm sm:text-base font-normal leading-relaxed max-w-xs sm:max-w-sm mx-auto" style={{wordBreak: 'keep-all'}}>"{loginQuote}"</p>
+     <div className="min-h-screen flex items-center justify-center p-4 login-gradient-bg overflow-hidden">
+       <div className="w-full max-w-md relative" style={{minHeight: '500px'}}>
+         
+         {/* 명언 - quote일 때만 보임 */}
+         <div 
+           className="absolute inset-0 flex items-center justify-center"
+           style={{
+             ...transitionStyle,
+             opacity: loginPhase === 'quote' ? 1 : 0,
+             transform: loginPhase === 'quote' ? 'translateY(0)' : 'translateY(-30px)',
+             pointerEvents: loginPhase === 'quote' ? 'auto' : 'none'
+           }}
+         >
+           <p className="text-slate-300 text-sm sm:text-base font-normal leading-relaxed max-w-xs sm:max-w-sm mx-auto text-center" style={{wordBreak: 'keep-all'}}>"{loginQuote}"</p>
          </div>
          
-         {/* 로고 + 폼 영역 */}
-         <div className="login-element login-logo-wrapper">
-           <div className="text-center mb-6">
-             <img src="/logo.png" alt="BEANCRAFT" className="login-logo-size mx-auto mb-4 object-contain" />
+         {/* 로고만 - logo일 때 보임 */}
+         <div 
+           className="absolute inset-0 flex items-center justify-center"
+           style={{
+             ...transitionStyle,
+             opacity: loginPhase === 'logo' ? 1 : 0,
+             transform: loginPhase === 'logo' ? 'scale(1)' : (loginPhase === 'quote' ? 'scale(0.9)' : 'scale(1.05)'),
+             pointerEvents: loginPhase === 'logo' ? 'auto' : 'none'
+           }}
+         >
+           <div className="text-center">
+             <img src="/logo.png" alt="BEANCRAFT" className="w-40 h-40 sm:w-56 sm:h-56 mx-auto mb-4 object-contain" />
              <p className="text-slate-200 text-base sm:text-lg tracking-widest font-semibold">빈크래프트 영업관리</p>
            </div>
-           
-           {/* 명언 (로그인 폼과 함께) */}
-           <div className="login-element login-form-wrapper">
-             <div className="text-center mb-6 px-4">
-               <p className="text-slate-300 text-xs sm:text-sm font-normal leading-relaxed max-w-xs sm:max-w-sm mx-auto" style={{wordBreak: 'keep-all'}}>"{loginQuote}"</p>
-             </div>
-             <div className="bg-slate-900/80 rounded-xl p-4 sm:p-6 shadow-xl border border-slate-700">
-               <input type="text" placeholder="아이디" value={id} onChange={e => setId(e.target.value)} className="w-full p-2.5 sm:p-3 rounded-lg mb-2 sm:mb-3 bg-slate-700/50 text-white placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/50 border border-slate-600 text-sm font-medium" />
-               <input type="password" placeholder="비밀번호" value={pw} onChange={e => setPw(e.target.value)} onKeyPress={e => e.key === 'Enter' && login()} className="w-full p-2.5 sm:p-3 rounded-lg mb-2 sm:mb-3 bg-slate-700/50 text-white placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/50 border border-slate-600 text-sm font-medium" />
-               <label className="flex items-center gap-2 text-slate-300 text-sm mb-4 cursor-pointer">
-                 <input type="checkbox" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)} className="w-4 h-4 rounded accent-primary-500" />
-                 로그인 상태 유지
-               </label>
-               <button type="button" onClick={login} className="w-full p-3 bg-[#1e3a5f] hover:bg-[#264a73] text-white rounded-lg font-semibold transition-all text-sm">로그인</button>
-             </div>
+         </div>
+         
+         {/* 로고 + 명언 + 로그인폼 - form일 때 보임 */}
+         <div 
+           className="absolute inset-0"
+           style={{
+             ...transitionStyle,
+             opacity: loginPhase === 'form' ? 1 : 0,
+             transform: loginPhase === 'form' ? 'translateY(0)' : 'translateY(50px)',
+             pointerEvents: loginPhase === 'form' ? 'auto' : 'none'
+           }}
+         >
+           <div className="text-center mb-6">
+             <img src="/logo.png" alt="BEANCRAFT" className="w-28 h-28 sm:w-40 sm:h-40 mx-auto mb-3 object-contain" />
+             <p className="text-slate-200 text-sm sm:text-base tracking-widest font-semibold">빈크래프트 영업관리</p>
+           </div>
+           <div className="text-center mb-5 px-4">
+             <p className="text-slate-300 text-xs sm:text-sm font-normal leading-relaxed max-w-xs sm:max-w-sm mx-auto" style={{wordBreak: 'keep-all'}}>"{loginQuote}"</p>
+           </div>
+           <div className="bg-slate-900/80 rounded-xl p-4 sm:p-6 shadow-xl border border-slate-700">
+             <input type="text" placeholder="아이디" value={id} onChange={e => setId(e.target.value)} className="w-full p-2.5 sm:p-3 rounded-lg mb-2 sm:mb-3 bg-slate-700/50 text-white placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/50 border border-slate-600 text-sm font-medium" />
+             <input type="password" placeholder="비밀번호" value={pw} onChange={e => setPw(e.target.value)} onKeyPress={e => e.key === 'Enter' && login()} className="w-full p-2.5 sm:p-3 rounded-lg mb-2 sm:mb-3 bg-slate-700/50 text-white placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/50 border border-slate-600 text-sm font-medium" />
+             <label className="flex items-center gap-2 text-slate-300 text-sm mb-4 cursor-pointer">
+               <input type="checkbox" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)} className="w-4 h-4 rounded accent-primary-500" />
+               로그인 상태 유지
+             </label>
+             <button type="button" onClick={login} className="w-full p-3 bg-[#1e3a5f] hover:bg-[#264a73] text-white rounded-lg font-semibold transition-all text-sm">로그인</button>
            </div>
          </div>
+         
        </div>
      </div>
-     </>
    );
  }
  const tabs = [
