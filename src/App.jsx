@@ -588,8 +588,8 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
           ...feedback, 
           id: Date.now(), 
           timestamp: new Date().toISOString(),
-          managerId: currentUser?.id || 0,
-          managerName: currentUser?.name || '알수없음'
+          managerId: user?.id || 0,
+          managerName: user?.name || '알수없음'
         };
         try {
           await database.ref('teamFeedback/' + newFeedback.id).set(newFeedback);
@@ -1373,7 +1373,7 @@ ${JSON.stringify(regionData, null, 2)}
 
  // 주소 오류 감지 및 담당자 알림
  useEffect(() => {
-   if (!loggedIn || !currentUser || companies.length === 0) return;
+   if (!loggedIn || !user || companies.length === 0) return;
    
    // 주소 오류 감지 함수
    const detectAddressIssues = (address) => {
@@ -1430,7 +1430,7 @@ ${JSON.stringify(regionData, null, 2)}
    };
    
    // 현재 담당자의 업체 중 주소 오류 확인
-   const currentManagerId = currentUser.managerId || currentUser.id;
+   const currentManagerId = user.managerId || user.id;
    const myCompanies = companies.filter(c => c.managerId === currentManagerId);
    
    const issueCompanies = [];
@@ -1457,7 +1457,7 @@ ${JSON.stringify(regionData, null, 2)}
    } else {
      setAddressIssueAlert(null);
    }
- }, [loggedIn, currentUser, companies]);
+ }, [loggedIn, user, companies]);
 
  
  const saveManager = (manager) => database.ref('managers/' + manager.id).set(manager);
