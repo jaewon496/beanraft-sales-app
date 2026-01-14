@@ -848,6 +848,7 @@ ${JSON.stringify(regionData, null, 2)}
  const [selectedCalendarEvent, setSelectedCalendarEvent] = useState(null);
  const [showCalendarModal, setShowCalendarModal] = useState(false);
  const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+ const [showUnvisitedModal, setShowUnvisitedModal] = useState(null); // 미방문 업체 처리 모달
  const [calendarEventInput, setCalendarEventInput] = useState({ title: '', time: '09:00', memo: '' });
  const [editingEventId, setEditingEventId] = useState(null);
  const [placeSearchQuery, setPlaceSearchQuery] = useState('');
@@ -1352,18 +1353,20 @@ ${JSON.stringify(regionData, null, 2)}
           const yesterdayStr = yesterday.toISOString().split('T')[0];
           const incompleteRoutes = routes.filter(r => {
             if (!r.date || r.date > yesterdayStr) return false;
+            if (r.status === 'completed') return false; // 완료된 동선 제외
             const hasIncomplete = r.stops?.some(s => !s.visited);
             return hasIncomplete;
           });
           if (incompleteRoutes.length > 0) {
-            setIncompleteRouteAlert(prev => {
-              if (prev) return prev; // 이미 알림이 있으면 유지
-              return {
-                count: incompleteRoutes.length,
-                routes: incompleteRoutes
-              };
+            setIncompleteRouteAlert({
+              count: incompleteRoutes.length,
+              routes: incompleteRoutes
             });
+          } else {
+            setIncompleteRouteAlert(null); // 미완료 동선 없으면 알림 제거
           }
+        } else {
+          setIncompleteRouteAlert(null);
         }
       }, [loggedIn, calendarEvents, routes]);
 
@@ -31088,6 +31091,59 @@ ${JSON.stringify(regionData, null, 2)}
  }, 100);
  window.scrollTo({ top: 0, behavior: 'smooth' });
  };
+ 
+ // 동선 완료 처리 함수
+ const handleCompleteRoute = (route) => {
+   const unvisitedStops = route.stops?.filter(s => !s.visited) || [];
+   
+   if (unvisitedStops.length > 0) {
+     // 미방문 업체가 있음 - 모달 표시
+     setShowUnvisitedModal({ route, unvisitedStops });
+   } else {
+     // 모두 방문함 - 바로 완료 처리
+     completeRouteAction(route, false);
+   }
+ };
+ 
+ // 실제 동선 완료 처리
+ const completeRouteAction = (route, unassignUnvisited = false) => {
+   const updated = { ...route, status: 'completed', completedAt: new Date().toISOString() };
+   const newRoutes = routes.map(r => r.id === route.id ? updated : r);
+   setRoutes(newRoutes);
+   localStorage.setItem('bc_routes', JSON.stringify(newRoutes));
+   
+   // 미방문 업체 담당자 미배정 처리
+   if (unassignUnvisited) {
+     const unvisitedStops = route.stops?.filter(s => !s.visited) || [];
+     let updatedCount = 0;
+     
+     unvisitedStops.forEach(stop => {
+       // 동선의 업체명으로 companies에서 찾기
+       const matchedCompany = companies.find(c => 
+         c.name === stop.name || 
+         c.name?.includes(stop.name) || 
+         stop.name?.includes(c.name)
+       );
+       
+       if (matchedCompany && matchedCompany.managerId) {
+         const updatedCompany = { ...matchedCompany, managerId: null };
+         saveCompany(updatedCompany);
+         updatedCount++;
+       }
+     });
+     
+     if (updatedCount > 0) {
+       alert(`동선이 완료 처리되었습니다.\n미방문 업체 ${updatedCount}개의 담당자가 미배정으로 변경되었습니다.`);
+     } else {
+       alert('동선이 완료 처리되었습니다.');
+     }
+   } else {
+     alert('동선이 완료 처리되었습니다.');
+   }
+   
+   setShowUnvisitedModal(null);
+ };
+ 
  const cancelEditRoute = () => {
  setEditingRouteId(null);
  setRouteName('');
@@ -34447,13 +34503,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </button>
  {!isCompleted && (
  <button
- onClick={() => {
- if (!confirm('이 동선을 완료 처리하시겠습니까?')) return;
- const updated = { ...route, status: 'completed', completedAt: new Date().toISOString() };
- setRoutes(routes.map(r => r.id === route.id ? updated : r));
- localStorage.setItem('bc_routes', JSON.stringify(routes.map(r => r.id === route.id ? updated : r)));
- alert('동선이 완료 처리되었습니다.');
- }}
+ onClick={() => handleCompleteRoute(route)}
  className="px-3 py-1 bg-emerald-100 rounded text-xs text-emerald-700 font-medium"
  >
  완료
@@ -36311,6 +36361,51 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  </div>
  )}
+ {/* 미방문 업체 처리 모달 */}
+ {showUnvisitedModal && (
+ <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1200] p-4" onClick={() => setShowUnvisitedModal(null)}>
+ <div className="bg-slate-700 rounded-2xl p-5 w-full max-w-md" onClick={e => e.stopPropagation()}>
+ <div className="text-center mb-4">
+ <div className="w-14 h-14 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-3">
+   <span className="text-2xl">⚠️</span>
+ </div>
+ <h3 className="font-bold text-slate-100 text-lg">미방문 업체 확인</h3>
+ <p className="text-slate-200 text-sm mt-2">
+   아래 <b className="text-amber-500">{showUnvisitedModal.unvisitedStops.length}개</b> 업체가 미방문 상태입니다.
+ </p>
+ </div>
+ 
+ <div className="bg-slate-800 rounded-xl p-3 mb-4 max-h-40 overflow-y-auto">
+ {showUnvisitedModal.unvisitedStops.map((stop, idx) => (
+   <div key={idx} className="flex items-center gap-2 py-2 border-b border-slate-700 last:border-0">
+     <span className="w-6 h-6 bg-rose-500/20 text-rose-400 rounded-full flex items-center justify-center text-xs font-bold">{idx + 1}</span>
+     <span className="text-slate-200 text-sm">{stop.name}</span>
+   </div>
+ ))}
+ </div>
+ 
+ <p className="text-xs text-slate-300 mb-4 text-center">
+ 미방문 처리 시 해당 업체의 담당자가 미배정으로 변경되어<br/>다른 담당자가 방문할 수 있습니다.
+ </p>
+ 
+ <div className="flex gap-2">
+ <button
+   onClick={() => completeRouteAction(showUnvisitedModal.route, false)}
+   className="flex-1 px-4 py-2 bg-slate-600 rounded-xl font-bold text-slate-200 text-sm"
+ >
+   그냥 완료
+ </button>
+ <button
+   onClick={() => completeRouteAction(showUnvisitedModal.route, true)}
+   className="flex-1 px-4 py-2 bg-amber-600 rounded-xl font-bold text-white text-sm"
+ >
+   미방문 처리
+ </button>
+ </div>
+ </div>
+ </div>
+ )}
+ 
  {showDeleteConfirm && (
  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1200] p-4" onClick={() => setShowDeleteConfirm(null)}>
  <div className="bg-slate-700 rounded-2xl p-5 w-full max-w-sm" onClick={e => e.stopPropagation()}>
