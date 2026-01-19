@@ -527,6 +527,7 @@ const COMPANY_QUOTES = [
  const [loginQuote] = useState(() => LOGIN_QUOTES[Math.floor(Math.random() * LOGIN_QUOTES.length)]);
 const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> 'form'
  
+ const [syncStatus, setSyncStatus] = useState('connecting');
  const [dataLoaded, setDataLoaded] = useState(false);
  const savedTab = localStorage.getItem('bc_current_tab') || 'map';
  const [tab, setTab] = useState(savedTab);
@@ -556,23 +557,6 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
  const [feedbackInput, setFeedbackInput] = useState(''); // 수정 멘트 입력
  const [feedbackQuestion, setFeedbackQuestion] = useState(''); // 질문 입력
  const [settingsTab, setSettingsTab] = useState('theme'); // 설정 탭: 'theme' | 'ments' | 'account'
-  
-  // ========== 영업모드 State ==========
-  const [showSalesMode, setShowSalesMode] = useState(false);
-  const [salesModeTab, setSalesModeTab] = useState('analysis'); // 'analysis' | 'homepage'
-  const [salesModeRegion, setSalesModeRegion] = useState('');
-  const [salesModeSearchResult, setSalesModeSearchResult] = useState(null);
-  const [salesModeLoading, setSalesModeLoading] = useState(false);
-  const [salesModeLocked, setSalesModeLocked] = useState(false);
-  const [salesModePin, setSalesModePin] = useState('');
-  const [salesModeCountdown, setSalesModeCountdown] = useState(60);
-  const [salesModeLastActivity, setSalesModeLastActivity] = useState(Date.now());
-  const [showSimInfo, setShowSimInfo] = useState(null); // 시뮬레이션 ⓘ 팝업
-  const [showSourcesModal, setShowSourcesModal] = useState(false); // 출처 팝업
-  const [salesModeSim, setSalesModeSim] = useState({
-    seats: 20, price: 5000, turnover: 3, occupancy: 40,
-    rent: 300, labor: 250, materialRate: 32, otherCost: 100
-  });
  const [selectedMentsForCompany, setSelectedMentsForCompany] = useState([]); // 업체 등록 시 선택된 멘트
  const [companyMentMemo, setCompanyMentMemo] = useState(''); // 업체 멘트 메모
  const [todayContactAlert, setTodayContactAlert] = useState(null); // 오늘 연락할 곳 알림
@@ -636,45 +620,6 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
         });
         return () => database.ref('teamFeedback').off();
       }, []);
-
- // ═══════════════════════════════════════════════════════════════
- // 영업모드 무활동 타임아웃 (60초)
- // ═══════════════════════════════════════════════════════════════
- useEffect(() => {
-   if (!showSalesMode || salesModeLocked) return;
-   
-   // 활동 감지 핸들러
-   const handleActivity = () => {
-     setSalesModeLastActivity(Date.now());
-     setSalesModeCountdown(60);
-   };
-   
-   // 터치/클릭/키보드 이벤트 리스너
-   window.addEventListener('touchstart', handleActivity);
-   window.addEventListener('click', handleActivity);
-   window.addEventListener('keydown', handleActivity);
-   window.addEventListener('scroll', handleActivity);
-   
-   // 1초마다 카운트다운 체크
-   const timer = setInterval(() => {
-     const elapsed = Math.floor((Date.now() - salesModeLastActivity) / 1000);
-     const remaining = Math.max(0, 60 - elapsed);
-     setSalesModeCountdown(remaining);
-     
-     if (remaining === 0) {
-       setSalesModeLocked(true);
-       setSalesModePin('');
-     }
-   }, 1000);
-   
-   return () => {
-     window.removeEventListener('touchstart', handleActivity);
-     window.removeEventListener('click', handleActivity);
-     window.removeEventListener('keydown', handleActivity);
-     window.removeEventListener('scroll', handleActivity);
-     clearInterval(timer);
-   };
- }, [showSalesMode, salesModeLocked, salesModeLastActivity]);
 
  // ═══════════════════════════════════════════════════════════════
  // Gemini AI 코치 API 호출 함수
@@ -1909,8 +1854,8 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  setAutoCollectLoading(true);
  
  // 1. Geocoding으로 좌표 찾기
- window.naver.maps.Service.geocode({ query: regionQuery }, (status, response) => {
- if (status !== window.naver.maps.Service.Status.OK || !response.v2.addresses.length) {
+ naver.maps.Service.geocode({ query: regionQuery }, (status, response) => {
+ if (status !== naver.maps.Service.Status.OK || !response.v2.addresses.length) {
  setAutoCollectLoading(false);
  alert("지역을 찾을 수 없습니다. 다시 입력해주세요.\n입력값: " + regionQuery);
  return;
@@ -1928,7 +1873,7 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  }
  
  // 3. 지도 이동 + 줌 15 설정
- const point = new window.naver.maps.LatLng(lat, lng);
+ const point = new naver.maps.LatLng(lat, lng);
  routeMapObj.current.setCenter(point);
  routeMapObj.current.setZoom(15);
  
@@ -2254,18 +2199,18 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  const initMap = () => {
  if (!window.naver?.maps) { setTimeout(initMap, 100); return; }
  if (!mapRef.current) { setTimeout(initMap, 100); return; }
- mapObj.current = new window.naver.maps.Map(mapRef.current, { center: new window.naver.maps.LatLng(37.5665, 126.978), zoom: 11 });
- window.naver.maps.Event.addListener(mapObj.current, 'zoom_changed', () => {
+ mapObj.current = new naver.maps.Map(mapRef.current, { center: new naver.maps.LatLng(37.5665, 126.978), zoom: 11 });
+ naver.maps.Event.addListener(mapObj.current, 'zoom_changed', () => {
  renderMarkers();
  });
- window.naver.maps.Event.addListener(mapObj.current, 'click', (e) => {
+ naver.maps.Event.addListener(mapObj.current, 'click', (e) => {
  const currentSelManager = selManagerRef.current;
  const currentPinDate = pinDateRef.current;
  if (!currentSelManager) return;
  const lat = e.coord.lat(); const lng = e.coord.lng();
- window.naver.maps.Service.reverseGeocode({ coords: new window.naver.maps.LatLng(lat, lng) }, (s, r) => {
+ naver.maps.Service.reverseGeocode({ coords: new naver.maps.LatLng(lat, lng) }, (s, r) => {
  let address = lat.toFixed(4) + ', ' + lng.toFixed(4);
- if (s === window.naver.maps.Service.Status.OK && r.v2.results[0]) {
+ if (s === naver.maps.Service.Status.OK && r.v2.results[0]) {
  const a = r.v2.results[0].region;
  if (a) address = [a.area1?.name, a.area2?.name, a.area3?.name].filter(Boolean).join(' ');
  }
@@ -2281,12 +2226,12 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  }, [loggedIn, tab]);
  useEffect(() => {
  if (loggedIn && tab === 'map' && mapObj.current) {
- setTimeout(() => { window.naver.maps.Event.trigger(mapObj.current, 'resize'); renderMarkers(); }, 100);
+ setTimeout(() => { naver.maps.Event.trigger(mapObj.current, 'resize'); renderMarkers(); }, 100);
  }
  }, [loggedIn, tab]);
  useEffect(() => {
  if (loggedIn && tab === 'route' && routeMapObj.current) {
- setTimeout(() => { window.naver.maps.Event.trigger(routeMapObj.current, 'resize'); }, 100);
+ setTimeout(() => { naver.maps.Event.trigger(routeMapObj.current, 'resize'); }, 100);
  }
  }, [loggedIn, tab]);
  const triggerHighlight = () => {
@@ -2322,17 +2267,17 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  else if (company.reaction === 'positive') color = '#22c55e';
  else if (company.reaction === 'neutral') color = '#f97316';
  else if (company.reaction === 'missed') color = '#eab308';
- const marker = new window.naver.maps.Marker({
- position: new window.naver.maps.LatLng(company.lat, company.lng),
+ const marker = new naver.maps.Marker({
+ position: new naver.maps.LatLng(company.lat, company.lng),
  map: mapObj.current,
  icon: {
  content: `<div class="${shouldBlink ? (company.reaction === 'special' ? 'special-blink' : 'marker-pulse') : ''}" style="width:${size}px;height:${size}px;background:${color};border-radius:50%;border:${borderWidth}px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4);cursor:pointer;display:flex;align-items:center;justify-content:center;">
  <span style="font-size:${Math.max(8, size/2.5)}px;color:white;font-weight:bold;">${company.name.charAt(0)}</span>
  </div>`,
- anchor: new window.naver.maps.Point(size/2, size/2)
+ anchor: new naver.maps.Point(size/2, size/2)
  }
  });
- window.naver.maps.Event.addListener(marker, 'click', () => {
+ naver.maps.Event.addListener(marker, 'click', () => {
  setShowCompanyMapModal({ ...company, manager: mgr });
  });
  markersRef.current.push(marker);
@@ -2392,7 +2337,7 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  }
  // 네이버 맵 API 로드 대기
  if (!window.naver?.maps) { 
- console.log('[지도] window.naver.maps 대기중...');
+ console.log('[지도] naver.maps 대기중...');
  setTimeout(initRouteMap, 100); 
  return; 
  }
@@ -2400,20 +2345,20 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  if (routeMapObj.current) return;
  
  console.log('[지도] 초기화 시작');
- routeMapObj.current = new window.naver.maps.Map(routeMapRef.current, {
- center: new window.naver.maps.LatLng(37.5665, 126.978),
+ routeMapObj.current = new naver.maps.Map(routeMapRef.current, {
+ center: new naver.maps.LatLng(37.5665, 126.978),
  zoom: 11
  });
- window.naver.maps.Event.addListener(routeMapObj.current, 'click', (e) => {
+ naver.maps.Event.addListener(routeMapObj.current, 'click', (e) => {
  const lat = e.coord.lat();
  const lng = e.coord.lng();
- window.naver.maps.Service.reverseGeocode({
- coords: new window.naver.maps.LatLng(lat, lng),
+ naver.maps.Service.reverseGeocode({
+ coords: new naver.maps.LatLng(lat, lng),
  orders: 'roadaddr,addr'
  }, (status, response) => {
  let placeName = '선택한 위치';
  let address = '';
- if (status === window.naver.maps.Service.Status.OK && response.v2.results?.length > 0) {
+ if (status === naver.maps.Service.Status.OK && response.v2.results?.length > 0) {
  const result = response.v2.results[0];
  if (result.land) {
  const land = result.land;
@@ -2491,16 +2436,16 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
               offsetLng = Math.sin(angle) * radius;
             }
             const isStacked = count > 1;
-            const marker = new window.naver.maps.Marker({
-              position: new window.naver.maps.LatLng(stop.lat + offsetLat, stop.lng + offsetLng),
+            const marker = new naver.maps.Marker({
+              position: new naver.maps.LatLng(stop.lat + offsetLat, stop.lng + offsetLng),
               map: routeMapObj.current,
               icon: {
                 content: `<div style="background:linear-gradient(135deg,${isStacked?'#f59e0b':'#14b8a6'},${isStacked?'#d97706':'#0d9488'});color:white;width:${isStacked?'32px':'28px'};height:${isStacked?'32px':'28px'};border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:${isStacked?'11px':'12px'};box-shadow:0 3px 8px rgba(0,0,0,0.4);border:2px solid ${isStacked?'#fbbf24':'white'}">${stop.originalIdx+1}</div>`,
-                anchor: new window.naver.maps.Point(isStacked ? 16 : 14, isStacked ? 16 : 14)
+                anchor: new naver.maps.Point(isStacked ? 16 : 14, isStacked ? 16 : 14)
               },
               zIndex: 100 + stop.originalIdx
             });
-            window.naver.maps.Event.addListener(marker, 'click', () => {
+            naver.maps.Event.addListener(marker, 'click', () => {
               setCurrentSlideIndex(stop.originalIdx);
             });
             routeMapMarkersRef.current.push(marker);
@@ -2508,8 +2453,8 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
         });
 
  if (stopsWithCoords.length >= 2) {
- const path = stopsWithCoords.map(s => new window.naver.maps.LatLng(s.lat, s.lng));
- const polyline = new window.naver.maps.Polyline({
+ const path = stopsWithCoords.map(s => new naver.maps.LatLng(s.lat, s.lng));
+ const polyline = new naver.maps.Polyline({
  map: routeMapObj.current,
  path: path,
  strokeColor: '#14b8a6',
@@ -2519,11 +2464,11 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  routeMapLinesRef.current.push(polyline);
  }
  if (stopsWithCoords.length === 1) {
- routeMapObj.current.setCenter(new window.naver.maps.LatLng(stopsWithCoords[0].lat, stopsWithCoords[0].lng));
+ routeMapObj.current.setCenter(new naver.maps.LatLng(stopsWithCoords[0].lat, stopsWithCoords[0].lng));
  routeMapObj.current.setZoom(15);
  } else if (stopsWithCoords.length >= 2) {
- const bounds = new window.naver.maps.LatLngBounds();
- stopsWithCoords.forEach(s => bounds.extend(new window.naver.maps.LatLng(s.lat, s.lng)));
+ const bounds = new naver.maps.LatLngBounds();
+ stopsWithCoords.forEach(s => bounds.extend(new naver.maps.LatLng(s.lat, s.lng)));
  routeMapObj.current.fitBounds(bounds, { padding: 50 });
  }
  }, 100);
@@ -2536,11 +2481,11 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  setTimeout(() => {
  if (mapObj.current && targetPins.length > 0) {
  if (targetPins.length === 1) {
- mapObj.current.setCenter(new window.naver.maps.LatLng(targetPins[0].lat, targetPins[0].lng));
+ mapObj.current.setCenter(new naver.maps.LatLng(targetPins[0].lat, targetPins[0].lng));
  mapObj.current.setZoom(14);
  } else {
- const bounds = new window.naver.maps.LatLngBounds();
- targetPins.forEach(p => bounds.extend(new window.naver.maps.LatLng(p.lat, p.lng)));
+ const bounds = new naver.maps.LatLngBounds();
+ targetPins.forEach(p => bounds.extend(new naver.maps.LatLng(p.lat, p.lng)));
  mapObj.current.fitBounds(bounds, { padding: 50 });
  }
  }
@@ -2923,10 +2868,10 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  const query = searchRegion.trim();
  const place = findPlace(query);
  if (place) {
- mapObj.current.setCenter(new window.naver.maps.LatLng(place.lat, place.lng));
+ mapObj.current.setCenter(new naver.maps.LatLng(place.lat, place.lng));
  mapObj.current.setZoom(16);
  circlesRef.current.forEach(c => c.setMap(null)); circlesRef.current = [];
- const circle = new window.naver.maps.Circle({ map: mapObj.current, center: new window.naver.maps.LatLng(place.lat, place.lng), radius: 200, fillColor: '#14b8a6', fillOpacity: 0.3, strokeColor: '#0d9488', strokeWeight: 2 });
+ const circle = new naver.maps.Circle({ map: mapObj.current, center: new naver.maps.LatLng(place.lat, place.lng), radius: 200, fillColor: '#14b8a6', fillOpacity: 0.3, strokeColor: '#0d9488', strokeWeight: 2 });
  circlesRef.current.push(circle);
  setTimeout(() => circle.setMap(null), 5000);
  return;
@@ -2936,14 +2881,14 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  goToMapWithPins(matchedPins);
  return;
  }
- window.naver.maps.Service.geocode({ query: query }, (status, response) => {
- if (status === window.naver.maps.Service.Status.OK && response.v2.addresses && response.v2.addresses.length > 0) {
+ naver.maps.Service.geocode({ query: query }, (status, response) => {
+ if (status === naver.maps.Service.Status.OK && response.v2.addresses && response.v2.addresses.length > 0) {
  const result = response.v2.addresses[0];
  const lat = parseFloat(result.y), lng = parseFloat(result.x);
- mapObj.current.setCenter(new window.naver.maps.LatLng(lat, lng));
+ mapObj.current.setCenter(new naver.maps.LatLng(lat, lng));
  mapObj.current.setZoom(16);
  circlesRef.current.forEach(c => c.setMap(null)); circlesRef.current = [];
- const circle = new window.naver.maps.Circle({ map: mapObj.current, center: new window.naver.maps.LatLng(lat, lng), radius: 200, fillColor: '#14b8a6', fillOpacity: 0.3, strokeColor: '#0d9488', strokeWeight: 2 });
+ const circle = new naver.maps.Circle({ map: mapObj.current, center: new naver.maps.LatLng(lat, lng), radius: 200, fillColor: '#14b8a6', fillOpacity: 0.3, strokeColor: '#0d9488', strokeWeight: 2 });
  circlesRef.current.push(circle);
  setTimeout(() => circle.setMap(null), 5000);
  } else {
@@ -2962,12 +2907,12 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  const newPin = { id: Date.now(), managerId: selManager, status, region: query, lat: place.lat, lng: place.lng, date: pinDate || '', createdAt: new Date().toISOString() };
  savePin(newPin);
  setAddr('');
- mapObj.current?.setCenter(new window.naver.maps.LatLng(place.lat, place.lng));
+ mapObj.current?.setCenter(new naver.maps.LatLng(place.lat, place.lng));
  mapObj.current?.setZoom(16);
  return;
  }
- window.naver.maps.Service.geocode({ query: query }, (s, r) => {
- if (s === window.naver.maps.Service.Status.OK && r.v2.addresses && r.v2.addresses.length > 0) {
+ naver.maps.Service.geocode({ query: query }, (s, r) => {
+ if (s === naver.maps.Service.Status.OK && r.v2.addresses && r.v2.addresses.length > 0) {
  const result = r.v2.addresses[0];
  const lat = parseFloat(result.y);
  const lng = parseFloat(result.x);
@@ -2976,7 +2921,7 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  const newPin = { id: Date.now(), managerId: selManager, status, region: regionName, lat, lng, date: pinDate || '', createdAt: new Date().toISOString() };
  savePin(newPin);
  setAddr('');
- mapObj.current?.setCenter(new window.naver.maps.LatLng(lat, lng));
+ mapObj.current?.setCenter(new naver.maps.LatLng(lat, lng));
  mapObj.current?.setZoom(16);
  } else {
  alert('장소를 찾을 수 없습니다.\n주소를 입력해보세요. (예: 서울 강남구 역삼동)');
@@ -3124,8 +3069,8 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
       const tryGeocode = (query) => {
         return new Promise((res) => {
           if (!query) { res(null); return; }
-          window.naver.maps.Service.geocode({ query }, (status, response) => {
-            if (status === window.naver.maps.Service.Status.OK && response.v2.addresses?.length > 0) {
+          naver.maps.Service.geocode({ query }, (status, response) => {
+            if (status === naver.maps.Service.Status.OK && response.v2.addresses?.length > 0) {
               const result = response.v2.addresses[0];
               res({ lat: parseFloat(result.y), lng: parseFloat(result.x) });
             } else {
@@ -3384,12 +3329,12 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  // GPS 마커 업데이트 (재생성 없이 위치만 변경)
  const updateGpsMarker = (lat, lng, heading, accuracy) => {
  if (!routeMapObj.current) return;
- const position = new window.naver.maps.LatLng(lat, lng);
+ const position = new naver.maps.LatLng(lat, lng);
  if (!gpsMarkerRef.current) {
- gpsMarkerRef.current = new window.naver.maps.Marker({
+ gpsMarkerRef.current = new naver.maps.Marker({
  position: position,
  map: routeMapObj.current,
- icon: { content: '', anchor: new window.naver.maps.Point(20, 20) },
+ icon: { content: '', anchor: new naver.maps.Point(20, 20) },
  zIndex: 1000
  });
  }
@@ -3404,11 +3349,11 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 6px; height: 6px; background: white; border-radius: 50%;"></div>
  </div>
  </div>`,
- anchor: new window.naver.maps.Point(20, 20)
+ anchor: new naver.maps.Point(20, 20)
  });
  if (accuracy && accuracy < 500) {
  if (!gpsAccuracyCircleRef.current) {
- gpsAccuracyCircleRef.current = new window.naver.maps.Circle({
+ gpsAccuracyCircleRef.current = new naver.maps.Circle({
  map: routeMapObj.current,
  center: position,
  radius: accuracy,
@@ -3490,7 +3435,7 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  };
  const centerToMyLocation = () => {
  if (currentLocation && routeMapObj.current) {
- routeMapObj.current.setCenter(new window.naver.maps.LatLng(currentLocation.lat, currentLocation.lng));
+ routeMapObj.current.setCenter(new naver.maps.LatLng(currentLocation.lat, currentLocation.lng));
  routeMapObj.current.setZoom(16);
  } else {
  alert('현재 위치를 찾을 수 없습니다. GPS를 켜주세요.');
@@ -3546,8 +3491,8 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  }
  const company = companies.find(c => c.name.includes(query) || query.includes(c.name));
  if (company && company.address) {
- window.naver.maps.Service.geocode({ query: company.address }, (s, r) => {
- if (s === window.naver.maps.Service.Status.OK && r.v2.addresses?.length > 0) {
+ naver.maps.Service.geocode({ query: company.address }, (s, r) => {
+ if (s === naver.maps.Service.Status.OK && r.v2.addresses?.length > 0) {
  const result = r.v2.addresses[0];
  const newStop = {
  id: Date.now(),
@@ -3574,8 +3519,8 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  });
  return;
  }
- window.naver.maps.Service.geocode({ query: query }, (s, r) => {
- if (s === window.naver.maps.Service.Status.OK && r.v2.addresses?.length > 0) {
+ naver.maps.Service.geocode({ query: query }, (s, r) => {
+ if (s === naver.maps.Service.Status.OK && r.v2.addresses?.length > 0) {
  const result = r.v2.addresses[0];
  const newStop = {
  id: Date.now(),
@@ -3601,8 +3546,8 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  const addRouteStopManual = () => {
  if (!routeInput.trim()) return alert('업체명을 입력하세요');
  const companyName = routeInput.trim();
- window.naver.maps.Service.geocode({ query: companyName }, (status, response) => {
- if (status === window.naver.maps.Service.Status.OK && response.v2.addresses?.length > 0) {
+ naver.maps.Service.geocode({ query: companyName }, (status, response) => {
+ if (status === naver.maps.Service.Status.OK && response.v2.addresses?.length > 0) {
  const result = response.v2.addresses[0];
  const lat = parseFloat(result.y);
  const lng = parseFloat(result.x);
@@ -3616,16 +3561,16 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  };
  setRouteStops(prev => [...prev, newStop]);
  if (routeMapObj.current) {
- routeMapObj.current.setCenter(new window.naver.maps.LatLng(lat, lng));
+ routeMapObj.current.setCenter(new naver.maps.LatLng(lat, lng));
  routeMapObj.current.setZoom(15);
  clearSearchMarkers();
  setTimeout(() => {
- const marker = new window.naver.maps.Marker({
- position: new window.naver.maps.LatLng(lat, lng),
+ const marker = new naver.maps.Marker({
+ position: new naver.maps.LatLng(lat, lng),
  map: routeMapObj.current,
  icon: {
  content: `<div class="blink-marker-red" style="background: linear-gradient(135deg, #ef4444, #dc2626); color: white; padding: 8px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; box-shadow: 0 4px 15px rgba(239,68,68,0.6); white-space: nowrap; border: 2px solid white;">${companyName}</div>`,
- anchor: new window.naver.maps.Point(60, 20)
+ anchor: new naver.maps.Point(60, 20)
  }
  });
  searchMarkersRef.current.push(marker);
@@ -30792,8 +30737,8 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  // 1. 지역명으로 좌표 검색 (지도 이동용)
  const regionQuery = `${zigbangRegion} ${zigbangCity}`;
  const geoResult = await new Promise((resolve) => {
- window.naver.maps.Service.geocode({ query: regionQuery }, (status, response) => {
- if (status === window.naver.maps.Service.Status.OK && response.v2.addresses.length > 0) {
+ naver.maps.Service.geocode({ query: regionQuery }, (status, response) => {
+ if (status === naver.maps.Service.Status.OK && response.v2.addresses.length > 0) {
  const result = response.v2.addresses[0];
  resolve({ lat: parseFloat(result.y), lng: parseFloat(result.x) });
  } else {
@@ -30804,7 +30749,7 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  
  // 2. 지도 이동
  if (routeMapObj.current) {
- routeMapObj.current.setCenter(new window.naver.maps.LatLng(geoResult.lat, geoResult.lng));
+ routeMapObj.current.setCenter(new naver.maps.LatLng(geoResult.lat, geoResult.lng));
  routeMapObj.current.setZoom(14);
  }
  
@@ -30893,15 +30838,15 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  clearSearchMarkers();
  filteredAgents.forEach((agent, idx) => {
  if (agent.lat && agent.lng) {
- const marker = new window.naver.maps.Marker({
- position: new window.naver.maps.LatLng(agent.lat, agent.lng),
+ const marker = new naver.maps.Marker({
+ position: new naver.maps.LatLng(agent.lat, agent.lng),
  map: routeMapObj.current,
  icon: {
  content: `<div style="background: #14b8a6; color: white; padding: 6px 10px; border-radius: 16px; font-size: 11px; font-weight: bold; box-shadow: 0 3px 12px rgba(0,0,0,0.4); white-space: nowrap; border: 2px solid white;">${idx + 1}. ${agent.name.slice(0, 6)}</div>`,
- anchor: new window.naver.maps.Point(50, 20)
+ anchor: new naver.maps.Point(50, 20)
  }
  });
- window.naver.maps.Event.addListener(marker, 'click', () => addAgentToRoute(agent));
+ naver.maps.Event.addListener(marker, 'click', () => addAgentToRoute(agent));
  zigbangMarkersRef.current.push(marker);
  }
  });
@@ -30942,12 +30887,12 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  };
  setRouteStops(prev => [...prev, newStop]);
  if (routeMapObj.current) {
- const marker = new window.naver.maps.Marker({
- position: new window.naver.maps.LatLng(agent.lat, agent.lng),
+ const marker = new naver.maps.Marker({
+ position: new naver.maps.LatLng(agent.lat, agent.lng),
  map: routeMapObj.current,
  icon: {
  content: `<div style="background: linear-gradient(135deg, #14b8a6, #0d9488); color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.3);">${routeStops.length + 1}</div>`,
- anchor: new window.naver.maps.Point(14, 14)
+ anchor: new naver.maps.Point(14, 14)
  }
  });
  routeMapMarkersRef.current.push(marker);
@@ -30985,7 +30930,7 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  const place = findPlace(placeSearchQuery);
  if (place && routeMapObj.current) {
  setIsSearchingPlaces(false);
- routeMapObj.current.setCenter(new window.naver.maps.LatLng(place.lat, place.lng));
+ routeMapObj.current.setCenter(new naver.maps.LatLng(place.lat, place.lng));
  routeMapObj.current.setZoom(16);
  const exists = searchedPlaces.some(p => p.lat === place.lat && p.lng === place.lng);
  if (!exists) {
@@ -31000,21 +30945,21 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  setPlaceSearchQuery('');
  setPlaceCustomName('');
  setTimeout(() => {
- const searchMarker = new window.naver.maps.Marker({
- position: new window.naver.maps.LatLng(place.lat, place.lng),
+ const searchMarker = new naver.maps.Marker({
+ position: new naver.maps.LatLng(place.lat, place.lng),
  map: routeMapObj.current,
  icon: {
  content: `<div style="background: linear-gradient(135deg, #ef4444, #dc2626); color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; box-shadow: 0 2px 6px rgba(0,0,0,0.3); border: 2px solid white;"></div>`,
- anchor: new window.naver.maps.Point(14, 14)
+ anchor: new naver.maps.Point(14, 14)
  }
  });
  searchMarkersRef.current.push(searchMarker);
  }, 200);
  return;
  }
- window.naver.maps.Service.geocode({ query: placeSearchQuery }, async (status, response) => {
+ naver.maps.Service.geocode({ query: placeSearchQuery }, async (status, response) => {
  setIsSearchingPlaces(false);
- if (status !== window.naver.maps.Service.Status.OK || !response.v2.addresses?.length) {
+ if (status !== naver.maps.Service.Status.OK || !response.v2.addresses?.length) {
  return alert('해당 위치를 찾을 수 없습니다');
  }
  const location = response.v2.addresses[0];
@@ -31033,15 +30978,15 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  setPlaceSearchQuery('');
  setPlaceCustomName('');
  if (routeMapObj.current) {
- routeMapObj.current.setCenter(new window.naver.maps.LatLng(lat, lng));
+ routeMapObj.current.setCenter(new naver.maps.LatLng(lat, lng));
  routeMapObj.current.setZoom(16);
  setTimeout(() => {
- const searchMarker = new window.naver.maps.Marker({
- position: new window.naver.maps.LatLng(lat, lng),
+ const searchMarker = new naver.maps.Marker({
+ position: new naver.maps.LatLng(lat, lng),
  map: routeMapObj.current,
  icon: {
  content: `<div style="background: linear-gradient(135deg, #ef4444, #dc2626); color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; box-shadow: 0 2px 6px rgba(0,0,0,0.3); border: 2px solid white;"></div>`,
- anchor: new window.naver.maps.Point(14, 14)
+ anchor: new naver.maps.Point(14, 14)
  }
  });
  searchMarkersRef.current.push(searchMarker);
@@ -31083,19 +31028,19 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  const enableMapClickToAdd = () => {
  if (!routeMapObj.current) return;
  if (mapClickListenerRef.current) {
- window.naver.maps.Event.removeListener(mapClickListenerRef.current);
+ naver.maps.Event.removeListener(mapClickListenerRef.current);
  }
  setMapClickMode(true);
- mapClickListenerRef.current = window.naver.maps.Event.addListener(routeMapObj.current, 'click', (e) => {
+ mapClickListenerRef.current = naver.maps.Event.addListener(routeMapObj.current, 'click', (e) => {
  const lat = e.coord.lat();
  const lng = e.coord.lng();
- window.naver.maps.Service.reverseGeocode({
- coords: new window.naver.maps.LatLng(lat, lng),
+ naver.maps.Service.reverseGeocode({
+ coords: new naver.maps.LatLng(lat, lng),
  orders: 'roadaddr,addr'
  }, (status, response) => {
  let address = '';
  let placeName = '부동산중개사';
- if (status === window.naver.maps.Service.Status.OK && response.v2.results?.length > 0) {
+ if (status === naver.maps.Service.Status.OK && response.v2.results?.length > 0) {
  const result = response.v2.results[0];
  if (result.land) {
  const land = result.land;
@@ -31116,12 +31061,12 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  type: 'mapclick'
  };
  setRouteStops(prev => [...prev, newStop]);
- const marker = new window.naver.maps.Marker({
- position: new window.naver.maps.LatLng(lat, lng),
+ const marker = new naver.maps.Marker({
+ position: new naver.maps.LatLng(lat, lng),
  map: routeMapObj.current,
  icon: {
  content: `<div class="blink-marker" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; padding: 8px 12px; border-radius: 16px; font-size: 12px; font-weight: bold; box-shadow: 0 2px 8px rgba(139,92,246,0.5); border: 2px solid white;">${placeName}</div>`,
- anchor: new window.naver.maps.Point(60, 20)
+ anchor: new naver.maps.Point(60, 20)
  }
  });
  routeMapCirclesRef.current.push(marker);
@@ -31130,7 +31075,7 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  };
  const disableMapClickToAdd = () => {
  if (mapClickListenerRef.current) {
- window.naver.maps.Event.removeListener(mapClickListenerRef.current);
+ naver.maps.Event.removeListener(mapClickListenerRef.current);
  mapClickListenerRef.current = null;
  }
  setMapClickMode(false);
@@ -31151,16 +31096,16 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  routeMapCirclesRef.current.forEach(m => m.setMap(null));
  routeMapCirclesRef.current = [];
  if (results.length === 0) return;
- const bounds = new window.naver.maps.LatLngBounds();
+ const bounds = new naver.maps.LatLngBounds();
  results.forEach((place, idx) => {
  if (!place.lat || !place.lng) return;
- bounds.extend(new window.naver.maps.LatLng(place.lat, place.lng));
- const marker = new window.naver.maps.Marker({
- position: new window.naver.maps.LatLng(place.lat, place.lng),
+ bounds.extend(new naver.maps.LatLng(place.lat, place.lng));
+ const marker = new naver.maps.Marker({
+ position: new naver.maps.LatLng(place.lat, place.lng),
  map: routeMapObj.current,
  icon: {
  content: `<div class="blink-marker" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; padding: 8px 14px; border-radius: 20px; font-size: 12px; font-weight: bold; box-shadow: 0 3px 10px rgba(139,92,246,0.5); border: 2px solid white; cursor: pointer;">${idx + 1}. ${place.name?.slice(0, 12) || '부동산'}</div>`,
- anchor: new window.naver.maps.Point(60, 20)
+ anchor: new naver.maps.Point(60, 20)
  }
  });
  routeMapCirclesRef.current.push(marker);
@@ -31187,7 +31132,7 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  if (Math.abs(pos.lat() - place.lat) < 0.0001 && Math.abs(pos.lng() - place.lng) < 0.0001) {
  m.setIcon({
  content: `<div style="background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 8px 14px; border-radius: 20px; font-size: 12px; font-weight: bold; box-shadow: 0 3px 10px rgba(16,185,129,0.5); border: 3px solid white;">${place.name?.slice(0, 12) || '부동산'}</div>`,
- anchor: new window.naver.maps.Point(60, 20)
+ anchor: new naver.maps.Point(60, 20)
  });
  }
  });
@@ -31215,8 +31160,8 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  };
  const addRouteStopFromCompany = (company) => {
  if (company.address) {
- window.naver.maps.Service.geocode({ query: company.address }, (s, r) => {
- if (s === window.naver.maps.Service.Status.OK && r.v2.addresses?.length > 0) {
+ naver.maps.Service.geocode({ query: company.address }, (s, r) => {
+ if (s === naver.maps.Service.Status.OK && r.v2.addresses?.length > 0) {
  const result = r.v2.addresses[0];
  const newStop = {
  id: Date.now(),
@@ -31337,8 +31282,8 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  if (directionsPolylineRef.current) {
  directionsPolylineRef.current.setMap(null);
  }
- const path = pathData.path.map(([lng, lat]) => new window.naver.maps.LatLng(lat, lng));
- directionsPolylineRef.current = new window.naver.maps.Polyline({
+ const path = pathData.path.map(([lng, lat]) => new naver.maps.LatLng(lat, lng));
+ directionsPolylineRef.current = new naver.maps.Polyline({
  map: routeMapObj.current,
  path: path,
  strokeColor: '#4285f4',
@@ -31447,19 +31392,19 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  routeMapLinesRef.current.forEach(l => l.setMap(null));
  routeMapLinesRef.current = [];
  stopsWithCoords.forEach((stop, idx) => {
- const marker = new window.naver.maps.Marker({
- position: new window.naver.maps.LatLng(stop.lat, stop.lng),
+ const marker = new naver.maps.Marker({
+ position: new naver.maps.LatLng(stop.lat, stop.lng),
  map: routeMapObj.current,
  icon: {
  content: `<div style="background: linear-gradient(135deg, #14b8a6, #0d9488); color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; box-shadow: 0 3px 8px rgba(0,0,0,0.4); border: 3px solid white;">${idx + 1}</div>`,
- anchor: new window.naver.maps.Point(16, 16)
+ anchor: new naver.maps.Point(16, 16)
  }
  });
  routeMapMarkersRef.current.push(marker);
  });
  if (stopsWithCoords.length >= 2) {
- const path = stopsWithCoords.map(s => new window.naver.maps.LatLng(s.lat, s.lng));
- const polyline = new window.naver.maps.Polyline({
+ const path = stopsWithCoords.map(s => new naver.maps.LatLng(s.lat, s.lng));
+ const polyline = new naver.maps.Polyline({
  map: routeMapObj.current,
  path: path,
  strokeColor: '#14b8a6',
@@ -31468,11 +31413,11 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  strokeStyle: 'solid'
  });
  routeMapLinesRef.current.push(polyline);
- const bounds = new window.naver.maps.LatLngBounds();
- stopsWithCoords.forEach(s => bounds.extend(new window.naver.maps.LatLng(s.lat, s.lng)));
+ const bounds = new naver.maps.LatLngBounds();
+ stopsWithCoords.forEach(s => bounds.extend(new naver.maps.LatLng(s.lat, s.lng)));
  routeMapObj.current.fitBounds(bounds, { padding: 50 });
  } else {
- routeMapObj.current.setCenter(new window.naver.maps.LatLng(stopsWithCoords[0].lat, stopsWithCoords[0].lng));
+ routeMapObj.current.setCenter(new naver.maps.LatLng(stopsWithCoords[0].lat, stopsWithCoords[0].lng));
  routeMapObj.current.setZoom(15);
  }
  }, 400);
@@ -31598,13 +31543,13 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  const query = routeMapSearch.trim();
  const place = findPlace(query);
  if (place) {
- routeMapObj.current.setCenter(new window.naver.maps.LatLng(place.lat, place.lng));
+ routeMapObj.current.setCenter(new naver.maps.LatLng(place.lat, place.lng));
  routeMapObj.current.setZoom(16);
  routeMapCirclesRef.current.forEach(c => c.setMap(null));
  routeMapCirclesRef.current = [];
- const circle = new window.naver.maps.Circle({
+ const circle = new naver.maps.Circle({
  map: routeMapObj.current,
- center: new window.naver.maps.LatLng(place.lat, place.lng),
+ center: new naver.maps.LatLng(place.lat, place.lng),
  radius: 150,
  fillColor: '#3b82f6',
  fillOpacity: 0.2,
@@ -31615,17 +31560,17 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  setTimeout(() => circle.setMap(null), 4000);
  return;
  }
- window.naver.maps.Service.geocode({ query: query }, (status, response) => {
- if (status === window.naver.maps.Service.Status.OK && response.v2.addresses?.length > 0) {
+ naver.maps.Service.geocode({ query: query }, (status, response) => {
+ if (status === naver.maps.Service.Status.OK && response.v2.addresses?.length > 0) {
  const result = response.v2.addresses[0];
  const lat = parseFloat(result.y), lng = parseFloat(result.x);
- routeMapObj.current.setCenter(new window.naver.maps.LatLng(lat, lng));
+ routeMapObj.current.setCenter(new naver.maps.LatLng(lat, lng));
  routeMapObj.current.setZoom(16);
  routeMapCirclesRef.current.forEach(c => c.setMap(null));
  routeMapCirclesRef.current = [];
- const circle = new window.naver.maps.Circle({
+ const circle = new naver.maps.Circle({
  map: routeMapObj.current,
- center: new window.naver.maps.LatLng(lat, lng),
+ center: new naver.maps.LatLng(lat, lng),
  radius: 150,
  fillColor: '#3b82f6',
  fillOpacity: 0.2,
@@ -31644,14 +31589,14 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  setCurrentSlideIndex(newIndex);
  const stop = routeStops[newIndex];
  if (stop.lat && stop.lng && routeMapObj.current) {
- routeMapObj.current.setCenter(new window.naver.maps.LatLng(stop.lat, stop.lng));
+ routeMapObj.current.setCenter(new naver.maps.LatLng(stop.lat, stop.lng));
  routeMapObj.current.setZoom(16);
  }
  };
  const focusStopOnRouteMap = (stop, idx) => {
  setCurrentSlideIndex(idx);
  if (stop.lat && stop.lng && routeMapObj.current) {
- routeMapObj.current.setCenter(new window.naver.maps.LatLng(stop.lat, stop.lng));
+ routeMapObj.current.setCenter(new naver.maps.LatLng(stop.lat, stop.lng));
  routeMapObj.current.setZoom(16);
  }
  };
@@ -31719,20 +31664,20 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  setTimeout(() => {
  if (!mapObj.current) return;
  clearRouteFromMap();
- mapObj.current.setCenter(new window.naver.maps.LatLng(stop.lat, stop.lng));
+ mapObj.current.setCenter(new naver.maps.LatLng(stop.lat, stop.lng));
  mapObj.current.setZoom(17);
- const marker = new window.naver.maps.Marker({
- position: new window.naver.maps.LatLng(stop.lat, stop.lng),
+ const marker = new naver.maps.Marker({
+ position: new naver.maps.LatLng(stop.lat, stop.lng),
  map: mapObj.current,
  icon: {
  content: `<div style="background: linear-gradient(135deg, #14b8a6, #0d9488); color: white; padding: 8px 12px; border-radius: 20px; font-weight: bold; font-size: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.3); border: 2px solid white; white-space: nowrap;">${stop.name}</div>`,
- anchor: new window.naver.maps.Point(50, 20)
+ anchor: new naver.maps.Point(50, 20)
  }
  });
  routeMarkersRef.current.push(marker);
- const circle = new window.naver.maps.Circle({
+ const circle = new naver.maps.Circle({
  map: mapObj.current,
- center: new window.naver.maps.LatLng(stop.lat, stop.lng),
+ center: new naver.maps.LatLng(stop.lat, stop.lng),
  radius: 100,
  fillColor: '#14b8a6',
  fillOpacity: 0.2,
@@ -31761,19 +31706,19 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  if (!mapObj.current) return;
  clearRouteFromMap();
  stopsWithCoords.forEach((stop, idx) => {
- const marker = new window.naver.maps.Marker({
- position: new window.naver.maps.LatLng(stop.lat, stop.lng),
+ const marker = new naver.maps.Marker({
+ position: new naver.maps.LatLng(stop.lat, stop.lng),
  map: mapObj.current,
  icon: {
  content: `<div style="background: linear-gradient(135deg, #14b8a6, #0d9488); color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; box-shadow: 0 2px 6px rgba(0,0,0,0.3); border: 2px solid white;">${idx + 1}</div>`,
- anchor: new window.naver.maps.Point(14, 14)
+ anchor: new naver.maps.Point(14, 14)
  }
  });
  routeMarkersRef.current.push(marker);
  });
  if (stopsWithCoords.length >= 2) {
- const path = stopsWithCoords.map(s => new window.naver.maps.LatLng(s.lat, s.lng));
- const polyline = new window.naver.maps.Polyline({
+ const path = stopsWithCoords.map(s => new naver.maps.LatLng(s.lat, s.lng));
+ const polyline = new naver.maps.Polyline({
  map: mapObj.current,
  path: path,
  strokeColor: '#14b8a6',
@@ -31783,11 +31728,11 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  });
  routeLinesRef.current.push(polyline);
  }
- mapObj.current.setCenter(new window.naver.maps.LatLng(stopsWithCoords[0].lat, stopsWithCoords[0].lng));
+ mapObj.current.setCenter(new naver.maps.LatLng(stopsWithCoords[0].lat, stopsWithCoords[0].lng));
  mapObj.current.setZoom(13);
  if (stopsWithCoords.length >= 2) {
- const bounds = new window.naver.maps.LatLngBounds();
- stopsWithCoords.forEach(s => bounds.extend(new window.naver.maps.LatLng(s.lat, s.lng)));
+ const bounds = new naver.maps.LatLngBounds();
+ stopsWithCoords.forEach(s => bounds.extend(new naver.maps.LatLng(s.lat, s.lng)));
  mapObj.current.fitBounds(bounds, { padding: 50 });
  }
  }, 300);
@@ -31803,19 +31748,19 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  routeMapLinesRef.current.forEach(l => l.setMap(null));
  routeMapLinesRef.current = [];
  stopsWithCoords.forEach((stop, idx) => {
- const marker = new window.naver.maps.Marker({
- position: new window.naver.maps.LatLng(stop.lat, stop.lng),
+ const marker = new naver.maps.Marker({
+ position: new naver.maps.LatLng(stop.lat, stop.lng),
  map: routeMapObj.current,
  icon: {
  content: `<div style="background: linear-gradient(135deg, #00C73C, #00a832); color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 13px; box-shadow: 0 2px 6px rgba(0,0,0,0.3); border: 2px solid white;">${idx + 1}</div>`,
- anchor: new window.naver.maps.Point(14, 14)
+ anchor: new naver.maps.Point(14, 14)
  }
  });
  routeMapMarkersRef.current.push(marker);
  });
  if (stopsWithCoords.length >= 2) {
- const path = stopsWithCoords.map(s => new window.naver.maps.LatLng(s.lat, s.lng));
- const polyline = new window.naver.maps.Polyline({
+ const path = stopsWithCoords.map(s => new naver.maps.LatLng(s.lat, s.lng));
+ const polyline = new naver.maps.Polyline({
  map: routeMapObj.current,
  path: path,
  strokeColor: '#14b8a6',
@@ -31824,11 +31769,11 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  strokeStyle: 'solid'
  });
  routeMapLinesRef.current.push(polyline);
- const bounds = new window.naver.maps.LatLngBounds();
- stopsWithCoords.forEach(s => bounds.extend(new window.naver.maps.LatLng(s.lat, s.lng)));
+ const bounds = new naver.maps.LatLngBounds();
+ stopsWithCoords.forEach(s => bounds.extend(new naver.maps.LatLng(s.lat, s.lng)));
  routeMapObj.current.fitBounds(bounds, { padding: 50 });
  } else {
- routeMapObj.current.setCenter(new window.naver.maps.LatLng(stopsWithCoords[0].lat, stopsWithCoords[0].lng));
+ routeMapObj.current.setCenter(new naver.maps.LatLng(stopsWithCoords[0].lat, stopsWithCoords[0].lng));
  routeMapObj.current.setZoom(15);
  }
  }, 300);
@@ -32112,101 +32057,6 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  setSaleForm({ managerId: null, companyId: null, amount: '', date: '', note: '' });
  setShowSaleModal(false);
  };
-
- // ========== 영업모드 검색 함수 ==========
- const handleSalesModeSearch = async () => {
- if (!salesModeRegion.trim()) return;
- setSalesModeLoading(true);
- setSalesModeSearchResult(null);
- 
- try {
- // Gemini API로 상권 분석
- const prompt = `당신은 한국 상권 분석 전문가입니다. 다음 지역의 카페 창업 상권을 분석해주세요.
-
-지역: ${salesModeRegion}
-
-다음 JSON 형식으로만 응답하세요 (설명 없이 JSON만):
-{
-  "overview": {
-    "population": "약 2.5만명",
-    "households": "약 1.2만 세대",
-    "stores": "127개",
-    "avgRent": "월 300만원",
-    "source": "https://sg.sbiz.or.kr"
-  },
-  "consumers": [
-    {"label": "20대", "percent": 35, "source": "https://kosis.kr"},
-    {"label": "30대", "percent": 28, "source": "https://kosis.kr"},
-    {"label": "40대", "percent": 22, "source": "https://kosis.kr"},
-    {"label": "50대 이상", "percent": 15, "source": "https://kosis.kr"}
-  ],
-  "franchises": [
-    {"name": "메가커피", "count": 12},
-    {"name": "컴포즈커피", "count": 8},
-    {"name": "이디야", "count": 6},
-    {"name": "빽다방", "count": 5},
-    {"name": "스타벅스", "count": 3}
-  ],
-  "development": [
-    "2025년 GTX-A 노선 개통 예정",
-    "대규모 주상복합 건설 진행 중",
-    "유동인구 증가 추세"
-  ],
-  "risks": [
-    "카페 과밀 경쟁 지역",
-    "임대료 상승 압력",
-    "주차 공간 부족"
-  ],
-  "insight": "이 지역은 유동인구가 많고 소비력이 높은 20-30대가 주요 타겟층입니다. 프랜차이즈 경쟁이 치열하나, 차별화된 컨셉과 합리적인 가격 전략으로 틈새시장 공략이 가능합니다. 빈크래프트 컨설팅을 통해 초기 비용을 절감하고 로열티 부담 없이 자율적인 운영이 가능합니다."
-}`;
-
- const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
- method: 'POST',
- headers: { 'Content-Type': 'application/json' },
- body: JSON.stringify({
- contents: [{ parts: [{ text: prompt }] }],
- generationConfig: { temperature: 0.7 }
- })
- });
- 
- const data = await response.json();
- const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
- 
- // JSON 파싱
- const jsonMatch = text.match(/\{[\s\S]*\}/);
- if (jsonMatch) {
- const result = JSON.parse(jsonMatch[0]);
- setSalesModeSearchResult(result);
- 
- // 지도 초기화
- setTimeout(() => {
- if (window.naver && window.naver.maps) {
- // 영업모드와 report 탭 둘 다 지원
- const mapDiv = document.getElementById('sales-mode-map') || document.getElementById('report-region-map');
- if (mapDiv) {
- // 지오코딩으로 좌표 찾기
- window.naver.maps.Service.geocode({ query: salesModeRegion }, (status, response) => {
- let center = new window.naver.maps.LatLng(37.5665, 126.9780);
- if (status === window.naver.maps.Service.Status.OK && response.v2.addresses.length > 0) {
- const item = response.v2.addresses[0];
- center = new window.naver.maps.LatLng(parseFloat(item.y), parseFloat(item.x));
- }
- const map = new window.naver.maps.Map(mapDiv, { center, zoom: 16 });
- new window.naver.maps.Marker({ position: center, map });
- new window.naver.maps.Circle({ map, center, radius: 500, fillColor: '#FFA500', fillOpacity: 0.15, strokeColor: '#FFA500', strokeWeight: 2 });
- });
- }
- }
- }, 100);
- }
- } catch (error) {
- console.error('Sales mode search error:', error);
- alert('분석 중 오류가 발생했습니다. 다시 시도해주세요.');
- } finally {
- setSalesModeLoading(false);
- }
- };
-
  const getManagerSales = (managerId) => sales.filter(s => s.managerId === managerId).reduce((sum, s) => sum + s.amount, 0);
  const submitPromoRequest = () => {
  const items = Object.entries(promoRequest).filter(([k, v]) => v).map(([k]) => k);
@@ -32466,7 +32316,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  )}
  </div>
  </div>
- {/* 기본/AI/지역 모드 전환 */}
+ {/* 기본/AI 모드 전환 */}
  <div className="flex gap-2 p-1 bg-slate-800 rounded-xl w-fit">
  <button 
  onClick={() => setReportMode('basic')}
@@ -32504,10 +32354,6 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  }}
  className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ${reportMode === 'ai' ? 'bg-brand-purple text-white' : 'text-slate-400 hover:text-slate-200'}`}
  >AI 분석</button>
- <button 
- onClick={() => setReportMode('region')}
- className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ${reportMode === 'region' ? 'bg-brand-purple text-white' : 'text-slate-400 hover:text-slate-200'}`}
- >지역 분석</button>
  </div>
  </div>
 
@@ -34318,289 +34164,6 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  </div>
  </div>
- </div>
- )}
-
- {/* 지역 분석 모드 */}
- {reportMode === 'region' && (
- <div className="space-y-3 sm:space-y-4">
- 
- {/* 지역 검색 */}
- <div className="card p-4">
- <div className="flex gap-2">
- <input 
-   type="text" 
-   value={salesModeRegion} 
-   onChange={e => setSalesModeRegion(e.target.value)}
-   placeholder="분석할 지역을 입력하세요 (예: 강남구 역삼동)"
-   className="flex-1 px-4 py-3 rounded-lg bg-slate-700 border border-slate-600 text-slate-100 placeholder-slate-400 focus:outline-none focus:border-brand-purple"
-   onKeyPress={e => e.key === 'Enter' && handleSalesModeSearch()}
- />
- <button 
-   onClick={() => handleSalesModeSearch()}
-   disabled={salesModeLoading || !salesModeRegion.trim()}
-   className="px-6 py-3 bg-brand-purple text-white rounded-lg font-medium hover:bg-brand-purple/80 disabled:opacity-50 disabled:cursor-not-allowed"
- >
-   {salesModeLoading ? '분석중...' : '분석'}
- </button>
- </div>
- </div>
- 
- {/* 분석 결과 */}
- {salesModeSearchResult && (
- <>
- {/* 1. 지도 섹션 */}
- <div className="card p-4">
- <h3 className="font-bold text-slate-100 mb-3">위치</h3>
- <div id="report-region-map" className="w-full h-[300px] rounded-lg bg-slate-700"></div>
- <p className="text-sm text-slate-400 mt-2">반경 500m 상권</p>
- </div>
- 
- {/* 2. 상권 개요 */}
- <div className="card p-4">
- <h3 className="font-bold text-slate-100 mb-3">상권 개요</h3>
- <div className="grid grid-cols-2 gap-4">
- <div className="text-center p-3 bg-slate-700/50 rounded-lg">
- <p className="text-2xl font-bold text-slate-100">{salesModeSearchResult.overview?.population || '-'}</p>
- <p className="text-sm text-slate-400">유동인구 (일)</p>
- </div>
- <div className="text-center p-3 bg-slate-700/50 rounded-lg">
- <p className="text-2xl font-bold text-slate-100">{salesModeSearchResult.overview?.households || '-'}</p>
- <p className="text-sm text-slate-400">세대수</p>
- </div>
- <div className="text-center p-3 bg-slate-700/50 rounded-lg">
- <p className="text-2xl font-bold text-slate-100">{salesModeSearchResult.overview?.stores || '-'}</p>
- <p className="text-sm text-slate-400">점포수</p>
- </div>
- <div className="text-center p-3 bg-slate-700/50 rounded-lg">
- <p className="text-2xl font-bold text-slate-100">{salesModeSearchResult.overview?.avgRent || '-'}</p>
- <p className="text-sm text-slate-400">평균 임대료</p>
- </div>
- </div>
- </div>
- 
- {/* 3. 주요 소비층 */}
- <div className="card p-4">
- <h3 className="font-bold text-slate-100 mb-3">주요 소비층</h3>
- <div className="space-y-2">
- {salesModeSearchResult.consumers?.map((c, i) => (
- <div key={i} className="flex justify-between items-center p-2 bg-slate-700/50 rounded-lg">
- <span className="text-slate-200">{c.label}</span>
- <span className="text-brand-purple font-bold">{c.percent}%</span>
- </div>
- )) || <p className="text-slate-400">데이터 없음</p>}
- </div>
- </div>
- 
- {/* 4. 프랜차이즈 경쟁 */}
- <div className="card p-4">
- <h3 className="font-bold text-slate-100 mb-3">프랜차이즈 경쟁</h3>
- <div className="space-y-2">
- {salesModeSearchResult.franchises?.map((c, i) => (
- <div key={i} className="flex justify-between items-center p-2 bg-slate-700/50 rounded-lg">
- <span className="text-slate-200">{c.name}</span>
- <span className="text-slate-300">{c.count}개</span>
- </div>
- )) || <p className="text-slate-400">데이터 없음</p>}
- </div>
- </div>
- 
- {/* 5. 개발 호재 */}
- <div className="card p-4">
- <h3 className="font-bold text-slate-100 mb-3">개발 호재</h3>
- <div className="space-y-2">
- {salesModeSearchResult.development?.map((d, i) => (
- <div key={i} className="p-2 bg-slate-700/50 rounded-lg">
- <p className="text-slate-200">{d}</p>
- </div>
- )) || <p className="text-slate-400">데이터 없음</p>}
- </div>
- </div>
- 
- {/* 6. 리스크 요인 */}
- <div className="card p-4">
- <h3 className="font-bold text-slate-100 mb-3">리스크 요인</h3>
- <div className="space-y-2">
- {salesModeSearchResult.risks?.map((r, i) => (
- <div key={i} className="p-2 bg-red-500/10 border border-red-500/30 rounded-lg">
- <p className="text-red-400">{r}</p>
- </div>
- )) || <p className="text-slate-400">데이터 없음</p>}
- </div>
- </div>
- 
- {/* 7. 시뮬레이션 */}
- <div className="card p-4">
- <h3 className="font-bold text-slate-100 mb-3">시뮬레이션</h3>
- <div className="grid grid-cols-2 gap-3">
- {[
- {key: 'seats', label: '좌석 수', unit: '석', info: '매장 총 좌석 수'},
- {key: 'price', label: '객단가', unit: '원', info: '1인당 평균 주문 금액'},
- {key: 'turnover', label: '회전율', unit: '회', info: '좌석당 하루 평균 손님 수', step: 0.1},
- {key: 'occupancy', label: '점유율', unit: '%', info: '영업시간 중 좌석 사용 비율'},
- {key: 'rent', label: '임대료', unit: '만원', info: '월 임대료 (관리비 포함)'},
- {key: 'labor', label: '인건비', unit: '만원', info: '월 총 인건비'},
- {key: 'materialRate', label: '재료비율', unit: '%', info: '매출 대비 재료비 비율'},
- {key: 'otherCost', label: '기타비용', unit: '만원', info: '공과금, 소모품 등'}
- ].map(item => (
- <div key={item.key} className="relative">
- <div className="flex items-center gap-1 mb-1">
- <span className="text-xs text-slate-400">{item.label}</span>
- <button onClick={() => setShowSimInfo(showSimInfo === item.key ? null : item.key)} className="w-4 h-4 rounded-full bg-slate-600 text-slate-400 text-xs">i</button>
- </div>
- {showSimInfo === item.key && (
- <div className="absolute z-10 left-0 top-8 bg-slate-900 text-slate-200 text-xs p-2 rounded-lg shadow-lg max-w-[200px] border border-slate-600">{item.info}</div>
- )}
- <div className="flex items-center gap-1">
- <input 
- type="number"
- step={item.step || 1}
- value={salesModeSim[item.key]} 
- onChange={e => setSalesModeSim({...salesModeSim, [item.key]: Number(e.target.value)})}
- className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-100 text-right"
- />
- <span className="text-xs text-slate-500 w-8">{item.unit}</span>
- </div>
- </div>
- ))}
- </div>
- </div>
- 
- {/* 8. 예상 수익 분석 */}
- <div className="card p-4">
- <h3 className="font-bold text-slate-100 mb-3">예상 수익 분석</h3>
- {(() => {
- const dailyRevenue = salesModeSim.seats * salesModeSim.price * salesModeSim.turnover * (salesModeSim.occupancy / 100);
- const monthlyRevenue = dailyRevenue * 30;
- const monthlyCost = (salesModeSim.rent + salesModeSim.labor + salesModeSim.otherCost) * 10000 + monthlyRevenue * (salesModeSim.materialRate / 100);
- const monthlyProfit = monthlyRevenue - monthlyCost;
- return (
- <div className="grid grid-cols-2 gap-4">
- <div className="text-center p-3 bg-slate-700/50 rounded-lg">
- <p className="text-lg font-bold text-slate-100">{Math.round(monthlyRevenue / 10000).toLocaleString()}만원</p>
- <p className="text-sm text-slate-400">예상 월 매출</p>
- </div>
- <div className="text-center p-3 bg-slate-700/50 rounded-lg">
- <p className={`text-lg font-bold ${monthlyProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{Math.round(monthlyProfit / 10000).toLocaleString()}만원</p>
- <p className="text-sm text-slate-400">예상 월 수익</p>
- </div>
- </div>
- );
- })()}
- </div>
- 
- {/* 9. 손익분기점 */}
- <div className="card p-4">
- <h3 className="font-bold text-slate-100 mb-3">손익분기점</h3>
- {(() => {
- const fixedCost = (salesModeSim.rent + salesModeSim.labor + salesModeSim.otherCost) * 10000;
- const pricePerItem = salesModeSim.price;
- const variableCostRate = salesModeSim.materialRate / 100;
- const breakEvenUnits = Math.ceil(fixedCost / (pricePerItem * (1 - variableCostRate)));
- const breakEvenDays = Math.ceil(breakEvenUnits / (salesModeSim.seats * salesModeSim.turnover * (salesModeSim.occupancy / 100)));
- return (
- <div className="grid grid-cols-2 gap-4">
- <div className="text-center p-3 bg-slate-700/50 rounded-lg">
- <p className="text-lg font-bold text-amber-400">{breakEvenUnits.toLocaleString()}잔</p>
- <p className="text-sm text-slate-400">월 손익분기 판매량</p>
- </div>
- <div className="text-center p-3 bg-slate-700/50 rounded-lg">
- <p className="text-lg font-bold text-amber-400">{breakEvenDays}일</p>
- <p className="text-sm text-slate-400">손익분기 도달</p>
- </div>
- </div>
- );
- })()}
- </div>
- 
- {/* 10. 컨설팅 효과 비교 */}
- <div className="card p-4">
- <h3 className="font-bold text-slate-100 mb-3">컨설팅 효과 비교</h3>
- <table className="w-full text-sm">
- <thead>
- <tr className="border-b border-slate-600">
- <th className="py-2 text-left text-slate-400">항목</th>
- <th className="text-right text-slate-400">프랜차이즈</th>
- <th className="text-right text-brand-purple">빈크래프트</th>
- </tr>
- </thead>
- <tbody>
- <tr className="border-b border-slate-700">
- <td className="py-2 text-slate-300">초기 비용</td>
- <td className="text-right text-slate-200">5,000~8,000만원</td>
- <td className="text-right text-brand-purple font-medium">1,000만원</td>
- </tr>
- <tr className="border-b border-slate-700">
- <td className="py-2 text-slate-300">월 로열티</td>
- <td className="text-right text-slate-200">매출 3~5%</td>
- <td className="text-right text-brand-purple font-medium">0원</td>
- </tr>
- <tr>
- <td className="py-2 text-slate-300">운영 자율성</td>
- <td className="text-right text-slate-200">제한적</td>
- <td className="text-right text-brand-purple font-medium">완전 자율</td>
- </tr>
- </tbody>
- </table>
- </div>
- 
- {/* 11. 예상 창업 비용 */}
- <div className="card p-4">
- <h3 className="font-bold text-slate-100 mb-3">예상 창업 비용</h3>
- <div className="space-y-2">
- <div className="flex justify-between p-2 bg-slate-700/50 rounded-lg">
- <span className="text-slate-300">인테리어</span>
- <span className="text-slate-100">3,000~5,000만원</span>
- </div>
- <div className="flex justify-between p-2 bg-slate-700/50 rounded-lg">
- <span className="text-slate-300">장비/집기</span>
- <span className="text-slate-100">1,500~2,500만원</span>
- </div>
- <div className="flex justify-between p-2 bg-slate-700/50 rounded-lg">
- <span className="text-slate-300">보증금</span>
- <span className="text-slate-100">3,000~5,000만원</span>
- </div>
- <div className="flex justify-between p-2 bg-brand-purple/20 rounded-lg border border-brand-purple/30">
- <span className="text-brand-purple font-medium">빈크래프트 컨설팅</span>
- <span className="text-brand-purple font-bold">1,000만원</span>
- </div>
- </div>
- </div>
- 
- {/* 12. AI 인사이트 */}
- <div className="card p-4">
- <h3 className="font-bold text-slate-100 mb-3">AI 인사이트</h3>
- <p className="text-slate-300 leading-relaxed">{salesModeSearchResult.insight || '지역 분석을 완료하면 AI 인사이트가 제공됩니다.'}</p>
- </div>
- 
- {/* 13. 출처 버튼 */}
- <div className="flex justify-center">
- <button 
-   onClick={() => setShowSourcesModal(true)}
-   className="px-6 py-3 bg-slate-700 text-slate-300 rounded-lg font-medium hover:bg-slate-600 transition-all"
- >
-   출처 확인
- </button>
- </div>
- 
- </>
- )}
- 
- {/* 검색 전 안내 */}
- {!salesModeSearchResult && !salesModeLoading && (
- <div className="text-center py-20">
- <p className="text-slate-400">분석할 지역을 입력하고 분석 버튼을 눌러주세요</p>
- </div>
- )}
- 
- {/* 로딩 */}
- {salesModeLoading && (
- <div className="text-center py-20">
- <div className="animate-spin w-8 h-8 border-2 border-brand-purple border-t-transparent rounded-full mx-auto mb-4"></div>
- <p className="text-slate-400">지역 분석 중...</p>
- </div>
- )}
- 
  </div>
  )}
 
@@ -37094,29 +36657,6 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  
  {/* 테마 설정 */}
  {settingsTab === 'theme' && (
- <div className="space-y-4">
- {/* 영업모드 진입 버튼 */}
- <div className="card p-4 rounded-2xl border border-amber-500/50 bg-gradient-to-r from-amber-500/10 to-transparent">
- <div className="flex items-center justify-between">
- <div>
- <h3 className="font-bold text-amber-400 text-lg">영업모드</h3>
- <p className="text-sm text-slate-400 mt-1">고객 미팅용 프레젠테이션 모드</p>
- </div>
- <button 
- onClick={() => {
-   setSalesModeLastActivity(Date.now());
-   setSalesModeCountdown(60);
-   setSalesModeLocked(false);
-   setShowSalesMode(true);
- }}
- className="px-6 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-white font-bold hover:from-amber-600 hover:to-yellow-600 transition-all shadow-lg shadow-amber-500/25"
- >
- 진입
- </button>
- </div>
- </div>
- 
- {/* 화면 테마 */}
  <div className="card p-4 rounded-2xl border border-slate-600">
  <h3 className="font-bold text-slate-100 mb-4">화면 테마</h3>
  <div className="grid grid-cols-3 gap-3">
@@ -37146,7 +36686,6 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {themeMode === 'auto' ? '시스템 설정에 따라 자동 전환됩니다.' : 
  themeMode === 'light' ? '밝은 화면으로 표시됩니다.' : '어두운 화면으로 표시됩니다.'}
  </p>
- </div>
  </div>
  )}
  
@@ -37356,8 +36895,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  if (showRealtorDetailModal.lat && showRealtorDetailModal.lng) {
  addStop(showRealtorDetailModal.lat, showRealtorDetailModal.lng);
  } else if (address && window.naver?.maps?.Service) {
- window.naver.maps.Service.geocode({ query: address }, (status, response) => {
- if (status === window.naver.maps.Service.Status.OK && response.v2.addresses.length > 0) {
+ naver.maps.Service.geocode({ query: address }, (status, response) => {
+ if (status === naver.maps.Service.Status.OK && response.v2.addresses.length > 0) {
  const result = response.v2.addresses[0];
  addStop(parseFloat(result.y), parseFloat(result.x));
  } else {
@@ -38511,443 +38050,6 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  </div>
  )}
-
- {/* ========== 영업모드 풀스크린 UI ========== */}
- {showSalesMode && (
- <div className="fixed inset-0 z-[9999] bg-white">
- {/* 상단 헤더 */}
- <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
- <div className="flex items-center gap-3">
- <img src="/logo.png" alt="빈크래프트" className="w-8 h-8 object-contain" />
- <span className="font-bold text-gray-900">빈크래프트</span>
- </div>
- <div className="flex items-center gap-2">
- <button onClick={() => setSalesModeTab('analysis')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${salesModeTab === 'analysis' ? 'bg-amber-500 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>분석</button>
- <button onClick={() => setSalesModeTab('homepage')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${salesModeTab === 'homepage' ? 'bg-amber-500 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>홈페이지</button>
- <button onClick={() => { setSalesModeLocked(true); setSalesModePin(''); }} className="ml-4 p-2 rounded-lg hover:bg-gray-100 text-gray-500">✕</button>
- </div>
- {/* 남은 시간 표시 */}
- {salesModeCountdown <= 15 && !salesModeLocked && (
-   <span className="text-xs text-orange-500 ml-2">{salesModeCountdown}초</span>
- )}
- </div>
- 
- {/* ========== PIN 잠금 화면 ========== */}
- {salesModeLocked && (
- <div className="fixed inset-0 z-[10000] bg-white flex flex-col items-center justify-center">
-   <img src="/logo.png" alt="빈크래프트" className="w-20 h-20 object-contain mb-6" />
-   <p className="text-gray-600 mb-8">화면 잠금</p>
-   
-   {/* PIN 입력 표시 */}
-   <div className="flex gap-3 mb-8">
-     {[0,1,2,3].map(i => (
-       <div key={i} className={`w-4 h-4 rounded-full ${salesModePin.length > i ? 'bg-amber-500' : 'bg-gray-300'}`} />
-     ))}
-   </div>
-   
-   {/* 숫자 패드 */}
-   <div className="grid grid-cols-3 gap-4">
-     {[1,2,3,4,5,6,7,8,9].map(n => (
-       <button 
-         key={n}
-         onClick={() => {
-           if (salesModePin.length < 4) {
-             const newPin = salesModePin + n;
-             setSalesModePin(newPin);
-             if (newPin.length === 4) {
-               // 기본 PIN: 0000 (나중에 설정에서 변경 가능)
-               const correctPin = localStorage.getItem('bc_sales_pin') || '0000';
-               if (newPin === correctPin) {
-                 // PIN 정확 - 잠금만 해제하고 영업모드는 계속
-                 setSalesModeLocked(false);
-                 setSalesModePin('');
-                 setSalesModeLastActivity(Date.now());
-                 setSalesModeCountdown(60);
-               } else {
-                 setSalesModePin('');
-                 // 진동 피드백 (모바일)
-                 if (navigator.vibrate) navigator.vibrate(200);
-               }
-             }
-           }
-         }}
-         className="w-16 h-16 rounded-full bg-gray-100 text-gray-900 text-2xl font-medium hover:bg-gray-200 active:bg-gray-300 transition-all"
-       >
-         {n}
-       </button>
-     ))}
-     <button 
-       onClick={() => {
-         if (window.confirm('앱을 종료하시겠습니까?')) {
-           setShowSalesMode(false);
-           setSalesModeLocked(false);
-           setSalesModePin('');
-           setLoggedIn(false);
-           setUser(null);
-           localStorage.removeItem('bc_session');
-         }
-       }}
-       className="w-16 h-16 rounded-full bg-red-100 text-red-600 text-xs font-medium hover:bg-red-200 transition-all"
-     >
-       앱종료
-     </button>
-     <button 
-       onClick={() => {
-         if (salesModePin.length < 4) {
-           const newPin = salesModePin + '0';
-           setSalesModePin(newPin);
-           if (newPin.length === 4) {
-             const correctPin = localStorage.getItem('bc_sales_pin') || '0000';
-             if (newPin === correctPin) {
-               // PIN 정확 - 잠금만 해제하고 영업모드는 계속
-               setSalesModeLocked(false);
-               setSalesModePin('');
-               setSalesModeLastActivity(Date.now());
-               setSalesModeCountdown(60);
-             } else {
-               setSalesModePin('');
-               if (navigator.vibrate) navigator.vibrate(200);
-             }
-           }
-         }
-       }}
-       className="w-16 h-16 rounded-full bg-gray-100 text-gray-900 text-2xl font-medium hover:bg-gray-200 active:bg-gray-300 transition-all"
-     >
-       0
-     </button>
-     <button 
-       onClick={() => setSalesModePin(salesModePin.slice(0, -1))}
-       className="w-16 h-16 rounded-full bg-gray-100 text-gray-500 text-sm font-medium hover:bg-gray-200 transition-all"
-     >
-       삭제
-     </button>
-   </div>
-   
-   <p className="text-xs text-gray-400 mt-8">기본 PIN: 0000</p>
- </div>
- )}
- 
- {/* 분석 탭 */}
- {salesModeTab === 'analysis' && (
- <div className="h-[calc(100vh-60px)] overflow-y-auto">
- <div className="max-w-3xl mx-auto p-4 space-y-4">
- 
- {/* 지역 검색 */}
- <div className="bg-white border border-gray-200 rounded-xl p-4">
- <div className="flex gap-2">
- <input 
- type="text" 
- value={salesModeRegion} 
- onChange={e => setSalesModeRegion(e.target.value)}
- placeholder="분석할 지역을 입력하세요 (예: 강남구 역삼동)"
- className="flex-1 px-4 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:border-amber-500"
- onKeyPress={e => e.key === 'Enter' && handleSalesModeSearch()}
- />
- <button 
- onClick={() => handleSalesModeSearch()}
- disabled={salesModeLoading || !salesModeRegion.trim()}
- className="px-6 py-3 bg-amber-500 text-white rounded-lg font-medium hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed"
- >
- {salesModeLoading ? '분석중...' : '분석'}
- </button>
- </div>
- </div>
- 
- {/* 분석 결과 */}
- {salesModeSearchResult && (
- <>
- {/* 1. 지도 섹션 */}
- <div className="bg-white border border-gray-200 rounded-xl p-4">
- <h3 className="font-bold text-gray-900 mb-3">위치</h3>
- <div id="sales-mode-map" className="w-full h-[300px] rounded-lg bg-gray-100"></div>
- <p className="text-sm text-gray-500 mt-2">반경 500m 상권</p>
- </div>
- 
- {/* 2. 상권 개요 */}
- <div className="bg-white border border-gray-200 rounded-xl p-4">
- <h3 className="font-bold text-gray-900 mb-3">상권 개요</h3>
- <div className="grid grid-cols-2 gap-4">
- <div className="text-center p-3 bg-gray-50 rounded-lg">
- <p className="text-2xl font-bold text-gray-900">{salesModeSearchResult.overview?.population || '-'}</p>
- <p className="text-sm text-gray-500">유동인구 (일)</p>
- </div>
- <div className="text-center p-3 bg-gray-50 rounded-lg">
- <p className="text-2xl font-bold text-gray-900">{salesModeSearchResult.overview?.households || '-'}</p>
- <p className="text-sm text-gray-500">세대수</p>
- </div>
- <div className="text-center p-3 bg-gray-50 rounded-lg">
- <p className="text-2xl font-bold text-gray-900">{salesModeSearchResult.overview?.stores || '-'}</p>
- <p className="text-sm text-gray-500">카페 수</p>
- </div>
- <div className="text-center p-3 bg-gray-50 rounded-lg">
- <p className="text-2xl font-bold text-gray-900">{salesModeSearchResult.overview?.avgRent || '-'}</p>
- <p className="text-sm text-gray-500">평균 임대료</p>
- </div>
- </div>
- </div>
- 
- {/* 3. 소비층 분석 */}
- <div className="bg-white border border-gray-200 rounded-xl p-4">
- <h3 className="font-bold text-gray-900 mb-3">소비층 분석</h3>
- <div className="space-y-2">
- {salesModeSearchResult.consumers?.map((item, i) => (
- <div key={i} className="flex justify-between items-center">
- <span className="text-gray-700">{item.label}</span>
- <div className="flex items-center gap-2">
- <div className="w-32 h-2 bg-gray-200 rounded-full overflow-hidden">
- <div className="h-full bg-amber-500 rounded-full" style={{width: `${item.percent}%`}}></div>
- </div>
- <span className="text-sm text-gray-600 w-12 text-right">{item.percent}%</span>
- </div>
- </div>
- ))}
- </div>
- </div>
- 
- {/* 4. 프랜차이즈 경쟁 분석 */}
- <div className="bg-white border border-gray-200 rounded-xl p-4">
- <h3 className="font-bold text-gray-900 mb-3">프랜차이즈 경쟁 현황</h3>
- <div className="space-y-2">
- {salesModeSearchResult.franchises?.map((f, i) => (
- <div key={i} className="flex justify-between items-center p-2 bg-gray-50 rounded-lg">
- <span className="text-gray-700">{f.name}</span>
- <span className="font-medium text-gray-900">{f.count}개</span>
- </div>
- ))}
- </div>
- </div>
- 
- {/* 5. 개발 호재 */}
- <div className="bg-white border border-gray-200 rounded-xl p-4">
- <h3 className="font-bold text-gray-900 mb-3">개발 호재</h3>
- <ul className="space-y-2">
- {salesModeSearchResult.development?.map((d, i) => (
- <li key={i} className="flex items-start gap-2 text-gray-700">
- <span className="text-green-500 mt-1">●</span>
- <span>{d}</span>
- </li>
- ))}
- </ul>
- </div>
- 
- {/* 6. 리스크 요인 */}
- <div className="bg-white border border-gray-200 rounded-xl p-4">
- <h3 className="font-bold text-gray-900 mb-3">리스크 요인</h3>
- <ul className="space-y-2">
- {salesModeSearchResult.risks?.map((r, i) => (
- <li key={i} className="flex items-start gap-2 text-gray-700">
- <span className="text-red-500 mt-1">●</span>
- <span>{r}</span>
- </li>
- ))}
- </ul>
- </div>
- 
- {/* 7. 매출 시뮬레이션 */}
- <div className="bg-white border border-gray-200 rounded-xl p-4">
- <h3 className="font-bold text-gray-900 mb-3">매출 시뮬레이션</h3>
- <div className="grid grid-cols-2 gap-3">
- {[
- {key: 'seats', label: '좌석 수', unit: '석', info: '카페 내 총 좌석 수'},
- {key: 'price', label: '객단가', unit: '원', info: '고객 1인당 평균 결제 금액'},
- {key: 'turnover', label: '회전율', unit: '회', info: '좌석당 하루 평균 손님 수'},
- {key: 'occupancy', label: '점유율', unit: '%', info: '영업시간 중 좌석 사용 비율'},
- {key: 'rent', label: '임대료', unit: '만원', info: '월 임대료 (관리비 포함)'},
- {key: 'labor', label: '인건비', unit: '만원', info: '월 총 인건비'},
- {key: 'materialRate', label: '재료비율', unit: '%', info: '매출 대비 재료비 비율'},
- {key: 'otherCost', label: '기타비용', unit: '만원', info: '공과금, 소모품 등'}
- ].map(item => (
- <div key={item.key} className="relative">
- <div className="flex items-center gap-1 mb-1">
- <span className="text-sm text-gray-600">{item.label}</span>
- <button onClick={() => setShowSimInfo(showSimInfo === item.key ? null : item.key)} className="w-4 h-4 rounded-full bg-gray-200 text-gray-500 text-xs">i</button>
- </div>
- {showSimInfo === item.key && (
- <div className="absolute z-10 left-0 top-8 bg-gray-800 text-white text-xs p-2 rounded-lg shadow-lg max-w-[200px]">{item.info}</div>
- )}
- <div className="flex items-center gap-1">
- <input 
- type="number" 
- value={salesModeSim[item.key]} 
- onChange={e => setSalesModeSim({...salesModeSim, [item.key]: Number(e.target.value)})}
- className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 text-right"
- />
- <span className="text-sm text-gray-500 w-8">{item.unit}</span>
- </div>
- </div>
- ))}
- </div>
- </div>
- 
- {/* 8. 예상 수익 */}
- <div className="bg-white border border-gray-200 rounded-xl p-4">
- <h3 className="font-bold text-gray-900 mb-3">예상 수익</h3>
- {(() => {
- const dailySales = salesModeSim.seats * salesModeSim.price * salesModeSim.turnover * (salesModeSim.occupancy / 100);
- const monthlySales = dailySales * 30;
- const materialCost = monthlySales * (salesModeSim.materialRate / 100);
- const totalCost = salesModeSim.rent * 10000 + salesModeSim.labor * 10000 + materialCost + salesModeSim.otherCost * 10000;
- const profit = monthlySales - totalCost;
- return (
- <div className="space-y-3">
- <div className="flex justify-between p-3 bg-amber-50 rounded-lg">
- <span className="text-gray-700">월 예상 매출</span>
- <span className="font-bold text-amber-600">{Math.round(monthlySales / 10000).toLocaleString()}만원</span>
- </div>
- <div className="flex justify-between p-3 bg-gray-50 rounded-lg">
- <span className="text-gray-700">월 총 비용</span>
- <span className="font-medium text-gray-900">{Math.round(totalCost / 10000).toLocaleString()}만원</span>
- </div>
- <div className="flex justify-between p-3 bg-green-50 rounded-lg border border-green-200">
- <span className="text-gray-700">월 예상 순이익</span>
- <span className={`font-bold ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>{Math.round(profit / 10000).toLocaleString()}만원</span>
- </div>
- </div>
- );
- })()}
- </div>
- 
- {/* 9. 손익분기점 */}
- <div className="bg-white border border-gray-200 rounded-xl p-4">
- <h3 className="font-bold text-gray-900 mb-3">손익분기점</h3>
- {(() => {
- const fixedCost = (salesModeSim.rent + salesModeSim.labor + salesModeSim.otherCost) * 10000;
- const marginRate = 1 - (salesModeSim.materialRate / 100);
- const breakeven = fixedCost / marginRate;
- return (
- <div className="text-center p-4 bg-gray-50 rounded-lg">
- <p className="text-3xl font-bold text-gray-900">{Math.round(breakeven / 10000).toLocaleString()}만원</p>
- <p className="text-sm text-gray-500 mt-1">월 매출이 이 금액을 넘으면 흑자</p>
- </div>
- );
- })()}
- </div>
- 
- {/* 10. 빈크래프트 컨설팅 효과 */}
- <div className="bg-white border border-gray-200 rounded-xl p-4">
- <h3 className="font-bold text-gray-900 mb-3">빈크래프트 컨설팅 효과</h3>
- <div className="space-y-3">
- <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
- <p className="font-medium text-amber-800">상권 분석 리포트</p>
- <p className="text-sm text-amber-700 mt-1">데이터 기반 최적 입지 선정</p>
- </div>
- <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
- <p className="font-medium text-amber-800">인테리어 컨설팅</p>
- <p className="text-sm text-amber-700 mt-1">비용 효율적인 공간 설계</p>
- </div>
- <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
- <p className="font-medium text-amber-800">운영 매뉴얼</p>
- <p className="text-sm text-amber-700 mt-1">검증된 카페 운영 노하우 전수</p>
- </div>
- </div>
- </div>
- 
- {/* 11. 창업 비용 비교 */}
- <div className="bg-white border border-gray-200 rounded-xl p-4">
- <h3 className="font-bold text-gray-900 mb-3">창업 비용 비교</h3>
- <div className="overflow-x-auto">
- <table className="w-full text-sm">
- <thead>
- <tr className="border-b border-gray-200">
- <th className="text-left py-2 text-gray-600">항목</th>
- <th className="text-right py-2 text-gray-600">프랜차이즈</th>
- <th className="text-right py-2 text-amber-600">빈크래프트</th>
- </tr>
- </thead>
- <tbody>
- <tr className="border-b border-gray-100">
- <td className="py-2 text-gray-700">초기 비용</td>
- <td className="text-right text-gray-900">5,000~8,000만원</td>
- <td className="text-right text-amber-600 font-medium">1,000만원</td>
- </tr>
- <tr className="border-b border-gray-100">
- <td className="py-2 text-gray-700">월 로열티</td>
- <td className="text-right text-gray-900">매출 3~5%</td>
- <td className="text-right text-amber-600 font-medium">0원</td>
- </tr>
- <tr>
- <td className="py-2 text-gray-700">운영 자율성</td>
- <td className="text-right text-gray-900">제한적</td>
- <td className="text-right text-amber-600 font-medium">완전 자율</td>
- </tr>
- </tbody>
- </table>
- </div>
- </div>
- 
- {/* 12. AI 인사이트 */}
- <div className="bg-white border border-gray-200 rounded-xl p-4">
- <h3 className="font-bold text-gray-900 mb-3">AI 인사이트</h3>
- <p className="text-gray-700 leading-relaxed">{salesModeSearchResult.insight || '지역 분석을 완료하면 AI 인사이트가 제공됩니다.'}</p>
- </div>
- 
- {/* 13. 출처 버튼 */}
- <div className="flex justify-center">
-   <button 
-     onClick={() => setShowSourcesModal(true)}
-     className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-all"
-   >
-     출처 확인
-   </button>
- </div>
- 
- </>
- )}
- 
- {/* 검색 전 안내 */}
- {!salesModeSearchResult && !salesModeLoading && (
- <div className="text-center py-20">
- 
- <p className="text-gray-500">분석할 지역을 입력하고 분석 버튼을 눌러주세요</p>
- </div>
- )}
- 
- </div>
- </div>
- )}
- 
- {/* 홈페이지 탭 */}
- {salesModeTab === 'homepage' && (
- <div className="h-[calc(100vh-60px)] overflow-hidden">
- <iframe src="https://www.beancraft.co.kr" className="w-full h-full border-0" title="빈크래프트 홈페이지" />
- </div>
- )}
- </div>
- )}
-
- {/* 출처 팝업 모달 - 전체 앱 레벨 */}
- {showSourcesModal && (
- <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/50" onClick={() => setShowSourcesModal(false)}>
-   <div className="bg-white rounded-2xl p-6 m-4 max-w-sm w-full" onClick={e => e.stopPropagation()}>
-     <h3 className="font-bold text-gray-900 text-lg mb-4">데이터 출처</h3>
-     <div className="space-y-3">
-       <a href="https://sg.sbiz.or.kr" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-all">
-         <span className="text-amber-500">📊</span>
-         <span className="text-gray-700">소상공인시장진흥공단 상권정보</span>
-       </a>
-       <a href="https://franchise.ftc.go.kr" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-all">
-         <span className="text-amber-500">📋</span>
-         <span className="text-gray-700">공정거래위원회 가맹사업정보</span>
-       </a>
-       <a href="https://kosis.kr" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-all">
-         <span className="text-amber-500">📈</span>
-         <span className="text-gray-700">통계청 KOSIS</span>
-       </a>
-       <a href="https://data.seoul.go.kr" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-all">
-         <span className="text-amber-500">🏛️</span>
-         <span className="text-gray-700">서울 열린데이터광장</span>
-       </a>
-     </div>
-     <button 
-       onClick={() => setShowSourcesModal(false)}
-       className="w-full mt-4 py-3 bg-amber-500 text-white rounded-lg font-medium hover:bg-amber-600 transition-all"
-     >
-       닫기
-     </button>
-   </div>
- </div>
- )}
-
  </div>
  );
  };
