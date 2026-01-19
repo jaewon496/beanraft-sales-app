@@ -32101,7 +32101,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
    };
    
    return (
-     <div className="min-h-screen flex items-center justify-center p-4 overflow-hidden" style={{background: '#000000'}}>
+     <div className="min-h-screen flex items-center justify-center p-4 bg-black overflow-hidden">
        <div className="w-full max-w-md relative" style={{minHeight: '500px'}}>
          
          {/* 명언 - quote일 때만 보임 */}
@@ -32128,7 +32128,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
            }}
          >
            <div className="text-center">
-             <img src="/logo.png" alt="BEANCRAFT" className="w-40 h-40 sm:w-56 sm:h-56 mx-auto mb-4 object-contain" />
+             <img src="data:image/webp;base64,UklGRr4EAABXRUJQVlA4WAoAAAAQAAAAPwAAPwAAQUxQSHACAAABkARJtmlbvfbe59k699m2bVvftm1rZNu2bdu2hrZ9vq+mbxARE4AabgmkV8QgQY8JPDI8JsSEQHoChnIP2EWAABDpnqElIS4Z8JUgG0H3CZ6egHOeBVylwNhwU1dZ6Bp5OoIMcz1h5+pq0jLKN9AcpFOAdTQDsjOgCglPSAcA0hIJzokEFwxMEEnR8c2zQiW5g7FTRTiLE/grF4JzwQXThPoxEguxSTfpaBdcCE8jmDk7WbkIaJ6gqtWyob15rWZtEuBby45lV/oX1ncXPr2nT7FIH9G4eVRoh/neLKlh6wZlTSqaJYLU4ahS1t05lazs39kRm5RBOPnV+dzBkrieP24+3XLjxXGlr8MZpTVOv9y2avk95UZ/cPXK33e8sC/y29TRseYPj1ywPPZj9Z5NlolvT+xcMvnGkXbvu1g9OX8c+y+NGIDIb7ZgUK/48/yFFws+zpsaWa7c/pF3eOW+97MdMj/u2LMu99DLF2+seyjPvltuerB8Jkv+6k6aqKWM3KQ0U+ZPqnX0esPHo3YtLlWO1Ouw9d2OTztvnghUelw+Xe9D7yOrAGQqHlCPwW/45Im58vCJ0xv3Ckfp4OnD4yY3twuXpm7dlNawS3yHcSM90aB+g2phCLehliC11BW2QdEqGYg3t6xCi8hAuNrAx0BAuySE4CSE4IJBAgDh4WFYK5bnFxilBDYIz7WH4JwDIKEZdYkB8EiNivSHU0Nj2Idnm0LHyc3Tu3ay5OdEBjk+AEJAOgZbb9klLtLSyRAx8SAeR9BHNzN4mZJcxSFUIF0jIgAkhwB1raGvBCK/0IhEFYj046+GEgygz4SabgFWUDggKAIAAFAMAJ0BKkAAQAA+kUSbSiWjoiGoCACwEglmAGfeUxQgPwpogPOK9AG8Abwx+5PpYuC+6BvgaQL3p0B+cX6Z9gPoNegx+ma0WlJLPs3Uq6HpBvu3yeQNnHXcLF7xMkOCHb7DYSjiFNKNcDIgAP78+FvR///1DBc+ORrUZzISuYmqOMLGOQ/zaUuKRTrF5Nm80r/X2D8lpeyCr0VQwyjiFS8DDfgE6JM3/kNY8uesZuvLeAgUWzW2/yTv2RX77/90+//MvU+3GHZ+wj7MMyxX/8Tnf/sBlAFR/wEVTP3poHuNCgOGRGdoxgHqJIukm4pn+zYgHieAatex072s5dd2+Lx/9DS/8T7XCBQrCGWMRlC/sf8CdIFFhER6nC5qFmw+O/O3U8s0uflu5GSfvuhDLLJ3gpdV80qfvHZqyqS8oWBZDTFAlndM0W+oe7H/9z2mihm/+kd8Jf+Pleu//Y8hsyT///T7XSVtjZprjyqVNxSxLioafMN77Sib2Ti40AuU3PY8GmXiY0US8I9G9DEJj8CoEDPzOdU7Qh/VRQDNleg/omm79j3+gUnP8V4sPPrddRMS0nCxuPAD4Ssvaf7lLlThPKhJA+Xm+Ah4ioajzkN+VIb8C73pZ1aotgCR5QL4o5qwD44BKG1RaUMJrwM27h8XLrQStXQ95pkw1SlgLxba/oWuIjtQ2N1aZt75fVZPEVPXXB8lNRc24F5hakDsw4Tep00AAAAAAA==" alt="BEANCRAFT" className="w-40 h-40 sm:w-56 sm:h-56 mx-auto mb-4 object-contain" />
              <p className="text-slate-200 text-base sm:text-lg tracking-widest font-semibold">빈크래프트 영업관리</p>
            </div>
          </div>
@@ -32144,7 +32144,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
            }}
          >
            <div className="text-center mb-6">
-             <img src="/logo.png" alt="BEANCRAFT" className="w-28 h-28 sm:w-40 sm:h-40 mx-auto mb-3 object-contain" />
+             <img src="data:image/webp;base64,UklGRr4EAABXRUJQVlA4WAoAAAAQAAAAPwAAPwAAQUxQSHACAAABkARJtmlbvfbe59k699m2bVvftm1rZNu2bdu2hrZ9vq+mbxARE4AabgmkV8QgQY8JPDI8JsSEQHoChnIP2EWAABDpnqElIS4Z8JUgG0H3CZ6egHOeBVylwNhwU1dZ6Bp5OoIMcz1h5+pq0jLKN9AcpFOAdTQDsjOgCglPSAcA0hIJzokEFwxMEEnR8c2zQiW5g7FTRTiLE/grF4JzwQXThPoxEguxSTfpaBdcCE8jmDk7WbkIaJ6gqtWyob15rWZtEuBby45lV/oX1ncXPr2nT7FIH9G4eVRoh/neLKlh6wZlTSqaJYLU4ahS1t05lazs39kRm5RBOPnV+dzBkrieP24+3XLjxXGlr8MZpTVOv9y2avk95UZ/cPXK33e8sC/y29TRseYPj1ywPPZj9Z5NlolvT+xcMvnGkXbvu1g9OX8c+y+NGIDIb7ZgUK/48/yFFws+zpsaWa7c/pF3eOW+97MdMj/u2LMu99DLF2+seyjPvltuerB8Jkv+6k6aqKWM3KQ0U+ZPqnX0esPHo3YtLlWO1Ouw9d2OTztvnghUelw+Xe9D7yOrAGQqHlCPwW/45Im58vCJ0xv3Ckfp4OnD4yY3twuXpm7dlNawS3yHcSM90aB+g2phCLehliC11BW2QdEqGYg3t6xCi8hAuNrAx0BAuySE4CSE4IJBAgDh4WFYK5bnFxilBDYIz7WH4JwDIKEZdYkB8EiNivSHU0Nj2Idnm0LHyc3Tu3ay5OdEBjk+AEJAOgZbb9klLtLSyRAx8SAeR9BHNzN4mZJcxSFUIF0jIgAkhwB1raGvBCK/0IhEFYj046+GEgygz4SabgFWUDggKAIAAFAMAJ0BKkAAQAA+kUSbSiWjoiGoCACwEglmAGfeUxQgPwpogPOK9AG8Abwx+5PpYuC+6BvgaQL3p0B+cX6Z9gPoNegx+ma0WlJLPs3Uq6HpBvu3yeQNnHXcLF7xMkOCHb7DYSjiFNKNcDIgAP78+FvR///1DBc+ORrUZzISuYmqOMLGOQ/zaUuKRTrF5Nm80r/X2D8lpeyCr0VQwyjiFS8DDfgE6JM3/kNY8uesZuvLeAgUWzW2/yTv2RX77/90+//MvU+3GHZ+wj7MMyxX/8Tnf/sBlAFR/wEVTP3poHuNCgOGRGdoxgHqJIukm4pn+zYgHieAatex072s5dd2+Lx/9DS/8T7XCBQrCGWMRlC/sf8CdIFFhER6nC5qFmw+O/O3U8s0uflu5GSfvuhDLLJ3gpdV80qfvHZqyqS8oWBZDTFAlndM0W+oe7H/9z2mihm/+kd8Jf+Pleu//Y8hsyT///T7XSVtjZprjyqVNxSxLioafMN77Sib2Ti40AuU3PY8GmXiY0US8I9G9DEJj8CoEDPzOdU7Qh/VRQDNleg/omm79j3+gUnP8V4sPPrddRMS0nCxuPAD4Ssvaf7lLlThPKhJA+Xm+Ah4ioajzkN+VIb8C73pZ1aotgCR5QL4o5qwD44BKG1RaUMJrwM27h8XLrQStXQ95pkw1SlgLxba/oWuIjtQ2N1aZt75fVZPEVPXXB8lNRc24F5hakDsw4Tep00AAAAAAA==" alt="BEANCRAFT" className="w-28 h-28 sm:w-40 sm:h-40 mx-auto mb-3 object-contain" />
              <p className="text-slate-200 text-sm sm:text-base tracking-widest font-semibold">빈크래프트 영업관리</p>
            </div>
            <div className="text-center mb-5 px-4">
@@ -32182,7 +32182,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className={`min-h-screen pb-6 ${effectiveTheme === 'dark' ? 'bg-black' : 'bg-slate-50'}`}>
  <div className="bg-slate-800 border-b border-slate-600 px-4 py-3 flex justify-between items-center sticky top-0 z-50 shadow-sm">
  <div className="flex items-center gap-2 sm:gap-3">
- <img src="/logo.png" alt="BEANCRAFT" className="w-8 h-8 object-contain" />
+ <img src="data:image/webp;base64,UklGRr4EAABXRUJQVlA4WAoAAAAQAAAAPwAAPwAAQUxQSHACAAABkARJtmlbvfbe59k699m2bVvftm1rZNu2bdu2hrZ9vq+mbxARE4AabgmkV8QgQY8JPDI8JsSEQHoChnIP2EWAABDpnqElIS4Z8JUgG0H3CZ6egHOeBVylwNhwU1dZ6Bp5OoIMcz1h5+pq0jLKN9AcpFOAdTQDsjOgCglPSAcA0hIJzokEFwxMEEnR8c2zQiW5g7FTRTiLE/grF4JzwQXThPoxEguxSTfpaBdcCE8jmDk7WbkIaJ6gqtWyob15rWZtEuBby45lV/oX1ncXPr2nT7FIH9G4eVRoh/neLKlh6wZlTSqaJYLU4ahS1t05lazs39kRm5RBOPnV+dzBkrieP24+3XLjxXGlr8MZpTVOv9y2avk95UZ/cPXK33e8sC/y29TRseYPj1ywPPZj9Z5NlolvT+xcMvnGkXbvu1g9OX8c+y+NGIDIb7ZgUK/48/yFFws+zpsaWa7c/pF3eOW+97MdMj/u2LMu99DLF2+seyjPvltuerB8Jkv+6k6aqKWM3KQ0U+ZPqnX0esPHo3YtLlWO1Ouw9d2OTztvnghUelw+Xe9D7yOrAGQqHlCPwW/45Im58vCJ0xv3Ckfp4OnD4yY3twuXpm7dlNawS3yHcSM90aB+g2phCLehliC11BW2QdEqGYg3t6xCi8hAuNrAx0BAuySE4CSE4IJBAgDh4WFYK5bnFxilBDYIz7WH4JwDIKEZdYkB8EiNivSHU0Nj2Idnm0LHyc3Tu3ay5OdEBjk+AEJAOgZbb9klLtLSyRAx8SAeR9BHNzN4mZJcxSFUIF0jIgAkhwB1raGvBCK/0IhEFYj046+GEgygz4SabgFWUDggKAIAAFAMAJ0BKkAAQAA+kUSbSiWjoiGoCACwEglmAGfeUxQgPwpogPOK9AG8Abwx+5PpYuC+6BvgaQL3p0B+cX6Z9gPoNegx+ma0WlJLPs3Uq6HpBvu3yeQNnHXcLF7xMkOCHb7DYSjiFNKNcDIgAP78+FvR///1DBc+ORrUZzISuYmqOMLGOQ/zaUuKRTrF5Nm80r/X2D8lpeyCr0VQwyjiFS8DDfgE6JM3/kNY8uesZuvLeAgUWzW2/yTv2RX77/90+//MvU+3GHZ+wj7MMyxX/8Tnf/sBlAFR/wEVTP3poHuNCgOGRGdoxgHqJIukm4pn+zYgHieAatex072s5dd2+Lx/9DS/8T7XCBQrCGWMRlC/sf8CdIFFhER6nC5qFmw+O/O3U8s0uflu5GSfvuhDLLJ3gpdV80qfvHZqyqS8oWBZDTFAlndM0W+oe7H/9z2mihm/+kd8Jf+Pleu//Y8hsyT///T7XSVtjZprjyqVNxSxLioafMN77Sib2Ti40AuU3PY8GmXiY0US8I9G9DEJj8CoEDPzOdU7Qh/VRQDNleg/omm79j3+gUnP8V4sPPrddRMS0nCxuPAD4Ssvaf7lLlThPKhJA+Xm+Ah4ioajzkN+VIb8C73pZ1aotgCR5QL4o5qwD44BKG1RaUMJrwM27h8XLrQStXQ95pkw1SlgLxba/oWuIjtQ2N1aZt75fVZPEVPXXB8lNRc24F5hakDsw4Tep00AAAAAAA==" alt="BEANCRAFT" className="w-8 h-8 object-contain" />
  <span className="font-semibold text-slate-200 text-sm tracking-wide">BEANCRAFT</span>
  </div>
  <div className="flex items-center gap-2 sm:gap-3">
@@ -32193,7 +32193,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  <div className="bg-slate-800 border-b border-slate-600 tabs-container scrollbar-hide">
  <div className="flex justify-start sm:justify-center min-w-max px-2">
- {tabs.map(t => (<button key={t.key} onClick={() => navigateToTab(t.key)} className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-all ${tab === t.key ? 'text-purple-400 border-b-2 border-purple-400 bg-slate-700/50' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/30'}`}>{t.label}</button>))}
+ {tabs.map(t => (<button key={t.key} onClick={() => navigateToTab(t.key)} className={`tab-btn ${tab === t.key ? 'active' : ''}`}>{t.label}</button>))}
  </div>
  </div>
  {/* 오늘 연락할 곳 알림 배너 */}
@@ -35376,7 +35376,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl p-4 shadow-lg">
    <div className="flex items-center justify-between">
      <div className="flex items-center gap-3">
-       <img src="/logo.png" alt="BEANCRAFT" className="w-10 h-10 object-contain" />
+       <img src="data:image/webp;base64,UklGRr4EAABXRUJQVlA4WAoAAAAQAAAAPwAAPwAAQUxQSHACAAABkARJtmlbvfbe59k699m2bVvftm1rZNu2bdu2hrZ9vq+mbxARE4AabgmkV8QgQY8JPDI8JsSEQHoChnIP2EWAABDpnqElIS4Z8JUgG0H3CZ6egHOeBVylwNhwU1dZ6Bp5OoIMcz1h5+pq0jLKN9AcpFOAdTQDsjOgCglPSAcA0hIJzokEFwxMEEnR8c2zQiW5g7FTRTiLE/grF4JzwQXThPoxEguxSTfpaBdcCE8jmDk7WbkIaJ6gqtWyob15rWZtEuBby45lV/oX1ncXPr2nT7FIH9G4eVRoh/neLKlh6wZlTSqaJYLU4ahS1t05lazs39kRm5RBOPnV+dzBkrieP24+3XLjxXGlr8MZpTVOv9y2avk95UZ/cPXK33e8sC/y29TRseYPj1ywPPZj9Z5NlolvT+xcMvnGkXbvu1g9OX8c+y+NGIDIb7ZgUK/48/yFFws+zpsaWa7c/pF3eOW+97MdMj/u2LMu99DLF2+seyjPvltuerB8Jkv+6k6aqKWM3KQ0U+ZPqnX0esPHo3YtLlWO1Ouw9d2OTztvnghUelw+Xe9D7yOrAGQqHlCPwW/45Im58vCJ0xv3Ckfp4OnD4yY3twuXpm7dlNawS3yHcSM90aB+g2phCLehliC11BW2QdEqGYg3t6xCi8hAuNrAx0BAuySE4CSE4IJBAgDh4WFYK5bnFxilBDYIz7WH4JwDIKEZdYkB8EiNivSHU0Nj2Idnm0LHyc3Tu3ay5OdEBjk+AEJAOgZbb9klLtLSyRAx8SAeR9BHNzN4mZJcxSFUIF0jIgAkhwB1raGvBCK/0IhEFYj046+GEgygz4SabgFWUDggKAIAAFAMAJ0BKkAAQAA+kUSbSiWjoiGoCACwEglmAGfeUxQgPwpogPOK9AG8Abwx+5PpYuC+6BvgaQL3p0B+cX6Z9gPoNegx+ma0WlJLPs3Uq6HpBvu3yeQNnHXcLF7xMkOCHb7DYSjiFNKNcDIgAP78+FvR///1DBc+ORrUZzISuYmqOMLGOQ/zaUuKRTrF5Nm80r/X2D8lpeyCr0VQwyjiFS8DDfgE6JM3/kNY8uesZuvLeAgUWzW2/yTv2RX77/90+//MvU+3GHZ+wj7MMyxX/8Tnf/sBlAFR/wEVTP3poHuNCgOGRGdoxgHqJIukm4pn+zYgHieAatex072s5dd2+Lx/9DS/8T7XCBQrCGWMRlC/sf8CdIFFhER6nC5qFmw+O/O3U8s0uflu5GSfvuhDLLJ3gpdV80qfvHZqyqS8oWBZDTFAlndM0W+oe7H/9z2mihm/+kd8Jf+Pleu//Y8hsyT///T7XSVtjZprjyqVNxSxLioafMN77Sib2Ti40AuU3PY8GmXiY0US8I9G9DEJj8CoEDPzOdU7Qh/VRQDNleg/omm79j3+gUnP8V4sPPrddRMS0nCxuPAD4Ssvaf7lLlThPKhJA+Xm+Ah4ioajzkN+VIb8C73pZ1aotgCR5QL4o5qwD44BKG1RaUMJrwM27h8XLrQStXQ95pkw1SlgLxba/oWuIjtQ2N1aZt75fVZPEVPXXB8lNRc24F5hakDsw4Tep00AAAAAAA==" alt="BEANCRAFT" className="w-10 h-10 object-contain" />
        <div>
          <h2 className="text-white font-bold text-lg">BEANCRAFT</h2>
          <p className="text-blue-200 text-xs">카페 창업 전문 컨설팅</p>
