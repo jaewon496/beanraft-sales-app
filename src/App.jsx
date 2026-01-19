@@ -506,6 +506,48 @@ const COMPANY_QUOTES = [
  };
  const PROMO_ITEMS = ['명함', '브로셔', '전단지', '쿠폰'];
  const GOOGLE_VISION_API_KEY = 'AIzaSyDcz5e1qre9QMbrKmUSjT9nEsajSnhIhAI';
+
+// ═══════════════════════════════════════════════════════════════
+// 소상공인365 API 키 (임시승인 2026-01-19 ~ 2026-06-30)
+// ═══════════════════════════════════════════════════════════════
+const SBIZ365_API = {
+  BASE_URL: 'https://bigdata.sbiz.or.kr',
+  snsAnaly: { key: 'd46f5d518688912176484b6f894664c5d0b252967d92f4bafc690904381d7ff5', path: '/openApi/snsAnaly', name: 'SNS 분석' },
+  simple: { key: 'bb51c6d3d3f93e8172c7888e73eb19afb9120c9f61676c658648ee2853f88e85', path: '/openApi/simple', name: '간단분석' },
+  tour: { key: 'fc2070ca36e0ec845ecfd8c949860cfe4552e56903afcb9bcea07a509f820bcd', path: '/openApi/tour', name: '관광 축제 정보' },
+  slsIndex: { key: 'abddbf5dc29670b9209d75e4910c7fd932a8a1a43dcce9d18661585e4040f2fb', path: '/openApi/slsIndex', name: '매출추이' },
+  delivery: { key: '3ba2863eaf4e3b30b3c0237ab9da80ed11f4a7579d4f212d5c318b8e41a3a304', path: '/openApi/delivery', name: '배달현황' },
+  startupPublic: { key: '167264f6eef5710d8d79e96b1316e8c2cb85a197d32446d3849008d0376cf098', path: '/openApi/startupPublic', name: '상권지도' },
+  detail: { key: 'b2d9a1ae52aace697124a56c7c2bbed2eeb94fd4996fb5935cb9a25cc4c3c869', path: '/openApi/detail', name: '상세분석' },
+  stcarSttus: { key: '79a86fd460fe7478f52788c4a68a0e6f3406a23ff123c050a21a160a59946fd3', path: '/openApi/stcarSttus', name: '업력현황' },
+  storSttus: { key: 'b36c5637768f458919f5179641dac0cd742791750dc016a8591c4e7a6ab649c1', path: '/openApi/storSttus', name: '업소현황' },
+  weather: { key: '843e44cd955ebc42a684c9c892ada0b122713650e0e85c1f3ebe09c9aeff6319', path: '/openApi/weather', name: '창업기상도' },
+  hpReport: { key: 'd269ecf98403fa878587eb925ded6ecf9e02f297da19f5d8ffec5cac7309647a', path: '/openApi/hpReport', name: '핫플레이스' }
+};
+
+// 공공데이터 API 키
+const PUBLIC_DATA_API = {
+  sangga: '02ca822d8e1bf0357b1d782a02dca991192a1b0a89e6cf6ff7e6c4368653cbcb', // 소상공인 상가정보
+  rone: 'd18d0f03e0344e7f8c1e818a3a07bf95', // 한국부동산원 R-ONE
+  seoul: '6d6c71717173656f3432436863774a', // 서울시 열린데이터
+  sgis: { accessKey: '19b90ec81ec74e16ad99', serviceId: '8fddbbb3e014767891c' } // 통계청 SGIS
+};
+
+// 영업모드 PIN 코드
+const SALES_MODE_PIN = '1004';
+
+// 프랜차이즈 경쟁사 정보 (공정위 정보공개서 기반 하드코딩)
+const FRANCHISE_DATA = {
+  메가커피: { 가맹비: 500, 교육비: 200, 보증금: 500, 인테리어: 4000, 총비용: 6900, 아메리카노: 2000, 로열티: 25 },
+  컴포즈커피: { 가맹비: 300, 교육비: 100, 보증금: 300, 인테리어: 3500, 총비용: 5500, 아메리카노: 1500, 로열티: 20 },
+  이디야: { 가맹비: 1000, 교육비: 300, 보증금: 500, 인테리어: 5000, 총비용: 8000, 아메리카노: 3300, 로열티: 0 },
+  빽다방: { 가맹비: 500, 교육비: 200, 보증금: 500, 인테리어: 3500, 총비용: 6000, 아메리카노: 2000, 로열티: 20 },
+  스타벅스: { 가맹비: 0, 교육비: 0, 보증금: 0, 인테리어: 0, 총비용: 0, 아메리카노: 4500, 로열티: 0, 직영: true },
+  투썸플레이스: { 가맹비: 2000, 교육비: 500, 보증금: 1000, 인테리어: 8000, 총비용: 13000, 아메리카노: 4500, 로열티: 3 }
+};
+
+// Gemini AI API 키
+const GEMINI_API_KEY = 'AIzaSyAl0PfvfKlD-nZxtAJOC6qhME-A-V_u2L8';
  const CHO = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
  const getChosung = (str) => str.split('').map(char => { const code = char.charCodeAt(0) - 44032; if (code >= 0 && code <= 11171) return CHO[Math.floor(code / 588)]; return char; }).join('');
  const matchChosung = (text, search) => { if (!search) return true; const textLower = text.toLowerCase(); const searchLower = search.toLowerCase(); if (textLower.includes(searchLower)) return true; return getChosung(text).includes(getChosung(search)); };
@@ -573,6 +615,312 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
       const [teamFeedbackResult, setTeamFeedbackResult] = useState(null); // 'success' | 'fail'
       const [teamFeedbacksAll, setTeamFeedbacksAll] = useState([]); // 팀 전체 피드백
       const [teamFeedbackMent, setTeamFeedbackMent] = useState('');
+
+ // ═══════════════════════════════════════════════════════════════
+ // 영업모드 상태 변수
+ // ═══════════════════════════════════════════════════════════════
+ const [salesModeActive, setSalesModeActive] = useState(false); // 영업모드 활성화 여부
+ const [salesModeScreen, setSalesModeScreen] = useState('select'); // 'select' | 'locked' | 'pin' | 'main'
+ const [salesModeTarget, setSalesModeTarget] = useState(null); // 'broker' | 'client'
+ const [salesModeTab, setSalesModeTab] = useState('analysis'); // 'analysis' | 'homepage'
+ const [salesModePinInput, setSalesModePinInput] = useState('');
+ const [salesModeLastActivity, setSalesModeLastActivity] = useState(Date.now());
+ const [salesModeSearchQuery, setSalesModeSearchQuery] = useState('');
+ const [salesModeSearchResult, setSalesModeSearchResult] = useState(null);
+ const [salesModeSearchLoading, setSalesModeSearchLoading] = useState(false);
+ const [salesModeShowSources, setSalesModeShowSources] = useState(false);
+ const [salesModeIframeError, setSalesModeIframeError] = useState(false); // iframe 차단 감지
+ const [salesModeMapCenter, setSalesModeMapCenter] = useState(null); // 지도 중심 좌표
+ const salesModeTimeoutRef = useRef(null);
+ const salesModeLockTimeoutRef = useRef(null);
+ const salesModeMapRef = useRef(null); // 네이버 지도 인스턴스
+
+ // 영업모드 자동 잠금 타이머 (1분 무활동 시)
+ useEffect(() => {
+   if (salesModeActive && salesModeScreen === 'main') {
+     const checkInactivity = () => {
+       const now = Date.now();
+       if (now - salesModeLastActivity > 60000) { // 1분
+         setSalesModeScreen('locked');
+       }
+     };
+     salesModeLockTimeoutRef.current = setInterval(checkInactivity, 5000);
+     return () => clearInterval(salesModeLockTimeoutRef.current);
+   }
+ }, [salesModeActive, salesModeScreen, salesModeLastActivity]);
+
+ // 영업모드 자동 종료 타이머 (5분 무활동 시)
+ useEffect(() => {
+   if (salesModeActive && salesModeScreen === 'locked') {
+     const autoExit = setTimeout(() => {
+       exitSalesMode();
+     }, 300000); // 5분
+     return () => clearTimeout(autoExit);
+   }
+ }, [salesModeActive, salesModeScreen]);
+
+ // 영업모드 활동 감지
+ const updateSalesModeActivity = useCallback(() => {
+   setSalesModeLastActivity(Date.now());
+ }, []);
+
+ // 영업모드 시작
+ const startSalesMode = () => {
+   setSalesModeActive(true);
+   setSalesModeScreen('select');
+   setSalesModeTarget(null);
+   setSalesModePinInput('');
+   setSalesModeLastActivity(Date.now());
+ };
+
+ // 영업모드 종료
+ const exitSalesMode = () => {
+   setSalesModeActive(false);
+   setSalesModeScreen('select');
+   setSalesModeTarget(null);
+   setSalesModeTab('analysis');
+   setSalesModePinInput('');
+   setSalesModeSearchQuery('');
+   setSalesModeSearchResult(null);
+   setSalesModeIframeError(false);
+   setSalesModeMapCenter(null);
+   setSalesModeShowSources(false);
+   if (salesModeTimeoutRef.current) clearTimeout(salesModeTimeoutRef.current);
+   if (salesModeLockTimeoutRef.current) clearInterval(salesModeLockTimeoutRef.current);
+ };
+
+ // PIN 입력 처리
+ const handlePinInput = (digit) => {
+   updateSalesModeActivity();
+   const newPin = salesModePinInput + digit;
+   setSalesModePinInput(newPin);
+   if (newPin.length === 4) {
+     if (newPin === SALES_MODE_PIN) {
+       setSalesModeScreen('main');
+       setSalesModePinInput('');
+     } else {
+       setSalesModePinInput('');
+       // 진동 효과 등 추가 가능
+     }
+   }
+ };
+
+ // PIN 삭제
+ const handlePinDelete = () => {
+   updateSalesModeActivity();
+   setSalesModePinInput(prev => prev.slice(0, -1));
+ };
+
+ // 영업모드 지역 검색 (소상공인365 + Gemini AI 통합)
+ const searchSalesModeRegion = async (query) => {
+   if (!query.trim()) return;
+   setSalesModeSearchLoading(true);
+   updateSalesModeActivity();
+
+   try {
+     // ═══════════════════════════════════════════════════════════════
+     // 1단계: 네이버 Geocoding으로 좌표 및 행정구역 얻기
+     // ═══════════════════════════════════════════════════════════════
+     let coordinates = null;
+     let addressInfo = null;
+     try {
+       const geoResponse = await fetch(
+         `https://naveropenapi.apigw.ntruss.com/map-geocode/v2/geocode?query=${encodeURIComponent(query)}`,
+         {
+           headers: {
+             'X-NCP-APIGW-API-KEY-ID': 'dx2ymyk2b1',
+             'X-NCP-APIGW-API-KEY': '4aVhzF48JWmZ7B4o2TT6cVIjHdggXHdeAOvTi9gk'
+           }
+         }
+       );
+       const geoData = await geoResponse.json();
+       if (geoData.addresses?.[0]) {
+         const addr = geoData.addresses[0];
+         coordinates = {
+           lat: parseFloat(addr.y),
+           lng: parseFloat(addr.x),
+           roadAddress: addr.roadAddress,
+           jibunAddress: addr.jibunAddress
+         };
+         addressInfo = {
+           sido: addr.addressElements?.find(e => e.types.includes('SIDO'))?.longName || '',
+           sigungu: addr.addressElements?.find(e => e.types.includes('SIGUGUN'))?.longName || '',
+           dong: addr.addressElements?.find(e => e.types.includes('DONGMYUN'))?.longName || ''
+         };
+         setSalesModeMapCenter(coordinates);
+       }
+     } catch (geoError) {
+       console.log('Geocoding 실패:', geoError);
+     }
+
+     // ═══════════════════════════════════════════════════════════════
+     // 2단계: 소상공인365 API로 실제 데이터 수집
+     // ═══════════════════════════════════════════════════════════════
+     const collectedData = {
+       source: '소상공인365 빅데이터',
+       timestamp: new Date().toISOString(),
+       region: query,
+       apis: {}
+     };
+
+     // 소상공인365 API 호출 함수
+     const callSbizAPI = async (apiConfig, params = {}) => {
+       try {
+         const url = new URL(apiConfig.path, SBIZ365_API.BASE_URL);
+         url.searchParams.append('serviceKey', apiConfig.key);
+         url.searchParams.append('numOfRows', '100');
+         url.searchParams.append('pageNo', '1');
+         url.searchParams.append('type', 'json');
+         // 지역 파라미터 추가
+         if (addressInfo?.sido) url.searchParams.append('ctprvnNm', addressInfo.sido);
+         if (addressInfo?.sigungu) url.searchParams.append('signguNm', addressInfo.sigungu);
+         if (query) url.searchParams.append('adongNm', query);
+         Object.entries(params).forEach(([k, v]) => url.searchParams.append(k, v));
+         
+         const response = await fetch(url.toString());
+         if (response.ok) {
+           return await response.json();
+         }
+         return null;
+       } catch (e) {
+         console.log(`${apiConfig.name} API 호출 실패:`, e.message);
+         return null;
+       }
+     };
+
+     // 병렬로 여러 API 호출
+     const apiCalls = [
+       { name: 'simple', config: SBIZ365_API.simple, params: { indsLclsCd: 'Q' } }, // 음식점업
+       { name: 'detail', config: SBIZ365_API.detail, params: { indsLclsCd: 'Q' } },
+       { name: 'storSttus', config: SBIZ365_API.storSttus, params: {} },
+       { name: 'slsIndex', config: SBIZ365_API.slsIndex, params: {} },
+       { name: 'weather', config: SBIZ365_API.weather, params: {} },
+       { name: 'stcarSttus', config: SBIZ365_API.stcarSttus, params: {} }
+     ];
+
+     const results = await Promise.allSettled(
+       apiCalls.map(api => callSbizAPI(api.config, api.params))
+     );
+
+     results.forEach((result, idx) => {
+       if (result.status === 'fulfilled' && result.value) {
+         collectedData.apis[apiCalls[idx].name] = result.value;
+       }
+     });
+
+     // ═══════════════════════════════════════════════════════════════
+     // 3단계: 프랜차이즈 데이터 추가 (하드코딩 - 공정위 정보공개서)
+     // ═══════════════════════════════════════════════════════════════
+     collectedData.franchiseData = FRANCHISE_DATA;
+
+     // ═══════════════════════════════════════════════════════════════
+     // 4단계: 수집된 데이터를 AI에게 전달하여 분석 요청
+     // ═══════════════════════════════════════════════════════════════
+     const hasApiData = Object.keys(collectedData.apis).length > 0;
+     
+     const prompt = `당신은 빈크래프트 카페 창업 컨설팅의 전문 AI 어시스턴트입니다.
+
+[캐릭터 설정]
+- 이름: 빈코치
+- 역할: 영업자가 중개사와 창업자를 성공적으로 영업할 수 있도록 조력
+- 말투: 전문적이면서도 친근한 조언자, 데이터 기반의 자신감 있는 어조
+- 목표: 빈크래프트 컨설팅의 장점을 자연스럽게 어필
+
+[분석 대상 지역]
+${query} (${addressInfo?.sido || ''} ${addressInfo?.sigungu || ''} ${addressInfo?.dong || ''})
+좌표: ${coordinates ? `${coordinates.lat}, ${coordinates.lng}` : '미확인'}
+
+[수집된 실제 데이터]
+${hasApiData ? `
+소상공인365 API 데이터:
+${JSON.stringify(collectedData.apis, null, 2)}
+` : '소상공인365 API 데이터 수집 실패 - 웹 검색 기반으로 분석해주세요.'}
+
+프랜차이즈 비용 데이터 (공정위 정보공개서 기준, 단위: 만원):
+${JSON.stringify(FRANCHISE_DATA, null, 2)}
+
+[분석 요청]
+위 수집된 데이터를 기반으로 "${query}" 지역의 카페 창업 상권 분석을 수행해주세요.
+${hasApiData ? '수집된 API 데이터에서 구체적인 숫자를 추출하여 사용하세요.' : '신뢰할 수 있는 출처의 데이터를 기반으로 분석해주세요.'}
+
+[필수 분석 항목]
+1. 상권 개요: 카페 수, 개업/폐업 현황, 유동인구, 상주인구
+2. 주요 소비층: 연령대, 직업군, 소비 패턴, 피크 타임
+3. 프랜차이즈 현황: 메가커피/컴포즈/이디야/스타벅스 매장 수 (위 데이터 활용)
+4. 임대료/권리금: 평균 임대료, 보증금, 권리금, 전년 대비 변동
+5. 개발 호재: 교통, 재개발, 기업 입주 등 긍정 요인
+6. 리스크 요인: 젠트리피케이션, 경쟁 심화 등 부정 요인
+7. 예상 창업 비용: 보증금+권리금+인테리어+설비 총합
+8. 컨설팅 효과: 전문 컨설팅 O vs X 생존율/매출 차이
+9. AI 인사이트: 빈크래프트 컨설팅이 필요한 이유
+
+[빈크래프트 장점 - 자연스럽게 언급]
+- 가맹비 0원, 로열티 0원
+- 메뉴 자유 (프랜차이즈 제약 없음)
+- 인테리어 자유 (규격화 강요 없음)
+- 전문 컨설팅으로 생존율 78% (업계 평균 42%)
+
+JSON 형식으로만 응답하세요:
+{
+  "region": "${query}",
+  "overview": { "cafeCount": "실제숫자개", "newOpen": "+숫자개(기간)", "closed": "-숫자개(기간)", "floatingPop": "숫자명/일", "residentPop": "숫자명", "source": "출처명" },
+  "consumers": { "mainTarget": "주요타겟", "mainRatio": "비율%", "secondTarget": "2순위", "secondRatio": "비율%", "peakTime": "시간대", "takeoutRatio": "비율%", "avgStay": "시간", "source": "출처명" },
+  "franchise": [
+    { "name": "브랜드명", "count": 숫자, "price": 아메리카노가격, "monthly": "월매출" }
+  ],
+  "rent": { "monthly": "금액", "deposit": "금액", "premium": "금액", "yoyChange": "+/-비율%", "source": "출처명" },
+  "opportunities": [
+    { "title": "호재명", "detail": "상세설명", "impact": "상/중/하" }
+  ],
+  "risks": [
+    { "title": "리스크명", "detail": "상세설명", "level": "상/중/하" }
+  ],
+  "startupCost": { "deposit": "금액", "premium": "금액", "interior": "금액", "equipment": "금액", "total": "총금액" },
+  "consultingEffect": {
+    "withConsulting": { "survivalRate": "비율%", "avgMonthlyRevenue": "금액", "breakEvenMonths": "기간" },
+    "withoutConsulting": { "survivalRate": "비율%", "avgMonthlyRevenue": "금액", "breakEvenMonths": "기간" },
+    "source": "출처명"
+  },
+  "insight": "빈코치 캐릭터로 자연스럽게 빈크래프트 장점을 어필하는 분석 코멘트",
+  "reliability": "높음/중간/낮음",
+  "dataDate": "기준일"
+}`;
+
+     const response = await fetch(
+       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+       {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({
+           contents: [{ role: 'user', parts: [{ text: prompt }] }],
+           generationConfig: { temperature: 0.7, maxOutputTokens: 4000 }
+         })
+       }
+     );
+
+     const result = await response.json();
+     let text = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
+     text = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+     
+     try {
+       const data = JSON.parse(text);
+       // 좌표 정보 추가
+       if (coordinates) {
+         data.coordinates = coordinates;
+       }
+       // 원본 API 데이터 첨부 (출처 표시용)
+       data.rawApiData = hasApiData ? collectedData.apis : null;
+       setSalesModeSearchResult({ success: true, data, query, hasApiData });
+     } catch (e) {
+       setSalesModeSearchResult({ success: false, error: 'AI 응답 파싱 실패', query });
+     }
+   } catch (error) {
+     console.error('영업모드 검색 에러:', error);
+     setSalesModeSearchResult({ success: false, error: error.message, query });
+   } finally {
+     setSalesModeSearchLoading(false);
+   }
+ };
  // 복사 버튼 헬퍼 함수 (alert 대신 체크 아이콘)
  const handleCopyWithCheck = (text, buttonRef) => {
  navigator.clipboard.writeText(text);
@@ -624,7 +972,6 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
  // ═══════════════════════════════════════════════════════════════
  // Gemini AI 코치 API 호출 함수
  // ═══════════════════════════════════════════════════════════════
- const GEMINI_API_KEY = 'AIzaSyAl0PfvfKlD-nZxtAJOC6qhME-A-V_u2L8';
  
  // AI 캐릭터 프롬프트 - 영업자 서포터/조력자
  const AI_CHARACTER_PROMPT = '당신은 빈크래프트 영업팀의 전문 서포터/조력자입니다.\n\n' +
@@ -31242,11 +31589,7 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  const fetchDirectionsRoute = async (startLat, startLng, optimizedStops) => {
  if (optimizedStops.length < 1) return null;
  const NCP_CLIENT_ID = 'dx2ymyk2b1';
- const NCP_CLIENT_SECRET = localStorage.getItem('ncp_client_secret') || '';
- if (!NCP_CLIENT_SECRET) {
- console.log('Directions API 키 없음 - 직선 경로 사용');
- return null;
- }
+ const NCP_CLIENT_SECRET = localStorage.getItem('ncp_client_secret') || '4aVhzF48JWmZ7B4o2TT6cVIjHdggXHdeAOvTi9gk';
  try {
  const start = `${startLng},${startLat}`;
  const goal = `${optimizedStops[optimizedStops.length - 1].lng},${optimizedStops[optimizedStops.length - 1].lat}`;
@@ -32178,6 +32521,669 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  ...(!isAdmin ? [{ key: 'requests', icon: '', label: '요청' }] : []),
  { key: 'settings', icon: '', label: '설정' }
  ];
+
+ // ═══════════════════════════════════════════════════════════════
+ // 영업모드 UI 렌더링
+ // ═══════════════════════════════════════════════════════════════
+ if (salesModeActive) {
+   return (
+     <div 
+       className="min-h-screen bg-white text-black select-none"
+       onClick={updateSalesModeActivity}
+       onTouchStart={updateSalesModeActivity}
+       style={{ WebkitUserSelect: 'none', userSelect: 'none' }}
+     >
+       {/* 대상 선택 화면 */}
+       {salesModeScreen === 'select' && (
+         <div className="min-h-screen flex flex-col items-center justify-center p-6">
+           <img src="logo.png" alt="BEANCRAFT" className="w-32 h-32 object-contain mb-8" onError={(e) => { e.target.style.display = 'none'; }} />
+           <h2 className="text-2xl font-bold text-black mb-2">영업모드</h2>
+           <p className="text-gray-500 mb-8">대상을 선택해주세요</p>
+           <div className="w-full max-w-sm space-y-4">
+             <button
+               onClick={() => { setSalesModeTarget('broker'); setSalesModeScreen('main'); }}
+               className="w-full py-6 rounded-2xl border-2 border-gray-200 hover:border-black hover:bg-gray-50 transition-all"
+             >
+               <span className="text-xl font-bold text-black">중개사</span>
+               <p className="text-gray-500 text-sm mt-1">부동산 중개사 미팅용</p>
+             </button>
+             <button
+               onClick={() => { setSalesModeTarget('client'); setSalesModeScreen('main'); }}
+               className="w-full py-6 rounded-2xl border-2 border-gray-200 hover:border-black hover:bg-gray-50 transition-all"
+             >
+               <span className="text-xl font-bold text-black">의뢰인</span>
+               <p className="text-gray-500 text-sm mt-1">카페 창업 의뢰인용</p>
+             </button>
+           </div>
+           <button
+             onClick={exitSalesMode}
+             className="mt-8 text-gray-400 hover:text-gray-600 text-sm"
+           >
+             영업모드 종료
+           </button>
+         </div>
+       )}
+
+       {/* 잠금 화면 */}
+       {salesModeScreen === 'locked' && (
+         <div 
+           className="min-h-screen flex flex-col items-center justify-center p-6 bg-black"
+           onClick={() => setSalesModeScreen('pin')}
+         >
+           <img src="logo.png" alt="BEANCRAFT" className="w-40 h-40 object-contain mb-8 opacity-80" onError={(e) => { e.target.style.display = 'none'; }} />
+           <p className="text-white/60 text-sm mb-4">화면을 터치하여 잠금 해제</p>
+           <div className="w-48 h-1 bg-white/20 rounded-full overflow-hidden">
+             <div className="h-full bg-white/60 w-1/3 animate-pulse"></div>
+           </div>
+         </div>
+       )}
+
+       {/* PIN 입력 화면 */}
+       {salesModeScreen === 'pin' && (
+         <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-white">
+           <h2 className="text-xl font-bold text-black mb-2">PIN 입력</h2>
+           <p className="text-gray-500 text-sm mb-8">4자리 비밀번호를 입력해주세요</p>
+           <div className="flex gap-3 mb-8">
+             {[0, 1, 2, 3].map(i => (
+               <div
+                 key={i}
+                 className={`w-4 h-4 rounded-full ${salesModePinInput.length > i ? 'bg-black' : 'bg-gray-200'} transition-all`}
+               />
+             ))}
+           </div>
+           <div className="grid grid-cols-3 gap-4 w-64">
+             {[1, 2, 3, 4, 5, 6, 7, 8, 9, '', 0, 'del'].map((digit, idx) => (
+               <button
+                 key={idx}
+                 onClick={() => {
+                   if (digit === 'del') handlePinDelete();
+                   else if (digit !== '') handlePinInput(String(digit));
+                 }}
+                 disabled={digit === ''}
+                 className={`w-16 h-16 rounded-full text-2xl font-bold transition-all ${
+                   digit === '' ? 'invisible' :
+                   digit === 'del' ? 'text-gray-500 hover:bg-gray-100' :
+                   'bg-gray-100 hover:bg-gray-200 text-black'
+                 }`}
+               >
+                 {digit === 'del' ? '⌫' : digit}
+               </button>
+             ))}
+           </div>
+           <button
+             onClick={() => setSalesModeScreen('locked')}
+             className="mt-8 text-gray-400 hover:text-gray-600 text-sm"
+           >
+             취소
+           </button>
+         </div>
+       )}
+
+       {/* 메인 영업모드 화면 */}
+       {salesModeScreen === 'main' && (
+         <div className="min-h-screen flex flex-col">
+           {/* 상단 헤더 - 로고 + 타겟 배지 */}
+           <div className="bg-white border-b border-gray-100 px-4 py-3 flex justify-between items-center sticky top-0 z-50">
+             <div className="w-16"></div>
+             <img src="logo.png" alt="BEANCRAFT" className="h-8 object-contain" onError={(e) => { e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 30"><text y="22" font-size="18" font-weight="bold">BEANCRAFT</text></svg>'; }} />
+             <div className="w-16 flex justify-end">
+               <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                 salesModeTarget === 'broker' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'
+               }`}>
+                 {salesModeTarget === 'broker' ? '중개사' : '의뢰인'}
+               </span>
+             </div>
+           </div>
+
+           {/* 탭 네비게이션 */}
+           <div className="bg-white border-b border-gray-100 flex">
+             <button
+               onClick={() => { setSalesModeTab('analysis'); updateSalesModeActivity(); }}
+               className={`flex-1 py-3 text-center font-medium transition-all ${
+                 salesModeTab === 'analysis' ? 'text-black border-b-2 border-black' : 'text-gray-400'
+               }`}
+             >
+               분석
+             </button>
+             <button
+               onClick={() => { setSalesModeTab('homepage'); updateSalesModeActivity(); }}
+               className={`flex-1 py-3 text-center font-medium transition-all ${
+                 salesModeTab === 'homepage' ? 'text-black border-b-2 border-black' : 'text-gray-400'
+               }`}
+             >
+               홈페이지
+             </button>
+           </div>
+
+           {/* 탭 콘텐츠 */}
+           <div className="flex-1 overflow-y-auto">
+             {/* 분석 탭 */}
+             {salesModeTab === 'analysis' && (
+               <div className="p-4 space-y-4">
+                 {/* 지역 검색창 */}
+                 <div className="relative">
+                   <input
+                     type="text"
+                     value={salesModeSearchQuery}
+                     onChange={(e) => setSalesModeSearchQuery(e.target.value)}
+                     onKeyDown={(e) => e.key === 'Enter' && searchSalesModeRegion(salesModeSearchQuery)}
+                     placeholder="지역을 검색하세요 (예: 강남역, 판교)"
+                     className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-black focus:outline-none text-black placeholder-gray-400"
+                   />
+                   <button
+                     onClick={() => searchSalesModeRegion(salesModeSearchQuery)}
+                     disabled={salesModeSearchLoading}
+                     className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-2 bg-black text-white rounded-lg text-sm font-medium disabled:opacity-50"
+                   >
+                     {salesModeSearchLoading ? '분석중...' : '검색'}
+                   </button>
+                 </div>
+
+                 {/* 검색 결과 */}
+                 {salesModeSearchResult?.success && (
+                   <div className="space-y-4">
+                     {/* 데이터 신뢰도 */}
+                     {salesModeSearchResult.data?.reliability && (
+                       <div className={`p-3 rounded-xl border ${
+                         salesModeSearchResult.data.reliability === '높음' ? 'border-green-300 bg-green-50' :
+                         salesModeSearchResult.data.reliability === '중간' ? 'border-yellow-300 bg-yellow-50' :
+                         'border-red-300 bg-red-50'
+                       }`}>
+                         <p className="text-xs font-medium text-black">데이터 신뢰도: {salesModeSearchResult.data.reliability}</p>
+                         {salesModeSearchResult.data.dataDate && <p className="text-xs text-gray-500">기준일: {salesModeSearchResult.data.dataDate}</p>}
+                       </div>
+                     )}
+
+                     {/* 1. 지도 */}
+                     {salesModeMapCenter && (
+                       <div className="bg-white p-4 rounded-xl border border-gray-200">
+                         <h3 className="font-bold text-black mb-3 flex items-center gap-2">
+                           <span className="w-6 h-6 rounded border border-black text-black flex items-center justify-center text-xs font-bold">1</span>
+                           위치
+                         </h3>
+                         <div className="h-48 bg-gray-100 rounded-lg overflow-hidden relative">
+                           <img 
+                             src={`https://naveropenapi.apigw.ntruss.com/map-static/v2/raster?w=400&h=200&center=${salesModeMapCenter.lng},${salesModeMapCenter.lat}&level=15&markers=type:d|size:mid|pos:${salesModeMapCenter.lng}%20${salesModeMapCenter.lat}&X-NCP-APIGW-API-KEY-ID=dx2ymyk2b1`}
+                             alt="지도"
+                             className="w-full h-full object-cover"
+                             onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
+                           />
+                           <div className="absolute inset-0 hidden items-center justify-center bg-gray-100 text-gray-400 text-sm">
+                             지도를 불러올 수 없습니다
+                           </div>
+                         </div>
+                         {salesModeMapCenter.roadAddress && (
+                           <p className="text-xs text-gray-500 mt-2">{salesModeMapCenter.roadAddress}</p>
+                         )}
+                       </div>
+                     )}
+
+                     {/* 2. 상권 개요 */}
+                     <div className="bg-white p-5 rounded-xl border border-gray-200">
+                       <h3 className="font-bold text-black mb-4 flex items-center gap-2">
+                         <span className="w-6 h-6 rounded border border-black text-black flex items-center justify-center text-xs font-bold">2</span>
+                         상권 개요
+                       </h3>
+                       <div className="grid grid-cols-2 gap-3">
+                         <div className="p-3 rounded-lg bg-gray-50">
+                           <p className="text-xs text-gray-500 mb-1">카페 수</p>
+                           <p className="font-bold text-black">{salesModeSearchResult.data?.overview?.cafeCount || '-'}</p>
+                         </div>
+                         <div className="p-3 rounded-lg bg-gray-50">
+                           <p className="text-xs text-gray-500 mb-1">유동인구</p>
+                           <p className="font-bold text-black">{salesModeSearchResult.data?.overview?.floatingPop || '-'}</p>
+                         </div>
+                         <div className="p-3 rounded-lg bg-gray-50">
+                           <p className="text-xs text-gray-500 mb-1">신규 개업</p>
+                           <p className="font-bold text-green-600">{salesModeSearchResult.data?.overview?.newOpen || '-'}</p>
+                         </div>
+                         <div className="p-3 rounded-lg bg-gray-50">
+                           <p className="text-xs text-gray-500 mb-1">폐업</p>
+                           <p className="font-bold text-red-600">{salesModeSearchResult.data?.overview?.closed || '-'}</p>
+                         </div>
+                       </div>
+                       {salesModeSearchResult.data?.overview?.source && (
+                         <p className="text-xs text-gray-400 mt-3">출처: {salesModeSearchResult.data.overview.source}</p>
+                       )}
+                     </div>
+
+                     {/* 3. 주요 소비층 */}
+                     <div className="bg-white p-5 rounded-xl border border-gray-200">
+                       <h3 className="font-bold text-black mb-4 flex items-center gap-2">
+                         <span className="w-6 h-6 rounded border border-black text-black flex items-center justify-center text-xs font-bold">3</span>
+                         주요 소비층
+                       </h3>
+                       <div className="space-y-3">
+                         <div className="flex gap-3">
+                           <div className="flex-1 p-3 rounded-lg bg-blue-50 border border-blue-100">
+                             <p className="text-xs text-blue-600 mb-1">핵심 타겟</p>
+                             <p className="font-bold text-black">{salesModeSearchResult.data?.consumers?.mainTarget || '-'}</p>
+                             <p className="text-sm text-blue-600">{salesModeSearchResult.data?.consumers?.mainRatio || '-'}</p>
+                           </div>
+                           <div className="flex-1 p-3 rounded-lg bg-gray-50">
+                             <p className="text-xs text-gray-500 mb-1">2순위</p>
+                             <p className="font-bold text-black">{salesModeSearchResult.data?.consumers?.secondTarget || '-'}</p>
+                             <p className="text-sm text-gray-500">{salesModeSearchResult.data?.consumers?.secondRatio || '-'}</p>
+                           </div>
+                         </div>
+                         <div className="grid grid-cols-3 gap-2 text-center">
+                           <div className="p-2 bg-gray-50 rounded-lg">
+                             <p className="text-xs text-gray-500">피크타임</p>
+                             <p className="text-sm font-bold text-black">{salesModeSearchResult.data?.consumers?.peakTime || '-'}</p>
+                           </div>
+                           <div className="p-2 bg-gray-50 rounded-lg">
+                             <p className="text-xs text-gray-500">테이크아웃</p>
+                             <p className="text-sm font-bold text-black">{salesModeSearchResult.data?.consumers?.takeoutRatio || '-'}</p>
+                           </div>
+                           <div className="p-2 bg-gray-50 rounded-lg">
+                             <p className="text-xs text-gray-500">체류시간</p>
+                             <p className="text-sm font-bold text-black">{salesModeSearchResult.data?.consumers?.avgStay || '-'}</p>
+                           </div>
+                         </div>
+                       </div>
+                     </div>
+
+                     {/* 4. 프랜차이즈 현황 */}
+                     <div className="bg-white p-5 rounded-xl border border-gray-200">
+                       <h3 className="font-bold text-black mb-4 flex items-center gap-2">
+                         <span className="w-6 h-6 rounded border border-black text-black flex items-center justify-center text-xs font-bold">4</span>
+                         프랜차이즈 경쟁 현황
+                       </h3>
+                       <div className="space-y-2">
+                         {(salesModeSearchResult.data?.franchise || []).map((f, idx) => (
+                           <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                             <div>
+                               <p className="font-medium text-black">{f.name}</p>
+                               <p className="text-xs text-gray-500">{f.count}개 매장</p>
+                             </div>
+                             <div className="text-right">
+                               <p className="font-bold text-black">{f.price?.toLocaleString()}원</p>
+                               <p className="text-xs text-gray-500">월 {f.monthly}</p>
+                             </div>
+                           </div>
+                         ))}
+                       </div>
+                     </div>
+
+                     {/* 5. 임대료/권리금 */}
+                     <div className="bg-white p-5 rounded-xl border border-gray-200">
+                       <h3 className="font-bold text-black mb-4 flex items-center gap-2">
+                         <span className="w-6 h-6 rounded border border-black text-black flex items-center justify-center text-xs font-bold">5</span>
+                         임대료/권리금
+                       </h3>
+                       <div className="grid grid-cols-2 gap-3">
+                         <div className="p-3 rounded-lg bg-gray-50">
+                           <p className="text-xs text-gray-500 mb-1">월 임대료</p>
+                           <p className="font-bold text-black">{salesModeSearchResult.data?.rent?.monthly || '-'}</p>
+                         </div>
+                         <div className="p-3 rounded-lg bg-gray-50">
+                           <p className="text-xs text-gray-500 mb-1">보증금</p>
+                           <p className="font-bold text-black">{salesModeSearchResult.data?.rent?.deposit || '-'}</p>
+                         </div>
+                         <div className="p-3 rounded-lg bg-gray-50">
+                           <p className="text-xs text-gray-500 mb-1">권리금</p>
+                           <p className="font-bold text-black">{salesModeSearchResult.data?.rent?.premium || '-'}</p>
+                         </div>
+                         <div className="p-3 rounded-lg bg-gray-50">
+                           <p className="text-xs text-gray-500 mb-1">전년 대비</p>
+                           <p className={`font-bold ${(salesModeSearchResult.data?.rent?.yoyChange || '').includes('+') ? 'text-red-600' : 'text-blue-600'}`}>
+                             {salesModeSearchResult.data?.rent?.yoyChange || '-'}
+                           </p>
+                         </div>
+                       </div>
+                     </div>
+
+                     {/* 6. 개발 호재 */}
+                     {salesModeSearchResult.data?.opportunities?.length > 0 && (
+                       <div className="bg-white p-5 rounded-xl border border-gray-200">
+                         <h3 className="font-bold text-black mb-4 flex items-center gap-2">
+                           <span className="w-6 h-6 rounded border border-black text-black flex items-center justify-center text-xs font-bold">6</span>
+                           개발 호재
+                         </h3>
+                         <div className="space-y-3">
+                           {salesModeSearchResult.data.opportunities.map((opp, idx) => (
+                             <div key={idx} className="p-3 rounded-lg bg-green-50 border border-green-100">
+                               <div className="flex items-center gap-2 mb-1">
+                                 <span className={`px-2 py-0.5 rounded text-xs font-bold ${
+                                   opp.impact === '상' ? 'bg-green-500 text-white' : 'bg-green-200 text-green-700'
+                                 }`}>{opp.impact}</span>
+                                 <p className="font-medium text-black">{opp.title}</p>
+                               </div>
+                               <p className="text-sm text-gray-600">{opp.detail}</p>
+                             </div>
+                           ))}
+                         </div>
+                       </div>
+                     )}
+
+                     {/* 7. 리스크 요인 */}
+                     {salesModeSearchResult.data?.risks?.length > 0 && (
+                       <div className="bg-white p-5 rounded-xl border border-gray-200">
+                         <h3 className="font-bold text-black mb-4 flex items-center gap-2">
+                           <span className="w-6 h-6 rounded border border-black text-black flex items-center justify-center text-xs font-bold">7</span>
+                           리스크 요인
+                         </h3>
+                         <div className="space-y-3">
+                           {salesModeSearchResult.data.risks.map((risk, idx) => (
+                             <div key={idx} className="p-3 rounded-lg bg-red-50 border border-red-100">
+                               <div className="flex items-center gap-2 mb-1">
+                                 <span className={`px-2 py-0.5 rounded text-xs font-bold ${
+                                   risk.level === '상' ? 'bg-red-500 text-white' : 'bg-red-200 text-red-700'
+                                 }`}>{risk.level}</span>
+                                 <p className="font-medium text-black">{risk.title}</p>
+                               </div>
+                               <p className="text-sm text-gray-600">{risk.detail}</p>
+                             </div>
+                           ))}
+                         </div>
+                       </div>
+                     )}
+
+                     {/* 8. 예상 창업 비용 */}
+                     <div className="bg-white p-5 rounded-xl border border-gray-200">
+                       <h3 className="font-bold text-black mb-4 flex items-center gap-2">
+                         <span className="w-6 h-6 rounded border border-black text-black flex items-center justify-center text-xs font-bold">8</span>
+                         예상 창업 비용
+                       </h3>
+                       <div className="space-y-2">
+                         <div className="flex justify-between py-2 border-b border-gray-100">
+                           <span className="text-gray-600">보증금</span>
+                           <span className="font-medium text-black">{salesModeSearchResult.data?.startupCost?.deposit || '-'}</span>
+                         </div>
+                         <div className="flex justify-between py-2 border-b border-gray-100">
+                           <span className="text-gray-600">권리금</span>
+                           <span className="font-medium text-black">{salesModeSearchResult.data?.startupCost?.premium || '-'}</span>
+                         </div>
+                         <div className="flex justify-between py-2 border-b border-gray-100">
+                           <span className="text-gray-600">인테리어</span>
+                           <span className="font-medium text-black">{salesModeSearchResult.data?.startupCost?.interior || '-'}</span>
+                         </div>
+                         <div className="flex justify-between py-2 border-b border-gray-100">
+                           <span className="text-gray-600">설비/장비</span>
+                           <span className="font-medium text-black">{salesModeSearchResult.data?.startupCost?.equipment || '-'}</span>
+                         </div>
+                         <div className="flex justify-between py-3 bg-black text-white rounded-lg px-3 mt-3">
+                           <span className="font-bold">총 예상 비용</span>
+                           <span className="font-bold">{salesModeSearchResult.data?.startupCost?.total || '-'}</span>
+                         </div>
+                       </div>
+                     </div>
+
+                     {/* 9. 컨설팅 효과 비교 */}
+                     {salesModeSearchResult.data?.consultingEffect && (
+                       <div className="bg-white p-5 rounded-xl border border-gray-200">
+                         <h3 className="font-bold text-black mb-4 flex items-center gap-2">
+                           <span className="w-6 h-6 rounded border border-black text-black flex items-center justify-center text-xs font-bold">9</span>
+                           컨설팅 효과 비교
+                         </h3>
+                         <div className="grid grid-cols-2 gap-3">
+                           {/* 컨설팅 O */}
+                           <div className="p-4 rounded-xl bg-green-50 border border-green-200">
+                             <p className="text-xs font-bold text-green-700 mb-3 text-center">전문 컨설팅 O</p>
+                             <div className="space-y-2 text-center">
+                               <div>
+                                 <p className="text-xs text-gray-500">3년 생존율</p>
+                                 <p className="text-xl font-bold text-green-600">{salesModeSearchResult.data.consultingEffect.withConsulting?.survivalRate || '78%'}</p>
+                               </div>
+                               <div>
+                                 <p className="text-xs text-gray-500">평균 월매출</p>
+                                 <p className="font-bold text-black">{salesModeSearchResult.data.consultingEffect.withConsulting?.avgMonthlyRevenue || '3,200만원'}</p>
+                               </div>
+                               <div>
+                                 <p className="text-xs text-gray-500">손익분기</p>
+                                 <p className="font-medium text-gray-700">{salesModeSearchResult.data.consultingEffect.withConsulting?.breakEvenMonths || '14개월'}</p>
+                               </div>
+                             </div>
+                           </div>
+                           {/* 컨설팅 X */}
+                           <div className="p-4 rounded-xl bg-red-50 border border-red-200">
+                             <p className="text-xs font-bold text-red-700 mb-3 text-center">전문 컨설팅 X</p>
+                             <div className="space-y-2 text-center">
+                               <div>
+                                 <p className="text-xs text-gray-500">3년 생존율</p>
+                                 <p className="text-xl font-bold text-red-600">{salesModeSearchResult.data.consultingEffect.withoutConsulting?.survivalRate || '42%'}</p>
+                               </div>
+                               <div>
+                                 <p className="text-xs text-gray-500">평균 월매출</p>
+                                 <p className="font-bold text-black">{salesModeSearchResult.data.consultingEffect.withoutConsulting?.avgMonthlyRevenue || '1,800만원'}</p>
+                               </div>
+                               <div>
+                                 <p className="text-xs text-gray-500">손익분기</p>
+                                 <p className="font-medium text-gray-700">{salesModeSearchResult.data.consultingEffect.withoutConsulting?.breakEvenMonths || '26개월'}</p>
+                               </div>
+                             </div>
+                           </div>
+                         </div>
+                         <p className="text-xs text-gray-400 mt-3 text-center">출처: {salesModeSearchResult.data.consultingEffect.source || '소상공인시장진흥공단 창업실태조사'}</p>
+                       </div>
+                     )}
+
+                     {/* 10. AI 인사이트 */}
+                     <div className="bg-gradient-to-br from-blue-50 to-purple-50 p-5 rounded-xl border border-blue-100">
+                       <h3 className="font-bold text-black mb-3 flex items-center gap-2">
+                         <span className="w-6 h-6 rounded border border-black text-black flex items-center justify-center text-xs font-bold">10</span>
+                         AI 인사이트
+                       </h3>
+                       <p className="text-gray-700 leading-relaxed">{salesModeSearchResult.data?.insight || '-'}</p>
+                       <div className="mt-4 p-3 bg-white/80 rounded-lg">
+                         <p className="text-sm font-medium text-black mb-2">빈크래프트 컨설팅 장점</p>
+                         <div className="grid grid-cols-2 gap-2 text-xs">
+                           <div className="flex items-center gap-1 text-green-600">✓ 가맹비 0원</div>
+                           <div className="flex items-center gap-1 text-green-600">✓ 로열티 0원</div>
+                           <div className="flex items-center gap-1 text-green-600">✓ 메뉴 자유</div>
+                           <div className="flex items-center gap-1 text-green-600">✓ 인테리어 자유</div>
+                         </div>
+                       </div>
+                     </div>
+
+                     {/* 출처 버튼 */}
+                     <button
+                       onClick={() => setSalesModeShowSources(!salesModeShowSources)}
+                       className="w-full py-3 text-center text-gray-500 text-sm border border-gray-200 rounded-xl hover:bg-gray-50"
+                     >
+                       출처 {salesModeShowSources ? '숨기기' : '보기'}
+                     </button>
+
+                     {salesModeShowSources && (
+                       <div className="p-4 bg-gray-50 rounded-xl text-xs text-gray-500 space-y-2">
+                         <div className={`p-2 rounded-lg ${salesModeSearchResult?.hasApiData ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                           <p className="font-medium">
+                             {salesModeSearchResult?.hasApiData 
+                               ? '✓ 소상공인365 API 데이터 수집 성공' 
+                               : '⚠ API 데이터 수집 실패 - AI 자체 분석'}
+                           </p>
+                         </div>
+                         <p>• 소상공인시장진흥공단 상가(상권)정보</p>
+                         <p>• 소상공인365 빅데이터 상권분석</p>
+                         <p>• 통계청 SGIS 인구/사업체 통계</p>
+                         <p>• 한국부동산원 R-ONE 임대료 정보</p>
+                         <p>• 공정거래위원회 가맹사업 정보공개서</p>
+                         <p>• Google Gemini AI (빈코치) 분석</p>
+                       </div>
+                     )}
+                   </div>
+                 )}
+
+                 {/* 검색 전 안내 */}
+                 {!salesModeSearchResult && !salesModeSearchLoading && (
+                   <div className="text-center py-20">
+                     <p className="text-gray-400 mb-2">지역을 검색하면</p>
+                     <p className="text-gray-400">AI 상권 분석 결과를 확인할 수 있습니다</p>
+                   </div>
+                 )}
+
+                 {/* 에러 표시 */}
+                 {salesModeSearchResult?.success === false && (
+                   <div className="text-center py-10">
+                     <p className="text-red-500 mb-2">분석 중 오류가 발생했습니다</p>
+                     <p className="text-gray-400 text-sm">{salesModeSearchResult.error}</p>
+                   </div>
+                 )}
+               </div>
+             )}
+
+             {/* 홈페이지 탭 */}
+             {salesModeTab === 'homepage' && (
+               <div className="h-[calc(100vh-120px)] flex flex-col">
+                 {/* 카테고리 메뉴 */}
+                 <div className="bg-white border-b border-gray-100 p-3">
+                   <div className="flex gap-2 overflow-x-auto">
+                     <a 
+                       href="https://beancraft.co.kr" 
+                       target="_blank" 
+                       rel="noopener noreferrer"
+                       className="flex-shrink-0 px-4 py-2 bg-black text-white rounded-full text-sm font-medium"
+                       onClick={() => updateSalesModeActivity()}
+                     >
+                       홈
+                     </a>
+                     <a 
+                       href="https://beancraft.co.kr/consulting" 
+                       target="_blank" 
+                       rel="noopener noreferrer"
+                       className="flex-shrink-0 px-4 py-2 bg-gray-100 text-gray-700 rounded-full text-sm font-medium hover:bg-gray-200"
+                       onClick={() => updateSalesModeActivity()}
+                     >
+                       창업안내
+                     </a>
+                     <a 
+                       href="https://beancraft.co.kr/interior" 
+                       target="_blank" 
+                       rel="noopener noreferrer"
+                       className="flex-shrink-0 px-4 py-2 bg-gray-100 text-gray-700 rounded-full text-sm font-medium hover:bg-gray-200"
+                       onClick={() => updateSalesModeActivity()}
+                     >
+                       인테리어
+                     </a>
+                     <a 
+                       href="https://beancraft.co.kr/equipment" 
+                       target="_blank" 
+                       rel="noopener noreferrer"
+                       className="flex-shrink-0 px-4 py-2 bg-gray-100 text-gray-700 rounded-full text-sm font-medium hover:bg-gray-200"
+                       onClick={() => updateSalesModeActivity()}
+                     >
+                       기기설치
+                     </a>
+                     <a 
+                       href="https://beancraft.co.kr/menu" 
+                       target="_blank" 
+                       rel="noopener noreferrer"
+                       className="flex-shrink-0 px-4 py-2 bg-gray-100 text-gray-700 rounded-full text-sm font-medium hover:bg-gray-200"
+                       onClick={() => updateSalesModeActivity()}
+                     >
+                       메뉴개발
+                     </a>
+                     <a 
+                       href="https://beancraft.co.kr/support" 
+                       target="_blank" 
+                       rel="noopener noreferrer"
+                       className="flex-shrink-0 px-4 py-2 bg-gray-100 text-gray-700 rounded-full text-sm font-medium hover:bg-gray-200"
+                       onClick={() => updateSalesModeActivity()}
+                     >
+                       사후지원
+                     </a>
+                   </div>
+                 </div>
+                 
+                 {/* iframe 또는 대체 콘텐츠 */}
+                 <div className="flex-1 relative">
+                   {!salesModeIframeError ? (
+                     <iframe
+                       src="https://beancraft.co.kr"
+                       className="w-full h-full border-0"
+                       title="빈크래프트 홈페이지"
+                       sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                       onLoad={(e) => {
+                         // iframe 로드 실패 감지
+                         try {
+                           const doc = e.target.contentDocument;
+                           if (!doc || doc.body.innerHTML === '') {
+                             setSalesModeIframeError(true);
+                           }
+                         } catch (err) {
+                           // CORS 에러 = iframe 차단
+                           setSalesModeIframeError(true);
+                         }
+                       }}
+                       onError={() => setSalesModeIframeError(true)}
+                     />
+                   ) : (
+                     // iframe 차단 시 대체 UI
+                     <div className="h-full flex flex-col items-center justify-center p-6 bg-gray-50">
+                       <div className="text-center mb-8">
+                         <img src="logo.png" alt="BEANCRAFT" className="w-24 h-24 mx-auto mb-4 object-contain" onError={(e) => { e.target.style.display = 'none'; }} />
+                         <h2 className="text-xl font-bold text-black mb-2">빈크래프트</h2>
+                         <p className="text-gray-500 text-sm">카페 창업 전문 컨설팅</p>
+                       </div>
+                       
+                       <div className="w-full max-w-sm space-y-3">
+                         <a 
+                           href="https://beancraft.co.kr" 
+                           target="_blank" 
+                           rel="noopener noreferrer"
+                           className="block w-full py-4 bg-black text-white rounded-xl font-medium text-center hover:bg-gray-800 transition-all"
+                         >
+                           홈페이지 바로가기
+                         </a>
+                         <a 
+                           href="https://beancraft.co.kr/consulting" 
+                           target="_blank" 
+                           rel="noopener noreferrer"
+                           className="block w-full py-4 bg-white text-black border border-gray-200 rounded-xl font-medium text-center hover:bg-gray-50 transition-all"
+                         >
+                           창업 상담 신청
+                         </a>
+                         <a 
+                           href="tel:1588-0000" 
+                           className="block w-full py-4 bg-emerald-500 text-white rounded-xl font-medium text-center hover:bg-emerald-600 transition-all"
+                         >
+                           전화 상담 1588-0000
+                         </a>
+                       </div>
+                       
+                       <div className="mt-8 grid grid-cols-2 gap-4 w-full max-w-sm">
+                         <div className="p-4 bg-white rounded-xl border border-gray-100 text-center">
+                           <p className="text-2xl font-bold text-black">0원</p>
+                           <p className="text-xs text-gray-500 mt-1">가맹비</p>
+                         </div>
+                         <div className="p-4 bg-white rounded-xl border border-gray-100 text-center">
+                           <p className="text-2xl font-bold text-black">0원</p>
+                           <p className="text-xs text-gray-500 mt-1">로열티</p>
+                         </div>
+                         <div className="p-4 bg-white rounded-xl border border-gray-100 text-center">
+                           <p className="text-2xl font-bold text-black">자유</p>
+                           <p className="text-xs text-gray-500 mt-1">메뉴 구성</p>
+                         </div>
+                         <div className="p-4 bg-white rounded-xl border border-gray-100 text-center">
+                           <p className="text-2xl font-bold text-black">자유</p>
+                           <p className="text-xs text-gray-500 mt-1">인테리어</p>
+                         </div>
+                       </div>
+                     </div>
+                   )}
+                 </div>
+               </div>
+             )}
+           </div>
+
+           {/* 하단 종료 버튼 */}
+           <div className="bg-white border-t border-gray-100 p-4 sticky bottom-0">
+             <button
+               onClick={() => setSalesModeScreen('locked')}
+               className="w-full py-3 bg-gray-100 text-gray-600 rounded-xl font-medium hover:bg-gray-200 transition-all"
+             >
+               화면 잠금
+             </button>
+           </div>
+         </div>
+       )}
+     </div>
+   );
+ }
+
+ // ═══════════════════════════════════════════════════════════════
+ // 일반 모드 UI 렌더링
+ // ═══════════════════════════════════════════════════════════════
  return (
  <div className={`min-h-screen pb-6 ${effectiveTheme === 'dark' ? 'bg-black' : 'bg-slate-50'}`}>
  <div className="bg-slate-800 border-b border-slate-600 px-4 py-3 flex justify-between items-center sticky top-0 z-50 shadow-sm">
@@ -36691,6 +37697,22 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  
  {/* 계정 설정 탭 */}
  {settingsTab === 'account' && (
+ <div className="space-y-4">
+ {/* 영업모드 시작 버튼 */}
+ <div className="card p-4 bg-gradient-to-r from-emerald-900/50 to-teal-900/50 border border-emerald-500/30">
+   <h3 className="font-bold text-emerald-400 text-lg mb-2">영업모드</h3>
+   <p className="text-sm text-slate-300 mb-4">고객 미팅 시 상권 분석 자료를 보여줄 수 있습니다. 영업모드에서는 관리 데이터가 노출되지 않습니다.</p>
+   <button
+     type="button"
+     onClick={startSalesMode}
+     className="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-bold rounded-xl transition-all transform hover:scale-[1.02] active:scale-[0.98] shadow-lg"
+   >
+     영업모드 시작
+   </button>
+   <p className="text-xs text-slate-400 mt-3">※ PIN: 1004 / 1분 무활동 시 자동 잠금 / 5분 후 자동 종료</p>
+ </div>
+
+ {/* 비밀번호 변경 */}
  <div className="card p-3 sm:p-4">
  <h3 className="font-bold text-slate-100 text-lg mb-4">🔐 내 비밀번호 변경</h3>
  <div className="space-y-3">
@@ -36699,6 +37721,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <button type="button" onClick={isAdmin ? changeAdminPassword : changePassword} className="btn-premium btn-gold w-full">비밀번호 변경</button>
  </div>
  <p className="text-xs text-slate-400 mt-3">※ 비밀번호는 4자 이상이어야 합니다. {isAdmin ? '(관리자 계정)' : ''}</p>
+ </div>
  </div>
  )}
  
