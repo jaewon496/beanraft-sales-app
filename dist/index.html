@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="description" content="빈크래프트 영업관리 시스템" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="빈크래프트" />
+  
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  
+  <!-- 네이버 지도 API -->
+  <script type="text/javascript" src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=o8r2tkkhyg&submodules=geocoder"></script>
+  
+  <!-- 폰트 -->
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <title>빈크래프트 영업관리</title>
+  
+  <style>
+    /* 초기 로딩 화면 */
+    #initial-loading {
+      position: fixed;
+      inset: 0;
+      background: #0f172a;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+    #initial-loading.hidden {
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s, visibility 0.3s;
+    }
+    .loading-title {
+      color: #f8fafc;
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 20px;
+    }
+    .loading-spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid #334155;
+      border-top-color: #f59e0b;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    .loading-text {
+      color: #94a3b8;
+      font-size: 14px;
+      margin-top: 16px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .error-screen {
+      text-align: center;
+      padding: 40px;
+    }
+    .error-title {
+      font-size: 20px;
+      color: #ef4444;
+      margin-bottom: 16px;
+    }
+    .error-message {
+      color: #94a3b8;
+      font-size: 14px;
+      margin-bottom: 20px;
+    }
+    .error-button {
+      padding: 12px 24px;
+      background: #f59e0b;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+    }
+  </style>
+  <script type="module" crossorigin src="/assets/index-D9rTC6LH.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-DXJmZeMJ.css">
+</head>
+<body>
+  <!-- 로딩 화면 -->
+  <div id="initial-loading">
+    <div class="loading-title">빈크래프트</div>
+    <div class="loading-spinner"></div>
+    <div class="loading-text">로딩 중...</div>
+  </div>
+  
+  <!-- React 앱 -->
+  <div id="root"></div>
+  
+  <!-- 에러 핸들러 -->
+  <script>
+    window.onerror = function(msg, url, line) {
+      console.error('[BeanCraft Error]', msg, 'at line:', line);
+      var loading = document.getElementById('initial-loading');
+      if (loading) {
+        loading.innerHTML = '<div class="error-screen">' +
+          '<div class="error-title">앱 로딩 오류</div>' +
+          '<div class="error-message">' + msg + '</div>' +
+          '<button class="error-button" onclick="location.reload()">새로고침</button>' +
+          '</div>';
+      }
+      return true;
+    };
+    
+    // 타임아웃 (15초)
+    setTimeout(function() {
+      var loading = document.getElementById('initial-loading');
+      if (loading && !loading.classList.contains('hidden')) {
+        loading.innerHTML = '<div class="error-screen">' +
+          '<div class="error-title">로딩 시간 초과</div>' +
+          '<div class="error-message">앱을 불러오는 데 시간이 오래 걸립니다.</div>' +
+          '<button class="error-button" onclick="location.reload()">새로고침</button>' +
+          '</div>';
+      }
+    }, 15000);
+  </script>
+  
+</body>
+</html>
