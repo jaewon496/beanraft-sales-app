@@ -32193,7 +32193,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  <div className="bg-slate-800 border-b border-slate-600 tabs-container scrollbar-hide">
  <div className="flex justify-start sm:justify-center min-w-max px-2">
- {tabs.map(t => (<button key={t.key} onClick={() => navigateToTab(t.key)} className={`tab-btn ${tab === t.key ? 'active' : ''}`}>{t.label}</button>))}
+ {tabs.map(t => (<button key={t.key} onClick={() => navigateToTab(t.key)} className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors ${tab === t.key ? 'text-purple-400 border-b-2 border-purple-400' : 'text-slate-400 hover:text-slate-200'}`}>{t.label}</button>))}
  </div>
  </div>
  {/* 오늘 연락할 곳 알림 배너 */}
