@@ -616,6 +616,11 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
       const [teamFeedbacksAll, setTeamFeedbacksAll] = useState([]); // 팀 전체 피드백
       const [teamFeedbackMent, setTeamFeedbackMent] = useState('');
 
+ // 영업 탭 지역 검색 상태
+ const [salesSearchQuery, setSalesSearchQuery] = useState('');
+ const [salesSelectedRegion, setSalesSelectedRegion] = useState(null);
+ const [showSalesIssue, setShowSalesIssue] = useState(false);
+
  // ═══════════════════════════════════════════════════════════════
  // 영업모드 상태 변수
  // ═══════════════════════════════════════════════════════════════
@@ -36401,10 +36406,6 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
  {/* 지역 검색 + 지역 이슈 */}
  {(() => {
-   const [salesSearchQuery, setSalesSearchQuery] = useState('');
-   const [salesSelectedRegion, setSalesSelectedRegion] = useState(null);
-   const [showSalesIssue, setShowSalesIssue] = useState(false);
-   
    // 지역 이슈 찾기
    const findRegionIssue = (region) => {
      if (!region) return null;
