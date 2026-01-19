@@ -32101,7 +32101,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
    };
    
    return (
-     <div className="min-h-screen flex items-center justify-center p-4 login-gradient-bg overflow-hidden">
+     <div className="min-h-screen flex items-center justify-center p-4 overflow-hidden" style={{background: '#000000'}}>
        <div className="w-full max-w-md relative" style={{minHeight: '500px'}}>
          
          {/* 명언 - quote일 때만 보임 */}
@@ -32193,7 +32193,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  <div className="bg-slate-800 border-b border-slate-600 tabs-container scrollbar-hide">
  <div className="flex justify-start sm:justify-center min-w-max px-2">
- {tabs.map(t => (<button key={t.key} onClick={() => navigateToTab(t.key)} className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors ${tab === t.key ? 'text-purple-400 border-b-2 border-purple-400' : 'text-slate-400 hover:text-slate-200'}`}>{t.label}</button>))}
+ {tabs.map(t => (<button key={t.key} onClick={() => navigateToTab(t.key)} className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-all ${tab === t.key ? 'text-purple-400 border-b-2 border-purple-400 bg-slate-700/50' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/30'}`}>{t.label}</button>))}
  </div>
  </div>
  {/* 오늘 연락할 곳 알림 배너 */}
