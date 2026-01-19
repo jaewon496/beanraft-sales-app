@@ -20,7 +20,6 @@
   <title>빈크래프트 영업관리</title>
   
   <style>
-    /* 초기 로딩 화면 */
     #initial-loading {
       position: fixed;
       inset: 0;
@@ -83,36 +82,32 @@
       font-weight: 500;
     }
   </style>
-  <script type="module" crossorigin src="/assets/index-cX-ZNBWb.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-1sXIO1pY.css">
 </head>
 <body>
-  <!-- 로딩 화면 -->
   <div id="initial-loading">
     <div class="loading-title">빈크래프트</div>
     <div class="loading-spinner"></div>
     <div class="loading-text">로딩 중...</div>
   </div>
   
-  <!-- React 앱 -->
   <div id="root"></div>
   
-  <!-- 에러 핸들러 -->
+  <script type="module" src="/src/main.jsx"></script>
+  
   <script>
     window.onerror = function(msg, url, line) {
       console.error('[BeanCraft Error]', msg, 'at line:', line);
       var loading = document.getElementById('initial-loading');
       if (loading) {
         loading.innerHTML = '<div class="error-screen">' +
-          '<div class="error-title">앱 로딩 오류</div>' +
-          '<div class="error-message">' + msg + '</div>' +
+          '<div class="error-title">⚠️ 앱 로딩 오류</div>' +
+          '<div class="error-message">오류: ' + msg + '<br>위치: line ' + line + '</div>' +
           '<button class="error-button" onclick="location.reload()">새로고침</button>' +
           '</div>';
       }
       return true;
     };
     
-    // 타임아웃 (15초)
     setTimeout(function() {
       var loading = document.getElementById('initial-loading');
       if (loading && !loading.classList.contains('hidden')) {
@@ -124,6 +119,5 @@
       }
     }, 15000);
   </script>
-  
 </body>
 </html>
