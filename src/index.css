@@ -55,11 +55,11 @@ body {
 
 /* 카드 스타일 */
 .card {
-  @apply bg-slate-800/50 backdrop-blur-sm border border-slate-700/50;
+  @apply bg-white border border-neutral-200 rounded-xl;
 }
 
 .card-hover {
-  @apply hover:border-slate-600 transition-all duration-200;
+  @apply hover:border-neutral-300 transition-all duration-200;
 }
 
 /* 애니메이션 */
@@ -126,4 +126,38 @@ body {
 @keyframes slideUp {
   from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+/* 밝은 테마 텍스트 색상 */
+.text-slate-100, .text-slate-200, .text-slate-300 {
+  color: #171717 !important;
+}
+
+.text-slate-400, .text-slate-500 {
+  color: #525252 !important;
+}
+
+/* 버튼 예외 - 흰색 텍스트 유지 */
+button.bg-brand-purple .text-slate-100,
+button.bg-brand-purple .text-slate-200,
+.bg-brand-purple .text-white,
+.bg-emerald-500 *,
+.bg-rose-500 *,
+.bg-blue-600 *,
+.bg-gradient-to-r * {
+  color: inherit !important;
+}
+
+/* 입력 필드 배경 */
+.input-premium {
+  @apply bg-neutral-50 border-neutral-200 text-neutral-900;
+}
+
+/* 탭 버튼 스타일 */
+.tab-button {
+  @apply text-neutral-600 hover:text-neutral-900;
+}
+
+.tab-button.active {
+  @apply text-neutral-900 border-b-2 border-neutral-900;
 }
