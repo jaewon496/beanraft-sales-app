@@ -32514,7 +32514,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
    );
  }
  const tabs = [
- { key: 'sales', icon: '🎯', label: '영업' },
+ { key: 'sales', icon: '', label: '영업' },
  { key: 'report', icon: '', label: '보고서' },
  { key: 'calendar', icon: '', label: '캘린더' },
  { key: 'route', icon: '', label: '동선' },
@@ -33190,7 +33190,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  // 일반 모드 UI 렌더링
  // ═══════════════════════════════════════════════════════════════
  return (
- <div className={`min-h-screen pb-6 ${effectiveTheme === 'dark' ? 'bg-black' : 'bg-slate-50'}`}>
+ <div className="min-h-screen pb-6 bg-neutral-50">
  <div className="bg-slate-800 border-b border-slate-600 px-4 py-3 flex justify-between items-center sticky top-0 z-50 shadow-sm">
  <div className="flex items-center gap-2 sm:gap-3">
  <img src="data:image/webp;base64,UklGRr4EAABXRUJQVlA4WAoAAAAQAAAAPwAAPwAAQUxQSHACAAABkARJtmlbvfbe59k699m2bVvftm1rZNu2bdu2hrZ9vq+mbxARE4AabgmkV8QgQY8JPDI8JsSEQHoChnIP2EWAABDpnqElIS4Z8JUgG0H3CZ6egHOeBVylwNhwU1dZ6Bp5OoIMcz1h5+pq0jLKN9AcpFOAdTQDsjOgCglPSAcA0hIJzokEFwxMEEnR8c2zQiW5g7FTRTiLE/grF4JzwQXThPoxEguxSTfpaBdcCE8jmDk7WbkIaJ6gqtWyob15rWZtEuBby45lV/oX1ncXPr2nT7FIH9G4eVRoh/neLKlh6wZlTSqaJYLU4ahS1t05lazs39kRm5RBOPnV+dzBkrieP24+3XLjxXGlr8MZpTVOv9y2avk95UZ/cPXK33e8sC/y29TRseYPj1ywPPZj9Z5NlolvT+xcMvnGkXbvu1g9OX8c+y+NGIDIb7ZgUK/48/yFFws+zpsaWa7c/pF3eOW+97MdMj/u2LMu99DLF2+seyjPvltuerB8Jkv+6k6aqKWM3KQ0U+ZPqnX0esPHo3YtLlWO1Ouw9d2OTztvnghUelw+Xe9D7yOrAGQqHlCPwW/45Im58vCJ0xv3Ckfp4OnD4yY3twuXpm7dlNawS3yHcSM90aB+g2phCLehliC11BW2QdEqGYg3t6xCi8hAuNrAx0BAuySE4CSE4IJBAgDh4WFYK5bnFxilBDYIz7WH4JwDIKEZdYkB8EiNivSHU0Nj2Idnm0LHyc3Tu3ay5OdEBjk+AEJAOgZbb9klLtLSyRAx8SAeR9BHNzN4mZJcxSFUIF0jIgAkhwB1raGvBCK/0IhEFYj046+GEgygz4SabgFWUDggKAIAAFAMAJ0BKkAAQAA+kUSbSiWjoiGoCACwEglmAGfeUxQgPwpogPOK9AG8Abwx+5PpYuC+6BvgaQL3p0B+cX6Z9gPoNegx+ma0WlJLPs3Uq6HpBvu3yeQNnHXcLF7xMkOCHb7DYSjiFNKNcDIgAP78+FvR///1DBc+ORrUZzISuYmqOMLGOQ/zaUuKRTrF5Nm80r/X2D8lpeyCr0VQwyjiFS8DDfgE6JM3/kNY8uesZuvLeAgUWzW2/yTv2RX77/90+//MvU+3GHZ+wj7MMyxX/8Tnf/sBlAFR/wEVTP3poHuNCgOGRGdoxgHqJIukm4pn+zYgHieAatex072s5dd2+Lx/9DS/8T7XCBQrCGWMRlC/sf8CdIFFhER6nC5qFmw+O/O3U8s0uflu5GSfvuhDLLJ3gpdV80qfvHZqyqS8oWBZDTFAlndM0W+oe7H/9z2mihm/+kd8Jf+Pleu//Y8hsyT///T7XSVtjZprjyqVNxSxLioafMN77Sib2Ti40AuU3PY8GmXiY0US8I9G9DEJj8CoEDPzOdU7Qh/VRQDNleg/omm79j3+gUnP8V4sPPrddRMS0nCxuPAD4Ssvaf7lLlThPKhJA+Xm+Ah4ioajzkN+VIb8C73pZ1aotgCR5QL4o5qwD44BKG1RaUMJrwM27h8XLrQStXQ95pkw1SlgLxba/oWuIjtQ2N1aZt75fVZPEVPXXB8lNRc24F5hakDsw4Tep00AAAAAAA==" alt="BEANCRAFT" className="w-8 h-8 object-contain" />
@@ -33674,7 +33674,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* AI 키워드 검색 섹션 */}
  <div className="card p-4 border border-brand-purple/30 bg-brand-purple/5">
    <h3 className="font-bold text-slate-100 mb-3 flex items-center gap-2">
-     <span className="text-lg">🔍</span> AI 키워드 검색
+     AI 키워드 검색
      <span className="px-2 py-0.5 rounded-full bg-brand-purple/20 text-brand-purple text-xs">NEW</span>
    </h3>
    <p className="text-xs text-slate-400 mb-3">궁금한 키워드를 입력하면 AI가 관련 정보를 정리해드립니다.</p>
@@ -33772,7 +33772,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        {/* 인사이트 */}
        {aiKeywordResult.insights?.length > 0 && (
          <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/30">
-           <p className="text-xs text-blue-400 font-semibold mb-2">💡 주요 인사이트</p>
+           <p className="text-xs text-blue-400 font-semibold mb-2">주요 인사이트</p>
            <ul className="space-y-1">
              {aiKeywordResult.insights.map((insight, idx) => (
                <li key={idx} className="text-sm text-slate-300 flex items-start gap-2">
@@ -33787,7 +33787,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        {/* 영업 팁 */}
        {aiKeywordResult.salesTips?.length > 0 && (
          <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
-           <p className="text-xs text-emerald-400 font-semibold mb-2">📈 영업 활용 팁</p>
+           <p className="text-xs text-emerald-400 font-semibold mb-2">영업 활용 팁</p>
            <ul className="space-y-1">
              {aiKeywordResult.salesTips.map((tip, idx) => (
                <li key={idx} className="text-sm text-slate-300 flex items-start gap-2">
@@ -33802,7 +33802,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        {/* 액션 아이템 */}
        {aiKeywordResult.actionItems?.length > 0 && (
          <div className="p-3 rounded-lg bg-brand-purple/10 border border-brand-purple/30">
-           <p className="text-xs text-brand-purple font-semibold mb-2">✅ 오늘 할 일</p>
+           <p className="text-xs text-brand-purple font-semibold mb-2">오늘 할 일</p>
            <ul className="space-y-1">
              {aiKeywordResult.actionItems.map((action, idx) => (
                <li key={idx} className="text-sm text-slate-300 flex items-start gap-2">
@@ -36399,7 +36399,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        rel="noopener noreferrer"
        className="px-4 py-2 bg-white text-blue-600 rounded-lg font-bold text-sm hover:bg-blue-50 transition-all flex items-center gap-2"
      >
-       🌐 홈페이지 방문
+       홈페이지 방문
      </a>
    </div>
  </div>
@@ -36437,7 +36437,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
      {/* 지역 검색 */}
      <div className="card p-4">
        <h3 className="font-bold text-slate-100 mb-3 flex items-center gap-2">
-         🔍 지역 검색
+         지역 검색
        </h3>
        <div className="flex gap-2">
          <input
@@ -36483,7 +36483,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        <div className="card p-4 border-l-4 border-blue-500">
          <div className="flex items-center justify-between mb-3">
            <h3 className="font-bold text-slate-100 text-lg flex items-center gap-2">
-             📍 {salesSelectedRegion} 지역 정보
+             {salesSelectedRegion} 지역 정보
            </h3>
            <button
              onClick={() => setShowSalesIssue(false)}
@@ -36520,7 +36520,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
            if (issue) {
              return (
                <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
-                 <p className="text-xs text-yellow-400 font-semibold mb-2">📰 지역 이슈</p>
+                 <p className="text-xs text-yellow-400 font-semibold mb-2">지역 이슈</p>
                  <p className="text-slate-200 font-medium mb-1">{issue.title}</p>
                  <p className="text-sm text-slate-300">{issue.content}</p>
                  {issue.source && <p className="text-xs text-slate-500 mt-2">출처: {issue.source}</p>}
@@ -36542,7 +36542,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                '해당 지역의 상세 이슈 정보가 준비 중입니다. 직접 상담을 통해 최신 정보를 안내해드립니다.';
              return (
                <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
-                 <p className="text-xs text-blue-400 font-semibold mb-2">📊 지역 특성</p>
+                 <p className="text-xs text-blue-400 font-semibold mb-2">지역 특성</p>
                  <p className="text-sm text-slate-300">{defaultIssue}</p>
                </div>
              );
@@ -36557,7 +36557,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* 프랜차이즈 vs 빈크래프트 비교표 */}
  <div className="card p-4">
    <h3 className="font-bold text-slate-100 mb-4 flex items-center gap-2 text-lg">
-     ⚖️ 프랜차이즈 vs 빈크래프트 비용 비교
+     프랜차이즈 vs 빈크래프트 비용 비교
    </h3>
    
    <div className="overflow-x-auto">
@@ -36635,7 +36635,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
    </div>
    
    <div className="mt-4 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
-     <p className="text-sm text-emerald-400 font-semibold mb-1">💡 빈크래프트 핵심 장점</p>
+     <p className="text-sm text-emerald-400 font-semibold mb-1">빈크래프트 핵심 장점</p>
      <p className="text-sm text-slate-300">로열티/가맹비 0원으로 5년간 <span className="text-emerald-400 font-bold">최소 900만원~3,000만원</span> 절감. 메뉴/인테리어/원두 자유롭게 선택 가능.</p>
    </div>
  </div>
@@ -36643,13 +36643,13 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* 빈크래프트 서비스 안내 */}
  <div className="card p-4">
    <h3 className="font-bold text-slate-100 mb-4 flex items-center gap-2 text-lg">
-     ☕ 빈크래프트 서비스 안내
+     빈크래프트 서비스 안내
    </h3>
    
    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
      <div className="bg-gradient-to-br from-blue-500/20 to-blue-600/10 border border-blue-500/30 rounded-xl p-4">
        <div className="flex items-center gap-3 mb-3">
-         <span className="text-3xl">📊</span>
+         
          <div>
            <h4 className="font-bold text-blue-400">상권 분석</h4>
            <p className="text-xs text-slate-400">빅데이터 기반 입지 선정</p>
@@ -36712,7 +36712,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* 중개사 현황 (간략) */}
  <div className="card p-4">
    <h3 className="font-bold text-slate-100 mb-3 flex items-center gap-2 text-lg">
-     🏢 전국 중개사 현황
+     전국 중개사 현황
    </h3>
    
    {(() => {
@@ -37715,7 +37715,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
  {/* 비밀번호 변경 */}
  <div className="card p-3 sm:p-4">
- <h3 className="font-bold text-slate-100 text-lg mb-4">🔐 내 비밀번호 변경</h3>
+ <h3 className="font-bold text-slate-100 text-lg mb-4">내 비밀번호 변경</h3>
  <div className="space-y-3">
  <input type="password" placeholder="새 비밀번호" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="input-premium" />
  <input type="password" placeholder="비밀번호 확인" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="input-premium" />
