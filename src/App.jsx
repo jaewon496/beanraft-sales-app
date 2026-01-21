@@ -774,8 +774,8 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
          `https://naveropenapi.apigw.ntruss.com/map-geocode/v2/geocode?query=${encodeURIComponent(query)}`,
          {
            headers: {
-             'X-NCP-APIGW-API-KEY-ID': import.meta.env.VITE_NCP_CLIENT_ID || 'dx2ymyk2b1',
-             'X-NCP-APIGW-API-KEY': import.meta.env.VITE_NCP_CLIENT_SECRET || '18184ztuYuPVkqzPumsSqRNVsMHCiBFMWhWdRJAJ'
+             'X-NCP-APIGW-API-KEY-ID': 'dx2ymyk2b1',
+             'X-NCP-APIGW-API-KEY': '18184ztuYuPVkqzPumsSqRNVsMHCiBFMWhWdRJAJ'
            }
          }
        );
@@ -7436,7 +7436,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  
  </div>
  <div className="text-center p-3 rounded-lg border border-orange-500/30 bg-orange-500/5">
- <div className="text-xl sm:text-2xl font-bold text-neutral-700">{neutralCompanies.length}</div>
+ <div className="text-xl sm:text-2xl font-bold text-orange-400">{neutralCompanies.length}</div>
  <div className="text-xs text-neutral-500">보통</div>
  
  </div>
@@ -7689,7 +7689,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="text-xs text-neutral-500">평균 임대료</div>
  </div>
  <div className="text-center p-3 rounded-lg bg-transparent border border-neutral-200/30">
- <div className="text-lg font-bold text-neutral-700">{regionRec.competition || '-'}</div>
+ <div className="text-lg font-bold text-orange-400">{regionRec.competition || '-'}</div>
  <div className="text-xs text-neutral-500">프랜차이즈 경쟁</div>
  </div>
  </div>
@@ -7857,7 +7857,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* 트렌드 2: 저가 프랜차이즈 포화 */}
  <div className="p-4 rounded-2xl border border-neutral-200 hover:border-slate-500">
  <div className="flex items-center justify-between mb-2">
- <p className="text-sm font-medium text-neutral-700">저가 프랜차이즈 가맹점 2만개 돌파</p>
+ <p className="text-sm font-medium text-orange-400">저가 프랜차이즈 가맹점 2만개 돌파</p>
  <a href="https://franchise.ftc.go.kr" target="_blank" rel="noopener" className="text-xs text-neutral-700 hover:underline">출처 →</a>
  </div>
  <p className="text-xs text-neutral-500">메가커피 3,200개+, 컴포즈 2,500개+ 등 경쟁 치열</p>
@@ -7967,7 +7967,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {showTrendModal === 'specialty' && (
  <div className="space-y-2">
  <div className="p-4 rounded-lg border border-neutral-200/30 bg-transparent">
- <h4 className="text-neutral-700 font-semibold mb-2">스페셜티 커피란?</h4>
+ <h4 className="text-orange-400 font-semibold mb-2">스페셜티 커피란?</h4>
  <ul className="text-sm text-neutral-700 space-y-2">
  <li>• SCA(스페셜티커피협회) 기준 80점 이상 등급의 고품질 원두</li>
  <li>• 산지, 품종, 가공방식을 명시한 트레이서빌리티 커피</li>
@@ -7996,7 +7996,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {showTrendModal === 'lowcost' && (
  <div className="space-y-2">
  <div className="p-4 rounded-lg border border-neutral-200/30 bg-transparent">
- <h4 className="text-neutral-700 font-semibold mb-2">저가 커피 프랜차이즈</h4>
+ <h4 className="text-orange-400 font-semibold mb-2">저가 커피 프랜차이즈</h4>
  <ul className="text-sm text-neutral-700 space-y-2">
  <li>• 아메리카노 1,500~2,000원대 가격 경쟁력</li>
  <li>• 테이크아웃 중심 운영으로 회전율 극대화</li>
@@ -8044,7 +8044,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {showTrendModal === 'delivery' && (
  <div className="space-y-2">
  <div className="p-4 rounded-lg border border-neutral-200/30 bg-transparent">
- <h4 className="text-neutral-700 font-semibold mb-2">배달/테이크아웃</h4>
+ <h4 className="text-orange-400 font-semibold mb-2">배달/테이크아웃</h4>
  <ul className="text-sm text-neutral-700 space-y-2">
  <li>• 배달앱: 배달의민족, 쿠팡이츠, 요기요 등</li>
  <li>• 플랫폼 수수료 및 배달비 고려 필요</li>
@@ -8085,8 +8085,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  >
  <div className="flex items-center justify-between">
  <div>
- <span className="text-[#171717] font-bold">카페 연간 폐업률</span>
- <span className="text-2xl font-black text-[#171717] ml-3">14.1%</span>
+ <span className="text-rose-400 font-bold">카페 연간 폐업률</span>
+ <span className="text-2xl font-black text-rose-400 ml-3">14.1%</span>
  </div>
  <span className="text-neutral-500 text-lg">{aiExpandedData === 'closure' ? '▲' : '▼'}</span>
  </div>
@@ -8109,12 +8109,12 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  <p className="text-sm text-neutral-800">프랜차이즈 대비 <span className="text-neutral-700 font-semibold">5천만원 이상 비용 절감</span> (가맹비/로열티 없음), 메뉴/인테리어 자유롭게 결정 가능, 입지 선정부터 운영까지 전문 컨설팅 지원</p>
  </div>
- <div className="p-3 rounded-lg bg-neutral-100 border border-neutral-300">
- <p className="text-xs text-[#171717] font-semibold mb-2">창업자 고민 TOP 3 (설문조사 기반)</p>
+ <div className="p-3 rounded-lg bg-purple-500/10 border border-purple-500/30">
+ <p className="text-xs text-purple-400 font-semibold mb-2">창업자 고민 TOP 3 (설문조사 기반)</p>
  <div className="flex gap-2 flex-wrap">
- <span className="px-2 py-1 rounded-full bg-neutral-200 text-neutral-700 text-xs">1위: 상권분석 어려움</span>
- <span className="px-2 py-1 rounded-full bg-neutral-200 text-neutral-700 text-xs">2위: 초기 비용 산정</span>
- <span className="px-2 py-1 rounded-full bg-neutral-200 text-neutral-700 text-xs">3위: 차별화 전략</span>
+ <span className="px-2 py-1 rounded-full bg-purple-500/20 text-purple-300 text-xs">1위: 상권분석 어려움</span>
+ <span className="px-2 py-1 rounded-full bg-purple-500/20 text-purple-300 text-xs">2위: 초기 비용 산정</span>
+ <span className="px-2 py-1 rounded-full bg-purple-500/20 text-purple-300 text-xs">3위: 차별화 전략</span>
  </div>
  <p className="text-xs text-neutral-500 mt-2">→ 빈크래프트 서비스: 상권분석 리포트 + 콘셉트 컨설팅</p>
  </div>
@@ -8230,65 +8230,65 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <thead>
  <tr className="border-b border-neutral-200">
  <th className="py-3 px-2 text-left text-neutral-500 font-medium">항목</th>
- <th className="py-3 px-2 text-center text-neutral-700 font-medium">저가 프랜차이즈</th>
+ <th className="py-3 px-2 text-center text-orange-400 font-medium">저가 프랜차이즈</th>
  <th className="py-3 px-2 text-center text-neutral-700 font-medium">빈크래프트</th>
  </tr>
  </thead>
  <tbody className="text-neutral-700">
  <tr className="border-b border-neutral-200">
  <td className="py-3 px-2 font-medium">가맹비</td>
- <td className="py-3 px-2 text-center text-neutral-700">500~1,500만원</td>
- <td className="py-3 px-2 text-center text-[#1e3a5f] font-bold">0원</td>
+ <td className="py-3 px-2 text-center text-orange-300">500~1,500만원</td>
+ <td className="py-3 px-2 text-center text-emerald-300 font-bold">0원</td>
  </tr>
  <tr className="border-b border-neutral-200">
  <td className="py-3 px-2 font-medium">교육비</td>
- <td className="py-3 px-2 text-center text-neutral-700">100~300만원</td>
- <td className="py-3 px-2 text-center text-[#1e3a5f]">컨설팅 포함</td>
+ <td className="py-3 px-2 text-center text-orange-300">100~300만원</td>
+ <td className="py-3 px-2 text-center text-emerald-300">컨설팅 포함</td>
  </tr>
  <tr className="border-b border-neutral-200">
  <td className="py-3 px-2 font-medium">컨설팅</td>
- <td className="py-3 px-2 text-center text-neutral-700">-</td>
- <td className="py-3 px-2 text-center text-[#1e3a5f]">1,000만원</td>
+ <td className="py-3 px-2 text-center text-orange-300">-</td>
+ <td className="py-3 px-2 text-center text-emerald-300">1,000만원</td>
  </tr>
  <tr className="border-b border-neutral-200">
  <td className="py-3 px-2 font-medium">로열티 (월)</td>
- <td className="py-3 px-2 text-center text-neutral-700">15~50만원</td>
- <td className="py-3 px-2 text-center text-[#1e3a5f] font-bold">0원</td>
+ <td className="py-3 px-2 text-center text-orange-300">15~50만원</td>
+ <td className="py-3 px-2 text-center text-emerald-300 font-bold">0원</td>
  </tr>
  <tr className="border-b border-neutral-200">
  <td className="py-3 px-2 font-medium">로열티 (5년)</td>
- <td className="py-3 px-2 text-center text-neutral-700">900~3,000만원</td>
- <td className="py-3 px-2 text-center text-[#1e3a5f] font-bold">0원</td>
+ <td className="py-3 px-2 text-center text-orange-300">900~3,000만원</td>
+ <td className="py-3 px-2 text-center text-emerald-300 font-bold">0원</td>
  </tr>
  <tr className="border-b border-neutral-200">
  <td className="py-3 px-2 font-medium">광고분담금 (월)</td>
- <td className="py-3 px-2 text-center text-neutral-700">10~30만원</td>
- <td className="py-3 px-2 text-center text-[#1e3a5f] font-bold">0원</td>
+ <td className="py-3 px-2 text-center text-orange-300">10~30만원</td>
+ <td className="py-3 px-2 text-center text-emerald-300 font-bold">0원</td>
  </tr>
  <tr className="border-b border-neutral-200">
  <td className="py-3 px-2 font-medium">인테리어</td>
- <td className="py-3 px-2 text-center text-neutral-700">본사 지정업체</td>
- <td className="py-3 px-2 text-center text-[#1e3a5f]">400만원+견적 별도</td>
+ <td className="py-3 px-2 text-center text-orange-300">본사 지정업체</td>
+ <td className="py-3 px-2 text-center text-emerald-300">400만원+견적 별도</td>
  </tr>
  <tr className="border-b border-neutral-200">
  <td className="py-3 px-2 font-medium">기기설비</td>
- <td className="py-3 px-2 text-center text-neutral-700">본사 지정업체</td>
- <td className="py-3 px-2 text-center text-[#1e3a5f]">400만원+견적 별도</td>
+ <td className="py-3 px-2 text-center text-orange-300">본사 지정업체</td>
+ <td className="py-3 px-2 text-center text-emerald-300">400만원+견적 별도</td>
  </tr>
  <tr className="border-b border-neutral-200">
  <td className="py-3 px-2 font-medium">원두공급</td>
- <td className="py-3 px-2 text-center text-neutral-700">본사 지정 (강제)</td>
- <td className="py-3 px-2 text-center text-[#1e3a5f]">공급가 납품 (선택)</td>
+ <td className="py-3 px-2 text-center text-orange-300">본사 지정 (강제)</td>
+ <td className="py-3 px-2 text-center text-emerald-300">공급가 납품 (선택)</td>
  </tr>
  <tr className="border-b border-neutral-200">
  <td className="py-3 px-2 font-medium">메뉴개발</td>
- <td className="py-3 px-2 text-center text-neutral-700">본사 고정메뉴</td>
- <td className="py-3 px-2 text-center text-[#1e3a5f]">400만원 (15가지)</td>
+ <td className="py-3 px-2 text-center text-orange-300">본사 고정메뉴</td>
+ <td className="py-3 px-2 text-center text-emerald-300">400만원 (15가지)</td>
  </tr>
  <tr>
  <td className="py-3 px-2 font-medium">계약기간</td>
- <td className="py-3 px-2 text-center text-neutral-700">2~5년 (갱신시 추가비용)</td>
- <td className="py-3 px-2 text-center text-[#1e3a5f]">없음</td>
+ <td className="py-3 px-2 text-center text-orange-300">2~5년 (갱신시 추가비용)</td>
+ <td className="py-3 px-2 text-center text-emerald-300">없음</td>
  </tr>
  </tbody>
  </table>
@@ -8300,28 +8300,28 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="space-y-2">
  <div className="flex items-center justify-between p-3 rounded-lg border border-neutral-200 bg-white/30">
  <div className="flex items-center gap-3">
- <span className="text-neutral-700 font-medium">메가커피</span>
+ <span className="text-orange-400 font-medium">메가커피</span>
  <span className="text-xs text-neutral-500">가맹비 500만 + 교육비 150만 + 인테리어/기기</span>
  </div>
  <span className="text-neutral-700 font-bold">6,900만~1억원</span>
  </div>
  <div className="flex items-center justify-between p-3 rounded-lg border border-neutral-200 bg-white/30">
  <div className="flex items-center gap-3">
- <span className="text-neutral-700 font-medium">컴포즈커피</span>
+ <span className="text-orange-400 font-medium">컴포즈커피</span>
  <span className="text-xs text-neutral-500">가맹비 300만 + 교육비 150만 + 인테리어/기기</span>
  </div>
  <span className="text-neutral-700 font-bold">5,500만~8,000만원</span>
  </div>
  <div className="flex items-center justify-between p-3 rounded-lg border border-neutral-200 bg-white/30">
  <div className="flex items-center gap-3">
- <span className="text-neutral-700 font-medium">빽다방</span>
+ <span className="text-orange-400 font-medium">빽다방</span>
  <span className="text-xs text-neutral-500">가맹비 500만 + 교육비 200만 + 인테리어/기기</span>
  </div>
  <span className="text-neutral-700 font-bold">6,000만~9,000만원</span>
  </div>
  <div className="flex items-center justify-between p-3 rounded-lg border border-neutral-200 bg-white/30">
  <div className="flex items-center gap-3">
- <span className="text-neutral-700 font-medium">이디야커피</span>
+ <span className="text-orange-400 font-medium">이디야커피</span>
  <span className="text-xs text-neutral-500">가맹비 1,000만 + 교육비 300만 + 인테리어/기기</span>
  </div>
  <span className="text-neutral-700 font-bold">8,000만~1.3억원</span>
@@ -9536,7 +9536,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  <div className="bg-neutral-100 rounded-lg p-2 text-center border border-neutral-200">
  <p className="text-lg font-bold text-orange-500">{neutralCompanies.length}</p>
- <p className="text-xs text-neutral-700">양호</p>
+ <p className="text-xs text-orange-400">양호</p>
  </div>
  <div className="bg-neutral-100 rounded-lg p-2 text-center border border-neutral-200">
  <p className="text-lg font-bold text-neutral-800">{negativeCompanies.length}</p>
@@ -9847,69 +9847,69 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        <thead>
          <tr className="border-b border-neutral-200">
            <th className="py-3 px-2 text-left text-neutral-500 font-medium">항목</th>
-           <th className="py-3 px-2 text-center text-neutral-700 font-medium">저가 프랜차이즈</th>
+           <th className="py-3 px-2 text-center text-orange-400 font-medium">저가 프랜차이즈</th>
            <th className="py-3 px-2 text-center text-neutral-700 font-medium">빈크래프트</th>
          </tr>
        </thead>
        <tbody className="text-neutral-700">
          <tr className="border-b border-neutral-200">
            <td className="py-3 px-2 font-medium">가맹비</td>
-           <td className="py-3 px-2 text-center text-neutral-700">500~1,500만원</td>
-           <td className="py-3 px-2 text-center text-[#1e3a5f] font-bold">0원</td>
+           <td className="py-3 px-2 text-center text-orange-300">500~1,500만원</td>
+           <td className="py-3 px-2 text-center text-emerald-300 font-bold">0원</td>
          </tr>
          <tr className="border-b border-neutral-200">
            <td className="py-3 px-2 font-medium">교육비</td>
-           <td className="py-3 px-2 text-center text-neutral-700">100~300만원</td>
-           <td className="py-3 px-2 text-center text-[#1e3a5f]">컨설팅 포함</td>
+           <td className="py-3 px-2 text-center text-orange-300">100~300만원</td>
+           <td className="py-3 px-2 text-center text-emerald-300">컨설팅 포함</td>
          </tr>
          <tr className="border-b border-neutral-200">
            <td className="py-3 px-2 font-medium">컨설팅비</td>
-           <td className="py-3 px-2 text-center text-neutral-700">-</td>
-           <td className="py-3 px-2 text-center text-[#1e3a5f]">1,000만원</td>
+           <td className="py-3 px-2 text-center text-orange-300">-</td>
+           <td className="py-3 px-2 text-center text-emerald-300">1,000만원</td>
          </tr>
          <tr className="border-b border-neutral-200">
            <td className="py-3 px-2 font-medium">로열티 (월)</td>
-           <td className="py-3 px-2 text-center text-neutral-700">15~50만원</td>
-           <td className="py-3 px-2 text-center text-[#1e3a5f] font-bold">0원</td>
+           <td className="py-3 px-2 text-center text-orange-300">15~50만원</td>
+           <td className="py-3 px-2 text-center text-emerald-300 font-bold">0원</td>
          </tr>
          <tr className="border-b border-neutral-200">
            <td className="py-3 px-2 font-medium">로열티 (5년)</td>
-           <td className="py-3 px-2 text-center text-neutral-700">900~3,000만원</td>
-           <td className="py-3 px-2 text-center text-[#1e3a5f] font-bold">0원</td>
+           <td className="py-3 px-2 text-center text-orange-300">900~3,000만원</td>
+           <td className="py-3 px-2 text-center text-emerald-300 font-bold">0원</td>
          </tr>
          <tr className="border-b border-neutral-200">
            <td className="py-3 px-2 font-medium">광고분담금 (월)</td>
-           <td className="py-3 px-2 text-center text-neutral-700">10~30만원</td>
-           <td className="py-3 px-2 text-center text-[#1e3a5f] font-bold">0원</td>
+           <td className="py-3 px-2 text-center text-orange-300">10~30만원</td>
+           <td className="py-3 px-2 text-center text-emerald-300 font-bold">0원</td>
          </tr>
          <tr className="border-b border-neutral-200">
            <td className="py-3 px-2 font-medium">인테리어</td>
-           <td className="py-3 px-2 text-center text-neutral-700">본사 지정업체</td>
-           <td className="py-3 px-2 text-center text-[#1e3a5f]">400만원+견적 별도</td>
+           <td className="py-3 px-2 text-center text-orange-300">본사 지정업체</td>
+           <td className="py-3 px-2 text-center text-emerald-300">400만원+견적 별도</td>
          </tr>
          <tr className="border-b border-neutral-200">
            <td className="py-3 px-2 font-medium">기기설비</td>
-           <td className="py-3 px-2 text-center text-neutral-700">본사 지정업체</td>
-           <td className="py-3 px-2 text-center text-[#1e3a5f]">400만원+견적 별도</td>
+           <td className="py-3 px-2 text-center text-orange-300">본사 지정업체</td>
+           <td className="py-3 px-2 text-center text-emerald-300">400만원+견적 별도</td>
          </tr>
          <tr className="border-b border-neutral-200">
            <td className="py-3 px-2 font-medium">원두공급</td>
-           <td className="py-3 px-2 text-center text-neutral-700">본사 지정 (강제)</td>
-           <td className="py-3 px-2 text-center text-[#1e3a5f]">공급가 납품 (선택)</td>
+           <td className="py-3 px-2 text-center text-orange-300">본사 지정 (강제)</td>
+           <td className="py-3 px-2 text-center text-emerald-300">공급가 납품 (선택)</td>
          </tr>
          <tr className="border-b border-neutral-200">
            <td className="py-3 px-2 font-medium">메뉴 구성</td>
-           <td className="py-3 px-2 text-center text-neutral-700">본사 통제</td>
-           <td className="py-3 px-2 text-center text-[#1e3a5f]">자유롭게 결정</td>
+           <td className="py-3 px-2 text-center text-orange-300">본사 통제</td>
+           <td className="py-3 px-2 text-center text-emerald-300">자유롭게 결정</td>
          </tr>
          <tr className="border-b border-neutral-200">
            <td className="py-3 px-2 font-medium">매물 조건</td>
-           <td className="py-3 px-2 text-center text-neutral-700">1층/15평 이상</td>
-           <td className="py-3 px-2 text-center text-[#1e3a5f]">제한 없음</td>
+           <td className="py-3 px-2 text-center text-orange-300">1층/15평 이상</td>
+           <td className="py-3 px-2 text-center text-emerald-300">제한 없음</td>
          </tr>
          <tr className="bg-neutral-100/30">
            <td className="py-3 px-2 font-bold text-white">총 비용 (5년)</td>
-           <td className="py-3 px-2 text-center text-neutral-700 font-bold">1,500~4,500만원+</td>
+           <td className="py-3 px-2 text-center text-orange-400 font-bold">1,500~4,500만원+</td>
            <td className="py-3 px-2 text-center text-neutral-700 font-bold">1,800만원+</td>
          </tr>
        </tbody>
@@ -9978,7 +9978,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        <div className="flex items-center gap-3 mb-3">
          <span className="text-3xl"></span>
          <div>
-           <h4 className="font-bold text-[#171717]">원두/부자재</h4>
+           <h4 className="font-bold text-purple-400">원두/부자재</h4>
            <p className="text-xs text-neutral-500">공급가 직접 납품</p>
          </div>
        </div>
@@ -10045,8 +10045,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
              <p className="text-2xl font-bold text-neutral-700">{sortedRegions.length}</p>
              <p className="text-xs text-neutral-500">활동 지역</p>
            </div>
-           <div className="bg-neutral-200 rounded-lg p-3 text-center">
-             <p className="text-2xl font-bold text-[#171717]">
+           <div className="bg-purple-500/20 rounded-lg p-3 text-center">
+             <p className="text-2xl font-bold text-purple-400">
                {collectedRealtors.reduce((sum, r) => sum + (r.listings || 0), 0).toLocaleString()}
              </p>
              <p className="text-xs text-neutral-500">총 매물</p>
@@ -10553,7 +10553,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="flex items-center gap-2 flex-wrap">
  <span className="font-bold text-[#171717] text-sm">{officeName}</span>
  <span className="px-2 py-0.5 text-xs rounded-full bg-teal-900 text-teal-300 font-bold">{listingCount}건</span>
- {isInRoute && <span className="px-2 py-0.5 text-xs rounded-full bg-purple-900 text-neutral-700">동선</span>}
+ {isInRoute && <span className="px-2 py-0.5 text-xs rounded-full bg-purple-900 text-purple-300">동선</span>}
  {isRegistered && <span className="px-2 py-0.5 text-xs rounded-full bg-green-900 text-green-300">방문</span>}
  {assignedManager ? (
    <span className="px-1.5 py-0.5 text-xs rounded-full text-white font-bold" style={{backgroundColor: assignedManager.color}}>{assignedManager.name}</span>
@@ -10700,7 +10700,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <p className="text-xs text-neutral-500">긍정</p>
  </div>
  <div className="text-center p-2 rounded-xl border border-neutral-200">
- <p className="text-lg font-bold text-neutral-700">{stats.neutral}</p>
+ <p className="text-lg font-bold text-orange-400">{stats.neutral}</p>
  <p className="text-xs text-neutral-500">양호</p>
  </div>
  <div className="text-center p-2 rounded-xl border border-neutral-200">
@@ -10971,6 +10971,72 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
    >
      영업모드 시작
    </button>
+ </div>
+ )}
+ 
+ {/* 멘트 관리 탭 */}
+ {settingsTab === 'ments' && (
+ <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+ {/* 왼쪽: 멘트 목록 */}
+ <div className="lg:col-span-2">
+ <div className="bg-white border border-neutral-200 rounded-2xl p-4 rounded-2xl border border-neutral-200">
+ <div className="flex justify-between items-center mb-4">
+ <h3 className="font-bold text-[#171717]">내 멘트 목록</h3>
+ <button type="button" onClick={() => { setEditingMent(null); setShowMentModal(true); }} className="px-3 py-1 rounded-full border border-neutral-200 text-sm text-neutral-700 hover:border-slate-500">+ 새 멘트</button>
+ </div>
+ 
+ {userMents.length === 0 ? (
+ <p className="text-center py-8 text-neutral-500">등록된 멘트가 없습니다</p>
+ ) : (
+ <div className="space-y-3">
+ {userMents.map(ment => (
+ <div key={ment.id} className="p-4 rounded-xl border border-neutral-200 hover:border-slate-500">
+ <div className="flex justify-between items-start mb-2">
+ <div className="flex items-center gap-2">
+ <span className={`px-2 py-0.5 rounded-full text-xs ${ment.type === 'broker' ? 'text-neutral-700' : 'text-neutral-700'}`}>
+ {ment.type === 'broker' ? '중개사' : '고객'}
+ </span>
+ <span className="font-bold text-[#171717]">{ment.name}</span>
+ </div>
+ <div className="flex gap-1">
+ <button type="button" onClick={() => { setFeedbackMent(ment); setFeedbackInput(ment.content); setShowAiFeedback(true); }} className="px-2 py-1 rounded-full text-xs border border-neutral-200 text-neutral-500 hover:border-slate-500">AI</button>
+ <button type="button" onClick={() => { setEditingMent(ment); setMentForm({ name: ment.name, content: ment.content, type: ment.type || 'broker', memo: ment.memo || '' }); setShowMentModal(true); }} className="px-2 py-1 rounded-full text-xs border border-neutral-200 text-neutral-500 hover:border-slate-500">수정</button>
+ <button type="button" onClick={() => { if(confirm('삭제하시겠습니까?')) deleteMent(ment.id); }} className="px-2 py-1 rounded-full text-xs border border-rose-600/50 text-rose-400 hover:border-rose-500">삭제</button>
+ </div>
+ </div>
+ <p className="text-sm text-neutral-700 mb-2 whitespace-pre-wrap">{ment.content}</p>
+ <div className="flex gap-4 text-xs text-neutral-500">
+ <span>사용 {ment.useCount || 0}회</span>
+ <span>성공률 {ment.useCount > 0 ? Math.round(((ment.successCount || 0) / ment.useCount) * 100) : 0}%</span>
+ </div>
+ </div>
+ ))}
+ </div>
+ )}
+ </div>
+ </div>
+ 
+ {/* 오른쪽: AI 피드백 히스토리 */}
+ <div className="lg:col-span-1">
+ <div className="bg-white border border-neutral-200 rounded-2xl p-4 rounded-2xl border border-neutral-200">
+ <h3 className="font-bold text-[#171717] mb-4">AI 피드백 히스토리</h3>
+ {mentFeedbacks.length === 0 ? (
+ <p className="text-center py-4 text-neutral-500 text-sm">기록 없음</p>
+ ) : (
+ <div className="space-y-2 max-h-60 overflow-y-auto">
+ {mentFeedbacks.slice().reverse().slice(0, 10).map(fb => (
+ <div key={fb.id} className="p-3 rounded-xl border border-neutral-200">
+ <div className="flex justify-between items-center mb-1">
+ <span className="font-medium text-neutral-800 text-sm">{fb.mentName}</span>
+ <span className="text-xs text-neutral-500">{new Date(fb.createdAt).toLocaleDateString()}</span>
+ </div>
+ <p className="text-xs text-neutral-500 line-clamp-2">{fb.question}</p>
+ </div>
+ ))}
+ </div>
+ )}
+ </div>
+ </div>
  </div>
  )}
  
