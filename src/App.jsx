@@ -547,7 +547,7 @@ const FRANCHISE_DATA = {
 };
 
 // Gemini AI API 키
-const GEMINI_API_KEY = 'AIzaSyAl0PfvfKlD-nZxtAJOC6qhME-A-V_u2L8';
+const GEMINI_API_KEY = 'AIzaSyAeEIgK7KhcNys5rU2c8WwU-P56iiuLM20';
 
 // Store OS 디자인 시스템
 const UI = {
@@ -974,10 +974,10 @@ JSON 형식으로만 응답하세요:
  const btn = buttonRef.current;
  const original = btn.innerText;
  btn.innerText = '';
- btn.classList.add('text-emerald-400');
+ btn.classList.add('text-neutral-700');
  setTimeout(() => {
  btn.innerText = original;
- btn.classList.remove('text-emerald-400');
+ btn.classList.remove('text-neutral-700');
  }, 1500);
  }
  };
@@ -5758,7 +5758,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
    };
    
    return (
-     <div className="min-h-screen flex items-center justify-center p-4 bg-neutral-50 overflow-hidden">
+     <div className="min-h-screen flex items-center justify-center p-4 bg-neutral-900 overflow-hidden">
        <div className="w-full max-w-md relative" style={{minHeight: '500px'}}>
          
          {/* 명언 - quote일 때만 보임 */}
@@ -5771,7 +5771,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
              pointerEvents: loginPhase === 'quote' ? 'auto' : 'none'
            }}
          >
-           <p className="text-neutral-700 text-sm sm:text-base font-normal leading-relaxed max-w-xs sm:max-w-sm mx-auto text-center" style={{wordBreak: 'keep-all'}}>"{loginQuote}"</p>
+           <p className="text-neutral-300 text-sm sm:text-base font-normal leading-relaxed max-w-xs sm:max-w-sm mx-auto text-center" style={{wordBreak: 'keep-all'}}>"{loginQuote}"</p>
          </div>
          
          {/* 로고만 - logo일 때 보임 */}
@@ -5786,7 +5786,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
          >
            <div className="text-center">
              <img src="/logo.png" alt="BEANCRAFT" className="w-40 h-40 sm:w-56 sm:h-56 mx-auto mb-4 object-contain" />
-             <p className="text-neutral-800 text-base sm:text-lg tracking-widest font-semibold">빈크래프트 영업관리</p>
+             <p className="text-white text-base sm:text-lg tracking-widest font-semibold">빈크래프트 영업관리</p>
            </div>
          </div>
          
@@ -5802,10 +5802,10 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
          >
            <div className="text-center mb-6">
              <img src="/logo.png" alt="BEANCRAFT" className="w-28 h-28 sm:w-40 sm:h-40 mx-auto mb-3 object-contain" />
-             <p className="text-neutral-800 text-sm sm:text-base tracking-widest font-semibold">빈크래프트 영업관리</p>
+             <p className="text-white text-sm sm:text-base tracking-widest font-semibold">빈크래프트 영업관리</p>
            </div>
            <div className="text-center mb-5 px-4">
-             <p className="text-neutral-700 text-xs sm:text-sm font-normal leading-relaxed max-w-xs sm:max-w-sm mx-auto" style={{wordBreak: 'keep-all'}}>"{loginQuote}"</p>
+             <p className="text-neutral-400 text-xs sm:text-sm font-normal leading-relaxed max-w-xs sm:max-w-sm mx-auto" style={{wordBreak: 'keep-all'}}>"{loginQuote}"</p>
            </div>
            <div className="bg-white rounded-xl p-4 sm:p-6 shadow-lg border border-neutral-200">
              <input type="text" placeholder="아이디" value={id} onChange={e => setId(e.target.value)} className="w-full p-2.5 sm:p-3 rounded-lg mb-2 sm:mb-3 bg-neutral-50 text-[#171717] placeholder-neutral-400 outline-none focus:ring-2 focus:ring-neutral-300 border border-neutral-200 text-sm font-medium" />
@@ -6421,7 +6421,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* 좌측 사이드바 (PC 전용) - Store OS 스타일 */}
  <aside className="hidden md:flex w-56 flex-col bg-neutral-900">
  <div className="p-5 border-b border-neutral-800">
- <h1 className="text-lg font-bold text-white">BEANCRAFT</h1>
+ <img src="/logo.png" alt="BEANCRAFT" className="h-10 object-contain brightness-0 invert" onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'block'; }} />
+ <h1 className="text-lg font-bold text-white" style={{display: 'none'}}>BEANCRAFT</h1>
  <p className="text-xs text-neutral-500 mt-0.5">영업관리</p>
  </div>
  <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
@@ -6556,7 +6557,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
    </div>
  </div>
  )}
- <div className="p-3 sm:p-4 max-w-6xl mx-auto">
+ <div className="p-3 sm:p-4">
  {tab === 'report' && (
  <div className="space-y-2">
  {/* 보고서 헤더 */}
@@ -6767,28 +6768,28 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="bg-white border border-neutral-200 rounded-2xl p-4 rounded-2xl border border-neutral-200">
  <div className="text-neutral-500 text-xs mb-1">방문</div>
  <div className="text-2xl font-bold text-[#171717]">{thisVisits}<span className="text-sm text-neutral-500 ml-1">건</span></div>
- <div className={`text-xs mt-1 ${visitChange >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+ <div className={`text-xs mt-1 ${visitChange >= 0 ? 'text-neutral-700' : 'text-rose-400'}`}>
  {visitChange >= 0 ? '▲' : '▼'} {Math.abs(visitChange)}%
  </div>
  </div>
  <div className="bg-white border border-neutral-200 rounded-2xl p-4 rounded-2xl border border-neutral-200">
  <div className="text-neutral-500 text-xs mb-1">신규 업체</div>
  <div className="text-2xl font-bold text-[#171717]">{thisNewCompanies}<span className="text-sm text-neutral-500 ml-1">개</span></div>
- <div className={`text-xs mt-1 ${companyChange >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+ <div className={`text-xs mt-1 ${companyChange >= 0 ? 'text-neutral-700' : 'text-rose-400'}`}>
  {companyChange >= 0 ? '▲' : '▼'} {Math.abs(companyChange)}%
  </div>
  </div>
  <div className="bg-white border border-neutral-200 rounded-2xl p-4 rounded-2xl border border-neutral-200">
  <div className="text-neutral-500 text-xs mb-1">완료 상담</div>
  <div className="text-2xl font-bold text-[#171717]">{thisConsults}<span className="text-sm text-neutral-500 ml-1">건</span></div>
- <div className={`text-xs mt-1 ${consultChange >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+ <div className={`text-xs mt-1 ${consultChange >= 0 ? 'text-neutral-700' : 'text-rose-400'}`}>
  {consultChange >= 0 ? '▲' : '▼'} {Math.abs(consultChange)}%
  </div>
  </div>
  <div className="bg-white border border-neutral-200 rounded-2xl p-4 rounded-2xl border border-neutral-200">
  <div className="text-neutral-500 text-xs mb-1">긍정 반응</div>
  <div className="text-2xl font-bold text-[#171717]">{positiveRate}<span className="text-sm text-neutral-500 ml-1">%</span></div>
- <div className={`text-xs mt-1 ${positiveChange >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+ <div className={`text-xs mt-1 ${positiveChange >= 0 ? 'text-neutral-700' : 'text-rose-400'}`}>
  {positiveChange >= 0 ? '▲' : '▼'} {Math.abs(positiveChange)}%p
  </div>
  </div>
@@ -6872,7 +6873,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="flex flex-col items-center justify-center py-8 gap-2">
  <div className="animate-spin w-6 h-6 border-2 border-neutral-300 border-t-transparent rounded-full"></div>
  <span className="text-neutral-500 text-sm">AI 분석 중...</span>
- {aiErrorMessage && <span className="text-yellow-400 text-xs">{aiErrorMessage}</span>}
+ {aiErrorMessage && <span className="text-neutral-700 text-xs">{aiErrorMessage}</span>}
  </div>
  ) : aiErrorMessage && !aiReportResult ? (
  <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/30">
@@ -7009,17 +7010,17 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        {(aiKeywordResult.relatedCompaniesCount > 0 || aiKeywordResult.relatedRealtorsCount > 0) && (
          <div className="flex gap-3 text-xs">
            {aiKeywordResult.relatedCompaniesCount > 0 && (
-             <span className="px-2 py-1 rounded bg-emerald-500/20 text-emerald-400">
+             <span className="px-2 py-1 rounded bg-emerald-500/20 text-neutral-700">
                관련 업체 {aiKeywordResult.relatedCompaniesCount}개
              </span>
            )}
            {aiKeywordResult.relatedRealtorsCount > 0 && (
-             <span className="px-2 py-1 rounded bg-blue-500/20 text-blue-400">
+             <span className="px-2 py-1 rounded bg-blue-500/20 text-neutral-700">
                관련 중개사 {aiKeywordResult.relatedRealtorsCount}개
              </span>
            )}
            {aiKeywordResult.relatedIssuesCount > 0 && (
-             <span className="px-2 py-1 rounded bg-yellow-500/20 text-yellow-400">
+             <span className="px-2 py-1 rounded bg-yellow-500/20 text-neutral-700">
                관련 이슈 {aiKeywordResult.relatedIssuesCount}건
              </span>
            )}
@@ -7033,12 +7034,12 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        
        {/* 인사이트 */}
        {aiKeywordResult.insights?.length > 0 && (
-         <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/30">
-           <p className="text-xs text-blue-400 font-semibold mb-2">주요 인사이트</p>
+         <div className="p-3 rounded-lg bg-white border border-neutral-300">
+           <p className="text-xs text-neutral-700 font-semibold mb-2">주요 인사이트</p>
            <ul className="space-y-1">
              {aiKeywordResult.insights.map((insight, idx) => (
                <li key={idx} className="text-sm text-neutral-700 flex items-start gap-2">
-                 <span className="text-blue-400">•</span>
+                 <span className="text-neutral-700">•</span>
                  {insight}
                </li>
              ))}
@@ -7048,12 +7049,12 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        
        {/* 영업 팁 */}
        {aiKeywordResult.salesTips?.length > 0 && (
-         <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
-           <p className="text-xs text-emerald-400 font-semibold mb-2">영업 활용 팁</p>
+         <div className="p-3 rounded-lg bg-white border border-neutral-300">
+           <p className="text-xs text-neutral-700 font-semibold mb-2">영업 활용 팁</p>
            <ul className="space-y-1">
              {aiKeywordResult.salesTips.map((tip, idx) => (
                <li key={idx} className="text-sm text-neutral-700 flex items-start gap-2">
-                 <span className="text-emerald-400">{idx + 1}.</span>
+                 <span className="text-neutral-700">{idx + 1}.</span>
                  {tip}
                </li>
              ))}
@@ -7424,12 +7425,12 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
  {/* 핵심 지표 테이블 */}
  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
- <div className="text-center p-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5">
- <div className="text-xl sm:text-2xl font-bold text-emerald-400">{positiveCompanies.length}</div>
+ <div className="text-center p-3 rounded-lg border border-neutral-300 bg-emerald-500/5">
+ <div className="text-xl sm:text-2xl font-bold text-neutral-700">{positiveCompanies.length}</div>
  <div className="text-xs text-neutral-500">긍정 반응</div>
  
  </div>
- <div className="text-center p-3 rounded-lg border border-rose-500/30 bg-rose-500/5">
+ <div className="text-center p-3 rounded-lg border border-neutral-300 bg-rose-500/5">
  <div className="text-xl sm:text-2xl font-bold text-rose-400">{specialCompanies.length}</div>
  <div className="text-xs text-neutral-500">특별관리</div>
  
@@ -7439,8 +7440,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="text-xs text-neutral-500">보통</div>
  
  </div>
- <div className="text-center p-3 rounded-lg border border-yellow-500/30 bg-yellow-500/5">
- <div className="text-xl sm:text-2xl font-bold text-yellow-400">{missedCompanies.length}</div>
+ <div className="text-center p-3 rounded-lg border border-neutral-300 bg-yellow-500/5">
+ <div className="text-xl sm:text-2xl font-bold text-neutral-700">{missedCompanies.length}</div>
  <div className="text-xs text-neutral-500">부재</div>
  
  </div>
@@ -7452,7 +7453,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="flex flex-col items-center justify-center py-6 gap-2">
  <div className="animate-spin w-6 h-6 border-2 border-neutral-300 border-t-transparent rounded-full"></div>
  <span className="text-neutral-500 text-sm">AI 분석 중...</span>
- {aiErrorMessage && <span className="text-yellow-400 text-xs">{aiErrorMessage}</span>}
+ {aiErrorMessage && <span className="text-neutral-700 text-xs">{aiErrorMessage}</span>}
  </div>
  ) : aiErrorMessage && !aiReportResult ? (
  <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/30">
@@ -7469,8 +7470,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <p className="text-sm text-neutral-800 leading-relaxed">{aiReportResult.comment}</p>
  </div>
  {aiReportResult.analysis && (
- <div className="p-3 rounded-lg border border-blue-500/30 bg-blue-500/5">
- <p className="text-xs text-blue-400 mb-1 font-semibold">AI 인사이트</p>
+ <div className="p-3 rounded-lg border border-neutral-300 bg-blue-500/5">
+ <p className="text-xs text-neutral-700 mb-1 font-semibold">AI 인사이트</p>
  <p className="text-sm text-neutral-700">{aiReportResult.analysis}</p>
  </div>
  )}
@@ -7479,8 +7480,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <p className="text-sm text-neutral-700">{aiReportResult.suggestion}</p>
  </div>
  {aiReportResult.encouragement && (
- <div className="p-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5">
- <p className="text-sm text-emerald-400 font-medium">{aiReportResult.encouragement}</p>
+ <div className="p-3 rounded-lg border border-neutral-300 bg-emerald-500/5">
+ <p className="text-sm text-neutral-700 font-medium">{aiReportResult.encouragement}</p>
  </div>
  )}
  {aiLastUpdateTime && (
@@ -7495,8 +7496,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <p className="text-sm text-neutral-800 leading-relaxed">{aiComment.main}</p>
  </div>
  {aiComment.analysis && (
- <div className="p-3 rounded-lg border border-blue-500/30 bg-blue-500/5">
- <p className="text-xs text-blue-400 mb-1 font-semibold">데이터 기반 분석</p>
+ <div className="p-3 rounded-lg border border-neutral-300 bg-blue-500/5">
+ <p className="text-xs text-neutral-700 mb-1 font-semibold">데이터 기반 분석</p>
  <p className="text-sm text-neutral-700">{aiComment.analysis}</p>
  </div>
  )}
@@ -7504,8 +7505,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <p className="text-xs text-neutral-700 mb-1 font-semibold">제안</p>
  <p className="text-sm text-neutral-700">{aiComment.suggestion}</p>
  </div>
- <div className="p-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5">
- <p className="text-sm text-emerald-400 font-medium">{aiComment.encouragement}</p>
+ <div className="p-3 rounded-lg border border-neutral-300 bg-emerald-500/5">
+ <p className="text-sm text-neutral-700 font-medium">{aiComment.encouragement}</p>
  </div>
  </>
  )}
@@ -7519,8 +7520,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <span className="text-xl"></span> 메모 분석 ({allMemos.length}건)
  </h3>
  <div className="grid grid-cols-2 gap-3">
- <div className="text-center p-3 rounded-lg bg-blue-500/10">
- <div className="text-lg sm:text-xl font-bold text-blue-400">{positiveMemoCount}</div>
+ <div className="text-center p-3 rounded-lg bg-white">
+ <div className="text-lg sm:text-xl font-bold text-neutral-700">{positiveMemoCount}</div>
  <div className="text-xs text-neutral-500">긍정 키워드</div>
  </div>
  <div className="text-center p-3 rounded-lg bg-neutral-50">
@@ -7533,7 +7534,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="mt-4 space-y-3">
  {/* 반응별 업체 현황 */}
  <div className="p-3 rounded-lg bg-white border border-neutral-200">
- <p className="text-xs text-blue-400 font-semibold mb-2">반응별 업체 현황</p>
+ <p className="text-xs text-neutral-700 font-semibold mb-2">반응별 업체 현황</p>
  <div className="space-y-2">
  {(() => {
  const positiveCompanies = targetCompanies.filter(c => c.reaction === 'positive');
@@ -7542,7 +7543,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  return (
  <>
  <div className="flex items-center justify-between text-sm">
- <span className="text-emerald-400">긍정 반응</span>
+ <span className="text-neutral-700">긍정 반응</span>
  <span className="text-neutral-700">{positiveCompanies.length}개 업체</span>
  </div>
  <div className="flex items-center justify-between text-sm">
@@ -7560,19 +7561,19 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  
  {/* 팔로업 주기 안내 */}
- <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
- <p className="text-xs text-emerald-400 font-semibold mb-2">팔로업 주기 가이드</p>
+ <div className="p-3 rounded-lg bg-white border border-neutral-300">
+ <p className="text-xs text-neutral-700 font-semibold mb-2">팔로업 주기 가이드</p>
  <div className="space-y-2 text-sm">
  <div className="flex items-start gap-2">
- <span className="text-emerald-400 font-bold min-w-[60px]">당일</span>
+ <span className="text-neutral-700 font-bold min-w-[60px]">당일</span>
  <span className="text-neutral-700">간단한 인사 문자 발송 ("오늘 방문 감사합니다. 빈크래프트 OOO입니다.")</span>
  </div>
  <div className="flex items-start gap-2">
- <span className="text-blue-400 font-bold min-w-[60px]">1주일</span>
+ <span className="text-neutral-700 font-bold min-w-[60px]">1주일</span>
  <span className="text-neutral-700">지역 이슈 정리해서 공유 (카페 창업 관련 뉴스, 상권 변화 등)</span>
  </div>
  <div className="flex items-start gap-2">
- <span className="text-yellow-400 font-bold min-w-[60px]">1개월</span>
+ <span className="text-neutral-700 font-bold min-w-[60px]">1개월</span>
  <span className="text-neutral-700">방문 후 고객 현황 여쭤보기 ("혹시 카페 창업 문의 들어온 거 있으셨나요?")</span>
  </div>
  </div>
@@ -7580,8 +7581,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  
  {/* 긍정 반응 업체 팔로업 */}
  {positiveMemoCount > 0 && (
- <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/30">
- <p className="text-xs text-blue-400 font-semibold mb-2">긍정 반응 업체 관리 방법</p>
+ <div className="p-3 rounded-lg bg-white border border-neutral-300">
+ <p className="text-xs text-neutral-700 font-semibold mb-2">긍정 반응 업체 관리 방법</p>
  <p className="text-sm text-neutral-700 mb-2">긍정 반응 업체는 재방문 우선순위가 높습니다. 다음 액션을 권장합니다:</p>
  <ul className="text-sm text-neutral-700 space-y-1">
  <li>• 1주일 내 지역 카페 시장 이슈 공유 문자 발송</li>
@@ -7593,8 +7594,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  
  {/* 지역 이슈 활용 팁 */}
  {regionRec && (
- <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
- <p className="text-xs text-yellow-400 font-semibold mb-2">팔로업 시 활용할 지역 이슈</p>
+ <div className="p-3 rounded-lg bg-white border border-neutral-300">
+ <p className="text-xs text-neutral-700 font-semibold mb-2">팔로업 시 활용할 지역 이슈</p>
  <p className="text-sm text-neutral-700">{regionRec.issue || '지역 이슈 정보가 없습니다.'}</p>
  <p className="text-xs text-neutral-500 mt-2">→ 이 내용을 1주일 후 팔로업 문자에 활용하세요.</p>
  </div>
@@ -7608,7 +7609,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="flex justify-between items-center mb-4">
  <h3 className="font-bold text-[#171717] flex items-center gap-2 text-lg">
  <span className="text-xl"></span> AI 지역 추천
- <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-medium ml-2">영업 조력</span>
+ <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-neutral-700 text-xs font-medium ml-2">영업 조력</span>
  <span className="px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-500 text-xs font-normal ml-1">2024년 기준</span>
  </h3>
  <div className="flex gap-1 p-1 bg-white rounded-lg">
@@ -7676,15 +7677,15 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* 핵심 데이터 그리드 */}
  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
  <div className="text-center p-3 rounded-lg bg-transparent border border-neutral-200/30">
- <div className="text-lg font-bold text-blue-400">{regionRec.cafeCount || '-'}개</div>
+ <div className="text-lg font-bold text-neutral-700">{regionRec.cafeCount || '-'}개</div>
  <div className="text-xs text-neutral-500">카페 점포 수</div>
  </div>
  <div className="text-center p-3 rounded-lg bg-transparent border border-neutral-200/30">
- <div className="text-lg font-bold text-emerald-400">{regionRec.startupTrend || '-'}</div>
+ <div className="text-lg font-bold text-neutral-700">{regionRec.startupTrend || '-'}</div>
  <div className="text-xs text-neutral-500">창업 증가율</div>
  </div>
  <div className="text-center p-3 rounded-lg bg-transparent border border-neutral-200/30">
- <div className="text-lg font-bold text-yellow-400">{regionRec.avgRent || '-'}</div>
+ <div className="text-lg font-bold text-neutral-700">{regionRec.avgRent || '-'}</div>
  <div className="text-xs text-neutral-500">평균 임대료</div>
  </div>
  <div className="text-center p-3 rounded-lg bg-transparent border border-neutral-200/30">
@@ -7696,17 +7697,17 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* 팀 데이터 */}
  {(regionRec.teamTotal > 0 || regionRec.teamPositive > 0) && (
  <div 
-                className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 mb-3 cursor-pointer hover:bg-emerald-500/20 transition-all"
+                className="p-3 rounded-lg bg-white border border-neutral-300 mb-3 cursor-pointer hover:bg-emerald-500/20 transition-all"
                 onClick={() => setShowManagerCompaniesModal(regionRec.region)}
               >
-                <p className="text-xs text-emerald-400 font-semibold mb-2">우리 팀 데이터 <span className="text-neutral-500">(클릭하여 업체 보기)</span></p>
+                <p className="text-xs text-neutral-700 font-semibold mb-2">우리 팀 데이터 <span className="text-neutral-500">(클릭하여 업체 보기)</span></p>
  <div className="flex items-center gap-3 sm:gap-4">
  <div className="text-center">
- <span className="text-lg sm:text-xl font-bold text-emerald-400">{regionRec.teamTotal || 0}</span>
+ <span className="text-lg sm:text-xl font-bold text-neutral-700">{regionRec.teamTotal || 0}</span>
  <span className="text-xs text-neutral-500 block">방문 업체</span>
  </div>
  <div className="text-center">
- <span className="text-lg sm:text-xl font-bold text-blue-400">{regionRec.teamPositive || 0}</span>
+ <span className="text-lg sm:text-xl font-bold text-neutral-700">{regionRec.teamPositive || 0}</span>
  <span className="text-xs text-neutral-500 block">긍정 반응</span>
  </div>
  {regionRec.teamTotal > 0 && (
@@ -7722,32 +7723,32 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
  {/* 지역 이슈 */}
  {regionRec.issue && (
- <div className="p-4 rounded-xl border border-yellow-500/30 bg-yellow-500/5">
- <p className="text-xs text-yellow-400 font-semibold mb-2">지역 이슈 (영업 시 언급)</p>
+ <div className="p-4 rounded-xl border border-neutral-300 bg-yellow-500/5">
+ <p className="text-xs text-neutral-700 font-semibold mb-2">지역 이슈 (영업 시 언급)</p>
  <p className="text-sm text-neutral-800">{regionRec.issue}</p>
  </div>
  )}
 
  {/* 타겟 고객층 */}
  {regionRec.targetCustomer && (
- <div className="p-4 rounded-xl border border-blue-500/30 bg-blue-500/5">
- <p className="text-xs text-blue-400 font-semibold mb-2">주요 창업자 타겟</p>
+ <div className="p-4 rounded-xl border border-neutral-300 bg-blue-500/5">
+ <p className="text-xs text-neutral-700 font-semibold mb-2">주요 창업자 타겟</p>
  <p className="text-sm text-neutral-800">{regionRec.targetCustomer}</p>
  </div>
  )}
 
 
  {regionRec.brokerMent && (
- <div className="p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/5">
+ <div className="p-4 rounded-xl border border-neutral-300 bg-emerald-500/5">
  <div className="flex items-center justify-between mb-2">
- <p className="text-xs text-emerald-400 font-semibold">중개사 대화 예시</p>
+ <p className="text-xs text-neutral-700 font-semibold">중개사 대화 예시</p>
  <button 
  onClick={(e) => {
  const btn = e.currentTarget;
  navigator.clipboard.writeText(aiRegionResult?.brokerMent || regionRec.brokerMent);
  btn.innerText = '✓';
- btn.classList.add('text-emerald-400');
- setTimeout(() => { btn.innerText = '복사'; btn.classList.remove('text-emerald-400'); }, 1500);
+ btn.classList.add('text-neutral-700');
+ setTimeout(() => { btn.innerText = '복사'; btn.classList.remove('text-neutral-700'); }, 1500);
  }}
  className="px-2 py-1 rounded bg-neutral-100 text-xs text-neutral-700 hover:bg-neutral-200"
  >복사</button>
@@ -7822,7 +7823,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {marketIssues.slice(0, 10).map((issue, idx) => (
  <div key={issue.id || idx} className="p-3 rounded-lg bg-transparent hover:bg-neutral-50 transition-all">
  <div className="flex items-center gap-2 mb-1">
- <span className="px-2 py-0.5 rounded text-xs bg-yellow-500/20 text-yellow-400">{issue.지역 || issue.region || '전국'}</span>
+ <span className="px-2 py-0.5 rounded text-xs bg-yellow-500/20 text-neutral-700">{issue.지역 || issue.region || '전국'}</span>
  <span className="px-2 py-0.5 rounded text-xs bg-neutral-200 text-neutral-700">{issue.유형 || issue.type || '일반'}</span>
  </div>
  <p className="text-sm text-neutral-800 font-medium">{issue.제목 || issue.title}</p>
@@ -7847,8 +7848,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <a href="https://www.sisajournal.com/news/articleView.html?idxno=195110" target="_blank" rel="noopener" className="text-xs text-neutral-700 hover:underline">출처 →</a>
  </div>
  <p className="text-xs text-neutral-500">폐업 매장 52.6%가 3년 미만 운영</p>
- <div className="mt-3 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
- <p className="text-xs text-emerald-400 font-semibold mb-1">영업 활용 포인트</p>
+ <div className="mt-3 p-3 rounded-lg bg-white border border-neutral-300">
+ <p className="text-xs text-neutral-700 font-semibold mb-1">영업 활용 포인트</p>
  <p className="text-sm text-neutral-700">"폐업률이 높다"만 말하면 안 됩니다. "그래서 저희처럼 전문가와 함께 시작하시는 분들이 늘고 있습니다"로 연결하세요.</p>
  </div>
  </div>
@@ -7860,8 +7861,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <a href="https://franchise.ftc.go.kr" target="_blank" rel="noopener" className="text-xs text-neutral-700 hover:underline">출처 →</a>
  </div>
  <p className="text-xs text-neutral-500">메가커피 3,200개+, 컴포즈 2,500개+ 등 경쟁 치열</p>
- <div className="mt-3 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
- <p className="text-xs text-emerald-400 font-semibold mb-1">영업 활용 포인트</p>
+ <div className="mt-3 p-3 rounded-lg bg-white border border-neutral-300">
+ <p className="text-xs text-neutral-700 font-semibold mb-1">영업 활용 포인트</p>
  <p className="text-sm text-neutral-700">"프랜차이즈 생각하시는 분들 많은데, 로열티 월 15~50만원이면 5년에 최소 900만원입니다. 저희는 로열티 0원이에요."</p>
  </div>
  </div>
@@ -7869,12 +7870,12 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* 트렌드 3: 개인카페 차별화 성공 사례 */}
  <div className="p-4 rounded-2xl border border-neutral-200 hover:border-slate-500">
  <div className="flex items-center justify-between mb-2">
- <p className="text-sm font-medium text-blue-400">차별화된 개인카페 생존율 높음</p>
+ <p className="text-sm font-medium text-neutral-700">차별화된 개인카페 생존율 높음</p>
  <a href="https://www.kbfg.com/kbresearch/report/reportView.do?reportId=1003869" target="_blank" rel="noopener" className="text-xs text-neutral-700 hover:underline">출처 →</a>
  </div>
  <p className="text-xs text-neutral-500">KB경영연구소: 콘셉트 차별화 + 상권 맞춤 전략 필수</p>
- <div className="mt-3 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
- <p className="text-xs text-emerald-400 font-semibold mb-1">영업 활용 포인트</p>
+ <div className="mt-3 p-3 rounded-lg bg-white border border-neutral-300">
+ <p className="text-xs text-neutral-700 font-semibold mb-1">영업 활용 포인트</p>
  <p className="text-sm text-neutral-700">"저희가 상권에 맞는 콘셉트, 메뉴 구성, 인테리어 방향까지 잡아드립니다. 프랜차이즈처럼 정해진 틀이 없어서 자유롭게 운영 가능하세요."</p>
  </div>
  </div>
@@ -7882,20 +7883,20 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* 트렌드 4: 창업 비용 부담 증가 */}
  <div className="p-4 rounded-2xl border border-neutral-200 hover:border-slate-500">
  <div className="flex items-center justify-between mb-2">
- <p className="text-sm font-medium text-yellow-400">카페 창업 비용 평균 1억원 돌파</p>
+ <p className="text-sm font-medium text-neutral-700">카페 창업 비용 평균 1억원 돌파</p>
  <a href="https://www.sisain.co.kr/news/articleView.html?idxno=52312" target="_blank" rel="noopener" className="text-xs text-neutral-700 hover:underline">출처 →</a>
  </div>
  <p className="text-xs text-neutral-500">인테리어, 기기, 인건비 상승으로 초기 자금 부담 증가</p>
- <div className="mt-3 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
- <p className="text-xs text-emerald-400 font-semibold mb-1">영업 활용 포인트</p>
+ <div className="mt-3 p-3 rounded-lg bg-white border border-neutral-300">
+ <p className="text-xs text-neutral-700 font-semibold mb-1">영업 활용 포인트</p>
  <p className="text-sm text-neutral-700">"비용 걱정하시는 분들 많으신데, 저희 컨설팅 받으시면 불필요한 비용 줄이고 꼭 필요한 곳에만 투자하실 수 있습니다."</p>
  </div>
  </div>
  </div>
  
  {/* AI 피드백 */}
- <div className="mt-4 p-3 rounded-lg bg-blue-500/10 border border-blue-500/30">
- <p className="text-xs text-blue-400 font-semibold mb-2">AI 영업 피드백</p>
+ <div className="mt-4 p-3 rounded-lg bg-white border border-neutral-300">
+ <p className="text-xs text-neutral-700 font-semibold mb-2">AI 영업 피드백</p>
  <p className="text-sm text-neutral-700">이 트렌드들을 "문제 제기"로만 사용하면 효과 없습니다. 반드시 "그래서 저희가 해결해드립니다"로 연결하세요. 숫자와 출처를 함께 말하면 신뢰도가 올라갑니다.</p>
  </div>
  </div>
@@ -7974,15 +7975,15 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </ul>
  </div>
  <div className="p-4 rounded-lg border border-neutral-200/30 bg-transparent">
- <h4 className="text-blue-400 font-semibold mb-2">특징</h4>
+ <h4 className="text-neutral-700 font-semibold mb-2">특징</h4>
  <ul className="text-sm text-neutral-700 space-y-2">
  <li>• 로스터리 카페 형태로 직접 로스팅하는 경우 많음</li>
  <li>• 커피 애호가, 직장인 등 특정 고객층 타겟</li>
  <li>• 원두 판매, 커핑 클래스 등 부가 수익 가능</li>
  </ul>
  </div>
- <div className="p-4 rounded-lg border border-yellow-500/30 bg-yellow-500/5">
- <h4 className="text-yellow-400 font-semibold mb-2">참고 자료</h4>
+ <div className="p-4 rounded-lg border border-neutral-300 bg-yellow-500/5">
+ <h4 className="text-neutral-700 font-semibold mb-2">참고 자료</h4>
  <p className="text-xs text-neutral-500">구체적인 시장 규모, 성장률 등은 아래 자료를 참고하세요:</p>
  <ul className="text-xs text-neutral-500 mt-2 space-y-1">
  <li>• 한국농수산식품유통공사(aT) 커피 시장 동향</li>
@@ -8010,8 +8011,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <li>• 가맹본부 정보공개서 반드시 확인</li>
  </ul>
  </div>
- <div className="p-4 rounded-lg border border-yellow-500/30 bg-yellow-500/5">
- <h4 className="text-yellow-400 font-semibold mb-2">참고 자료</h4>
+ <div className="p-4 rounded-lg border border-neutral-300 bg-yellow-500/5">
+ <h4 className="text-neutral-700 font-semibold mb-2">참고 자료</h4>
  <p className="text-xs text-neutral-500">가맹점 수, 평균 매출 등 정확한 정보:</p>
  <ul className="text-xs text-neutral-500 mt-2 space-y-1">
  <li>• 공정거래위원회 가맹사업정보제공시스템 (franchise.ftc.go.kr)</li>
@@ -8023,7 +8024,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {showTrendModal === 'differentiation' && (
  <div className="space-y-2">
  <div className="p-4 rounded-lg border border-neutral-200/30 bg-transparent">
- <h4 className="text-emerald-400 font-semibold mb-2">차별화 요소</h4>
+ <h4 className="text-neutral-700 font-semibold mb-2">차별화 요소</h4>
  <ul className="text-sm text-neutral-700 space-y-2">
  <li>• 시그니처 메뉴 개발 (음료, 디저트)</li>
  <li>• 공간 컨셉 (인테리어, 포토존)</li>
@@ -8031,7 +8032,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </ul>
  </div>
  <div className="p-4 rounded-lg border border-neutral-200/30 bg-transparent">
- <h4 className="text-blue-400 font-semibold mb-2">운영 전략</h4>
+ <h4 className="text-neutral-700 font-semibold mb-2">운영 전략</h4>
  <ul className="text-sm text-neutral-700 space-y-2">
  <li>• SNS 마케팅 (인스타그램, 네이버 플레이스)</li>
  <li>• 단골 프로그램 (스탬프, 멤버십)</li>
@@ -8051,7 +8052,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </ul>
  </div>
  <div className="p-4 rounded-lg border border-neutral-200/30 bg-transparent">
- <h4 className="text-blue-400 font-semibold mb-2">운영 고려사항</h4>
+ <h4 className="text-neutral-700 font-semibold mb-2">운영 고려사항</h4>
  <ul className="text-sm text-neutral-700 space-y-2">
  <li>• 배달 적합 메뉴 선정 (아이스 음료 품질 관리)</li>
  <li>• 패키징 비용 계산</li>
@@ -8071,7 +8072,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* ═══════════════════════════════════════════════════════════════════════════════
  카페 창업 핵심 통계 (영업 데이터) - 출처 URL 포함
  ═══════════════════════════════════════════════════════════════════════════════ */}
- <div className="bg-white border border-neutral-200 rounded-2xl p-4 border-2 border-rose-500/30">
+ <div className="bg-white border border-neutral-200 rounded-2xl p-4 border-2 border-neutral-300">
  <h3 className="font-bold text-[#171717] mb-4 flex items-center gap-2 text-lg">
  <span className="text-xl"></span> 영업 필수 데이터 (클릭하여 멘트 확인)
  </h3>
@@ -8080,7 +8081,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* 폐업률 66.2% */}
  <div 
  onClick={() => setAiExpandedData(aiExpandedData === 'closure' ? null : 'closure')}
- className="p-4 rounded-xl border border-rose-500/30 bg-transparent cursor-pointer hover:border-neutral-200 transition-all"
+ className="p-4 rounded-xl border border-neutral-300 bg-transparent cursor-pointer hover:border-neutral-200 transition-all"
  >
  <div className="flex items-center justify-between">
  <div>
@@ -8090,23 +8091,23 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <span className="text-neutral-500 text-lg">{aiExpandedData === 'closure' ? '▲' : '▼'}</span>
  </div>
  <p className="text-xs text-neutral-500 mt-1">출처: KB경영연구소 (2018년 기준, 치킨집 10.0%보다 높음)</p>
- <p className="text-xs text-emerald-400 mt-2">"폐업 매장 절반이 3년 미만 운영 후 문 닫습니다"</p>
+ <p className="text-xs text-neutral-700 mt-2">"폐업 매장 절반이 3년 미만 운영 후 문 닫습니다"</p>
  </div>
  {aiExpandedData === 'closure' && (
  <div className="p-4 rounded-xl border border-neutral-200/30 bg-transparent space-y-3 animate-fadeIn">
- <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
+ <div className="p-3 rounded-lg bg-white border border-neutral-300">
  <div className="flex items-center justify-between mb-1">
- <p className="text-xs text-emerald-400 font-semibold">중개사 영업 멘트</p>
- <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('선생님, 카페 창업 문의 많이 받으시죠? 저희 빈크래프트는 개인카페 창업 컨설팅 업체입니다. 고객분께서 카페 창업 관심 있으시면 저희 연결해주세요. 중개 수수료 외에 소개비도 따로 드립니다.'); btn.innerText = ''; btn.classList.add('text-emerald-400'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-emerald-400'); }, 1500); }} className="px-2 py-1 rounded bg-neutral-100 text-xs text-neutral-700 hover:bg-neutral-200"></button>
+ <p className="text-xs text-neutral-700 font-semibold">중개사 영업 멘트</p>
+ <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('선생님, 카페 창업 문의 많이 받으시죠? 저희 빈크래프트는 개인카페 창업 컨설팅 업체입니다. 고객분께서 카페 창업 관심 있으시면 저희 연결해주세요. 중개 수수료 외에 소개비도 따로 드립니다.'); btn.innerText = ''; btn.classList.add('text-neutral-700'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-neutral-700'); }, 1500); }} className="px-2 py-1 rounded bg-neutral-100 text-xs text-neutral-700 hover:bg-neutral-200"></button>
  </div>
- <p className="text-sm text-neutral-800">"선생님, 카페 창업 문의 많이 받으시죠? 저희 <span className="text-emerald-400 font-semibold">빈크래프트</span>는 개인카페 창업 컨설팅 업체입니다. 고객분께서 카페 창업 관심 있으시면 저희 연결해주세요. <span className="text-emerald-400 font-semibold">중개 수수료 외에 소개비</span>도 따로 드립니다."</p>
+ <p className="text-sm text-neutral-800">"선생님, 카페 창업 문의 많이 받으시죠? 저희 <span className="text-neutral-700 font-semibold">빈크래프트</span>는 개인카페 창업 컨설팅 업체입니다. 고객분께서 카페 창업 관심 있으시면 저희 연결해주세요. <span className="text-neutral-700 font-semibold">중개 수수료 외에 소개비</span>도 따로 드립니다."</p>
  </div>
- <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/30">
+ <div className="p-3 rounded-lg bg-white border border-neutral-300">
  <div className="flex items-center justify-between mb-1">
- <p className="text-xs text-blue-400 font-semibold">빈크래프트 차별점</p>
- <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('프랜차이즈 대비 5천만원 이상 비용 절감 (가맹비/로열티 없음), 메뉴/인테리어 자유롭게 결정 가능, 입지 선정부터 운영까지 전문 컨설팅 지원'); btn.innerText = ''; btn.classList.add('text-emerald-400'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-emerald-400'); }, 1500); }} className="px-2 py-1 rounded bg-neutral-100 text-xs text-neutral-700 hover:bg-neutral-200"></button>
+ <p className="text-xs text-neutral-700 font-semibold">빈크래프트 차별점</p>
+ <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('프랜차이즈 대비 5천만원 이상 비용 절감 (가맹비/로열티 없음), 메뉴/인테리어 자유롭게 결정 가능, 입지 선정부터 운영까지 전문 컨설팅 지원'); btn.innerText = ''; btn.classList.add('text-neutral-700'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-neutral-700'); }, 1500); }} className="px-2 py-1 rounded bg-neutral-100 text-xs text-neutral-700 hover:bg-neutral-200"></button>
  </div>
- <p className="text-sm text-neutral-800">프랜차이즈 대비 <span className="text-blue-400 font-semibold">5천만원 이상 비용 절감</span> (가맹비/로열티 없음), 메뉴/인테리어 자유롭게 결정 가능, 입지 선정부터 운영까지 전문 컨설팅 지원</p>
+ <p className="text-sm text-neutral-800">프랜차이즈 대비 <span className="text-neutral-700 font-semibold">5천만원 이상 비용 절감</span> (가맹비/로열티 없음), 메뉴/인테리어 자유롭게 결정 가능, 입지 선정부터 운영까지 전문 컨설팅 지원</p>
  </div>
  <div className="p-3 rounded-lg bg-purple-500/10 border border-purple-500/30">
  <p className="text-xs text-purple-400 font-semibold mb-2">창업자 고민 TOP 3 (설문조사 기반)</p>
@@ -8126,37 +8127,37 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* 생존율 비교 */}
  <div 
  onClick={() => setAiExpandedData(aiExpandedData === 'survival' ? null : 'survival')}
- className="p-4 rounded-xl border border-blue-500/30 bg-transparent cursor-pointer hover:border-neutral-200 transition-all"
+ className="p-4 rounded-xl border border-neutral-300 bg-transparent cursor-pointer hover:border-neutral-200 transition-all"
  >
  <div className="flex items-center justify-between">
  <div>
- <span className="text-blue-400 font-bold">카페 평균 영업이익</span>
- <span className="text-lg font-bold text-blue-400 ml-2">연 1,050만원</span>
+ <span className="text-neutral-700 font-bold">카페 평균 영업이익</span>
+ <span className="text-lg font-bold text-neutral-700 ml-2">연 1,050만원</span>
  <span className="text-neutral-500 mx-2">(10곳 중 1곳 적자)</span>
  </div>
  <span className="text-neutral-500 text-lg">{aiExpandedData === 'survival' ? '▲' : '▼'}</span>
  </div>
  <p className="text-xs text-neutral-500 mt-1">출처: KB경영연구소 (직장인 평균 연봉 3,475만원의 1/3)</p>
- <p className="text-xs text-emerald-400 mt-2">"상권분석 없이 뛰어들면 적자 각오해야 합니다"</p>
+ <p className="text-xs text-neutral-700 mt-2">"상권분석 없이 뛰어들면 적자 각오해야 합니다"</p>
  </div>
  {aiExpandedData === 'survival' && (
  <div className="p-4 rounded-xl border border-neutral-200/30 bg-transparent space-y-3 animate-fadeIn">
- <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
+ <div className="p-3 rounded-lg bg-white border border-neutral-300">
  <div className="flex items-center justify-between mb-1">
- <p className="text-xs text-emerald-400 font-semibold">중개사 영업 멘트</p>
- <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('선생님, 카페 평균 영업이익이 연 1,050만원입니다. 월 87만원이에요. 이게 현실입니다. 저희 고객분들은 상권분석부터 받고 오시는데, 이 서비스 있다고만 말씀하셔도 관심 가지실 겁니다.'); btn.innerText = ''; btn.classList.add('text-emerald-400'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-emerald-400'); }, 1500); }} className="px-2 py-1 rounded bg-neutral-100 text-xs text-neutral-700 hover:bg-neutral-200"></button>
+ <p className="text-xs text-neutral-700 font-semibold">중개사 영업 멘트</p>
+ <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('선생님, 카페 평균 영업이익이 연 1,050만원입니다. 월 87만원이에요. 이게 현실입니다. 저희 고객분들은 상권분석부터 받고 오시는데, 이 서비스 있다고만 말씀하셔도 관심 가지실 겁니다.'); btn.innerText = ''; btn.classList.add('text-neutral-700'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-neutral-700'); }, 1500); }} className="px-2 py-1 rounded bg-neutral-100 text-xs text-neutral-700 hover:bg-neutral-200"></button>
  </div>
- <p className="text-sm text-neutral-800">"선생님, 카페 평균 영업이익이 <span className="text-emerald-400 font-semibold">연 1,050만원</span>입니다. 월 87만원이에요. 이게 현실입니다. 저희 고객분들은 <span className="text-emerald-400 font-semibold">상권분석부터</span> 받고 오시는데, 이 서비스 있다고만 말씀하셔도 관심 가지실 겁니다."</p>
+ <p className="text-sm text-neutral-800">"선생님, 카페 평균 영업이익이 <span className="text-neutral-700 font-semibold">연 1,050만원</span>입니다. 월 87만원이에요. 이게 현실입니다. 저희 고객분들은 <span className="text-neutral-700 font-semibold">상권분석부터</span> 받고 오시는데, 이 서비스 있다고만 말씀하셔도 관심 가지실 겁니다."</p>
  </div>
- <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/30">
+ <div className="p-3 rounded-lg bg-white border border-neutral-300">
  <div className="flex items-center justify-between mb-1">
- <p className="text-xs text-blue-400 font-semibold">창업자 영업 멘트</p>
- <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('사장님, 카페 평균 영업이익이 연 1,050만원입니다. 직장인 연봉 3,475만원의 1/3이에요. 수익 구조 모르고 시작하면 적자입니다. 저희가 해당 상권 경쟁 현황, 유동인구 분석해드립니다.'); btn.innerText = ''; btn.classList.add('text-emerald-400'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-emerald-400'); }, 1500); }} className="px-2 py-1 rounded bg-neutral-100 text-xs text-neutral-700 hover:bg-neutral-200"></button>
+ <p className="text-xs text-neutral-700 font-semibold">창업자 영업 멘트</p>
+ <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('사장님, 카페 평균 영업이익이 연 1,050만원입니다. 직장인 연봉 3,475만원의 1/3이에요. 수익 구조 모르고 시작하면 적자입니다. 저희가 해당 상권 경쟁 현황, 유동인구 분석해드립니다.'); btn.innerText = ''; btn.classList.add('text-neutral-700'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-neutral-700'); }, 1500); }} className="px-2 py-1 rounded bg-neutral-100 text-xs text-neutral-700 hover:bg-neutral-200"></button>
  </div>
- <p className="text-sm text-neutral-800">"사장님, 카페 평균 영업이익이 <span className="text-blue-400 font-semibold">연 1,050만원</span>입니다. 직장인 연봉 3,475만원의 1/3이에요. 수익 구조 모르고 시작하면 적자입니다. 저희가 해당 상권 <span className="text-blue-400 font-semibold">경쟁 현황, 유동인구</span> 분석해드립니다."</p>
+ <p className="text-sm text-neutral-800">"사장님, 카페 평균 영업이익이 <span className="text-neutral-700 font-semibold">연 1,050만원</span>입니다. 직장인 연봉 3,475만원의 1/3이에요. 수익 구조 모르고 시작하면 적자입니다. 저희가 해당 상권 <span className="text-neutral-700 font-semibold">경쟁 현황, 유동인구</span> 분석해드립니다."</p>
  </div>
- <div className="p-3 rounded-lg bg-cyan-500/10 border border-cyan-500/30">
- <p className="text-xs text-cyan-400 font-semibold mb-2">빈크래프트 상권분석 제공 항목</p>
+ <div className="p-3 rounded-lg bg-white border border-neutral-300">
+ <p className="text-xs text-neutral-700 font-semibold mb-2">빈크래프트 상권분석 제공 항목</p>
  <div className="grid grid-cols-2 gap-2 text-xs text-neutral-700">
  <span>• 반경 500m 카페 점포 수</span>
  <span>• 유동인구 데이터</span>
@@ -8173,36 +8174,36 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* 프랜차이즈 비용 비교 */}
  <div 
  onClick={() => setAiExpandedData(aiExpandedData === 'royalty' ? null : 'royalty')}
- className="p-4 rounded-xl border border-yellow-500/30 bg-transparent cursor-pointer hover:border-neutral-200 transition-all"
+ className="p-4 rounded-xl border border-neutral-300 bg-transparent cursor-pointer hover:border-neutral-200 transition-all"
  >
  <div className="flex items-center justify-between">
  <div>
- <span className="text-yellow-400 font-bold">프랜차이즈 초기 비용</span>
- <span className="text-2xl font-black text-yellow-400 ml-3">6,900만~1.3억원</span>
+ <span className="text-neutral-700 font-bold">프랜차이즈 초기 비용</span>
+ <span className="text-2xl font-black text-neutral-700 ml-3">6,900만~1.3억원</span>
  </div>
  <span className="text-neutral-500 text-lg">{aiExpandedData === 'royalty' ? '▲' : '▼'}</span>
  </div>
  <p className="text-xs text-neutral-500 mt-1">공정위 정보공개서 기준 가맹비 (인테리어/로열티 별도)</p>
- <p className="text-xs text-emerald-400 mt-2">"저희는 매물 조건 제한이 없습니다"</p>
+ <p className="text-xs text-neutral-700 mt-2">"저희는 매물 조건 제한이 없습니다"</p>
  </div>
  {aiExpandedData === 'royalty' && (
  <div className="p-4 rounded-xl border border-neutral-200/30 bg-transparent space-y-3 animate-fadeIn">
- <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
+ <div className="p-3 rounded-lg bg-white border border-neutral-300">
  <div className="flex items-center justify-between mb-1">
- <p className="text-xs text-emerald-400 font-semibold">중개사 영업 멘트</p>
- <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('선생님, 프랜차이즈는 매물 조건이 까다롭습니다. 1층 15평 이상, 유동인구 기준 있어요. 저희는 선생님 매물 조건 그대로 됩니다. 창업자분들이 프랜차이즈 조건 안 맞아서 저희 찾는 경우 많습니다.'); btn.innerText = ''; btn.classList.add('text-emerald-400'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-emerald-400'); }, 1500); }} className="px-2 py-1 rounded bg-neutral-100 text-xs text-neutral-700 hover:bg-neutral-200"></button>
+ <p className="text-xs text-neutral-700 font-semibold">중개사 영업 멘트</p>
+ <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('선생님, 프랜차이즈는 매물 조건이 까다롭습니다. 1층 15평 이상, 유동인구 기준 있어요. 저희는 선생님 매물 조건 그대로 됩니다. 창업자분들이 프랜차이즈 조건 안 맞아서 저희 찾는 경우 많습니다.'); btn.innerText = ''; btn.classList.add('text-neutral-700'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-neutral-700'); }, 1500); }} className="px-2 py-1 rounded bg-neutral-100 text-xs text-neutral-700 hover:bg-neutral-200"></button>
  </div>
- <p className="text-sm text-neutral-800">"선생님, 프랜차이즈는 매물 조건이 까다롭습니다. <span className="text-emerald-400 font-semibold">1층 15평 이상, 유동인구 기준</span> 있어요. 저희는 선생님 매물 조건 그대로 됩니다. 창업자분들이 프랜차이즈 조건 안 맞아서 저희 찾는 경우 많습니다."</p>
+ <p className="text-sm text-neutral-800">"선생님, 프랜차이즈는 매물 조건이 까다롭습니다. <span className="text-neutral-700 font-semibold">1층 15평 이상, 유동인구 기준</span> 있어요. 저희는 선생님 매물 조건 그대로 됩니다. 창업자분들이 프랜차이즈 조건 안 맞아서 저희 찾는 경우 많습니다."</p>
  </div>
- <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/30">
+ <div className="p-3 rounded-lg bg-white border border-neutral-300">
  <div className="flex items-center justify-between mb-1">
- <p className="text-xs text-blue-400 font-semibold">창업자 영업 멘트</p>
- <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('사장님, 프랜차이즈 가맹비만 6,900만~1.3억원입니다. 공정위 정보공개서에 다 나와있어요. 저희는 매물 조건 제한 없이 상권분석부터 운영까지 도와드립니다.'); btn.innerText = ''; btn.classList.add('text-emerald-400'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-emerald-400'); }, 1500); }} className="px-2 py-1 rounded bg-neutral-100 text-xs text-neutral-700 hover:bg-neutral-200"></button>
+ <p className="text-xs text-neutral-700 font-semibold">창업자 영업 멘트</p>
+ <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('사장님, 프랜차이즈 가맹비만 6,900만~1.3억원입니다. 공정위 정보공개서에 다 나와있어요. 저희는 매물 조건 제한 없이 상권분석부터 운영까지 도와드립니다.'); btn.innerText = ''; btn.classList.add('text-neutral-700'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-neutral-700'); }, 1500); }} className="px-2 py-1 rounded bg-neutral-100 text-xs text-neutral-700 hover:bg-neutral-200"></button>
  </div>
- <p className="text-sm text-neutral-800">"사장님, 프랜차이즈 가맹비만 <span className="text-blue-400 font-semibold">6,900만~1.3억원</span>입니다. 공정위 정보공개서에 다 나와있어요. 저희는 매물 조건 제한 없이 상권분석부터 운영까지 도와드립니다."</p>
+ <p className="text-sm text-neutral-800">"사장님, 프랜차이즈 가맹비만 <span className="text-neutral-700 font-semibold">6,900만~1.3억원</span>입니다. 공정위 정보공개서에 다 나와있어요. 저희는 매물 조건 제한 없이 상권분석부터 운영까지 도와드립니다."</p>
  </div>
- <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
- <p className="text-xs text-yellow-400 font-semibold mb-2">프랜차이즈 비용 (공정위 정보공개서 기준)</p>
+ <div className="p-3 rounded-lg bg-white border border-neutral-300">
+ <p className="text-xs text-neutral-700 font-semibold mb-2">프랜차이즈 비용 (공정위 정보공개서 기준)</p>
  <div className="grid grid-cols-2 gap-2 text-xs text-neutral-700">
  <span>• 메가커피 가맹비: 6,900만원</span>
  <span>• 메가커피 로열티: 월 15만원</span>
@@ -8230,7 +8231,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <tr className="border-b border-neutral-200">
  <th className="py-3 px-2 text-left text-neutral-500 font-medium">항목</th>
  <th className="py-3 px-2 text-center text-orange-400 font-medium">저가 프랜차이즈</th>
- <th className="py-3 px-2 text-center text-emerald-400 font-medium">빈크래프트</th>
+ <th className="py-3 px-2 text-center text-neutral-700 font-medium">빈크래프트</th>
  </tr>
  </thead>
  <tbody className="text-neutral-700">
@@ -8341,7 +8342,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="flex items-center justify-between mb-4">
  <h3 className="font-bold text-[#171717] flex items-center gap-2">
  <span className="text-xl"></span> 팀 피드백 자동 학습
- <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full">자동</span>
+ <span className="text-xs bg-emerald-500/20 text-neutral-700 px-2 py-0.5 rounded-full">자동</span>
  </h3>
  </div>
  <p className="text-sm text-neutral-500 mb-4">멘트 사용 후 결과를 공유하면 AI가 분석하여 모든 팀원에게 개선된 멘트를 제공합니다.</p>
@@ -8365,11 +8366,11 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="flex gap-2">
  <button 
                       onClick={() => setTeamFeedbackResult('success')}
-                      className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${teamFeedbackResult === 'success' ? 'bg-emerald-500 text-white' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30'}`}
+                      className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${teamFeedbackResult === 'success' ? 'bg-emerald-500 text-white' : 'bg-emerald-500/20 text-neutral-700 border border-neutral-300 hover:bg-emerald-500/30'}`}
                     >✓ 효과 있었어요</button>
  <button 
                       onClick={() => setTeamFeedbackResult('fail')}
-                      className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${teamFeedbackResult === 'fail' ? 'bg-rose-500 text-white' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30 hover:bg-rose-500/30'}`}
+                      className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${teamFeedbackResult === 'fail' ? 'bg-rose-500 text-white' : 'bg-rose-500/20 text-rose-400 border border-neutral-300 hover:bg-rose-500/30'}`}
                     >✗ 별로였어요</button>
  </div>
                 <button type="button" onClick={() => {
@@ -8404,16 +8405,16 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* 실제 팀 피드백 데이터 표시 */}
  {teamFeedbacksAll && teamFeedbacksAll.length > 0 ? (
  teamFeedbacksAll.slice(0, 5).map((fb, idx) => (
- <div key={idx} className={`p-3 rounded-lg ${fb.result === 'success' ? 'bg-emerald-500/10 border border-emerald-500/30' : 'bg-rose-500/10 border border-rose-500/30'}`}>
+ <div key={idx} className={`p-3 rounded-lg ${fb.result === 'success' ? 'bg-white border border-neutral-300' : 'bg-white border border-neutral-300'}`}>
  <div className="flex items-start justify-between">
  <div>
- <p className={`text-xs font-semibold ${fb.result === 'success' ? 'text-emerald-400' : 'text-rose-400'}`}>
+ <p className={`text-xs font-semibold ${fb.result === 'success' ? 'text-neutral-700' : 'text-rose-400'}`}>
  {fb.result === 'success' ? '효과 있던 멘트' : '개선 필요 멘트'}
  </p>
- <p className="text-sm text-neutral-800 mt-1">{fb.situation || '상황 미입력'}</p>
+ <p className="text-sm text-neutral-800 mt-1">{fb.situation === 'broker' ? '중개사 첫 방문' : fb.situation === 'broker-followup' ? '중개사 재방문' : fb.situation === 'franchise' ? '프랜차이즈 비교 질문 대응' : fb.situation || '상황 미입력'}</p>
  <p className="text-xs text-neutral-500 mt-1">{fb.memo || '메모 없음'}</p>
  </div>
- <span className={`text-xs px-2 py-1 rounded ${fb.result === 'success' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
+ <span className={`text-xs px-2 py-1 rounded ${fb.result === 'success' ? 'bg-emerald-500/20 text-neutral-700' : 'bg-rose-500/20 text-rose-400'}`}>
  {fb.result === 'success' ? '성공' : '실패'}
  </span>
  </div>
@@ -8428,8 +8429,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  
  {/* AI 분석 인사이트 - 피드백이 있을 때만 표시 */}
  {teamFeedbacksAll && teamFeedbacksAll.length >= 3 && (
- <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/30">
- <p className="text-xs text-blue-400 font-semibold mb-2">AI 분석 인사이트</p>
+ <div className="p-3 rounded-lg bg-white border border-neutral-300">
+ <p className="text-xs text-neutral-700 font-semibold mb-2">AI 분석 인사이트</p>
  <p className="text-sm text-neutral-700">• 피드백 데이터를 분석 중입니다...</p>
  <p className="text-xs text-neutral-500 mt-2">피드백이 5개 이상 쌓이면 AI가 패턴을 분석해드립니다.</p>
  </div>
@@ -9609,7 +9610,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <span className="text-xs text-amber-600 flex-shrink-0 ml-2">{c.daysPassed}일</span>
  </div>
  ))}
- {missedCompanies.length > 10 && <p className="text-xs text-yellow-400 text-center">+{missedCompanies.length - 10}개</p>}
+ {missedCompanies.length > 10 && <p className="text-xs text-neutral-700 text-center">+{missedCompanies.length - 10}개</p>}
  </div>
  </div>
  )}
@@ -9625,7 +9626,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  .map((item, idx) => (
  <div key={idx} className="flex items-center gap-2 text-sm bg-neutral-100 p-2 rounded-lg border border-primary-200">
  <span className="text-primary-600">{item.type === 'route' ? '' : ''}</span>
- <span className="text-xs text-blue-400 font-bold">{item.date.slice(5)}</span>
+ <span className="text-xs text-neutral-700 font-bold">{item.date.slice(5)}</span>
  <span className="text-blue-800 truncate">{item.time || ''} {item.type === 'route' ? item.name : item.title}</span>
  </div>
  ))}
@@ -9780,15 +9781,15 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
            return (
              <div className="grid grid-cols-3 gap-3 mb-4">
                <div className="bg-neutral-50 rounded-lg p-3 text-center">
-                 <p className="text-2xl font-bold text-blue-400">{stats.realtorCount}</p>
+                 <p className="text-2xl font-bold text-neutral-700">{stats.realtorCount}</p>
                  <p className="text-xs text-neutral-500">수집 중개사</p>
                </div>
                <div className="bg-neutral-50 rounded-lg p-3 text-center">
-                 <p className="text-2xl font-bold text-emerald-400">{stats.companyCount}</p>
+                 <p className="text-2xl font-bold text-neutral-700">{stats.companyCount}</p>
                  <p className="text-xs text-neutral-500">등록 업체</p>
                </div>
                <div className="bg-neutral-50 rounded-lg p-3 text-center">
-                 <p className="text-2xl font-bold text-yellow-400">{stats.totalListings.toLocaleString()}</p>
+                 <p className="text-2xl font-bold text-neutral-700">{stats.totalListings.toLocaleString()}</p>
                  <p className="text-xs text-neutral-500">총 매물</p>
                </div>
              </div>
@@ -9800,8 +9801,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
            const issue = findRegionIssue(salesSelectedRegion);
            if (issue) {
              return (
-               <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
-                 <p className="text-xs text-yellow-400 font-semibold mb-2">지역 이슈</p>
+               <div className="bg-white border border-neutral-300 rounded-lg p-4">
+                 <p className="text-xs text-neutral-700 font-semibold mb-2">지역 이슈</p>
                  <p className="text-neutral-800 font-medium mb-1">{issue.title}</p>
                  <p className="text-sm text-neutral-700">{issue.content}</p>
                  {issue.source && <p className="text-xs text-neutral-500 mt-2">출처: {issue.source}</p>}
@@ -9822,8 +9823,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
              const defaultIssue = defaultIssues[salesSelectedRegion] || 
                '해당 지역의 상세 이슈 정보가 준비 중입니다. 직접 상담을 통해 최신 정보를 안내해드립니다.';
              return (
-               <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
-                 <p className="text-xs text-blue-400 font-semibold mb-2">지역 특성</p>
+               <div className="bg-white border border-neutral-300 rounded-lg p-4">
+                 <p className="text-xs text-neutral-700 font-semibold mb-2">지역 특성</p>
                  <p className="text-sm text-neutral-700">{defaultIssue}</p>
                </div>
              );
@@ -9847,7 +9848,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
          <tr className="border-b border-neutral-200">
            <th className="py-3 px-2 text-left text-neutral-500 font-medium">항목</th>
            <th className="py-3 px-2 text-center text-orange-400 font-medium">저가 프랜차이즈</th>
-           <th className="py-3 px-2 text-center text-emerald-400 font-medium">빈크래프트</th>
+           <th className="py-3 px-2 text-center text-neutral-700 font-medium">빈크래프트</th>
          </tr>
        </thead>
        <tbody className="text-neutral-700">
@@ -9909,15 +9910,15 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
          <tr className="bg-neutral-100/30">
            <td className="py-3 px-2 font-bold text-white">총 비용 (5년)</td>
            <td className="py-3 px-2 text-center text-orange-400 font-bold">1,500~4,500만원+</td>
-           <td className="py-3 px-2 text-center text-emerald-400 font-bold">1,800만원+</td>
+           <td className="py-3 px-2 text-center text-neutral-700 font-bold">1,800만원+</td>
          </tr>
        </tbody>
      </table>
    </div>
    
-   <div className="mt-4 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
-     <p className="text-sm text-emerald-400 font-semibold mb-1">빈크래프트 핵심 장점</p>
-     <p className="text-sm text-neutral-700">로열티/가맹비 0원으로 5년간 <span className="text-emerald-400 font-bold">최소 900만원~3,000만원</span> 절감. 메뉴/인테리어/원두 자유롭게 선택 가능.</p>
+   <div className="mt-4 p-3 bg-white border border-neutral-300 rounded-lg">
+     <p className="text-sm text-neutral-700 font-semibold mb-1">빈크래프트 핵심 장점</p>
+     <p className="text-sm text-neutral-700">로열티/가맹비 0원으로 5년간 <span className="text-neutral-700 font-bold">최소 900만원~3,000만원</span> 절감. 메뉴/인테리어/원두 자유롭게 선택 가능.</p>
    </div>
  </div>
 
@@ -9932,7 +9933,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        <div className="flex items-center gap-3 mb-3">
          
          <div>
-           <h4 className="font-bold text-blue-400">상권 분석</h4>
+           <h4 className="font-bold text-neutral-700">상권 분석</h4>
            <p className="text-xs text-neutral-500">빅데이터 기반 입지 선정</p>
          </div>
        </div>
@@ -9947,7 +9948,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        <div className="flex items-center gap-3 mb-3">
          <span className="text-3xl"></span>
          <div>
-           <h4 className="font-bold text-emerald-400">인테리어</h4>
+           <h4 className="font-bold text-neutral-700">인테리어</h4>
            <p className="text-xs text-neutral-500">맞춤형 매장 디자인</p>
          </div>
        </div>
@@ -9962,7 +9963,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        <div className="flex items-center gap-3 mb-3">
          <span className="text-3xl"></span>
          <div>
-           <h4 className="font-bold text-yellow-400">교육/레시피</h4>
+           <h4 className="font-bold text-neutral-700">교육/레시피</h4>
            <p className="text-xs text-neutral-500">전문 바리스타 교육</p>
          </div>
        </div>
@@ -10033,15 +10034,15 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        <div className="space-y-3">
          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
            <div className="bg-blue-500/20 rounded-lg p-3 text-center">
-             <p className="text-2xl font-bold text-blue-400">{collectedRealtors.length.toLocaleString()}</p>
+             <p className="text-2xl font-bold text-neutral-700">{collectedRealtors.length.toLocaleString()}</p>
              <p className="text-xs text-neutral-500">전체 중개사</p>
            </div>
            <div className="bg-emerald-500/20 rounded-lg p-3 text-center">
-             <p className="text-2xl font-bold text-emerald-400">{companies.length}</p>
+             <p className="text-2xl font-bold text-neutral-700">{companies.length}</p>
              <p className="text-xs text-neutral-500">등록 업체</p>
            </div>
            <div className="bg-yellow-500/20 rounded-lg p-3 text-center">
-             <p className="text-2xl font-bold text-yellow-400">{sortedRegions.length}</p>
+             <p className="text-2xl font-bold text-neutral-700">{sortedRegions.length}</p>
              <p className="text-xs text-neutral-500">활동 지역</p>
            </div>
            <div className="bg-purple-500/20 rounded-lg p-3 text-center">
@@ -10367,9 +10368,18 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  
  // 총 매물 수 및 최신 수집일
  const totalListings = validRealtors.reduce((sum, r) => sum + getListingCount(r), 0);
- const latestDate = validRealtors.length > 0 && validRealtors.some(r => r.collected_at)
- ? new Date(Math.max(...validRealtors.filter(r => r.collected_at).map(r => new Date(r.collected_at).getTime())))
- : null;
+ const latestDate = (() => {
+   if (validRealtors.length === 0) return null;
+   const validDates = validRealtors
+     .filter(r => r.collected_at)
+     .map(r => {
+       const d = new Date(r.collected_at);
+       return isNaN(d.getTime()) ? null : d;
+     })
+     .filter(d => d !== null);
+   if (validDates.length === 0) return null;
+   return new Date(Math.max(...validDates.map(d => d.getTime())));
+ })();
  
  return (
  <>
@@ -10686,7 +10696,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <p className="text-xs text-neutral-500">특별</p>
  </div>
  <div className="text-center p-2 rounded-xl border border-neutral-200">
- <p className="text-lg font-bold text-emerald-400">{stats.positive}</p>
+ <p className="text-lg font-bold text-neutral-700">{stats.positive}</p>
  <p className="text-xs text-neutral-500">긍정</p>
  </div>
  <div className="text-center p-2 rounded-xl border border-neutral-200">
@@ -10855,7 +10865,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <p className="text-xs text-neutral-500">{c.phone} · {c.consultDate}</p>
  </div>
  </div>
- <span className={`px-2 py-1 rounded-full text-xs ${c.status === 'completed' ? 'text-emerald-400' : c.status === 'contract' ? 'text-blue-400' : 'text-neutral-500'}`}>
+ <span className={`px-2 py-1 rounded-full text-xs ${c.status === 'completed' ? 'text-neutral-700' : c.status === 'contract' ? 'text-neutral-700' : 'text-neutral-500'}`}>
  {c.status === 'completed' ? '완료' : c.status === 'contract' ? '계약' : '상담'}
  </span>
  </div>
@@ -10923,7 +10933,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div key={ment.id} className="p-4 rounded-xl border border-neutral-200 hover:border-slate-500">
  <div className="flex justify-between items-start mb-2">
  <div className="flex items-center gap-2">
- <span className={`px-2 py-0.5 rounded-full text-xs ${ment.type === 'broker' ? 'text-blue-400' : 'text-emerald-400'}`}>
+ <span className={`px-2 py-0.5 rounded-full text-xs ${ment.type === 'broker' ? 'text-neutral-700' : 'text-neutral-700'}`}>
  {ment.type === 'broker' ? '중개사' : '고객'}
  </span>
  <span className="font-bold text-[#171717]">{ment.name}</span>
@@ -11009,7 +11019,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="space-y-2">
  {/* 영업모드 시작 버튼 */}
  <div className="bg-white border border-neutral-200 rounded-2xl p-4 bg-neutral-50 border border-neutral-200">
-   <h3 className="font-bold text-emerald-400 text-lg mb-2">영업모드</h3>
+   <h3 className="font-bold text-neutral-700 text-lg mb-2">영업모드</h3>
    <p className="text-sm text-neutral-700 mb-4">고객 미팅 시 상권 분석 자료를 보여줄 수 있습니다. 영업모드에서는 관리 데이터가 노출되지 않습니다.</p>
    <button
      type="button"
@@ -11460,7 +11470,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="modal-content max-w-sm p-0 overflow-hidden" onClick={e => e.stopPropagation()}>
  <div className="bg-neutral-100 border border-neutral-200 p-4 sm:p-6 text-center">
  <div className="w-14 h-14 bg-white/10 backdrop-blur rounded-full flex items-center justify-center mx-auto mb-3 border border-white/20">
- <span className="text-2xl text-emerald-400"></span>
+ <span className="text-2xl text-neutral-700"></span>
  </div>
  <p className="text-neutral-500 text-xs tracking-widest mb-1">REGISTERED</p>
  <h3 className="font-bold text-white text-lg">{showCompanySuccessModal.companyName}</h3>
@@ -12253,11 +12263,11 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="flex gap-2">
  <button 
  onClick={() => setMentForm({ ...mentForm, type: 'broker' })}
- className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${mentForm.type === 'broker' ? 'bg-blue-500/20 text-blue-400 border border-blue-500' : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200'}`}
+ className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${mentForm.type === 'broker' ? 'bg-blue-500/20 text-neutral-700 border border-blue-500' : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200'}`}
  >중개사용</button>
  <button 
  onClick={() => setMentForm({ ...mentForm, type: 'customer' })}
- className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${mentForm.type === 'customer' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500' : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200'}`}
+ className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${mentForm.type === 'customer' ? 'bg-emerald-500/20 text-neutral-700 border border-emerald-500' : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200'}`}
  >고객용</button>
  </div>
  <textarea 
