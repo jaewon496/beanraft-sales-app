@@ -14,7 +14,7 @@
   
   <link rel="icon" type="image/svg+xml" href="/vite.svg" />
   
-  <!-- 네이버 지도 API - Client ID 수정됨 -->
+  <!-- 네이버 지도 API -->
   <script type="text/javascript" src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=dx2ymyk2b1&submodules=geocoder"></script>
   
   <!-- 폰트 -->
@@ -26,7 +26,7 @@
     #initial-loading {
       position: fixed;
       inset: 0;
-      background: #171717;
+      background: #0f172a;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -38,15 +38,10 @@
       visibility: hidden;
       transition: opacity 0.3s, visibility 0.3s;
     }
-    .loading-logo {
-      width: 120px;
-      height: auto;
-      margin-bottom: 24px;
-    }
     .loading-title {
       color: #f8fafc;
-      font-size: 20px;
-      font-weight: 600;
+      font-size: 24px;
+      font-weight: 700;
       margin-bottom: 20px;
     }
     .loading-spinner {
@@ -93,8 +88,7 @@
 </head>
 <body>
   <div id="initial-loading">
-    <img src="/logo.png" alt="빈크래프트" class="loading-logo" onerror="this.style.display='none'" />
-    <div class="loading-title">빈크래프트 영업관리</div>
+    <div class="loading-title">빈크래프트</div>
     <div class="loading-spinner"></div>
     <div class="loading-text">로딩 중...</div>
   </div>
