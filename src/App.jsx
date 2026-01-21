@@ -2682,9 +2682,9 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
   useEffect(() => {
     if (loggedIn) return;
     
-    // 명언 (4초) -> 로고 나타남 (2초) -> 로그인 폼 표시
-    const timer1 = setTimeout(() => setLoginPhase('logo'), 4000);
-    const timer2 = setTimeout(() => setLoginPhase('form'), 6000);
+    // 명언 (3초) -> 로고 (2초) -> 로그인 폼 표시
+    const timer1 = setTimeout(() => setLoginPhase('logo'), 3000);
+    const timer2 = setTimeout(() => setLoginPhase('form'), 5000);
     
     return () => {
       clearTimeout(timer1);
@@ -32484,7 +32484,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  };
  if (!loggedIn) {
    const transitionStyle = {
-     transition: 'opacity 1.5s ease-in-out, transform 1.5s ease-in-out',
+     transition: 'opacity 0.8s ease-in-out, transform 0.8s ease-in-out',
      willChange: 'opacity, transform'
    };
    
@@ -32492,60 +32492,81 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
      <div className="min-h-screen flex items-center justify-center p-4 bg-black overflow-hidden">
        <div className="w-full max-w-md relative" style={{minHeight: '500px'}}>
          
-         {/* 명언 - quote일 때만 보임 */}
+         {/* 1단계: 명언만 */}
          <div 
-           className="absolute inset-0 flex items-center justify-center"
+           className="absolute inset-0 flex items-center justify-center px-6"
            style={{
              ...transitionStyle,
              opacity: loginPhase === 'quote' ? 1 : 0,
-             transform: loginPhase === 'quote' ? 'translateY(0)' : 'translateY(-30px)',
+             transform: loginPhase === 'quote' ? 'translateY(0)' : 'translateY(-20px)',
              pointerEvents: loginPhase === 'quote' ? 'auto' : 'none'
            }}
          >
-           <p className="text-neutral-700 text-sm sm:text-base font-normal leading-relaxed max-w-xs sm:max-w-sm mx-auto text-center" style={{wordBreak: 'keep-all'}}>"{loginQuote}"</p>
+           <p className="text-neutral-400 text-base sm:text-lg font-light leading-relaxed text-center" style={{wordBreak: 'keep-all'}}>
+             "{loginQuote}"
+           </p>
          </div>
          
-         {/* 로고만 - logo일 때 보임 */}
+         {/* 2단계: 로고만 */}
          <div 
            className="absolute inset-0 flex items-center justify-center"
            style={{
              ...transitionStyle,
              opacity: loginPhase === 'logo' ? 1 : 0,
-             transform: loginPhase === 'logo' ? 'scale(1)' : (loginPhase === 'quote' ? 'scale(0.9)' : 'scale(1.05)'),
+             transform: loginPhase === 'logo' ? 'scale(1)' : 'scale(0.95)',
              pointerEvents: loginPhase === 'logo' ? 'auto' : 'none'
            }}
          >
            <div className="text-center">
-             <img src="data:image/webp;base64,UklGRr4EAABXRUJQVlA4WAoAAAAQAAAAPwAAPwAAQUxQSHACAAABkARJtmlbvfbe59k699m2bVvftm1rZNu2bdu2hrZ9vq+mbxARE4AabgmkV8QgQY8JPDI8JsSEQHoChnIP2EWAABDpnqElIS4Z8JUgG0H3CZ6egHOeBVylwNhwU1dZ6Bp5OoIMcz1h5+pq0jLKN9AcpFOAdTQDsjOgCglPSAcA0hIJzokEFwxMEEnR8c2zQiW5g7FTRTiLE/grF4JzwQXThPoxEguxSTfpaBdcCE8jmDk7WbkIaJ6gqtWyob15rWZtEuBby45lV/oX1ncXPr2nT7FIH9G4eVRoh/neLKlh6wZlTSqaJYLU4ahS1t05lazs39kRm5RBOPnV+dzBkrieP24+3XLjxXGlr8MZpTVOv9y2avk95UZ/cPXK33e8sC/y29TRseYPj1ywPPZj9Z5NlolvT+xcMvnGkXbvu1g9OX8c+y+NGIDIb7ZgUK/48/yFFws+zpsaWa7c/pF3eOW+97MdMj/u2LMu99DLF2+seyjPvltuerB8Jkv+6k6aqKWM3KQ0U+ZPqnX0esPHo3YtLlWO1Ouw9d2OTztvnghUelw+Xe9D7yOrAGQqHlCPwW/45Im58vCJ0xv3Ckfp4OnD4yY3twuXpm7dlNawS3yHcSM90aB+g2phCLehliC11BW2QdEqGYg3t6xCi8hAuNrAx0BAuySE4CSE4IJBAgDh4WFYK5bnFxilBDYIz7WH4JwDIKEZdYkB8EiNivSHU0Nj2Idnm0LHyc3Tu3ay5OdEBjk+AEJAOgZbb9klLtLSyRAx8SAeR9BHNzN4mZJcxSFUIF0jIgAkhwB1raGvBCK/0IhEFYj046+GEgygz4SabgFWUDggKAIAAFAMAJ0BKkAAQAA+kUSbSiWjoiGoCACwEglmAGfeUxQgPwpogPOK9AG8Abwx+5PpYuC+6BvgaQL3p0B+cX6Z9gPoNegx+ma0WlJLPs3Uq6HpBvu3yeQNnHXcLF7xMkOCHb7DYSjiFNKNcDIgAP78+FvR///1DBc+ORrUZzISuYmqOMLGOQ/zaUuKRTrF5Nm80r/X2D8lpeyCr0VQwyjiFS8DDfgE6JM3/kNY8uesZuvLeAgUWzW2/yTv2RX77/90+//MvU+3GHZ+wj7MMyxX/8Tnf/sBlAFR/wEVTP3poHuNCgOGRGdoxgHqJIukm4pn+zYgHieAatex072s5dd2+Lx/9DS/8T7XCBQrCGWMRlC/sf8CdIFFhER6nC5qFmw+O/O3U8s0uflu5GSfvuhDLLJ3gpdV80qfvHZqyqS8oWBZDTFAlndM0W+oe7H/9z2mihm/+kd8Jf+Pleu//Y8hsyT///T7XSVtjZprjyqVNxSxLioafMN77Sib2Ti40AuU3PY8GmXiY0US8I9G9DEJj8CoEDPzOdU7Qh/VRQDNleg/omm79j3+gUnP8V4sPPrddRMS0nCxuPAD4Ssvaf7lLlThPKhJA+Xm+Ah4ioajzkN+VIb8C73pZ1aotgCR5QL4o5qwD44BKG1RaUMJrwM27h8XLrQStXQ95pkw1SlgLxba/oWuIjtQ2N1aZt75fVZPEVPXXB8lNRc24F5hakDsw4Tep00AAAAAAA==" alt="BEANCRAFT" className="w-40 h-40 sm:w-56 sm:h-56 mx-auto mb-4 object-contain" />
-             <p className="text-neutral-800 text-base sm:text-lg tracking-widest font-semibold">빈크래프트 영업관리</p>
+             <img src="logo.png" alt="BEANCRAFT" className="w-48 h-48 sm:w-56 sm:h-56 mx-auto object-contain" onError={(e) => { e.target.style.display = 'none'; }} />
+             <p className="text-neutral-500 text-sm sm:text-base tracking-widest font-medium mt-4">빈크래프트 영업관리</p>
            </div>
          </div>
          
-         {/* 로고 + 명언 + 로그인폼 - form일 때 보임 */}
+         {/* 3단계: 로고 + 로그인폼 (명언 없음) */}
          <div 
-           className="absolute inset-0"
+           className="absolute inset-0 flex flex-col justify-center"
            style={{
              ...transitionStyle,
              opacity: loginPhase === 'form' ? 1 : 0,
-             transform: loginPhase === 'form' ? 'translateY(0)' : 'translateY(50px)',
+             transform: loginPhase === 'form' ? 'translateY(0)' : 'translateY(30px)',
              pointerEvents: loginPhase === 'form' ? 'auto' : 'none'
            }}
          >
-           <div className="text-center mb-6">
-             <img src="data:image/webp;base64,UklGRr4EAABXRUJQVlA4WAoAAAAQAAAAPwAAPwAAQUxQSHACAAABkARJtmlbvfbe59k699m2bVvftm1rZNu2bdu2hrZ9vq+mbxARE4AabgmkV8QgQY8JPDI8JsSEQHoChnIP2EWAABDpnqElIS4Z8JUgG0H3CZ6egHOeBVylwNhwU1dZ6Bp5OoIMcz1h5+pq0jLKN9AcpFOAdTQDsjOgCglPSAcA0hIJzokEFwxMEEnR8c2zQiW5g7FTRTiLE/grF4JzwQXThPoxEguxSTfpaBdcCE8jmDk7WbkIaJ6gqtWyob15rWZtEuBby45lV/oX1ncXPr2nT7FIH9G4eVRoh/neLKlh6wZlTSqaJYLU4ahS1t05lazs39kRm5RBOPnV+dzBkrieP24+3XLjxXGlr8MZpTVOv9y2avk95UZ/cPXK33e8sC/y29TRseYPj1ywPPZj9Z5NlolvT+xcMvnGkXbvu1g9OX8c+y+NGIDIb7ZgUK/48/yFFws+zpsaWa7c/pF3eOW+97MdMj/u2LMu99DLF2+seyjPvltuerB8Jkv+6k6aqKWM3KQ0U+ZPqnX0esPHo3YtLlWO1Ouw9d2OTztvnghUelw+Xe9D7yOrAGQqHlCPwW/45Im58vCJ0xv3Ckfp4OnD4yY3twuXpm7dlNawS3yHcSM90aB+g2phCLehliC11BW2QdEqGYg3t6xCi8hAuNrAx0BAuySE4CSE4IJBAgDh4WFYK5bnFxilBDYIz7WH4JwDIKEZdYkB8EiNivSHU0Nj2Idnm0LHyc3Tu3ay5OdEBjk+AEJAOgZbb9klLtLSyRAx8SAeR9BHNzN4mZJcxSFUIF0jIgAkhwB1raGvBCK/0IhEFYj046+GEgygz4SabgFWUDggKAIAAFAMAJ0BKkAAQAA+kUSbSiWjoiGoCACwEglmAGfeUxQgPwpogPOK9AG8Abwx+5PpYuC+6BvgaQL3p0B+cX6Z9gPoNegx+ma0WlJLPs3Uq6HpBvu3yeQNnHXcLF7xMkOCHb7DYSjiFNKNcDIgAP78+FvR///1DBc+ORrUZzISuYmqOMLGOQ/zaUuKRTrF5Nm80r/X2D8lpeyCr0VQwyjiFS8DDfgE6JM3/kNY8uesZuvLeAgUWzW2/yTv2RX77/90+//MvU+3GHZ+wj7MMyxX/8Tnf/sBlAFR/wEVTP3poHuNCgOGRGdoxgHqJIukm4pn+zYgHieAatex072s5dd2+Lx/9DS/8T7XCBQrCGWMRlC/sf8CdIFFhER6nC5qFmw+O/O3U8s0uflu5GSfvuhDLLJ3gpdV80qfvHZqyqS8oWBZDTFAlndM0W+oe7H/9z2mihm/+kd8Jf+Pleu//Y8hsyT///T7XSVtjZprjyqVNxSxLioafMN77Sib2Ti40AuU3PY8GmXiY0US8I9G9DEJj8CoEDPzOdU7Qh/VRQDNleg/omm79j3+gUnP8V4sPPrddRMS0nCxuPAD4Ssvaf7lLlThPKhJA+Xm+Ah4ioajzkN+VIb8C73pZ1aotgCR5QL4o5qwD44BKG1RaUMJrwM27h8XLrQStXQ95pkw1SlgLxba/oWuIjtQ2N1aZt75fVZPEVPXXB8lNRc24F5hakDsw4Tep00AAAAAAA==" alt="BEANCRAFT" className="w-28 h-28 sm:w-40 sm:h-40 mx-auto mb-3 object-contain" />
-             <p className="text-neutral-800 text-sm sm:text-base tracking-widest font-semibold">빈크래프트 영업관리</p>
+           {/* 로고 */}
+           <div className="text-center mb-8">
+             <img src="logo.png" alt="BEANCRAFT" className="w-32 h-32 sm:w-40 sm:h-40 mx-auto object-contain" onError={(e) => { e.target.style.display = 'none'; }} />
+             <p className="text-neutral-500 text-xs sm:text-sm tracking-widest font-medium mt-2">빈크래프트 영업관리</p>
            </div>
-           <div className="text-center mb-5 px-4">
-             <p className="text-neutral-700 text-xs sm:text-sm font-normal leading-relaxed max-w-xs sm:max-w-sm mx-auto" style={{wordBreak: 'keep-all'}}>"{loginQuote}"</p>
-           </div>
-           <div className="bg-neutral-900/80 rounded-xl p-4 sm:p-6 shadow-xl border border-neutral-200">
-             <input type="text" placeholder="아이디" value={id} onChange={e => setId(e.target.value)} className="w-full p-2.5 sm:p-3 rounded-lg mb-2 sm:mb-3 bg-neutral-50 text-white placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/50 border border-neutral-200 text-sm font-medium" />
-             <input type="password" placeholder="비밀번호" value={pw} onChange={e => setPw(e.target.value)} onKeyPress={e => e.key === 'Enter' && login()} className="w-full p-2.5 sm:p-3 rounded-lg mb-2 sm:mb-3 bg-neutral-50 text-white placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/50 border border-neutral-200 text-sm font-medium" />
-             <label className="flex items-center gap-2 text-neutral-700 text-sm mb-4 cursor-pointer">
-               <input type="checkbox" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)} className="w-4 h-4 rounded accent-primary-500" />
+           
+           {/* 로그인 폼 */}
+           <div className="bg-neutral-900 rounded-xl p-5 sm:p-6 border border-neutral-800">
+             <input 
+               type="text" 
+               placeholder="아이디" 
+               value={id} 
+               onChange={e => setId(e.target.value)} 
+               className="w-full p-3 rounded-lg mb-3 bg-neutral-800 text-white placeholder-neutral-500 outline-none focus:ring-2 focus:ring-neutral-600 border border-neutral-700 text-sm" 
+             />
+             <input 
+               type="password" 
+               placeholder="비밀번호" 
+               value={pw} 
+               onChange={e => setPw(e.target.value)} 
+               onKeyPress={e => e.key === 'Enter' && login()} 
+               className="w-full p-3 rounded-lg mb-3 bg-neutral-800 text-white placeholder-neutral-500 outline-none focus:ring-2 focus:ring-neutral-600 border border-neutral-700 text-sm" 
+             />
+             <label className="flex items-center gap-2 text-neutral-400 text-sm mb-4 cursor-pointer">
+               <input type="checkbox" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)} className="w-4 h-4 rounded accent-neutral-500" />
                로그인 상태 유지
              </label>
-             <button type="button" onClick={login} className="w-full p-3 bg-[#1e3a5f] hover:bg-[#264a73] text-white rounded-lg font-semibold transition-all text-sm">로그인</button>
+             <button 
+               type="button" 
+               onClick={login} 
+               className="w-full p-3 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg font-semibold transition-all text-sm"
+             >
+               로그인
+             </button>
            </div>
          </div>
          
