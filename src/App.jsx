@@ -547,7 +547,7 @@ const FRANCHISE_DATA = {
 };
 
 // Gemini AI API 키
-const GEMINI_API_KEY = 'AIzaSyAl0PfvfKID-nZxtAJOC6qhME-A-V_u2L8';
+const GEMINI_API_KEY = 'AIzaSyAl0PfvfKlD-nZxtAJOC6qhME-A-V_u2L8';
 
 // Store OS 디자인 시스템
 const UI = {
@@ -675,6 +675,7 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
  const [salesModeSearchLoading, setSalesModeSearchLoading] = useState(false);
  const [salesModeShowSources, setSalesModeShowSources] = useState(false);
  const [salesModeIframeError, setSalesModeIframeError] = useState(false); // iframe 차단 감지
+ const [salesModeHomepageUrl, setSalesModeHomepageUrl] = useState('https://beancraft.co.kr'); // 홈페이지 URL
  const [salesModeMapCenter, setSalesModeMapCenter] = useState(null); // 지도 중심 좌표
  const salesModeTimeoutRef = useRef(null);
  const salesModeLockTimeoutRef = useRef(null);
@@ -5851,7 +5852,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
            <img src="/logo.png" alt="BEANCRAFT" className="w-32 h-32 object-contain mb-8" onError={(e) => { e.target.style.display = 'none'; }} />
            <h2 className="text-2xl font-bold text-black mb-2">영업모드</h2>
            <p className="text-gray-500 mb-8">대상을 선택해주세요</p>
-           <div className="w-full max-w-sm space-y-4">
+           <div className="w-full max-w-sm space-y-2">
              <button
                onClick={() => { setSalesModeTarget('broker'); setSalesModeScreen('main'); }}
                className="w-full py-6 rounded-2xl border-2 border-gray-200 hover:border-black hover:bg-gray-50 transition-all"
@@ -5976,7 +5977,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
            <div className="flex-1 overflow-y-auto">
              {/* 분석 탭 */}
              {salesModeTab === 'analysis' && (
-               <div className="p-4 space-y-4">
+               <div className="p-4 space-y-2">
                  {/* 지역 검색창 */}
                  <div className="relative">
                    <input
@@ -5998,7 +5999,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
                  {/* 검색 결과 */}
                  {salesModeSearchResult?.success && (
-                   <div className="space-y-4">
+                   <div className="space-y-2">
                      {/* 데이터 신뢰도 */}
                      {salesModeSearchResult.data?.reliability && (
                        <div className={`p-3 rounded-xl border ${
@@ -6345,139 +6346,53 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                  {/* 카테고리 메뉴 */}
                  <div className="bg-white border-b border-gray-100 p-3">
                    <div className="flex gap-2 overflow-x-auto">
-                     <a 
-                       href="https://beancraft.co.kr" 
-                       target="_blank" 
-                       rel="noopener noreferrer"
-                       className="flex-shrink-0 px-4 py-2 bg-neutral-900 text-white rounded-full text-sm font-medium"
-                       onClick={() => updateSalesModeActivity()}
+                     <button 
+                       onClick={() => setSalesModeHomepageUrl('https://beancraft.co.kr')}
+                       className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium ${salesModeHomepageUrl === 'https://beancraft.co.kr' ? 'bg-neutral-900 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                      >
                        홈
-                     </a>
-                     <a 
-                       href="https://beancraft.co.kr/consulting" 
-                       target="_blank" 
-                       rel="noopener noreferrer"
-                       className="flex-shrink-0 px-4 py-2 bg-gray-100 text-gray-700 rounded-full text-sm font-medium hover:bg-gray-200"
-                       onClick={() => updateSalesModeActivity()}
+                     </button>
+                     <button 
+                       onClick={() => setSalesModeHomepageUrl('https://beancraft.co.kr/consulting')}
+                       className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium ${salesModeHomepageUrl?.includes('/consulting') ? 'bg-neutral-900 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                      >
                        창업안내
-                     </a>
-                     <a 
-                       href="https://beancraft.co.kr/interior" 
-                       target="_blank" 
-                       rel="noopener noreferrer"
-                       className="flex-shrink-0 px-4 py-2 bg-gray-100 text-gray-700 rounded-full text-sm font-medium hover:bg-gray-200"
-                       onClick={() => updateSalesModeActivity()}
+                     </button>
+                     <button 
+                       onClick={() => setSalesModeHomepageUrl('https://beancraft.co.kr/interior')}
+                       className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium ${salesModeHomepageUrl?.includes('/interior') ? 'bg-neutral-900 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                      >
                        인테리어
-                     </a>
-                     <a 
-                       href="https://beancraft.co.kr/equipment" 
-                       target="_blank" 
-                       rel="noopener noreferrer"
-                       className="flex-shrink-0 px-4 py-2 bg-gray-100 text-gray-700 rounded-full text-sm font-medium hover:bg-gray-200"
-                       onClick={() => updateSalesModeActivity()}
+                     </button>
+                     <button 
+                       onClick={() => setSalesModeHomepageUrl('https://beancraft.co.kr/equipment')}
+                       className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium ${salesModeHomepageUrl?.includes('/equipment') ? 'bg-neutral-900 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                      >
                        기기설치
-                     </a>
-                     <a 
-                       href="https://beancraft.co.kr/menu" 
-                       target="_blank" 
-                       rel="noopener noreferrer"
-                       className="flex-shrink-0 px-4 py-2 bg-gray-100 text-gray-700 rounded-full text-sm font-medium hover:bg-gray-200"
-                       onClick={() => updateSalesModeActivity()}
+                     </button>
+                     <button 
+                       onClick={() => setSalesModeHomepageUrl('https://beancraft.co.kr/menu')}
+                       className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium ${salesModeHomepageUrl?.includes('/menu') ? 'bg-neutral-900 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                      >
                        메뉴개발
-                     </a>
-                     <a 
-                       href="https://beancraft.co.kr/support" 
-                       target="_blank" 
-                       rel="noopener noreferrer"
-                       className="flex-shrink-0 px-4 py-2 bg-gray-100 text-gray-700 rounded-full text-sm font-medium hover:bg-gray-200"
-                       onClick={() => updateSalesModeActivity()}
+                     </button>
+                     <button 
+                       onClick={() => setSalesModeHomepageUrl('https://beancraft.co.kr/support')}
+                       className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium ${salesModeHomepageUrl?.includes('/support') ? 'bg-neutral-900 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                      >
                        사후지원
-                     </a>
+                     </button>
                    </div>
                  </div>
                  
-                 {/* iframe 또는 대체 콘텐츠 */}
-                 <div className="flex-1 relative">
-                   {!salesModeIframeError ? (
-                     <iframe
-                       src="https://beancraft.co.kr"
-                       className="w-full h-full border-0"
-                       title="빈크래프트 홈페이지"
-                       sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
-                       onLoad={(e) => {
-                         // iframe 로드 실패 감지
-                         try {
-                           const doc = e.target.contentDocument;
-                           if (!doc || doc.body.innerHTML === '') {
-                             setSalesModeIframeError(true);
-                           }
-                         } catch (err) {
-                           // CORS 에러 = iframe 차단
-                           setSalesModeIframeError(true);
-                         }
-                       }}
-                       onError={() => setSalesModeIframeError(true)}
-                     />
-                   ) : (
-                     // iframe 차단 시 대체 UI
-                     <div className="h-full flex flex-col items-center justify-center p-6 bg-gray-50">
-                       <div className="text-center mb-8">
-                         <img src="/logo.png" alt="BEANCRAFT" className="w-24 h-24 mx-auto mb-4 object-contain" onError={(e) => { e.target.style.display = 'none'; }} />
-                         <h2 className="text-xl font-bold text-black mb-2">빈크래프트</h2>
-                         <p className="text-gray-500 text-sm">카페 창업 전문 컨설팅</p>
-                       </div>
-                       
-                       <div className="w-full max-w-sm space-y-3">
-                         <a 
-                           href="https://beancraft.co.kr" 
-                           target="_blank" 
-                           rel="noopener noreferrer"
-                           className="block w-full py-4 bg-neutral-900 text-white rounded-xl font-medium text-center hover:bg-gray-800 transition-all"
-                         >
-                           홈페이지 바로가기
-                         </a>
-                         <a 
-                           href="https://beancraft.co.kr/consulting" 
-                           target="_blank" 
-                           rel="noopener noreferrer"
-                           className="block w-full py-4 bg-white text-black border border-gray-200 rounded-xl font-medium text-center hover:bg-gray-50 transition-all"
-                         >
-                           창업 상담 신청
-                         </a>
-                         <a 
-                           href="tel:1588-0000" 
-                           className="block w-full py-4 bg-emerald-500 text-white rounded-xl font-medium text-center hover:bg-emerald-600 transition-all"
-                         >
-                           전화 상담 1588-0000
-                         </a>
-                       </div>
-                       
-                       <div className="mt-8 grid grid-cols-2 gap-4 w-full max-w-sm">
-                         <div className="p-4 bg-white rounded-xl border border-gray-100 text-center">
-                           <p className="text-2xl font-bold text-black">0원</p>
-                           <p className="text-xs text-gray-500 mt-1">가맹비</p>
-                         </div>
-                         <div className="p-4 bg-white rounded-xl border border-gray-100 text-center">
-                           <p className="text-2xl font-bold text-black">0원</p>
-                           <p className="text-xs text-gray-500 mt-1">로열티</p>
-                         </div>
-                         <div className="p-4 bg-white rounded-xl border border-gray-100 text-center">
-                           <p className="text-2xl font-bold text-black">자유</p>
-                           <p className="text-xs text-gray-500 mt-1">메뉴 구성</p>
-                         </div>
-                         <div className="p-4 bg-white rounded-xl border border-gray-100 text-center">
-                           <p className="text-2xl font-bold text-black">자유</p>
-                           <p className="text-xs text-gray-500 mt-1">인테리어</p>
-                         </div>
-                       </div>
-                     </div>
-                   )}
+                 {/* iframe으로 홈페이지 직접 표시 */}
+                 <div className="flex-1 relative bg-white">
+                   <iframe
+                     src={salesModeHomepageUrl || 'https://beancraft.co.kr'}
+                     className="w-full h-full border-0"
+                     title="빈크래프트 홈페이지"
+                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                   />
                  </div>
                </div>
              )}
@@ -6643,7 +6558,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  )}
  <div className="p-3 sm:p-4 max-w-6xl mx-auto">
  {tab === 'report' && (
- <div className="space-y-3 sm:space-y-4">
+ <div className="space-y-2">
  {/* 보고서 헤더 */}
  <div className="flex flex-col gap-3">
  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
@@ -6846,7 +6761,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  return (
  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
  {/* 왼쪽: 메인 콘텐츠 */}
- <div className="lg:col-span-2 space-y-4">
+ <div className="lg:col-span-2 space-y-2">
  {/* 통계 카드 */}
  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
  <div className="bg-white border border-neutral-200 rounded-2xl p-4 rounded-2xl border border-neutral-200">
@@ -6919,7 +6834,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
 
  {/* 오른쪽: 사이드바 */}
- <div className="space-y-4">
+ <div className="space-y-2">
  {/* AI 분석 리포트 */}
  <div className="bg-white border border-neutral-200 rounded-2xl p-4 rounded-2xl border border-neutral-200">
  <div className="flex items-center justify-between mb-3">
@@ -7016,7 +6931,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
  {/* AI 분석 모드 */}
  {reportMode === 'ai' && (
- <div className="columns-1 md:columns-2 lg:columns-3 gap-4 space-y-4">
+ <div className="columns-1 md:columns-2 lg:columns-3 gap-4 space-y-2">
  
  {/* AI 키워드 검색 섹션 */}
  <div className="bg-white border border-neutral-200 rounded-2xl p-4 break-inside-avoid mb-4 border border-neutral-300/30 bg-neutral-800/5">
@@ -7447,7 +7362,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  const regionRec = generateRegionRecommendation();
 
  return (
- <div className="space-y-3 sm:space-y-4">
+ <div className="space-y-2">
  {/* 반응 기반 AI 분석 - 그래프 포함 */}
  <div className="bg-white border border-neutral-200 rounded-2xl p-4 border border-neutral-200/30">
  <h3 className="font-bold text-[#171717] mb-4 flex items-center gap-2 text-lg">
@@ -7737,7 +7652,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
               </div>
 
  {aiRegionViewMode === 'single' ? (
- <div className="space-y-3 sm:space-y-4">
+ <div className="space-y-2">
  {/* 지역 헤더 */}
  <div className="border border-neutral-200/30 rounded-xl p-4 bg-transparent">
  <div className="flex items-center justify-between mb-3">
@@ -8047,9 +7962,9 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </h3>
  <button type="button" onClick={() => setShowTrendModal(null)} className="text-neutral-500 hover:text-white text-2xl">×</button>
  </div>
- <div className="p-4 space-y-3 sm:space-y-4">
+ <div className="p-4 space-y-2">
  {showTrendModal === 'specialty' && (
- <div className="space-y-3 sm:space-y-4">
+ <div className="space-y-2">
  <div className="p-4 rounded-lg border border-neutral-200/30 bg-transparent">
  <h4 className="text-orange-400 font-semibold mb-2">스페셜티 커피란?</h4>
  <ul className="text-sm text-neutral-700 space-y-2">
@@ -8078,7 +7993,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  )}
  {showTrendModal === 'lowcost' && (
- <div className="space-y-3 sm:space-y-4">
+ <div className="space-y-2">
  <div className="p-4 rounded-lg border border-neutral-200/30 bg-transparent">
  <h4 className="text-orange-400 font-semibold mb-2">저가 커피 프랜차이즈</h4>
  <ul className="text-sm text-neutral-700 space-y-2">
@@ -8106,7 +8021,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  )}
  {showTrendModal === 'differentiation' && (
- <div className="space-y-3 sm:space-y-4">
+ <div className="space-y-2">
  <div className="p-4 rounded-lg border border-neutral-200/30 bg-transparent">
  <h4 className="text-emerald-400 font-semibold mb-2">차별화 요소</h4>
  <ul className="text-sm text-neutral-700 space-y-2">
@@ -8126,7 +8041,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  )}
  {showTrendModal === 'delivery' && (
- <div className="space-y-3 sm:space-y-4">
+ <div className="space-y-2">
  <div className="p-4 rounded-lg border border-neutral-200/30 bg-transparent">
  <h4 className="text-orange-400 font-semibold mb-2">배달/테이크아웃</h4>
  <ul className="text-sm text-neutral-700 space-y-2">
@@ -8304,7 +8219,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* ═══════════════════════════════════════════════════════════════════════════════
  프랜차이즈 vs 빈크래프트 비용 비교표 (상세페이지 스타일)
  ═══════════════════════════════════════════════════════════════════════════════ */}
- <div className="bg-white border border-neutral-200 rounded-2xl p-4">
+ <div className="bg-white border border-neutral-200 rounded-2xl p-4 break-inside-avoid mb-4">
  <h3 className="font-bold text-[#171717] mb-4 flex items-center gap-2 text-lg">
  프랜차이즈 vs 빈크래프트 비용 비교
  </h3>
@@ -8528,7 +8443,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  )}
  {tab === 'calendar' && (
- <div className="space-y-3 sm:space-y-4">
+ <div className="space-y-2">
  <h2 className="font-bold text-[#171717] text-xl">일정 캘린더</h2>
  <div className="bg-white border border-neutral-200 rounded-2xl p-3 sm:p-4">
  <div className="flex justify-between items-center mb-4">
@@ -8710,7 +8625,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  )}
  {tab === 'route' && (
  <div>
- <div className="space-y-3 sm:space-y-4">
+ <div className="space-y-2">
  <h2 className="font-bold text-[#171717] text-xl">동선 관리</h2>
  <div className="bg-white border border-neutral-200 rounded-2xl p-3 sm:p-4">
  <div className="flex justify-between items-center mb-3">
@@ -9478,7 +9393,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  )}
  {tab === 'map' && (
  <div>
- <div className="space-y-3 sm:space-y-4">
+ <div className="space-y-2">
  <div className="bg-white border border-neutral-200 rounded-2xl p-3 sm:p-4">
  <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-3 mb-4">
  <p className="text-amber-800 font-bold text-sm mb-2">지도 표시 현황</p>
@@ -9528,7 +9443,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  )}
  {tab === 'managers' && (
- <div className="space-y-4">
+ <div className="space-y-2">
  <div className="flex justify-between items-center">
  <h2 className="font-bold text-[#171717] text-xl">영업팀 현황</h2>
  <button type="button" onClick={() => setShowSaleModal(true)} className="px-4 py-2 bg-neutral-900 text-white rounded-lg text-sm font-medium hover:bg-neutral-800">매출 등록</button>
@@ -9748,7 +9663,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
      영업 탭 - 박람회 전용
  ═══════════════════════════════════════════════════════════════════════════════ */}
  {tab === 'sales' && (
- <div className="space-y-4">
+ <div className="space-y-2">
  {/* 상단 - 빈크래프트 홈페이지 링크 */}
  <div className="bg-neutral-800 rounded-xl p-4 shadow-lg">
    <div className="flex items-center justify-between">
@@ -10178,7 +10093,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  )}
 
  {tab === 'realtors' && (
- <div className="space-y-3 sm:space-y-4">
+ <div className="space-y-2">
  <h2 className="font-bold text-[#171717] text-xl">중개사 관리</h2>
  
  {(() => {
@@ -10206,24 +10121,51 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  
  // 수집일 포맷 함수 (다양한 형식 지원)
  const formatCollectedDate = (dateStr) => {
-   if (!dateStr) return '';
+   if (!dateStr) return '-';
    
-   // ISO 형식 (2025-12-28T22:04:19.325Z)
-   if (dateStr.includes('T')) {
+   try {
+     // 숫자 타임스탬프
+     if (typeof dateStr === 'number') {
+       const date = new Date(dateStr);
+       if (!isNaN(date.getTime())) {
+         return date.toLocaleDateString('ko-KR');
+       }
+     }
+     
+     // ISO 형식 (2025-12-28T22:04:19.325Z)
+     if (typeof dateStr === 'string' && dateStr.includes('T')) {
+       const date = new Date(dateStr);
+       if (!isNaN(date.getTime())) {
+         return date.toLocaleDateString('ko-KR');
+       }
+     }
+     
+     // 한국어 형식 (2026. 1. 7. 오후 1:40:15)
+     if (typeof dateStr === 'string') {
+       const koreanMatch = dateStr.match(/(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})/);
+       if (koreanMatch) {
+         const [, year, month, day] = koreanMatch;
+         return `${year}. ${month}. ${day}.`;
+       }
+       
+       // YYYY-MM-DD 형식
+       const isoMatch = dateStr.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+       if (isoMatch) {
+         const [, year, month, day] = isoMatch;
+         return `${year}. ${month}. ${day}.`;
+       }
+     }
+     
+     // 그 외 - Date로 파싱 시도
      const date = new Date(dateStr);
      if (!isNaN(date.getTime())) {
        return date.toLocaleDateString('ko-KR');
      }
+     
+     return '-';
+   } catch (e) {
+     return '-';
    }
-   
-   // 한국어 형식 (2026. 1. 7. 오후 1:40:15)
-   const koreanMatch = dateStr.match(/(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})/);
-   if (koreanMatch) {
-     const [, year, month, day] = koreanMatch;
-     return `${year}. ${month}. ${day}.`;
-   }
-   
-   return dateStr;
  };
  
  // 시/도 표준 순서
@@ -10895,7 +10837,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {tab === 'customers' && (
  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
  {/* 왼쪽: 고객 목록 */}
- <div className="lg:col-span-2 space-y-4">
+ <div className="lg:col-span-2 space-y-2">
  <div className="bg-white border border-neutral-200 rounded-2xl p-4 rounded-2xl border border-neutral-200">
  <h3 className="font-bold text-[#171717] mb-4">고객 목록</h3>
  {customers.length === 0 ? (
@@ -10951,7 +10893,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  )}
  {tab === 'settings' && (
- <div className="space-y-4">
+ <div className="space-y-2">
  <h2 className="font-bold text-[#171717] text-xl">설정</h2>
  
  {/* 설정 서브탭 */}
@@ -11064,7 +11006,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  
  {/* 계정 설정 탭 */}
  {settingsTab === 'account' && (
- <div className="space-y-4">
+ <div className="space-y-2">
  {/* 영업모드 시작 버튼 */}
  <div className="bg-white border border-neutral-200 rounded-2xl p-4 bg-neutral-50 border border-neutral-200">
    <h3 className="font-bold text-emerald-400 text-lg mb-2">영업모드</h3>
@@ -11093,7 +11035,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  
  {/* 관리자 전용 탭 */}
  {settingsTab === 'admin' && isAdmin && (
- <div className="space-y-3 sm:space-y-4">
+ <div className="space-y-2">
  {/* 재등록 표시 관리 */}
  <div className="bg-white border border-neutral-200 rounded-2xl p-3 sm:p-4">
  <h3 className="font-bold text-[#171717] text-lg mb-3">재등록 표시 관리</h3>
@@ -11184,7 +11126,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <h3 className="font-bold text-[#171717] text-lg">중개사 상세정보</h3>
  <button type="button" onClick={() => setShowRealtorDetailModal(null)} className="text-neutral-800 text-2xl">×</button>
  </div>
- <div className="space-y-3 sm:space-y-4">
+ <div className="space-y-2">
  <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-4">
  <p className="font-bold text-[#171717] text-lg mb-1">{showRealtorDetailModal.officeName}</p>
  <p className="text-sm text-neutral-500">{showRealtorDetailModal.address || '주소 없음'}</p>
