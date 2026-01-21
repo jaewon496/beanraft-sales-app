@@ -32655,7 +32655,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
              <img src="logo.png" alt="BEANCRAFT" className="h-8 object-contain" onError={(e) => { e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 30"><text y="22" font-size="18" font-weight="bold">BEANCRAFT</text></svg>'; }} />
              <div className="w-16 flex justify-end">
                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                 salesModeTarget === 'broker' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'
+                 salesModeTarget === 'broker' ? 'bg-blue-100 text-blue-700' : 'bg-neutral-100 text-neutral-700'
                }`}>
                  {salesModeTarget === 'broker' ? '중개사' : '의뢰인'}
                </span>
@@ -33793,7 +33793,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        
        {/* 인사이트 */}
        {aiKeywordResult.insights?.length > 0 && (
-         <div className="p-3 rounded-lg bg-neutral-900/10 border border-blue-500/30">
+         <div className="p-3 rounded-lg bg-neutral-900/10 border border-neutral-200">
            <p className="text-xs text-blue-400 font-semibold mb-2">주요 인사이트</p>
            <ul className="space-y-1">
              {aiKeywordResult.insights.map((insight, idx) => (
@@ -33808,7 +33808,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        
        {/* 영업 팁 */}
        {aiKeywordResult.salesTips?.length > 0 && (
-         <div className="p-3 rounded-lg bg-neutral-900/10 border border-emerald-500/30">
+         <div className="p-3 rounded-lg bg-neutral-900/10 border border-neutral-300">
            <p className="text-xs text-emerald-400 font-semibold mb-2">영업 활용 팁</p>
            <ul className="space-y-1">
              {aiKeywordResult.salesTips.map((tip, idx) => (
@@ -34184,7 +34184,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
  {/* 핵심 지표 테이블 */}
  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
- <div className="text-center p-3 rounded-lg border border-emerald-500/30 bg-neutral-900/5">
+ <div className="text-center p-3 rounded-lg border border-neutral-300 bg-neutral-900/5">
  <div className="text-xl sm:text-2xl font-bold text-emerald-400">{positiveCompanies.length}</div>
  <div className="text-xs text-neutral-500">긍정 반응</div>
  
@@ -34199,7 +34199,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="text-xs text-neutral-500">보통</div>
  
  </div>
- <div className="text-center p-3 rounded-lg border border-yellow-500/30 bg-yellow-500/5">
+ <div className="text-center p-3 rounded-lg border border-neutral-200 bg-yellow-500/5">
  <div className="text-xl sm:text-2xl font-bold text-yellow-400">{missedCompanies.length}</div>
  <div className="text-xs text-neutral-500">부재</div>
  
@@ -34229,7 +34229,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <p className="text-sm text-neutral-800 leading-relaxed">{aiReportResult.comment}</p>
  </div>
  {aiReportResult.analysis && (
- <div className="p-3 rounded-lg border border-blue-500/30 bg-neutral-900/5">
+ <div className="p-3 rounded-lg border border-neutral-200 bg-neutral-900/5">
  <p className="text-xs text-blue-400 mb-1 font-semibold">AI 인사이트</p>
  <p className="text-sm text-neutral-700">{aiReportResult.analysis}</p>
  </div>
@@ -34239,7 +34239,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <p className="text-sm text-neutral-700">{aiReportResult.suggestion}</p>
  </div>
  {aiReportResult.encouragement && (
- <div className="p-3 rounded-lg border border-emerald-500/30 bg-neutral-900/5">
+ <div className="p-3 rounded-lg border border-neutral-300 bg-neutral-900/5">
  <p className="text-sm text-emerald-400 font-medium">{aiReportResult.encouragement}</p>
  </div>
  )}
@@ -34255,7 +34255,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <p className="text-sm text-neutral-800 leading-relaxed">{aiComment.main}</p>
  </div>
  {aiComment.analysis && (
- <div className="p-3 rounded-lg border border-blue-500/30 bg-neutral-900/5">
+ <div className="p-3 rounded-lg border border-neutral-200 bg-neutral-900/5">
  <p className="text-xs text-blue-400 mb-1 font-semibold">데이터 기반 분석</p>
  <p className="text-sm text-neutral-700">{aiComment.analysis}</p>
  </div>
@@ -34264,7 +34264,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <p className="text-xs text-brand-purple mb-1 font-semibold">제안</p>
  <p className="text-sm text-neutral-700">{aiComment.suggestion}</p>
  </div>
- <div className="p-3 rounded-lg border border-emerald-500/30 bg-neutral-900/5">
+ <div className="p-3 rounded-lg border border-neutral-300 bg-neutral-900/5">
  <p className="text-sm text-emerald-400 font-medium">{aiComment.encouragement}</p>
  </div>
  </>
@@ -34320,7 +34320,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  
  {/* 팔로업 주기 안내 */}
- <div className="p-3 rounded-lg bg-neutral-900/10 border border-emerald-500/30">
+ <div className="p-3 rounded-lg bg-neutral-900/10 border border-neutral-300">
  <p className="text-xs text-emerald-400 font-semibold mb-2">팔로업 주기 가이드</p>
  <div className="space-y-2 text-sm">
  <div className="flex items-start gap-2">
@@ -34340,7 +34340,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  
  {/* 긍정 반응 업체 팔로업 */}
  {positiveMemoCount > 0 && (
- <div className="p-3 rounded-lg bg-neutral-900/10 border border-blue-500/30">
+ <div className="p-3 rounded-lg bg-neutral-900/10 border border-neutral-200">
  <p className="text-xs text-blue-400 font-semibold mb-2">긍정 반응 업체 관리 방법</p>
  <p className="text-sm text-neutral-700 mb-2">긍정 반응 업체는 재방문 우선순위가 높습니다. 다음 액션을 권장합니다:</p>
  <ul className="text-sm text-neutral-700 space-y-1">
@@ -34353,7 +34353,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  
  {/* 지역 이슈 활용 팁 */}
  {regionRec && (
- <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
+ <div className="p-3 rounded-lg bg-yellow-500/10 border border-neutral-200">
  <p className="text-xs text-yellow-400 font-semibold mb-2">팔로업 시 활용할 지역 이슈</p>
  <p className="text-sm text-neutral-700">{regionRec.issue || '지역 이슈 정보가 없습니다.'}</p>
  <p className="text-xs text-neutral-500 mt-2">→ 이 내용을 1주일 후 팔로업 문자에 활용하세요.</p>
@@ -34406,7 +34406,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                         alert('해당 지역 데이터가 없습니다.');
                       }
                     }}
-                    className="btn-premium bg-neutral-900 text-white px-4"
+                    className="bg-neutral-900 text-white px-4"
                   >검색</button>
                 </div>
               </div>
@@ -34456,7 +34456,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* 팀 데이터 */}
  {(regionRec.teamTotal > 0 || regionRec.teamPositive > 0) && (
  <div 
-                className="p-3 rounded-lg bg-neutral-900/10 border border-emerald-500/30 mb-3 cursor-pointer hover:bg-neutral-900/20 transition-all"
+                className="p-3 rounded-lg bg-neutral-900/10 border border-neutral-300 mb-3 cursor-pointer hover:bg-neutral-900/20 transition-all"
                 onClick={() => setShowManagerCompaniesModal(regionRec.region)}
               >
                 <p className="text-xs text-emerald-400 font-semibold mb-2">우리 팀 데이터 <span className="text-neutral-500">(클릭하여 업체 보기)</span></p>
@@ -34482,7 +34482,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
  {/* 지역 이슈 */}
  {regionRec.issue && (
- <div className="p-4 rounded-xl border border-yellow-500/30 bg-yellow-500/5">
+ <div className="p-4 rounded-xl border border-neutral-200 bg-yellow-500/5">
  <p className="text-xs text-yellow-400 font-semibold mb-2">지역 이슈 (영업 시 언급)</p>
  <p className="text-sm text-neutral-800">{regionRec.issue}</p>
  </div>
@@ -34490,7 +34490,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
  {/* 타겟 고객층 */}
  {regionRec.targetCustomer && (
- <div className="p-4 rounded-xl border border-blue-500/30 bg-neutral-900/5">
+ <div className="p-4 rounded-xl border border-neutral-200 bg-neutral-900/5">
  <p className="text-xs text-blue-400 font-semibold mb-2">주요 창업자 타겟</p>
  <p className="text-sm text-neutral-800">{regionRec.targetCustomer}</p>
  </div>
@@ -34498,7 +34498,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
 
  {regionRec.brokerMent && (
- <div className="p-4 rounded-xl border border-emerald-500/30 bg-neutral-900/5">
+ <div className="p-4 rounded-xl border border-neutral-300 bg-neutral-900/5">
  <div className="flex items-center justify-between mb-2">
  <p className="text-xs text-emerald-400 font-semibold">중개사 대화 예시</p>
  <button 
@@ -34607,7 +34607,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <a href="https://www.sisajournal.com/news/articleView.html?idxno=195110" target="_blank" rel="noopener" className="text-xs text-brand-purple hover:underline">출처 →</a>
  </div>
  <p className="text-xs text-neutral-500">폐업 매장 52.6%가 3년 미만 운영</p>
- <div className="mt-3 p-3 rounded-lg bg-neutral-900/10 border border-emerald-500/30">
+ <div className="mt-3 p-3 rounded-lg bg-neutral-900/10 border border-neutral-300">
  <p className="text-xs text-emerald-400 font-semibold mb-1">영업 활용 포인트</p>
  <p className="text-sm text-neutral-700">"폐업률이 높다"만 말하면 안 됩니다. "그래서 저희처럼 전문가와 함께 시작하시는 분들이 늘고 있습니다"로 연결하세요.</p>
  </div>
@@ -34620,7 +34620,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <a href="https://franchise.ftc.go.kr" target="_blank" rel="noopener" className="text-xs text-brand-purple hover:underline">출처 →</a>
  </div>
  <p className="text-xs text-neutral-500">메가커피 3,200개+, 컴포즈 2,500개+ 등 경쟁 치열</p>
- <div className="mt-3 p-3 rounded-lg bg-neutral-900/10 border border-emerald-500/30">
+ <div className="mt-3 p-3 rounded-lg bg-neutral-900/10 border border-neutral-300">
  <p className="text-xs text-emerald-400 font-semibold mb-1">영업 활용 포인트</p>
  <p className="text-sm text-neutral-700">"프랜차이즈 생각하시는 분들 많은데, 로열티 월 15~50만원이면 5년에 최소 900만원입니다. 저희는 로열티 0원이에요."</p>
  </div>
@@ -34633,7 +34633,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <a href="https://www.kbfg.com/kbresearch/report/reportView.do?reportId=1003869" target="_blank" rel="noopener" className="text-xs text-brand-purple hover:underline">출처 →</a>
  </div>
  <p className="text-xs text-neutral-500">KB경영연구소: 콘셉트 차별화 + 상권 맞춤 전략 필수</p>
- <div className="mt-3 p-3 rounded-lg bg-neutral-900/10 border border-emerald-500/30">
+ <div className="mt-3 p-3 rounded-lg bg-neutral-900/10 border border-neutral-300">
  <p className="text-xs text-emerald-400 font-semibold mb-1">영업 활용 포인트</p>
  <p className="text-sm text-neutral-700">"저희가 상권에 맞는 콘셉트, 메뉴 구성, 인테리어 방향까지 잡아드립니다. 프랜차이즈처럼 정해진 틀이 없어서 자유롭게 운영 가능하세요."</p>
  </div>
@@ -34646,7 +34646,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <a href="https://www.sisain.co.kr/news/articleView.html?idxno=52312" target="_blank" rel="noopener" className="text-xs text-brand-purple hover:underline">출처 →</a>
  </div>
  <p className="text-xs text-neutral-500">인테리어, 기기, 인건비 상승으로 초기 자금 부담 증가</p>
- <div className="mt-3 p-3 rounded-lg bg-neutral-900/10 border border-emerald-500/30">
+ <div className="mt-3 p-3 rounded-lg bg-neutral-900/10 border border-neutral-300">
  <p className="text-xs text-emerald-400 font-semibold mb-1">영업 활용 포인트</p>
  <p className="text-sm text-neutral-700">"비용 걱정하시는 분들 많으신데, 저희 컨설팅 받으시면 불필요한 비용 줄이고 꼭 필요한 곳에만 투자하실 수 있습니다."</p>
  </div>
@@ -34654,7 +34654,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  
  {/* AI 피드백 */}
- <div className="mt-4 p-3 rounded-lg bg-neutral-900/10 border border-blue-500/30">
+ <div className="mt-4 p-3 rounded-lg bg-neutral-900/10 border border-neutral-200">
  <p className="text-xs text-blue-400 font-semibold mb-2">AI 영업 피드백</p>
  <p className="text-sm text-neutral-700">이 트렌드들을 "문제 제기"로만 사용하면 효과 없습니다. 반드시 "그래서 저희가 해결해드립니다"로 연결하세요. 숫자와 출처를 함께 말하면 신뢰도가 올라갑니다.</p>
  </div>
@@ -34741,7 +34741,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <li>• 원두 판매, 커핑 클래스 등 부가 수익 가능</li>
  </ul>
  </div>
- <div className="p-4 rounded-lg border border-yellow-500/30 bg-yellow-500/5">
+ <div className="p-4 rounded-lg border border-neutral-200 bg-yellow-500/5">
  <h4 className="text-yellow-400 font-semibold mb-2">참고 자료</h4>
  <p className="text-xs text-neutral-500">구체적인 시장 규모, 성장률 등은 아래 자료를 참고하세요:</p>
  <ul className="text-xs text-neutral-500 mt-2 space-y-1">
@@ -34770,7 +34770,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <li>• 가맹본부 정보공개서 반드시 확인</li>
  </ul>
  </div>
- <div className="p-4 rounded-lg border border-yellow-500/30 bg-yellow-500/5">
+ <div className="p-4 rounded-lg border border-neutral-200 bg-yellow-500/5">
  <h4 className="text-yellow-400 font-semibold mb-2">참고 자료</h4>
  <p className="text-xs text-neutral-500">가맹점 수, 평균 매출 등 정확한 정보:</p>
  <ul className="text-xs text-neutral-500 mt-2 space-y-1">
@@ -34854,21 +34854,21 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  {aiExpandedData === 'closure' && (
  <div className="p-4 rounded-xl border border-neutral-200/30 bg-transparent space-y-3 animate-fadeIn">
- <div className="p-3 rounded-lg bg-neutral-900/10 border border-emerald-500/30">
+ <div className="p-3 rounded-lg bg-neutral-900/10 border border-neutral-300">
  <div className="flex items-center justify-between mb-1">
  <p className="text-xs text-emerald-400 font-semibold">중개사 영업 멘트</p>
  <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('선생님, 카페 창업 문의 많이 받으시죠? 저희 빈크래프트는 개인카페 창업 컨설팅 업체입니다. 고객분께서 카페 창업 관심 있으시면 저희 연결해주세요. 중개 수수료 외에 소개비도 따로 드립니다.'); btn.innerText = ''; btn.classList.add('text-emerald-400'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-emerald-400'); }, 1500); }} className="px-2 py-1 rounded bg-neutral-100 text-xs text-neutral-700 hover:bg-neutral-200"></button>
  </div>
  <p className="text-sm text-neutral-800">"선생님, 카페 창업 문의 많이 받으시죠? 저희 <span className="text-emerald-400 font-semibold">빈크래프트</span>는 개인카페 창업 컨설팅 업체입니다. 고객분께서 카페 창업 관심 있으시면 저희 연결해주세요. <span className="text-emerald-400 font-semibold">중개 수수료 외에 소개비</span>도 따로 드립니다."</p>
  </div>
- <div className="p-3 rounded-lg bg-neutral-900/10 border border-blue-500/30">
+ <div className="p-3 rounded-lg bg-neutral-900/10 border border-neutral-200">
  <div className="flex items-center justify-between mb-1">
  <p className="text-xs text-blue-400 font-semibold">빈크래프트 차별점</p>
  <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('프랜차이즈 대비 5천만원 이상 비용 절감 (가맹비/로열티 없음), 메뉴/인테리어 자유롭게 결정 가능, 입지 선정부터 운영까지 전문 컨설팅 지원'); btn.innerText = ''; btn.classList.add('text-emerald-400'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-emerald-400'); }, 1500); }} className="px-2 py-1 rounded bg-neutral-100 text-xs text-neutral-700 hover:bg-neutral-200"></button>
  </div>
  <p className="text-sm text-neutral-800">프랜차이즈 대비 <span className="text-blue-400 font-semibold">5천만원 이상 비용 절감</span> (가맹비/로열티 없음), 메뉴/인테리어 자유롭게 결정 가능, 입지 선정부터 운영까지 전문 컨설팅 지원</p>
  </div>
- <div className="p-3 rounded-lg bg-neutral-900/10 border border-purple-500/30">
+ <div className="p-3 rounded-lg bg-neutral-900/10 border border-neutral-200">
  <p className="text-xs text-purple-400 font-semibold mb-2">창업자 고민 TOP 3 (설문조사 기반)</p>
  <div className="flex gap-2 flex-wrap">
  <span className="px-2 py-1 rounded-full bg-neutral-900/20 text-purple-300 text-xs">1위: 상권분석 어려움</span>
@@ -34886,7 +34886,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* 생존율 비교 */}
  <div 
  onClick={() => setAiExpandedData(aiExpandedData === 'survival' ? null : 'survival')}
- className="p-4 rounded-xl border border-blue-500/30 bg-transparent cursor-pointer hover:border-neutral-200 transition-all"
+ className="p-4 rounded-xl border border-neutral-200 bg-transparent cursor-pointer hover:border-neutral-200 transition-all"
  >
  <div className="flex items-center justify-between">
  <div>
@@ -34901,14 +34901,14 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  {aiExpandedData === 'survival' && (
  <div className="p-4 rounded-xl border border-neutral-200/30 bg-transparent space-y-3 animate-fadeIn">
- <div className="p-3 rounded-lg bg-neutral-900/10 border border-emerald-500/30">
+ <div className="p-3 rounded-lg bg-neutral-900/10 border border-neutral-300">
  <div className="flex items-center justify-between mb-1">
  <p className="text-xs text-emerald-400 font-semibold">중개사 영업 멘트</p>
  <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('선생님, 카페 평균 영업이익이 연 1,050만원입니다. 월 87만원이에요. 이게 현실입니다. 저희 고객분들은 상권분석부터 받고 오시는데, 이 서비스 있다고만 말씀하셔도 관심 가지실 겁니다.'); btn.innerText = ''; btn.classList.add('text-emerald-400'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-emerald-400'); }, 1500); }} className="px-2 py-1 rounded bg-neutral-100 text-xs text-neutral-700 hover:bg-neutral-200"></button>
  </div>
  <p className="text-sm text-neutral-800">"선생님, 카페 평균 영업이익이 <span className="text-emerald-400 font-semibold">연 1,050만원</span>입니다. 월 87만원이에요. 이게 현실입니다. 저희 고객분들은 <span className="text-emerald-400 font-semibold">상권분석부터</span> 받고 오시는데, 이 서비스 있다고만 말씀하셔도 관심 가지실 겁니다."</p>
  </div>
- <div className="p-3 rounded-lg bg-neutral-900/10 border border-blue-500/30">
+ <div className="p-3 rounded-lg bg-neutral-900/10 border border-neutral-200">
  <div className="flex items-center justify-between mb-1">
  <p className="text-xs text-blue-400 font-semibold">창업자 영업 멘트</p>
  <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('사장님, 카페 평균 영업이익이 연 1,050만원입니다. 직장인 연봉 3,475만원의 1/3이에요. 수익 구조 모르고 시작하면 적자입니다. 저희가 해당 상권 경쟁 현황, 유동인구 분석해드립니다.'); btn.innerText = ''; btn.classList.add('text-emerald-400'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-emerald-400'); }, 1500); }} className="px-2 py-1 rounded bg-neutral-100 text-xs text-neutral-700 hover:bg-neutral-200"></button>
@@ -34933,7 +34933,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* 프랜차이즈 비용 비교 */}
  <div 
  onClick={() => setAiExpandedData(aiExpandedData === 'royalty' ? null : 'royalty')}
- className="p-4 rounded-xl border border-yellow-500/30 bg-transparent cursor-pointer hover:border-neutral-200 transition-all"
+ className="p-4 rounded-xl border border-neutral-200 bg-transparent cursor-pointer hover:border-neutral-200 transition-all"
  >
  <div className="flex items-center justify-between">
  <div>
@@ -34947,21 +34947,21 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  {aiExpandedData === 'royalty' && (
  <div className="p-4 rounded-xl border border-neutral-200/30 bg-transparent space-y-3 animate-fadeIn">
- <div className="p-3 rounded-lg bg-neutral-900/10 border border-emerald-500/30">
+ <div className="p-3 rounded-lg bg-neutral-900/10 border border-neutral-300">
  <div className="flex items-center justify-between mb-1">
  <p className="text-xs text-emerald-400 font-semibold">중개사 영업 멘트</p>
  <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('선생님, 프랜차이즈는 매물 조건이 까다롭습니다. 1층 15평 이상, 유동인구 기준 있어요. 저희는 선생님 매물 조건 그대로 됩니다. 창업자분들이 프랜차이즈 조건 안 맞아서 저희 찾는 경우 많습니다.'); btn.innerText = ''; btn.classList.add('text-emerald-400'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-emerald-400'); }, 1500); }} className="px-2 py-1 rounded bg-neutral-100 text-xs text-neutral-700 hover:bg-neutral-200"></button>
  </div>
  <p className="text-sm text-neutral-800">"선생님, 프랜차이즈는 매물 조건이 까다롭습니다. <span className="text-emerald-400 font-semibold">1층 15평 이상, 유동인구 기준</span> 있어요. 저희는 선생님 매물 조건 그대로 됩니다. 창업자분들이 프랜차이즈 조건 안 맞아서 저희 찾는 경우 많습니다."</p>
  </div>
- <div className="p-3 rounded-lg bg-neutral-900/10 border border-blue-500/30">
+ <div className="p-3 rounded-lg bg-neutral-900/10 border border-neutral-200">
  <div className="flex items-center justify-between mb-1">
  <p className="text-xs text-blue-400 font-semibold">창업자 영업 멘트</p>
  <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('사장님, 프랜차이즈 가맹비만 6,900만~1.3억원입니다. 공정위 정보공개서에 다 나와있어요. 저희는 매물 조건 제한 없이 상권분석부터 운영까지 도와드립니다.'); btn.innerText = ''; btn.classList.add('text-emerald-400'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-emerald-400'); }, 1500); }} className="px-2 py-1 rounded bg-neutral-100 text-xs text-neutral-700 hover:bg-neutral-200"></button>
  </div>
  <p className="text-sm text-neutral-800">"사장님, 프랜차이즈 가맹비만 <span className="text-blue-400 font-semibold">6,900만~1.3억원</span>입니다. 공정위 정보공개서에 다 나와있어요. 저희는 매물 조건 제한 없이 상권분석부터 운영까지 도와드립니다."</p>
  </div>
- <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
+ <div className="p-3 rounded-lg bg-yellow-500/10 border border-neutral-200">
  <p className="text-xs text-yellow-400 font-semibold mb-2">프랜차이즈 비용 (공정위 정보공개서 기준)</p>
  <div className="grid grid-cols-2 gap-2 text-xs text-neutral-700">
  <span>• 메가커피 가맹비: 6,900만원</span>
@@ -35125,7 +35125,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="flex gap-2">
  <button 
                       onClick={() => setTeamFeedbackResult('success')}
-                      className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${teamFeedbackResult === 'success' ? 'bg-neutral-900 text-white' : 'bg-neutral-900/20 text-emerald-400 border border-emerald-500/30 hover:bg-neutral-900/30'}`}
+                      className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${teamFeedbackResult === 'success' ? 'bg-neutral-900 text-white' : 'bg-neutral-900/20 text-emerald-400 border border-neutral-300 hover:bg-neutral-900/30'}`}
                     >✓ 효과 있었어요</button>
  <button 
                       onClick={() => setTeamFeedbackResult('fail')}
@@ -35164,7 +35164,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* 실제 팀 피드백 데이터 표시 */}
  {teamFeedbacksAll && teamFeedbacksAll.length > 0 ? (
  teamFeedbacksAll.slice(0, 5).map((fb, idx) => (
- <div key={idx} className={`p-3 rounded-lg ${fb.result === 'success' ? 'bg-neutral-900/10 border border-emerald-500/30' : 'bg-rose-500/10 border border-rose-500/30'}`}>
+ <div key={idx} className={`p-3 rounded-lg ${fb.result === 'success' ? 'bg-neutral-900/10 border border-neutral-300' : 'bg-rose-500/10 border border-rose-500/30'}`}>
  <div className="flex items-start justify-between">
  <div>
  <p className={`text-xs font-semibold ${fb.result === 'success' ? 'text-emerald-400' : 'text-rose-400'}`}>
@@ -35188,7 +35188,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  
  {/* AI 분석 인사이트 - 피드백이 있을 때만 표시 */}
  {teamFeedbacksAll && teamFeedbacksAll.length >= 3 && (
- <div className="p-3 rounded-lg bg-neutral-900/10 border border-blue-500/30">
+ <div className="p-3 rounded-lg bg-neutral-900/10 border border-neutral-200">
  <p className="text-xs text-blue-400 font-semibold mb-2">AI 분석 인사이트</p>
  <p className="text-sm text-neutral-700">• 피드백 데이터를 분석 중입니다...</p>
  <p className="text-xs text-neutral-500 mt-2">피드백이 5개 이상 쌓이면 AI가 패턴을 분석해드립니다.</p>
@@ -35335,7 +35335,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div
  key={`r-${item.id}`}
  onClick={() => setSelectedSchedule(item)}
- className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all hover:shadow-md ${isCompleted ? 'bg-emerald-900/30' : 'bg-neutral-100'}`}
+ className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all hover:shadow-md ${isCompleted ? 'bg-neutral-200' : 'bg-neutral-100'}`}
  >
  <div className="text-center min-w-[40px]">
  <p className="text-xs text-neutral-800">{new Date(item.date).toLocaleDateString('ko-KR', { weekday: 'short' })}</p>
@@ -35459,7 +35459,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <button
  onClick={searchAndMoveMap}
  disabled={isSearchingPlaces}
- className="btn-premium bg-neutral-200 text-white text-sm px-4"
+ className="bg-neutral-200 text-white text-sm px-4"
  >
  {isSearchingPlaces ? '...' : '검색'}
  </button>
@@ -35874,7 +35874,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  alert('' + newStops.length + '개 중개사를 동선에 추가했습니다!');
  }}
  disabled={(!routeSearchRegion && !routeSearchText) || !routeSearchTarget}
- className="w-full btn-premium bg-teal-900/300 text-white py-3 font-bold disabled:opacity-50"
+ className="w-full bg-neutral-900 text-white py-3 font-bold disabled:opacity-50"
  >
  🚗 동선에 추가
  </button>
@@ -35919,7 +35919,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  return (
  <div key={stop.id}>
  <div className="flex items-center gap-2 p-2 bg-neutral-900 rounded-lg">
- <div className="w-7 h-7 rounded-full bg-gradient-to-br from-teal-500 to-teal-600 text-white flex items-center justify-center font-bold text-xs shadow flex-shrink-0">
+ <div className="w-7 h-7 rounded-full bg-gradient-to-br from-neutral-700 to-neutral-800 text-white flex items-center justify-center font-bold text-xs shadow flex-shrink-0">
  {idx + 1}
  </div>
  <div className="flex-1 min-w-0">
@@ -35949,15 +35949,15 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="mt-3 pt-3 border-t border-neutral-200">
  {editingRouteId ? (
  <div className="flex gap-2">
- <button type="button" onClick={cancelEditRoute} className="flex-1 btn-premium btn-outline py-3 font-bold">
+ <button type="button" onClick={cancelEditRoute} className="flex-1 bg-white border border-neutral-200 text-neutral-900 rounded-lg py-3 font-bold">
  취소
  </button>
- <button type="button" onClick={registerSchedule} className="flex-1 btn-premium btn-gold py-3 font-bold">
+ <button type="button" onClick={registerSchedule} className="flex-1 bg-neutral-900 text-white rounded-lg py-3 font-bold">
  수정 완료
  </button>
  </div>
  ) : (
- <button type="button" onClick={registerSchedule} className="w-full btn-premium btn-gold py-3 font-bold">
+ <button type="button" onClick={registerSchedule} className="w-full bg-neutral-900 text-white rounded-lg py-3 font-bold">
  동선 등록
  </button>
  )}
@@ -36070,7 +36070,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  const isCompleted = route.status === 'completed';
  const isSelected = selectedRoutesForDelete.includes(route.id);
  return (
- <div key={route.id} className={`p-3 rounded-lg ${isCompleted ? 'bg-emerald-900/30' : 'bg-neutral-100'} ${routeDeleteMode && isSelected ? 'ring-2 ring-rose-400' : ''}`}>
+ <div key={route.id} className={`p-3 rounded-lg ${isCompleted ? 'bg-neutral-200' : 'bg-neutral-100'} ${routeDeleteMode && isSelected ? 'ring-2 ring-rose-400' : ''}`}>
  <div className="flex items-start gap-3">
  {routeDeleteMode && (
  <input
@@ -36112,7 +36112,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {!isCompleted && (
  <button
  onClick={() => handleCompleteRoute(route)}
- className="px-3 py-1 bg-emerald-100 rounded text-xs text-emerald-700 font-medium"
+ className="px-3 py-1 bg-neutral-100 rounded text-xs text-neutral-700 font-medium"
  >
  완료
  </button>
@@ -36142,7 +36142,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <p className="text-amber-800 font-bold text-sm mb-2">지도 표시 현황</p>
  <div className="flex flex-wrap gap-3 text-sm">
  <span className="text-neutral-800">전체 업체: <b>{companies.length}</b></span>
- <span className="text-emerald-600">지도 표시: <b>{companies.filter(c => c.lat && c.lng).length}</b></span>
+ <span className="text-neutral-600">지도 표시: <b>{companies.filter(c => c.lat && c.lng).length}</b></span>
  <span
  className="text-neutral-800 cursor-pointer hover:text-primary-600"
  onClick={() => companies.filter(c => !c.lat || !c.lng).length > 0 && setShowUnmappedModal(true)}
@@ -36167,7 +36167,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  <div className="flex gap-2">
  <input type="text" placeholder="장소/주소 검색 (예: 남영역, 강남구)" value={searchRegion} onChange={e => setSearchRegion(e.target.value)} onKeyPress={e => e.key === 'Enter' && searchOrHighlight()} className="input-premium flex-1 text-sm" />
- <button type="button" onClick={searchOrHighlight} className="btn-premium btn-gold text-sm"></button>
+ <button type="button" onClick={searchOrHighlight} className="bg-neutral-900 text-white rounded-lg text-sm"></button>
  </div>
  <div className="border-t border-neutral-200 mt-4 pt-4">
  <p className="text-sm text-neutral-800 mb-2 font-bold">🎨 핀 색상 안내</p>
@@ -36189,7 +36189,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="space-y-3 sm:space-y-4">
  <div className="flex justify-between items-center">
  <h2 className="font-bold text-neutral-900 text-xl">영업팀 현황</h2>
- <button type="button" onClick={() => setShowSaleModal(true)} className="btn-premium btn-navy text-sm">매출 등록</button>
+ <button type="button" onClick={() => setShowSaleModal(true)} className="bg-neutral-900 text-white rounded-lg text-sm">매출 등록</button>
  </div>
  {managers.map(m => {
  const mgrCompanies = companies.filter(c => c.managerId === m.id);
@@ -36252,11 +36252,11 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  <div className="text-right">
  <div className="flex items-center gap-2">
- <p className="text-xl sm:text-2xl font-bold text-emerald-600">{mgrSales.toLocaleString()}<span className="text-sm font-normal">원</span></p>
+ <p className="text-xl sm:text-2xl font-bold text-neutral-600">{mgrSales.toLocaleString()}<span className="text-sm font-normal">원</span></p>
  {canEdit && (
  <button
  onClick={() => setShowSaleEditModal({ managerId: m.id, managerName: m.name, currentSales: mgrSales })}
- className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded text-xs font-bold hover:bg-emerald-200"
+ className="px-2 py-1 bg-neutral-100 text-neutral-700 rounded text-xs font-bold hover:bg-neutral-200"
  >
  수정
  </button>
@@ -36272,7 +36272,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <p className="text-xs text-red-400">특별</p>
  </div>
  <div className="bg-neutral-100 rounded-lg p-2 text-center border border-green-200">
- <p className="text-lg font-bold text-emerald-600">{positiveCompanies.length}</p>
+ <p className="text-lg font-bold text-neutral-600">{positiveCompanies.length}</p>
  <p className="text-xs text-green-400">긍정</p>
  </div>
  <div className="bg-neutral-100 rounded-lg p-2 text-center border border-neutral-200">
@@ -36406,7 +36406,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {tab === 'sales' && (
  <div className="space-y-4">
  {/* 상단 - 빈크래프트 홈페이지 링크 */}
- <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl p-4 shadow-lg">
+ <div className="bg-neutral-900 rounded-xl p-4 shadow-lg">
    <div className="flex items-center justify-between">
      <div className="flex items-center gap-3">
        <img src="data:image/webp;base64,UklGRr4EAABXRUJQVlA4WAoAAAAQAAAAPwAAPwAAQUxQSHACAAABkARJtmlbvfbe59k699m2bVvftm1rZNu2bdu2hrZ9vq+mbxARE4AabgmkV8QgQY8JPDI8JsSEQHoChnIP2EWAABDpnqElIS4Z8JUgG0H3CZ6egHOeBVylwNhwU1dZ6Bp5OoIMcz1h5+pq0jLKN9AcpFOAdTQDsjOgCglPSAcA0hIJzokEFwxMEEnR8c2zQiW5g7FTRTiLE/grF4JzwQXThPoxEguxSTfpaBdcCE8jmDk7WbkIaJ6gqtWyob15rWZtEuBby45lV/oX1ncXPr2nT7FIH9G4eVRoh/neLKlh6wZlTSqaJYLU4ahS1t05lazs39kRm5RBOPnV+dzBkrieP24+3XLjxXGlr8MZpTVOv9y2avk95UZ/cPXK33e8sC/y29TRseYPj1ywPPZj9Z5NlolvT+xcMvnGkXbvu1g9OX8c+y+NGIDIb7ZgUK/48/yFFws+zpsaWa7c/pF3eOW+97MdMj/u2LMu99DLF2+seyjPvltuerB8Jkv+6k6aqKWM3KQ0U+ZPqnX0esPHo3YtLlWO1Ouw9d2OTztvnghUelw+Xe9D7yOrAGQqHlCPwW/45Im58vCJ0xv3Ckfp4OnD4yY3twuXpm7dlNawS3yHcSM90aB+g2phCLehliC11BW2QdEqGYg3t6xCi8hAuNrAx0BAuySE4CSE4IJBAgDh4WFYK5bnFxilBDYIz7WH4JwDIKEZdYkB8EiNivSHU0Nj2Idnm0LHyc3Tu3ay5OdEBjk+AEJAOgZbb9klLtLSyRAx8SAeR9BHNzN4mZJcxSFUIF0jIgAkhwB1raGvBCK/0IhEFYj046+GEgygz4SabgFWUDggKAIAAFAMAJ0BKkAAQAA+kUSbSiWjoiGoCACwEglmAGfeUxQgPwpogPOK9AG8Abwx+5PpYuC+6BvgaQL3p0B+cX6Z9gPoNegx+ma0WlJLPs3Uq6HpBvu3yeQNnHXcLF7xMkOCHb7DYSjiFNKNcDIgAP78+FvR///1DBc+ORrUZzISuYmqOMLGOQ/zaUuKRTrF5Nm80r/X2D8lpeyCr0VQwyjiFS8DDfgE6JM3/kNY8uesZuvLeAgUWzW2/yTv2RX77/90+//MvU+3GHZ+wj7MMyxX/8Tnf/sBlAFR/wEVTP3poHuNCgOGRGdoxgHqJIukm4pn+zYgHieAatex072s5dd2+Lx/9DS/8T7XCBQrCGWMRlC/sf8CdIFFhER6nC5qFmw+O/O3U8s0uflu5GSfvuhDLLJ3gpdV80qfvHZqyqS8oWBZDTFAlndM0W+oe7H/9z2mihm/+kd8Jf+Pleu//Y8hsyT///T7XSVtjZprjyqVNxSxLioafMN77Sib2Ti40AuU3PY8GmXiY0US8I9G9DEJj8CoEDPzOdU7Qh/VRQDNleg/omm79j3+gUnP8V4sPPrddRMS0nCxuPAD4Ssvaf7lLlThPKhJA+Xm+Ah4ioajzkN+VIb8C73pZ1aotgCR5QL4o5qwD44BKG1RaUMJrwM27h8XLrQStXQ95pkw1SlgLxba/oWuIjtQ2N1aZt75fVZPEVPXXB8lNRc24F5hakDsw4Tep00AAAAAAA==" alt="BEANCRAFT" className="w-10 h-10 object-contain" />
@@ -36541,7 +36541,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
            const issue = findRegionIssue(salesSelectedRegion);
            if (issue) {
              return (
-               <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
+               <div className="bg-yellow-500/10 border border-neutral-200 rounded-lg p-4">
                  <p className="text-xs text-yellow-400 font-semibold mb-2">지역 이슈</p>
                  <p className="text-neutral-800 font-medium mb-1">{issue.title}</p>
                  <p className="text-sm text-neutral-700">{issue.content}</p>
@@ -36563,7 +36563,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
              const defaultIssue = defaultIssues[salesSelectedRegion] || 
                '해당 지역의 상세 이슈 정보가 준비 중입니다. 직접 상담을 통해 최신 정보를 안내해드립니다.';
              return (
-               <div className="bg-neutral-900/10 border border-blue-500/30 rounded-lg p-4">
+               <div className="bg-neutral-900/10 border border-neutral-200 rounded-lg p-4">
                  <p className="text-xs text-blue-400 font-semibold mb-2">지역 특성</p>
                  <p className="text-sm text-neutral-700">{defaultIssue}</p>
                </div>
@@ -36656,7 +36656,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
      </table>
    </div>
    
-   <div className="mt-4 p-3 bg-neutral-900/10 border border-emerald-500/30 rounded-lg">
+   <div className="mt-4 p-3 bg-neutral-900/10 border border-neutral-300 rounded-lg">
      <p className="text-sm text-emerald-400 font-semibold mb-1">빈크래프트 핵심 장점</p>
      <p className="text-sm text-neutral-700">로열티/가맹비 0원으로 5년간 <span className="text-emerald-400 font-bold">최소 900만원~3,000만원</span> 절감. 메뉴/인테리어/원두 자유롭게 선택 가능.</p>
    </div>
@@ -36669,7 +36669,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
    </h3>
    
    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-     <div className="bg-gradient-to-br from-blue-500/20 to-blue-600/10 border border-blue-500/30 rounded-xl p-4">
+     <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-4">
        <div className="flex items-center gap-3 mb-3">
          
          <div>
@@ -36684,7 +36684,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        </ul>
      </div>
      
-     <div className="bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 border border-emerald-500/30 rounded-xl p-4">
+     <div className="bg-gradient-to-br from-neutral-700/20 to-neutral-800/10 border border-neutral-300 rounded-xl p-4">
        <div className="flex items-center gap-3 mb-3">
          <span className="text-3xl">🎨</span>
          <div>
@@ -36699,7 +36699,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        </ul>
      </div>
      
-     <div className="bg-gradient-to-br from-yellow-500/20 to-yellow-600/10 border border-yellow-500/30 rounded-xl p-4">
+     <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-4">
        <div className="flex items-center gap-3 mb-3">
          <span className="text-3xl">📚</span>
          <div>
@@ -36714,7 +36714,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        </ul>
      </div>
      
-     <div className="bg-gradient-to-br from-purple-500/20 to-purple-600/10 border border-purple-500/30 rounded-xl p-4">
+     <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-4">
        <div className="flex items-center gap-3 mb-3">
          <span className="text-3xl">🚚</span>
          <div>
@@ -36810,7 +36810,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
 
  {/* 하단 CTA */}
- <div className="bg-gradient-to-r from-slate-800 to-slate-700 rounded-xl p-6 text-center">
+ <div className="bg-neutral-900 rounded-xl p-6 text-center">
    <h3 className="text-xl font-bold text-white mb-2">카페 창업, 빈크래프트와 함께하세요</h3>
    <p className="text-neutral-700 mb-4">전문 컨설턴트가 상담해드립니다</p>
    <div className="flex justify-center gap-3">
@@ -37239,7 +37239,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  return (
  <div 
  key={realtor.id || idx} 
- className={`p-3 pl-8 border-b border-slate-800 cursor-pointer hover:bg-white ${isInRoute ? 'bg-teal-900/20' : isRegistered ? 'bg-green-900/20' : ''}`}
+ className={`p-3 pl-8 border-b border-slate-800 cursor-pointer hover:bg-white ${isInRoute ? 'bg-neutral-100' : isRegistered ? 'bg-green-900/20' : ''}`}
  onClick={() => setShowRealtorDetailModal({
  ...realtor,
  officeName,
@@ -37256,7 +37256,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="flex justify-between items-center">
  <div className="flex items-center gap-2 flex-wrap">
  <span className="font-bold text-neutral-900 text-sm">{officeName}</span>
- <span className="px-2 py-0.5 text-xs rounded-full bg-teal-900 text-teal-300 font-bold">{listingCount}건</span>
+ <span className="px-2 py-0.5 text-xs rounded-full bg-neutral-900 text-neutral-300 font-bold">{listingCount}건</span>
  {isInRoute && <span className="px-2 py-0.5 text-xs rounded-full bg-purple-900 text-purple-300">동선</span>}
  {isRegistered && <span className="px-2 py-0.5 text-xs rounded-full bg-green-900 text-green-300">방문</span>}
  {assignedManager ? (
@@ -37720,17 +37720,17 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {settingsTab === 'account' && (
  <div className="space-y-4">
  {/* 영업모드 시작 버튼 */}
- <div className="card p-4 bg-gradient-to-r from-emerald-900/50 to-teal-900/50 border border-emerald-500/30">
-   <h3 className="font-bold text-emerald-400 text-lg mb-2">영업모드</h3>
-   <p className="text-sm text-neutral-700 mb-4">고객 미팅 시 상권 분석 자료를 보여줄 수 있습니다. 영업모드에서는 관리 데이터가 노출되지 않습니다.</p>
+ <div className="card p-4 bg-white border border-neutral-200 rounded-xl">
+   <h3 className="font-bold text-neutral-900 text-lg mb-2">영업모드</h3>
+   <p className="text-sm text-neutral-500 mb-4">고객 미팅 시 상권 분석 자료를 보여줄 수 있습니다. 영업모드에서는 관리 데이터가 노출되지 않습니다.</p>
    <button
      type="button"
      onClick={startSalesMode}
-     className="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-bold rounded-xl transition-all transform hover:scale-[1.02] active:scale-[0.98] shadow-lg"
+     className="w-full py-4 bg-neutral-900 hover:bg-neutral-800 text-white font-bold rounded-xl transition-all"
    >
      영업모드 시작
    </button>
-   <p className="text-xs text-neutral-500 mt-3">※ PIN: 1004 / 1분 무활동 시 자동 잠금 / 5분 후 자동 종료</p>
+   <p className="text-xs text-neutral-400 mt-3">※ PIN: 1004 / 1분 무활동 시 자동 잠금 / 5분 후 자동 종료</p>
  </div>
 
  {/* 비밀번호 변경 */}
@@ -37739,7 +37739,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="space-y-3">
  <input type="password" placeholder="새 비밀번호" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="input-premium" />
  <input type="password" placeholder="비밀번호 확인" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="input-premium" />
- <button type="button" onClick={isAdmin ? changeAdminPassword : changePassword} className="btn-premium btn-gold w-full">비밀번호 변경</button>
+ <button type="button" onClick={isAdmin ? changeAdminPassword : changePassword} className="bg-neutral-900 text-white rounded-lg w-full">비밀번호 변경</button>
  </div>
  <p className="text-xs text-neutral-500 mt-3">※ 비밀번호는 4자 이상이어야 합니다. {isAdmin ? '(관리자 계정)' : ''}</p>
  </div>
@@ -37767,7 +37767,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  alert('재등록 표시가 모두 삭제되었습니다.');
  }
  }}
- className="btn-premium bg-rose-600 hover:bg-rose-700 text-white w-full"
+ className="bg-rose-600 hover:bg-rose-700 text-white w-full"
  >재등록 표시 일괄 삭제</button>
  <p className="text-xs text-neutral-500 mt-2">※ 매월 초에 실행하면 지난달 재등록 업체들이 정상 집계됩니다.</p>
  </div>
@@ -37779,7 +37779,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {pendingRequests.map(r => (
  <div key={r.id} className="flex items-center justify-between p-4 bg-rose-900/30 rounded-xl">
  <div><p className="font-bold text-neutral-800">{r.managerName}</p><p className="text-sm text-neutral-800">{r.items?.join(', ')}</p></div>
- <button type="button" onClick={() => confirmRequest(r.id)} className="btn-premium btn-gold text-sm">확인</button>
+ <button type="button" onClick={() => confirmRequest(r.id)} className="bg-neutral-900 text-white rounded-lg text-sm">확인</button>
  </div>
  ))}
  </div>
@@ -37826,8 +37826,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <input type="date" value={showPinModal.date || ''} onChange={e => { updatePinDate(showPinModal.id, e.target.value); setShowPinModal({ ...showPinModal, date: e.target.value }); }} className="input-premium" />
  </div>
  <div className="flex gap-2">
- <button type="button" onClick={() => setShowPinModal(null)} className="btn-premium btn-outline flex-1">확인</button>
- {canDeletePin(showPinModal) && <button type="button" onClick={() => deletePin(showPinModal.id)} className="btn-premium bg-rose-500 text-white flex-1">삭제</button>}
+ <button type="button" onClick={() => setShowPinModal(null)} className="bg-white border border-neutral-200 text-neutral-900 rounded-lg flex-1">확인</button>
+ {canDeletePin(showPinModal) && <button type="button" onClick={() => deletePin(showPinModal.id)} className="bg-rose-500 text-white flex-1">삭제</button>}
  </div>
  </div>
  </div>
@@ -37844,8 +37844,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <p className="font-bold text-neutral-900 text-lg mb-1">{showRealtorDetailModal.officeName}</p>
  <p className="text-sm text-neutral-500">{showRealtorDetailModal.address || '주소 없음'}</p>
  <div className="flex gap-2 mt-2">
- <span className="px-2 py-0.5 text-xs rounded-full bg-teal-100 text-teal-700 font-bold">{showRealtorDetailModal.listingCount}건</span>
- {showRealtorDetailModal.isInRoute && <span className="px-2 py-0.5 text-xs rounded-full bg-teal-900/300 text-white">동선</span>}
+ <span className="px-2 py-0.5 text-xs rounded-full bg-neutral-100 text-neutral-700 font-bold">{showRealtorDetailModal.listingCount}건</span>
+ {showRealtorDetailModal.isInRoute && <span className="px-2 py-0.5 text-xs rounded-full bg-neutral-900 text-white">동선</span>}
  {showRealtorDetailModal.isRegistered && <span className="px-2 py-0.5 text-xs rounded-full bg-green-500 text-white">방문</span>}
  </div>
  </div>
@@ -37950,7 +37950,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  } else {
  addStop(null, null);
  }
- }} className="btn-premium btn-gold text-sm flex-1">+ 동선 추가</button>
+ }} className="bg-neutral-900 text-white rounded-lg text-sm flex-1">+ 동선 추가</button>
  )}
  {!showRealtorDetailModal.isRegistered && (
  <button type="button" onClick={() => {
@@ -37965,7 +37965,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  });
  setShowRealtorDetailModal(null);
  setTab('companies');
- }} className="btn-premium btn-navy text-sm flex-1">업체 등록</button>
+ }} className="bg-neutral-900 text-white rounded-lg text-sm flex-1">업체 등록</button>
  )}
  </div>
  </div>
@@ -38032,11 +38032,11 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  setShowCompanyEditModal({ ...showCompanyMapModal });
  setShowCompanyMapModal(null);
  }}
- className="btn-premium btn-gold flex-1"
+ className="bg-neutral-900 text-white rounded-lg flex-1"
  >
  수정
  </button>
- <button type="button" onClick={() => setShowCompanyMapModal(null)} className="btn-premium btn-outline flex-1">닫기</button>
+ <button type="button" onClick={() => setShowCompanyMapModal(null)} className="bg-white border border-neutral-200 text-neutral-900 rounded-lg flex-1">닫기</button>
  </div>
  </div>
  </div>
@@ -38054,8 +38054,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  ))}
  </div>
  <div className="flex gap-2">
- <button type="button" onClick={() => setShowPromoRequestModal(null)} className="btn-premium btn-outline flex-1">취소</button>
- <button type="button" onClick={submitPromoRequest} className="btn-premium btn-gold flex-1">요청 보내기</button>
+ <button type="button" onClick={() => setShowPromoRequestModal(null)} className="bg-white border border-neutral-200 text-neutral-900 rounded-lg flex-1">취소</button>
+ <button type="button" onClick={submitPromoRequest} className="bg-neutral-900 text-white rounded-lg flex-1">요청 보내기</button>
  </div>
  </div>
  </div>
@@ -38085,8 +38085,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  </div>
  <div className="flex gap-2 mt-4">
- <button type="button" onClick={() => setShowCompanyEditModal(null)} className="btn-premium btn-outline flex-1">취소</button>
- <button type="button" onClick={updateCompany} className="btn-premium btn-gold flex-1">완료</button>
+ <button type="button" onClick={() => setShowCompanyEditModal(null)} className="bg-white border border-neutral-200 text-neutral-900 rounded-lg flex-1">취소</button>
+ <button type="button" onClick={updateCompany} className="bg-neutral-900 text-white rounded-lg flex-1">완료</button>
  </div>
  </div>
  </div>
@@ -38117,7 +38117,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </button>
  <button
  onClick={() => setShowCustomerEditModal({ ...showCustomerEditModal, status: 'contract' })}
- className={`px-4 py-2 rounded-full text-sm font-bold ${showCustomerEditModal.status === 'contract' ? 'bg-neutral-900 text-white' : 'bg-emerald-100 text-emerald-600'}`}
+ className={`px-4 py-2 rounded-full text-sm font-bold ${showCustomerEditModal.status === 'contract' ? 'bg-neutral-900 text-white' : 'bg-neutral-100 text-neutral-600'}`}
  >
  계약
  </button>
@@ -38131,8 +38131,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  />
  </div>
  <div className="flex gap-2 mt-4">
- <button type="button" onClick={() => setShowCustomerEditModal(null)} className="btn-premium btn-outline flex-1">취소</button>
- <button type="button" onClick={updateCustomer} className="btn-premium btn-navy flex-1">완료</button>
+ <button type="button" onClick={() => setShowCustomerEditModal(null)} className="bg-white border border-neutral-200 text-neutral-900 rounded-lg flex-1">취소</button>
+ <button type="button" onClick={updateCustomer} className="bg-neutral-900 text-white rounded-lg flex-1">완료</button>
  </div>
  </div>
  </div>
@@ -38161,8 +38161,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  {selectedPinsForEdit.length > 0 && (
  <div className="flex gap-2">
- {showPinEditModal.status === 'planned' && <button type="button" onClick={confirmSelectedPins} className="btn-premium btn-gold flex-1">확정으로 변경</button>}
- <button type="button" onClick={deleteSelectedPins} className="btn-premium bg-rose-500 text-white flex-1">삭제</button>
+ {showPinEditModal.status === 'planned' && <button type="button" onClick={confirmSelectedPins} className="bg-neutral-900 text-white rounded-lg flex-1">확정으로 변경</button>}
+ <button type="button" onClick={deleteSelectedPins} className="bg-rose-500 text-white flex-1">삭제</button>
  </div>
  )}
  </div>
@@ -38197,7 +38197,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="space-y-3">
  <input type="password" placeholder="새 비밀번호" value={adminNewPw} onChange={e => setAdminNewPw(e.target.value)} className="input-premium" />
  <input type="password" placeholder="비밀번호 확인" value={adminConfirmPw} onChange={e => setAdminConfirmPw(e.target.value)} className="input-premium" />
- <button type="button" onClick={changeAdminPassword} className="btn-premium btn-gold w-full">변경</button>
+ <button type="button" onClick={changeAdminPassword} className="bg-neutral-900 text-white rounded-lg w-full">변경</button>
  </div>
  </div>
  </div>
@@ -38209,10 +38209,10 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <h3 className="font-bold text-neutral-900 text-lg">클라우드 동기화</h3>
  <button type="button" onClick={() => setShowHistory(false)} className="text-neutral-800 text-2xl">×</button>
  </div>
- <div className="bg-emerald-900/30 p-4 rounded-xl">
- <p className="text-emerald-700 font-bold mb-2">실시간 동기화 활성화</p>
- <p className="text-emerald-600 text-sm">모든 기기에서 같은 데이터를 볼 수 있습니다.</p>
- <p className="text-emerald-600 text-sm mt-2">PC, 모바일, 태블릿 어디서든 자동 동기화됩니다.</p>
+ <div className="bg-neutral-200 p-4 rounded-xl">
+ <p className="text-neutral-700 font-bold mb-2">실시간 동기화 활성화</p>
+ <p className="text-neutral-600 text-sm">모든 기기에서 같은 데이터를 볼 수 있습니다.</p>
+ <p className="text-neutral-600 text-sm mt-2">PC, 모바일, 태블릿 어디서든 자동 동기화됩니다.</p>
  </div>
  </div>
  </div>
@@ -38266,7 +38266,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  );
  })()}
  </div>
- <button type="button" onClick={() => setShowSaleEditModal(null)} className="btn-premium btn-outline w-full mt-4">닫기</button>
+ <button type="button" onClick={() => setShowSaleEditModal(null)} className="bg-white border border-neutral-200 text-neutral-900 rounded-lg w-full mt-4">닫기</button>
  </div>
  </div>
  )}
@@ -38284,7 +38284,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </select>
  <input type="number" placeholder="금액 *" value={saleForm.amount} onChange={e => setSaleForm({ ...saleForm, amount: e.target.value })} className="input-premium" />
  <input type="date" value={saleForm.date} onChange={e => setSaleForm({ ...saleForm, date: e.target.value })} className="input-premium" />
- <button type="button" onClick={handleSaveSale} className="btn-premium btn-gold w-full">등록</button>
+ <button type="button" onClick={handleSaveSale} className="bg-neutral-900 text-white rounded-lg w-full">등록</button>
  </div>
  </div>
  </div>
@@ -38299,7 +38299,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="space-y-3">
  <input type="password" placeholder="새 비밀번호" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="input-premium" />
  <input type="password" placeholder="비밀번호 확인" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="input-premium" />
- <button type="button" onClick={changePassword} className="btn-premium btn-gold w-full">변경</button>
+ <button type="button" onClick={changePassword} className="bg-neutral-900 text-white rounded-lg w-full">변경</button>
  </div>
  </div>
  </div>
@@ -38326,7 +38326,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <button key={key} onClick={() => setBulkAddReaction(key)} className={`px-3 py-1.5 rounded-full text-xs text-white font-bold ${bulkAddReaction === key ? 'ring-2 ring-offset-1' : 'opacity-50'}`} style={{ background: val.bg }}>{val.label}</button>
  ))}
  </div>
- <button type="button" onClick={parseBulkText} className="btn-premium btn-navy w-full">일괄 등록</button>
+ <button type="button" onClick={parseBulkText} className="bg-neutral-900 text-white rounded-lg w-full">일괄 등록</button>
  </div>
  </div>
  )}
@@ -38377,7 +38377,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  setShowOcrModal(false);
  setOcrResult(null);
  }}
- className="flex-1 btn-premium btn-gold"
+ className="flex-1 bg-neutral-900 text-white rounded-lg"
  >
  업체 등록
  </button>
@@ -38494,7 +38494,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {bulkOcrResults.length > 0 && (
  <button
  onClick={saveBulkOcrCompanies}
- className="btn-premium btn-gold w-full"
+ className="bg-neutral-900 text-white rounded-lg w-full"
  >
  {bulkOcrResults.filter(r => r.name).length}개 업체 등록
  </button>
@@ -38508,7 +38508,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[1200] p-4">
  <div className="bg-neutral-100 rounded-2xl p-5 w-full max-w-md shadow-2xl">
  <div className="text-center mb-4">
- <div className="w-16 h-16 bg-gradient-to-r from-teal-500 to-cyan-600 rounded-full flex items-center justify-center mx-auto mb-3">
+ <div className="w-16 h-16 bg-gradient-to-r from-neutral-700 to-neutral-800 rounded-full flex items-center justify-center mx-auto mb-3">
  <span className="text-3xl"></span>
  </div>
  <h3 className="font-bold text-neutral-900 text-xl">스케줄 작성 안내</h3>
@@ -38526,7 +38526,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  <button
  onClick={() => setShowScheduleAlert(false)}
- className="btn-premium btn-gold w-full"
+ className="bg-neutral-900 text-white rounded-lg w-full"
  >
  확인
  </button>
@@ -38629,7 +38629,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[1100] p-4">
  <div className="bg-neutral-100 rounded-2xl p-5 w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
  <div className="text-center mb-4">
- <div className="w-16 h-16 bg-gradient-to-r from-teal-500 to-cyan-600 rounded-full flex items-center justify-center mx-auto mb-3">
+ <div className="w-16 h-16 bg-gradient-to-r from-neutral-700 to-neutral-800 rounded-full flex items-center justify-center mx-auto mb-3">
  <span className="text-3xl"></span>
  </div>
  <h3 className="font-bold text-neutral-900 text-xl">오늘의 일정 알림</h3>
@@ -38661,13 +38661,13 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  setShowTodayAlert(false);
  setTab('calendar');
  }}
- className="flex-1 btn-premium btn-gold"
+ className="flex-1 bg-neutral-900 text-white rounded-lg"
  >
  캘린더 확인하기
  </button>
  <button
  onClick={() => setShowTodayAlert(false)}
- className="flex-1 btn-premium btn-outline"
+ className="flex-1 bg-white border border-neutral-200 text-neutral-900 rounded-lg"
  >
  닫기
  </button>
@@ -38848,10 +38848,10 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  setCalendarEventInput({ title: '', time: '09:00', memo: '' });
  setEditingEventId(null);
  }}
- className="btn-premium btn-outline flex-1"
+ className="bg-white border border-neutral-200 text-neutral-900 rounded-lg flex-1"
  >새로 작성</button>
  )}
- <button type="button" onClick={() => setShowCalendarModal(false)} className="btn-premium btn-outline flex-1">취소</button>
+ <button type="button" onClick={() => setShowCalendarModal(false)} className="bg-white border border-neutral-200 text-neutral-900 rounded-lg flex-1">취소</button>
  <button
  onClick={() => {
  if (!calendarEventInput.title.trim()) return alert('일정 제목을 입력하세요');
@@ -38870,7 +38870,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  setEditingEventId(null);
  alert(editingEventId ? '일정이 수정되었습니다!' : '일정이 추가되었습니다!');
  }}
- className="btn-premium btn-gold flex-1"
+ className="bg-neutral-900 text-white rounded-lg flex-1"
  >{editingEventId ? '수정' : '추가'}</button>
  </div>
  <div className="mt-4 pt-4 border-t border-neutral-200">
@@ -38909,14 +38909,14 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <span className="text-sm font-bold text-neutral-800">{completedCount}/{totalCount} ({percent}%)</span>
  </div>
  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
- <div className="h-full bg-gradient-to-r from-teal-500 to-cyan-500 transition-all duration-300" style={{ width: `${percent}%` }}></div>
+ <div className="h-full bg-gradient-to-r from-neutral-700 to-neutral-700 transition-all duration-300" style={{ width: `${percent}%` }}></div>
  </div>
  </div>
  );
  })()}
  <div className="space-y-2 mb-4 max-h-64 overflow-y-auto">
  {(selectedSchedule.stops || []).map((stop, idx) => (
- <div key={stop.id} className={`flex items-start gap-3 p-3 rounded-lg transition-all ${stop.visited ? 'bg-emerald-900/30' : 'bg-neutral-100'}`}>
+ <div key={stop.id} className={`flex items-start gap-3 p-3 rounded-lg transition-all ${stop.visited ? 'bg-neutral-200' : 'bg-neutral-100'}`}>
  <button
  onClick={() => toggleStopVisited(selectedSchedule.id, stop.id)}
  className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm transition-all flex-shrink-0 ${stop.visited ? 'bg-neutral-900 text-white' : 'bg-neutral-200 border-2 border-neutral-200 text-neutral-800 hover:border-primary-400'}`}
@@ -38924,7 +38924,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {stop.visited ? '' : idx + 1}
  </button>
  <div className="flex-1 min-w-0">
- <p className={`font-bold text-sm break-words leading-snug ${stop.visited ? 'text-emerald-700' : 'text-neutral-900'}`}>{stop.name}</p>
+ <p className={`font-bold text-sm break-words leading-snug ${stop.visited ? 'text-neutral-700' : 'text-neutral-900'}`}>{stop.name}</p>
  {stop.address && <p className="text-xs text-neutral-800 break-words">{stop.address}</p>}
  </div>
  {stop.lat && stop.lng && (
@@ -38934,11 +38934,11 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  ))}
  </div>
  <div className="space-y-2">
- <button type="button" onClick={() => { setSelectedSchedule(null); viewSavedRouteOnMap(selectedSchedule); }} className="w-full btn-premium btn-outline py-2">
+ <button type="button" onClick={() => { setSelectedSchedule(null); viewSavedRouteOnMap(selectedSchedule); }} className="w-full bg-white border border-neutral-200 text-neutral-900 rounded-lg py-2">
  전체 경로 지도에서 보기
  </button>
  {selectedSchedule.status !== 'completed' && (
- <button type="button" onClick={() => completeAllStops(selectedSchedule.id)} className="w-full btn-premium btn-gold py-3 font-bold">
+ <button type="button" onClick={() => completeAllStops(selectedSchedule.id)} className="w-full bg-neutral-900 text-white rounded-lg py-3 font-bold">
  방문 완료 (확정으로 이동)
  </button>
  )}
@@ -38989,7 +38989,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  />
  </div>
  <div className="flex gap-2 mt-4">
- <button type="button" onClick={() => { setShowMentModal(false); setMentForm({ name: '', content: '', type: 'broker', memo: '' }); }} className="flex-1 btn-premium btn-outline">취소</button>
+ <button type="button" onClick={() => { setShowMentModal(false); setMentForm({ name: '', content: '', type: 'broker', memo: '' }); }} className="flex-1 bg-white border border-neutral-200 text-neutral-900 rounded-lg">취소</button>
  <button 
  onClick={() => {
  if (!mentForm.name.trim() || !mentForm.content.trim()) return alert('멘트 이름과 내용을 입력하세요');
@@ -39009,7 +39009,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  setEditingMent(null);
  setMentForm({ name: '', content: '', type: 'broker', memo: '' });
  }}
- className="flex-1 btn-premium btn-gold"
+ className="flex-1 bg-neutral-900 text-white rounded-lg"
  >{editingMent ? '수정 완료' : '추가하기'}</button>
  </div>
  </div>
@@ -39074,7 +39074,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  setFeedbackInput('');
  setFeedbackQuestion('');
  }}
- className="w-full btn-premium btn-gold"
+ className="w-full bg-neutral-900 text-white rounded-lg"
  >AI에게 피드백 받기</button>
 
  {/* 최근 피드백 히스토리 */}
