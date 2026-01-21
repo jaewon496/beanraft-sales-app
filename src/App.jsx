@@ -559,7 +559,7 @@ const GEMINI_API_KEY = 'AIzaSyAl0PfvfKlD-nZxtAJOC6qhME-A-V_u2L8';
  // 빈크래프트 자동 수집 - 확장프로그램 ID
  // 확장프로그램 통신은 postMessage 방식 사용 (ID 불필요)
  const App = () => {
- // ✅ 앱 실행 시 구버전 서비스 워커 강제 삭제 및 캐시 정리
+ //  앱 실행 시 구버전 서비스 워커 강제 삭제 및 캐시 정리
  useEffect(() => {
    if ('serviceWorker' in navigator) {
      navigator.serviceWorker.getRegistrations().then((registrations) => {
@@ -696,7 +696,7 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
    setSalesModeLastActivity(Date.now());
  };
 
- // 영업모드 종료
+ // 영업관리로 돌아가기
  const exitSalesMode = () => {
    setSalesModeActive(false);
    setSalesModeScreen('select');
@@ -921,12 +921,48 @@ JSON 형식으로만 응답하세요:
        }
      );
 
+     // HTTP 에러 처리
+     if (!response.ok) {
+       const errorMsg = response.status === 429 ? 'API 요청 제한에 도달했습니다. 잠시 후 다시 시도해주세요.' :
+                        response.status === 400 ? 'API 키가 유효하지 않습니다.' :
+                        response.status === 403 ? 'API 키 권한이 없습니다.' :
+                        `서버 오류가 발생했습니다. (코드: ${response.status})`;
+       setSalesModeSearchResult({ success: false, error: errorMsg, query });
+       setSalesModeSearchLoading(false);
+       return;
+     }
+
      const result = await response.json();
+     
+     // API 응답 에러 확인
+     if (result.error) {
+       console.error('Gemini API Error:', result.error);
+       setSalesModeSearchResult({ success: false, error: `API 오류: ${result.error.message || '알 수 없는 오류'}`, query });
+       setSalesModeSearchLoading(false);
+       return;
+     }
+     
      let text = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
+     
+     if (!text) {
+       setSalesModeSearchResult({ success: false, error: 'AI 응답이 비어있습니다. 다시 시도해주세요.', query });
+       setSalesModeSearchLoading(false);
+       return;
+     }
+     
+     // 마크다운 코드 블록 제거
      text = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
      
+     // JSON 추출 시도
+     const jsonMatch = text.match(/\{[\s\S]*\}/);
+     if (!jsonMatch) {
+       setSalesModeSearchResult({ success: false, error: 'AI 응답 형식 오류', query });
+       setSalesModeSearchLoading(false);
+       return;
+     }
+     
      try {
-       const data = JSON.parse(text);
+       const data = JSON.parse(jsonMatch[0]);
        // 좌표 정보 추가
        if (coordinates) {
          data.coordinates = coordinates;
@@ -934,12 +970,13 @@ JSON 형식으로만 응답하세요:
        // 원본 API 데이터 첨부 (출처 표시용)
        data.rawApiData = hasApiData ? collectedData.apis : null;
        setSalesModeSearchResult({ success: true, data, query, hasApiData });
-     } catch (e) {
-       setSalesModeSearchResult({ success: false, error: 'AI 응답 파싱 실패', query });
+     } catch (parseError) {
+       console.error('JSON Parse Error:', parseError, 'Text:', text.substring(0, 200));
+       setSalesModeSearchResult({ success: false, error: 'AI 응답 파싱 실패. 다시 검색해주세요.', query });
      }
    } catch (error) {
      console.error('영업모드 검색 에러:', error);
-     setSalesModeSearchResult({ success: false, error: error.message, query });
+     setSalesModeSearchResult({ success: false, error: `네트워크 오류: ${error.message}`, query });
    } finally {
      setSalesModeSearchLoading(false);
    }
@@ -1358,6 +1395,64 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
    setAiKeywordLoading(false);
  };
 
+ // AI 멘트 피드백 함수 - Gemini API 연동
+ const callGeminiFeedback = async (original, modified, question) => {
+   try {
+     const prompt = `당신은 영업 멘트 코치입니다. 카페 창업 컨설팅 영업사원이 사용하는 멘트를 분석해주세요.
+
+[기존 멘트]
+${original}
+
+[수정한 멘트]
+${modified}
+
+[질문]
+${question}
+
+다음 형식으로 간결하게 답변해주세요:
+1. 수정 평가 (1-2문장)
+2. 장점 (bullet 2개)
+3. 개선제안 (bullet 1-2개)
+4. 실전 팁 (1문장)`;
+
+     const response = await fetch(
+       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+       {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({
+           contents: [{ parts: [{ text: prompt }] }],
+           generationConfig: { temperature: 0.7, maxOutputTokens: 500 }
+         })
+       }
+     );
+
+     if (!response.ok) {
+       const errorMsg = response.status === 429 ? 'API 요청 제한에 도달했습니다. 잠시 후 다시 시도해주세요.' :
+                        response.status === 400 ? 'API 키가 유효하지 않습니다.' :
+                        response.status === 403 ? 'API 키 권한이 없습니다.' :
+                        `서버 오류 (코드: ${response.status})`;
+       return { success: false, error: errorMsg };
+     }
+
+     const data = await response.json();
+     
+     if (data.error) {
+       return { success: false, error: `API 오류: ${data.error.message}` };
+     }
+
+     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+     if (!text) {
+       return { success: false, error: 'AI 응답이 비어있습니다.' };
+     }
+
+     return { success: true, response: text };
+   } catch (e) {
+     console.error('AI Feedback Error:', e);
+     return { success: false, error: `네트워크 오류: ${e.message || '연결을 확인해주세요.'}` };
+   }
+ };
+
  const [showCostCompareModal, setShowCostCompareModal] = useState(false); // 비용 비교 상세 모달
  // 지역 비교 기능
  const [compareRegions, setCompareRegions] = useState([]); // 비교할 지역 목록
@@ -1547,37 +1642,37 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  const localSales = getLocalData('sales');
  const localRequests = getLocalData('requests');
  if (localManagers && localManagers.length > 0) {
- console.log('📦 managers 마이그레이션:', localManagers.length);
+ console.log('managers 마이그레이션:', localManagers.length);
  for (const m of localManagers) {
  await database.ref('managers/' + m.id).set(m);
  }
  }
  if (localPins && localPins.length > 0) {
- console.log('📦 pins 마이그레이션:', localPins.length);
+ console.log('pins 마이그레이션:', localPins.length);
  for (const p of localPins) {
  await database.ref('pins/' + p.id).set(p);
  }
  }
  if (localCompanies && localCompanies.length > 0) {
- console.log('📦 companies 마이그레이션:', localCompanies.length);
+ console.log('companies 마이그레이션:', localCompanies.length);
  for (const c of localCompanies) {
  await database.ref('companies/' + c.id).set(c);
  }
  }
  if (localCustomers && localCustomers.length > 0) {
- console.log('📦 customers 마이그레이션:', localCustomers.length);
+ console.log('customers 마이그레이션:', localCustomers.length);
  for (const c of localCustomers) {
  await database.ref('customers/' + c.id).set(c);
  }
  }
  if (localSales && localSales.length > 0) {
- console.log('📦 sales 마이그레이션:', localSales.length);
+ console.log('sales 마이그레이션:', localSales.length);
  for (const s of localSales) {
  await database.ref('sales/' + s.id).set(s);
  }
  }
  if (localRequests && localRequests.length > 0) {
- console.log('📦 requests 마이그레이션:', localRequests.length);
+ console.log('requests 마이그레이션:', localRequests.length);
  for (const r of localRequests) {
  await database.ref('requests/' + r.id).set(r);
  }
@@ -31705,14 +31800,14 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  drawDirectionsRoute(directionsData);
  const distKm = (directionsData.distance / 1000).toFixed(1);
  const durMin = Math.round(directionsData.duration / 60000);
- alert(`동선 최적화 완료!\n\n총 ${optimized.length}개 경유지\n🚗 실제 도로거리: ${distKm}km\n⏱️ 예상 소요시간: ${durMin}분\n\n파란 선을 따라 이동하세요!`);
+ alert(`동선 최적화 완료!\n\n총 ${optimized.length}개 경유지\n 실제 도로거리: ${distKm}km\n⏱️ 예상 소요시간: ${durMin}분\n\n파란 선을 따라 이동하세요!`);
  } else {
  let totalDist = getDistance(myLat, myLng, optimized[0].lat, optimized[0].lng);
  for (let i = 0; i < optimized.length - 1; i++) {
  totalDist += getDistance(optimized[i].lat, optimized[i].lng, optimized[i+1].lat, optimized[i+1].lng);
  }
  setRouteInfo(null);
- alert(`동선 최적화 완료!\n\n총 ${optimized.length}개 경유지\n🚗 직선거리: ${totalDist.toFixed(1)}km\n\n실제 도로 경로를 보려면 설정에서 API 키를 입력하세요.`);
+ alert(`동선 최적화 완료!\n\n총 ${optimized.length}개 경유지\n 직선거리: ${totalDist.toFixed(1)}km\n\n실제 도로 경로를 보려면 설정에서 API 키를 입력하세요.`);
  }
  },
  (error) => {
@@ -31742,14 +31837,14 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
  drawDirectionsRoute(directionsData);
  const distKm = (directionsData.distance / 1000).toFixed(1);
  const durMin = Math.round(directionsData.duration / 60000);
- alert(`동선 최적화 완료!\n\n총 ${optimized.length}개 경유지\n🚗 실제 도로거리: ${distKm}km\n⏱️ 예상 소요시간: ${durMin}분\n\n(GPS 사용 불가 - 첫 경유지 기준)`);
+ alert(`동선 최적화 완료!\n\n총 ${optimized.length}개 경유지\n 실제 도로거리: ${distKm}km\n⏱️ 예상 소요시간: ${durMin}분\n\n(GPS 사용 불가 - 첫 경유지 기준)`);
  } else {
  let totalDist = 0;
  for (let i = 0; i < optimized.length - 1; i++) {
  totalDist += getDistance(optimized[i].lat, optimized[i].lng, optimized[i+1].lat, optimized[i+1].lng);
  }
  setRouteInfo(null);
- alert(`동선 최적화 완료!\n\n총 ${optimized.length}개 경유지\n🚗 직선거리: ${totalDist.toFixed(1)}km\n\n(GPS 사용 불가 - 첫 경유지 기준)`);
+ alert(`동선 최적화 완료!\n\n총 ${optimized.length}개 경유지\n 직선거리: ${totalDist.toFixed(1)}km\n\n(GPS 사용 불가 - 첫 경유지 기준)`);
  }
  };
  const saveCurrentRoute = () => {
@@ -32575,12 +32670,11 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
    );
  }
  const tabs = [
- { key: 'sales', icon: '', label: '영업' },
  { key: 'report', icon: '', label: '보고서' },
  { key: 'calendar', icon: '', label: '캘린더' },
  { key: 'route', icon: '', label: '동선' },
  { key: 'map', icon: '', label: '지도' },
- { key: 'managers', icon: '👥', label: '영업팀' },
+ { key: 'managers', icon: '', label: '영업팀' },
  { key: 'companies', icon: '', label: '업체' },
  { key: 'realtors', icon: '', label: '중개사' },
  { key: 'customers', icon: '', label: '고객' },
@@ -32625,7 +32719,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
              onClick={exitSalesMode}
              className="mt-8 text-neutral-400 hover:text-neutral-600 text-sm"
            >
-             영업모드 종료
+             영업관리로 돌아가기
            </button>
          </div>
        )}
@@ -33056,7 +33150,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                            <p className="font-medium">
                              {salesModeSearchResult?.hasApiData 
                                ? '✓ 소상공인365 API 데이터 수집 성공' 
-                               : '⚠ API 데이터 수집 실패 - AI 자체 분석'}
+                               : 'API 데이터 수집 실패 - AI 자체 분석'}
                            </p>
                          </div>
                          <p>• 소상공인시장진흥공단 상가(상권)정보</p>
@@ -33091,143 +33185,13 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
              {/* 홈페이지 탭 */}
              {salesModeTab === 'homepage' && (
                <div className="h-[calc(100vh-120px)] flex flex-col">
-                 {/* 카테고리 메뉴 */}
-                 <div className="bg-white border-b border-neutral-100 p-3">
-                   <div className="flex gap-2 overflow-x-auto">
-                     <a 
-                       href="https://beancraft.co.kr" 
-                       target="_blank" 
-                       rel="noopener noreferrer"
-                       className="flex-shrink-0 px-4 py-2 bg-black text-white rounded-full text-sm font-medium"
-                       onClick={() => updateSalesModeActivity()}
-                     >
-                       홈
-                     </a>
-                     <a 
-                       href="https://beancraft.co.kr/consulting" 
-                       target="_blank" 
-                       rel="noopener noreferrer"
-                       className="flex-shrink-0 px-4 py-2 bg-neutral-100 text-neutral-700 rounded-full text-sm font-medium hover:bg-neutral-200"
-                       onClick={() => updateSalesModeActivity()}
-                     >
-                       창업안내
-                     </a>
-                     <a 
-                       href="https://beancraft.co.kr/interior" 
-                       target="_blank" 
-                       rel="noopener noreferrer"
-                       className="flex-shrink-0 px-4 py-2 bg-neutral-100 text-neutral-700 rounded-full text-sm font-medium hover:bg-neutral-200"
-                       onClick={() => updateSalesModeActivity()}
-                     >
-                       인테리어
-                     </a>
-                     <a 
-                       href="https://beancraft.co.kr/equipment" 
-                       target="_blank" 
-                       rel="noopener noreferrer"
-                       className="flex-shrink-0 px-4 py-2 bg-neutral-100 text-neutral-700 rounded-full text-sm font-medium hover:bg-neutral-200"
-                       onClick={() => updateSalesModeActivity()}
-                     >
-                       기기설치
-                     </a>
-                     <a 
-                       href="https://beancraft.co.kr/menu" 
-                       target="_blank" 
-                       rel="noopener noreferrer"
-                       className="flex-shrink-0 px-4 py-2 bg-neutral-100 text-neutral-700 rounded-full text-sm font-medium hover:bg-neutral-200"
-                       onClick={() => updateSalesModeActivity()}
-                     >
-                       메뉴개발
-                     </a>
-                     <a 
-                       href="https://beancraft.co.kr/support" 
-                       target="_blank" 
-                       rel="noopener noreferrer"
-                       className="flex-shrink-0 px-4 py-2 bg-neutral-100 text-neutral-700 rounded-full text-sm font-medium hover:bg-neutral-200"
-                       onClick={() => updateSalesModeActivity()}
-                     >
-                       사후지원
-                     </a>
-                   </div>
-                 </div>
-                 
-                 {/* iframe 또는 대체 콘텐츠 */}
-                 <div className="flex-1 relative">
-                   {!salesModeIframeError ? (
-                     <iframe
-                       src="https://beancraft.co.kr"
-                       className="w-full h-full border-0"
-                       title="빈크래프트 홈페이지"
-                       sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
-                       onLoad={(e) => {
-                         // iframe 로드 실패 감지
-                         try {
-                           const doc = e.target.contentDocument;
-                           if (!doc || doc.body.innerHTML === '') {
-                             setSalesModeIframeError(true);
-                           }
-                         } catch (err) {
-                           // CORS 에러 = iframe 차단
-                           setSalesModeIframeError(true);
-                         }
-                       }}
-                       onError={() => setSalesModeIframeError(true)}
-                     />
-                   ) : (
-                     // iframe 차단 시 대체 UI
-                     <div className="h-full flex flex-col items-center justify-center p-6 bg-neutral-50">
-                       <div className="text-center mb-8">
-                         <img src="logo.png" alt="BEANCRAFT" className="w-24 h-24 mx-auto mb-4 object-contain" onError={(e) => { e.target.style.display = 'none'; }} />
-                         <h2 className="text-xl font-bold text-black mb-2">빈크래프트</h2>
-                         <p className="text-neutral-500 text-sm">카페 창업 전문 컨설팅</p>
-                       </div>
-                       
-                       <div className="w-full max-w-sm space-y-3">
-                         <a 
-                           href="https://beancraft.co.kr" 
-                           target="_blank" 
-                           rel="noopener noreferrer"
-                           className="block w-full py-4 bg-black text-white rounded-xl font-medium text-center hover:bg-neutral-800 transition-all"
-                         >
-                           홈페이지 바로가기
-                         </a>
-                         <a 
-                           href="https://beancraft.co.kr/consulting" 
-                           target="_blank" 
-                           rel="noopener noreferrer"
-                           className="block w-full py-4 bg-white text-black border border-neutral-200 rounded-xl font-medium text-center hover:bg-neutral-50 transition-all"
-                         >
-                           창업 상담 신청
-                         </a>
-                         <a 
-                           href="tel:1588-0000" 
-                           className="block w-full py-4 bg-neutral-900 text-white rounded-xl font-medium text-center hover:bg-neutral-900 transition-all"
-                         >
-                           전화 상담 1588-0000
-                         </a>
-                       </div>
-                       
-                       <div className="mt-8 grid grid-cols-2 gap-4 w-full max-w-sm">
-                         <div className="p-4 bg-white rounded-xl border border-neutral-100 text-center">
-                           <p className="text-2xl font-bold text-black">0원</p>
-                           <p className="text-xs text-neutral-500 mt-1">가맹비</p>
-                         </div>
-                         <div className="p-4 bg-white rounded-xl border border-neutral-100 text-center">
-                           <p className="text-2xl font-bold text-black">0원</p>
-                           <p className="text-xs text-neutral-500 mt-1">로열티</p>
-                         </div>
-                         <div className="p-4 bg-white rounded-xl border border-neutral-100 text-center">
-                           <p className="text-2xl font-bold text-black">자유</p>
-                           <p className="text-xs text-neutral-500 mt-1">메뉴 구성</p>
-                         </div>
-                         <div className="p-4 bg-white rounded-xl border border-neutral-100 text-center">
-                           <p className="text-2xl font-bold text-black">자유</p>
-                           <p className="text-xs text-neutral-500 mt-1">인테리어</p>
-                         </div>
-                       </div>
-                     </div>
-                   )}
-                 </div>
+                 {/* iframe으로 홈페이지 직접 표시 */}
+                 <iframe
+                   src="https://beancraft.co.kr"
+                   className="w-full h-full border-0"
+                   title="빈크래프트 홈페이지"
+                   sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-top-navigation"
+                 />
                </div>
              )}
            </div>
@@ -33248,114 +33212,122 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  }
 
  // ═══════════════════════════════════════════════════════════════
- // 일반 모드 UI 렌더링
+ // 일반 모드 UI 렌더링 (사이드바 레이아웃)
  // ═══════════════════════════════════════════════════════════════
+ const [sidebarOpen, setSidebarOpen] = useState(false);
+ 
  return (
- <div className="min-h-screen pb-6 bg-neutral-50">
- <div className="bg-white border-b border-neutral-200 px-4 py-3 flex justify-between items-center sticky top-0 z-50 shadow-sm">
- <div className="flex items-center gap-2 sm:gap-3">
- <img src="data:image/webp;base64,UklGRr4EAABXRUJQVlA4WAoAAAAQAAAAPwAAPwAAQUxQSHACAAABkARJtmlbvfbe59k699m2bVvftm1rZNu2bdu2hrZ9vq+mbxARE4AabgmkV8QgQY8JPDI8JsSEQHoChnIP2EWAABDpnqElIS4Z8JUgG0H3CZ6egHOeBVylwNhwU1dZ6Bp5OoIMcz1h5+pq0jLKN9AcpFOAdTQDsjOgCglPSAcA0hIJzokEFwxMEEnR8c2zQiW5g7FTRTiLE/grF4JzwQXThPoxEguxSTfpaBdcCE8jmDk7WbkIaJ6gqtWyob15rWZtEuBby45lV/oX1ncXPr2nT7FIH9G4eVRoh/neLKlh6wZlTSqaJYLU4ahS1t05lazs39kRm5RBOPnV+dzBkrieP24+3XLjxXGlr8MZpTVOv9y2avk95UZ/cPXK33e8sC/y29TRseYPj1ywPPZj9Z5NlolvT+xcMvnGkXbvu1g9OX8c+y+NGIDIb7ZgUK/48/yFFws+zpsaWa7c/pF3eOW+97MdMj/u2LMu99DLF2+seyjPvltuerB8Jkv+6k6aqKWM3KQ0U+ZPqnX0esPHo3YtLlWO1Ouw9d2OTztvnghUelw+Xe9D7yOrAGQqHlCPwW/45Im58vCJ0xv3Ckfp4OnD4yY3twuXpm7dlNawS3yHcSM90aB+g2phCLehliC11BW2QdEqGYg3t6xCi8hAuNrAx0BAuySE4CSE4IJBAgDh4WFYK5bnFxilBDYIz7WH4JwDIKEZdYkB8EiNivSHU0Nj2Idnm0LHyc3Tu3ay5OdEBjk+AEJAOgZbb9klLtLSyRAx8SAeR9BHNzN4mZJcxSFUIF0jIgAkhwB1raGvBCK/0IhEFYj046+GEgygz4SabgFWUDggKAIAAFAMAJ0BKkAAQAA+kUSbSiWjoiGoCACwEglmAGfeUxQgPwpogPOK9AG8Abwx+5PpYuC+6BvgaQL3p0B+cX6Z9gPoNegx+ma0WlJLPs3Uq6HpBvu3yeQNnHXcLF7xMkOCHb7DYSjiFNKNcDIgAP78+FvR///1DBc+ORrUZzISuYmqOMLGOQ/zaUuKRTrF5Nm80r/X2D8lpeyCr0VQwyjiFS8DDfgE6JM3/kNY8uesZuvLeAgUWzW2/yTv2RX77/90+//MvU+3GHZ+wj7MMyxX/8Tnf/sBlAFR/wEVTP3poHuNCgOGRGdoxgHqJIukm4pn+zYgHieAatex072s5dd2+Lx/9DS/8T7XCBQrCGWMRlC/sf8CdIFFhER6nC5qFmw+O/O3U8s0uflu5GSfvuhDLLJ3gpdV80qfvHZqyqS8oWBZDTFAlndM0W+oe7H/9z2mihm/+kd8Jf+Pleu//Y8hsyT///T7XSVtjZprjyqVNxSxLioafMN77Sib2Ti40AuU3PY8GmXiY0US8I9G9DEJj8CoEDPzOdU7Qh/VRQDNleg/omm79j3+gUnP8V4sPPrddRMS0nCxuPAD4Ssvaf7lLlThPKhJA+Xm+Ah4ioajzkN+VIb8C73pZ1aotgCR5QL4o5qwD44BKG1RaUMJrwM27h8XLrQStXQ95pkw1SlgLxba/oWuIjtQ2N1aZt75fVZPEVPXXB8lNRc24F5hakDsw4Tep00AAAAAAA==" alt="BEANCRAFT" className="w-8 h-8 object-contain" />
- <span className="font-semibold text-neutral-900 text-sm tracking-wide">BEANCRAFT</span>
- </div>
- <div className="flex items-center gap-2 sm:gap-3">
- {isAdmin && pendingRequests.length > 0 && <span className="bg-rose-500 text-white text-xs px-2 py-1 rounded-full font-bold">{pendingRequests.length}</span>}
- <span className="text-sm text-neutral-700 bg-neutral-100 px-2 py-1 rounded-lg font-medium">{managers.find(m => m.id === user?.managerId)?.name || user?.name}</span>
- <button type="button" onClick={logout} className="text-neutral-500 hover:text-rose-500 text-sm font-medium transition-colors">나가기</button>
- </div>
- </div>
- <div className="bg-neutral-100 border-b border-neutral-200 tabs-container scrollbar-hide">
- <div className="flex justify-start sm:justify-center min-w-max px-2 gap-2 py-2">
- {tabs.map(t => (<button key={t.key} onClick={() => navigateToTab(t.key)} className={`px-4 py-2 text-sm font-medium rounded-lg transition-all whitespace-nowrap ${tab === t.key ? 'bg-white text-neutral-900 shadow-sm border border-neutral-200' : 'text-neutral-500 hover:text-neutral-900 hover:bg-white/50'}`}>{t.label}</button>))}
- </div>
- </div>
- {/* 오늘 연락할 곳 알림 배너 */}
- {todayContactAlert && (
- <div className="bg-neutral-900 px-4 py-3 flex items-center justify-between">
-   <div className="flex items-center gap-3">
-     <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
-       <span className="text-white text-lg">📞</span>
+ <div className="min-h-screen flex bg-neutral-50">
+ {/* 모바일 오버레이 */}
+ {sidebarOpen && <div className="fixed inset-0 bg-black/50 z-30 lg:hidden" onClick={() => setSidebarOpen(false)} />}
+ 
+ {/* 사이드바 */}
+ <aside className={`fixed lg:static inset-y-0 left-0 z-40 w-56 bg-neutral-900 transform transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+   <div className="p-5 border-b border-neutral-800">
+     <h1 className="text-lg font-bold text-white">BEANCRAFT</h1>
+     <p className="text-xs text-neutral-500 mt-0.5">영업관리 시스템</p>
+   </div>
+   
+   <div className="p-4 border-b border-neutral-800">
+     <div className="flex items-center gap-2">
+       <div className="w-8 h-8 bg-neutral-700 rounded-full flex items-center justify-center text-white text-sm font-bold">
+         {(managers.find(m => m.id === user?.managerId)?.name || user?.name || 'U').charAt(0)}
+       </div>
+       <div>
+         <p className="text-sm text-white font-medium">{managers.find(m => m.id === user?.managerId)?.name || user?.name}</p>
+         <p className="text-xs text-neutral-500">{isAdmin ? '관리자' : '영업담당'}</p>
+       </div>
      </div>
+   </div>
+
+   <nav className="p-3 space-y-0.5">
+     {tabs.map(t => (
+       <button 
+         key={t.key} 
+         onClick={() => { navigateToTab(t.key); setSidebarOpen(false); }} 
+         className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-left text-sm transition-all ${tab === t.key ? 'bg-white/10 text-white' : 'text-neutral-400 hover:bg-white/5 hover:text-white'}`}
+       >
+         <span>{t.label}</span>
+       </button>
+     ))}
+     
+     {/* 영업모드 버튼 */}
+     <button 
+       onClick={startSalesMode}
+       className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-left text-sm bg-white text-neutral-900 font-medium mt-4 hover:bg-neutral-100 transition-all"
+     >
+       <span>영업모드</span>
+     </button>
+   </nav>
+
+   <div className="absolute bottom-4 left-4 right-4">
+     <button 
+       onClick={logout} 
+       className="w-full px-3 py-2 text-sm text-neutral-500 hover:text-white transition-colors text-left"
+     >
+       로그아웃
+     </button>
+   </div>
+ </aside>
+
+ {/* 메인 콘텐츠 */}
+ <main className="flex-1 min-h-screen">
+   <header className="sticky top-0 bg-white/90 backdrop-blur border-b border-neutral-100 z-20">
+     <div className="flex items-center justify-between px-6 py-4">
+       <div className="flex items-center gap-4">
+         <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 hover:bg-neutral-100 rounded-lg">
+           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+         </button>
+         <div>
+           <h2 className="font-bold text-neutral-900">{tabs.find(t => t.key === tab)?.label || '보고서'}</h2>
+           <p className="text-xs text-neutral-400">{new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+         </div>
+       </div>
+       <div className="flex items-center gap-2">
+         {isAdmin && pendingRequests.length > 0 && <span className="bg-rose-500 text-white text-xs px-2 py-1 rounded-full font-bold">{pendingRequests.length}</span>}
+       </div>
+     </div>
+   </header>
+
+   {/* 알림 배너 영역 */}
+   {todayContactAlert && (
+   <div className="bg-white border-b border-neutral-200 px-6 py-3 flex items-center justify-between">
      <div>
-       <p className="text-white font-bold text-sm">오늘 연락할 곳 {todayContactAlert.count}곳</p>
-       <p className="text-white/80 text-xs">{todayContactAlert.preview}</p>
+       <p className="text-neutral-900 font-bold text-sm">오늘 연락할 곳 {todayContactAlert.count}곳</p>
+       <p className="text-neutral-500 text-xs">{todayContactAlert.preview}</p>
+     </div>
+     <div className="flex items-center gap-2">
+       <button onClick={() => { navigateToTab('calendar'); setTodayContactAlert(null); }} className="px-3 py-1.5 bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold rounded-lg">캘린더 보기</button>
+       <button onClick={() => setTodayContactAlert(null)} className="text-neutral-400 hover:text-neutral-900">✕</button>
      </div>
    </div>
-   <div className="flex items-center gap-2">
-     <button 
-       onClick={() => { navigateToTab('calendar'); setTodayContactAlert(null); }}
-       className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-bold rounded-lg transition-all"
-     >
-       캘린더 보기
-     </button>
-     <button 
-       onClick={() => setTodayContactAlert(null)}
-       className="w-6 h-6 flex items-center justify-center text-white/60 hover:text-white transition-colors"
-     >
-       ✕
-     </button>
-   </div>
- </div>
- )}
- {/* 미완료 동선 알림 배너 */}
- {incompleteRouteAlert && (
- <div className="bg-neutral-900 px-4 py-3 flex items-center justify-between">
-   <div className="flex items-center gap-3">
-     <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
-       <span className="text-white text-lg">⚠️</span>
-     </div>
+   )}
+   {incompleteRouteAlert && (
+   <div className="bg-white border-b border-neutral-200 px-6 py-3 flex items-center justify-between">
      <div>
-       <p className="text-white font-bold text-sm">미완료 동선 {incompleteRouteAlert.count}개</p>
-       <p className="text-white/80 text-xs">방문 체크가 완료되지 않은 동선이 있습니다</p>
+       <p className="text-neutral-900 font-bold text-sm">미완료 동선 {incompleteRouteAlert.count}개</p>
+       <p className="text-neutral-500 text-xs">방문 체크가 완료되지 않은 동선이 있습니다</p>
+     </div>
+     <div className="flex items-center gap-2">
+       <button onClick={() => { navigateToTab('calendar'); setIncompleteRouteAlert(null); }} className="px-3 py-1.5 bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold rounded-lg">확인하기</button>
+       <button onClick={() => setIncompleteRouteAlert(null)} className="text-neutral-400 hover:text-neutral-900">✕</button>
      </div>
    </div>
-   <div className="flex items-center gap-2">
-     <button 
-       onClick={() => { navigateToTab('calendar'); setIncompleteRouteAlert(null); }}
-       className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-bold rounded-lg transition-all"
-     >
-       확인하기
-     </button>
-     <button 
-       onClick={() => setIncompleteRouteAlert(null)}
-       className="w-6 h-6 flex items-center justify-center text-white/60 hover:text-white transition-colors"
-     >
-       ✕
-     </button>
-   </div>
- </div>
- )}
- {/* 주소 오류 알림 배너 (담당자 본인만) */}
- {addressIssueAlert && (
- <div className="bg-neutral-900 px-4 py-3 flex items-center justify-between">
-   <div className="flex items-center gap-3">
-     <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
-       <span className="text-white text-lg">📍</span>
-     </div>
+   )}
+   {addressIssueAlert && (
+   <div className="bg-white border-b border-neutral-200 px-6 py-3 flex items-center justify-between">
      <div>
-       <p className="text-white font-bold text-sm">주소 확인 필요 {addressIssueAlert.count}개</p>
-       <p className="text-white/80 text-xs">등록 업체 중 주소 오류가 있습니다</p>
+       <p className="text-neutral-900 font-bold text-sm">주소 확인 필요 {addressIssueAlert.count}개</p>
+       <p className="text-neutral-500 text-xs">등록 업체 중 주소 오류가 있습니다</p>
+     </div>
+     <div className="flex items-center gap-2">
+       <button onClick={() => alert(`[주소 수정 필요]\n\n${addressIssueAlert.companies.map((c, i) => `${i+1}. ${c.name}\n   현재: ${c.address || '없음'}\n   문제: ${c.issue}`).join('\n\n')}\n\n업체 탭에서 해당 업체 주소를 수정해주세요.`)} className="px-3 py-1.5 bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold rounded-lg">확인하기</button>
+       <button onClick={() => setAddressIssueAlert(null)} className="text-neutral-400 hover:text-neutral-900">✕</button>
      </div>
    </div>
-   <div className="flex items-center gap-2">
-     <button 
-       onClick={() => { 
-         const firstIssue = addressIssueAlert.companies[0];
-         alert(`[주소 수정 필요]\n\n${addressIssueAlert.companies.map((c, i) => `${i+1}. ${c.name}\n   현재: ${c.address || '없음'}\n   문제: ${c.issue}`).join('\n\n')}\n\n업체 탭에서 해당 업체 주소를 수정해주세요.`);
-       }}
-       className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-bold rounded-lg transition-all"
-     >
-       확인하기
-     </button>
-     <button 
-       onClick={() => setAddressIssueAlert(null)}
-       className="w-6 h-6 flex items-center justify-center text-white/60 hover:text-white transition-colors"
-     >
-       ✕
-     </button>
-   </div>
- </div>
- )}
- <div className="p-3 sm:p-4 max-w-6xl mx-auto">
+   )}
+
+   <div className="p-6">
  {tab === 'report' && (
  <div className="space-y-3 sm:space-y-4">
  {/* 보고서 헤더 */}
@@ -33675,7 +33647,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  ) : aiErrorMessage && !aiReportResult ? (
  <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/30">
- <p className="text-red-400 text-sm font-medium mb-2">⚠️ 분석 오류</p>
+ <p className="text-red-400 text-sm font-medium mb-2"> 분석 오류</p>
  <p className="text-neutral-700 text-sm">{aiErrorMessage}</p>
  <button 
    onClick={() => setAiErrorMessage(null)}
@@ -33878,7 +33850,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        {/* 연관 키워드 */}
        {aiKeywordResult.relatedTopics?.length > 0 && (
          <div className="pt-3 border-t border-neutral-200">
-           <p className="text-xs text-neutral-500 mb-2">🔗 연관 검색어</p>
+           <p className="text-xs text-neutral-500 mb-2">연관 검색어</p>
            <div className="flex flex-wrap gap-2">
              {aiKeywordResult.relatedTopics.map((topic, idx) => (
                <button
@@ -34255,7 +34227,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  ) : aiErrorMessage && !aiReportResult ? (
  <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/30">
-   <p className="text-red-400 text-sm font-medium mb-2">⚠️ 분석 오류</p>
+   <p className="text-red-400 text-sm font-medium mb-2"> 분석 오류</p>
    <p className="text-neutral-700 text-sm">{aiErrorMessage}</p>
    <button 
      onClick={() => setAiErrorMessage(null)}
@@ -34822,7 +34794,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {showTrendModal === 'differentiation' && (
  <div className="space-y-3 sm:space-y-4">
  <div className="p-4 rounded-lg border border-neutral-200/30 bg-transparent">
- <h4 className="text-emerald-400 font-semibold mb-2">🍰 차별화 요소</h4>
+ <h4 className="text-emerald-400 font-semibold mb-2">차별화 요소</h4>
  <ul className="text-sm text-neutral-700 space-y-2">
  <li>• 시그니처 메뉴 개발 (음료, 디저트)</li>
  <li>• 공간 컨셉 (인테리어, 포토존)</li>
@@ -34850,7 +34822,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </ul>
  </div>
  <div className="p-4 rounded-lg border border-neutral-200/30 bg-transparent">
- <h4 className="text-blue-400 font-semibold mb-2">📦 운영 고려사항</h4>
+ <h4 className="text-blue-400 font-semibold mb-2">운영 고려사항</h4>
  <ul className="text-sm text-neutral-700 space-y-2">
  <li>• 배달 적합 메뉴 선정 (아이스 음료 품질 관리)</li>
  <li>• 패키징 비용 계산</li>
@@ -35429,7 +35401,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="card p-3 sm:p-4">
  <div className="flex justify-between items-center mb-3">
  <p className="text-sm text-neutral-800 font-bold">
- {editingRouteId ? '🔧 동선 수정' : '일정 정보'}
+ {editingRouteId ? '동선 수정' : '일정 정보'}
  </p>
  {editingRouteId && (
  <span className="text-xs text-primary-600 bg-neutral-100 px-2 py-1 rounded">수정 중</span>
@@ -35915,7 +35887,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  disabled={(!routeSearchRegion && !routeSearchText) || !routeSearchTarget}
  className="w-full bg-neutral-900 text-white py-3 font-bold disabled:opacity-50"
  >
- 🚗 동선에 추가
+  동선에 추가
  </button>
  <p className="text-xs text-neutral-500">* 미방문 업체만, 매물 많은 순으로 추가됩니다</p>
  </div>
@@ -35925,7 +35897,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div>
  <p className="font-bold text-neutral-800">방문 순서 ({routeStops.length}곳)</p>
  {routeInfo && (
- <p className="text-xs text-primary-400 mt-1">🚗 {routeInfo.distance}km · ⏱️ {routeInfo.duration}분</p>
+ <p className="text-xs text-primary-400 mt-1"> {routeInfo.distance}km · ⏱️ {routeInfo.duration}분</p>
  )}
  </div>
  <div className="flex gap-2">
@@ -36177,16 +36149,16 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div>
  <div className="space-y-3 sm:space-y-4">
  <div className="card p-3 sm:p-4">
- <div className="bg-neutral-900 rounded-xl p-3 mb-4">
- <p className="text-amber-800 font-bold text-sm mb-2">지도 표시 현황</p>
+ <div className="bg-white border border-neutral-200 rounded-xl p-3 mb-4">
+ <p className="text-neutral-900 font-bold text-sm mb-2">지도 표시 현황</p>
  <div className="flex flex-wrap gap-3 text-sm">
- <span className="text-neutral-800">전체 업체: <b>{companies.length}</b></span>
- <span className="text-neutral-600">지도 표시: <b>{companies.filter(c => c.lat && c.lng).length}</b></span>
+ <span className="text-neutral-600">전체 업체: <b className="text-neutral-900">{companies.length}</b></span>
+ <span className="text-neutral-600">지도 표시: <b className="text-neutral-900">{companies.filter(c => c.lat && c.lng).length}</b></span>
  <span
- className="text-neutral-800 cursor-pointer hover:text-primary-600"
+ className="text-neutral-600 cursor-pointer hover:text-neutral-900"
  onClick={() => companies.filter(c => !c.lat || !c.lng).length > 0 && setShowUnmappedModal(true)}
  >
- 미표시: <b className="underline">{companies.filter(c => !c.lat || !c.lng).length}</b>
+ 미표시: <b className="text-neutral-900 underline">{companies.filter(c => !c.lat || !c.lng).length}</b>
  </span>
  </div>
  </div>
@@ -36200,24 +36172,24 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <option value="special">특별</option>
  <option value="positive">긍정</option>
  <option value="neutral">양호</option>
- <option value="negative">⚪ 부정</option>
+ <option value="negative">부정</option>
  <option value="missed">누락</option>
  </select>
  </div>
  <div className="flex gap-2">
  <input type="text" placeholder="장소/주소 검색 (예: 남영역, 강남구)" value={searchRegion} onChange={e => setSearchRegion(e.target.value)} onKeyPress={e => e.key === 'Enter' && searchOrHighlight()} className="input-premium flex-1 text-sm" />
- <button type="button" onClick={searchOrHighlight} className="bg-neutral-900 text-white rounded-lg text-sm"></button>
+ <button type="button" onClick={searchOrHighlight} className="px-4 py-2 bg-neutral-900 text-white rounded-lg text-sm">검색</button>
  </div>
  <div className="border-t border-neutral-200 mt-4 pt-4">
- <p className="text-sm text-neutral-800 mb-2 font-bold">🎨 핀 색상 안내</p>
+ <p className="text-sm text-neutral-900 mb-2 font-bold">핀 색상 안내</p>
  <div className="flex flex-wrap gap-2 text-xs">
- <span className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-rose-600 special-blink"></div> 특별</span>
+ <span className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-rose-600"></div> 특별</span>
  <span className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-neutral-900"></div> 긍정</span>
  <span className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-orange-400"></div> 양호</span>
  <span className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-gray-400"></div> 부정</span>
  <span className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-yellow-500"></div> 누락</span>
  </div>
- <p className="text-xs text-neutral-800 mt-2">핀을 클릭하면 업체 정보를 확인할 수 있습니다</p>
+ <p className="text-xs text-neutral-500 mt-2">핀을 클릭하면 업체 정보를 확인할 수 있습니다</p>
  </div>
  </div>
  <div className="card overflow-hidden"><div ref={mapRef} className="map-container"></div></div>
@@ -36330,7 +36302,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="space-y-1">
  {todayRoutes.map(r => (
  <div key={r.id} className="flex items-center gap-2 text-sm">
- <span className="text-primary-600">🚗</span>
+ <span className="text-primary-600"></span>
  <span className="text-amber-800">{r.time} - {r.name} ({r.stops?.length || 0}곳)</span>
  </div>
  ))}
@@ -36397,7 +36369,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {(weekEvents.length > 0 || weekRoutes.length > 0) && (
  <details className="mb-4">
  <summary className="bg-neutral-100 border border-primary-300 rounded-xl p-3 cursor-pointer">
- <span className="font-bold text-primary-600 text-sm">📆 이번 주 일정 ({weekEvents.length + weekRoutes.length})</span>
+ <span className="font-bold text-primary-600 text-sm">이번 주 일정 ({weekEvents.length + weekRoutes.length})</span>
  <span className="text-xs text-primary-600 ml-2">클릭하여 펼치기</span>
  </summary>
  <div className="mt-2 space-y-1 max-h-40 overflow-y-auto">
@@ -36405,7 +36377,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  .sort((a, b) => a.date.localeCompare(b.date) || (a.time || '').localeCompare(b.time || ''))
  .map((item, idx) => (
  <div key={idx} className="flex items-center gap-2 text-sm bg-neutral-100 p-2 rounded-lg border border-primary-200">
- <span className="text-primary-600">{item.type === 'route' ? '🚗' : ''}</span>
+ <span className="text-primary-600">{item.type === 'route' ? '' : ''}</span>
  <span className="text-xs text-blue-400 font-bold">{item.date.slice(5)}</span>
  <span className="text-blue-800 truncate">{item.time || ''} {item.type === 'route' ? item.name : item.title}</span>
  </div>
@@ -36415,9 +36387,9 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  )}
  <div className="mb-4">
  <div className="bg-neutral-100 rounded-xl p-3 mb-2">
- <span className="font-bold text-neutral-800 text-sm">📦 홍보물 수량</span>
+ <span className="font-bold text-neutral-800 text-sm">홍보물 수량</span>
  {canEdit && (
- <button type="button" onClick={() => { setShowPromoRequestModal(m); setPromoRequest({ '명함': false, '브로셔': false, '전단지': false, '쿠폰': false }); }} className="ml-3 px-3 py-1 bg-rose-500 rounded-lg font-bold text-xs text-white"><span className="blink-text">📦 요청</span></button>
+ <button type="button" onClick={() => { setShowPromoRequestModal(m); setPromoRequest({ '명함': false, '브로셔': false, '전단지': false, '쿠폰': false }); }} className="ml-3 px-3 py-1 bg-rose-500 rounded-lg font-bold text-xs text-white"><span className="blink-text">요청</span></button>
  )}
  </div>
  <div className="bg-neutral-100 rounded-xl p-4">
@@ -36725,7 +36697,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
      
      <div className="bg-gradient-to-br from-neutral-700/20 to-neutral-800/10 border border-neutral-300 rounded-xl p-4">
        <div className="flex items-center gap-3 mb-3">
-         <span className="text-3xl">🎨</span>
+         
          <div>
            <h4 className="font-bold text-emerald-400">인테리어</h4>
            <p className="text-xs text-neutral-500">맞춤형 매장 디자인</p>
@@ -36740,7 +36712,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
      
      <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-4">
        <div className="flex items-center gap-3 mb-3">
-         <span className="text-3xl">📚</span>
+         <span className="text-3xl"></span>
          <div>
            <h4 className="font-bold text-yellow-400">교육/레시피</h4>
            <p className="text-xs text-neutral-500">전문 바리스타 교육</p>
@@ -36755,7 +36727,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
      
      <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-4">
        <div className="flex items-center gap-3 mb-3">
-         <span className="text-3xl">🚚</span>
+         <span className="text-3xl"></span>
          <div>
            <h4 className="font-bold text-purple-400">원두/부자재</h4>
            <p className="text-xs text-neutral-500">공급가 직접 납품</p>
@@ -36859,13 +36831,13 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        rel="noopener noreferrer"
        className="px-6 py-3 bg-neutral-900 text-white rounded-lg font-bold hover:bg-neutral-800 transition-all"
      >
-       🌐 홈페이지
+        홈페이지
      </a>
      <a 
        href="tel:1533-4875" 
        className="px-6 py-3 bg-neutral-900 text-white rounded-lg font-bold hover:bg-neutral-800 transition-all"
      >
-       📞 1533-4875
+        1533-4875
      </a>
    </div>
  </div>
@@ -37174,7 +37146,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* 중개사 목록 */}
  {validRealtors.length === 0 ? (
  <div className="card p-8 text-center text-neutral-500">
- <p className="text-4xl mb-2">📭</p>
+ <p className="text-4xl mb-2"></p>
  <p>수집된 중개사가 없습니다</p>
  <p className="text-xs mt-2">Chrome 확장프로그램으로 네이버부동산에서 수집하세요</p>
  </div>
@@ -37251,7 +37223,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  return (
  <details key={city} className="card overflow-hidden" open={displayCities.length === 1}>
  <summary className="p-4 cursor-pointer hover:bg-neutral-100 flex justify-between items-center font-bold text-neutral-800 bg-white">
- <span>🏙️ {CITY_SHORT[city] || city} ({cityTotal}개)</span>
+ <span>{CITY_SHORT[city] || city} ({cityTotal}개)</span>
  <span className="text-xs text-neutral-500">{sortedDistricts.length}개 구/군</span>
  </summary>
  <div className="border-t border-neutral-200">
@@ -37730,14 +37702,14 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  onClick={() => setThemeMode('light')}
  className={`p-4 rounded-xl border transition-all ${themeMode === 'light' ? 'border-slate-400' : 'border-neutral-200 hover:border-neutral-300'}`}
  >
- <div className="text-xl mb-1">☀️</div>
+ <div className="text-xl mb-1"></div>
  <div className="text-xs text-neutral-700">라이트</div>
  </button>
  <button 
  onClick={() => setThemeMode('dark')}
  className={`p-4 rounded-xl border transition-all ${themeMode === 'dark' ? 'border-slate-400' : 'border-neutral-200 hover:border-neutral-300'}`}
  >
- <div className="text-xl mb-1">🌙</div>
+ <div className="text-xl mb-1"></div>
  <div className="text-xs text-neutral-700">다크</div>
  </button>
  <button 
@@ -37813,7 +37785,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
  {pendingRequests.length > 0 && (
  <div className="card p-4 border-2 border-rose-200">
- <h3 className="font-bold text-rose-600 text-lg mb-4">📦 요청 ({pendingRequests.length})</h3>
+ <h3 className="font-bold text-rose-600 text-lg mb-4">요청 ({pendingRequests.length})</h3>
  <div className="space-y-3">
  {pendingRequests.map(r => (
  <div key={r.id} className="flex items-center justify-between p-4 bg-rose-900/30 rounded-xl">
@@ -38083,7 +38055,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {showPromoRequestModal && (
  <div className="modal-overlay" onClick={() => setShowPromoRequestModal(null)}>
  <div className="modal-content" onClick={e => e.stopPropagation()}>
- <h3 className="font-bold text-neutral-900 text-lg mb-4">📦 홍보물 요청</h3>
+ <h3 className="font-bold text-neutral-900 text-lg mb-4">홍보물 요청</h3>
  <div className="space-y-3 mb-4">
  {PROMO_ITEMS.map(item => (
  <label key={item} className="flex items-center gap-3 p-3 bg-neutral-100 rounded-xl cursor-pointer">
@@ -38578,7 +38550,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="bg-neutral-100 rounded-2xl p-5 w-full max-w-md" onClick={e => e.stopPropagation()}>
  <div className="text-center mb-4">
  <div className="w-14 h-14 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-3">
-   <span className="text-2xl">⚠️</span>
+   <span className="text-2xl"></span>
  </div>
  <h3 className="font-bold text-neutral-900 text-lg">미방문 업체 확인</h3>
  <p className="text-neutral-800 text-sm mt-2">
@@ -38682,7 +38654,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  return (
  <div key={idx} className="bg-neutral-100 p-3 rounded-lg border border-neutral-200">
  <div className="flex items-start gap-2">
- <span className="text-lg">{event.type === 'route' ? '🚗' : ''}</span>
+ <span className="text-lg">{event.type === 'route' ? '' : ''}</span>
  <div className="flex-1 min-w-0">
  <p className="font-bold text-neutral-900 text-sm break-words">{event.title}</p>
  {manager && <p className="text-xs text-neutral-800">담당: {manager.name}</p>}
@@ -38761,7 +38733,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="p-4 bg-purple-50 rounded-xl">
  <p className="text-purple-800 font-bold text-lg">{selectedCalendarEvent.title}</p>
  <div className="flex items-center gap-2 mt-2 text-sm text-purple-600">
- <span>📆 {selectedCalendarEvent.date}</span>
+ <span>{selectedCalendarEvent.date}</span>
  {selectedCalendarEvent.time && <span>{selectedCalendarEvent.time}</span>}
  </div>
  {selectedCalendarEvent.memo && (
@@ -39072,7 +39044,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
 
  <div className="mb-4">
- <p className="text-sm text-neutral-500 mb-2">✍️ 수정해본 멘트:</p>
+ <p className="text-sm text-neutral-500 mb-2">수정해본 멘트:</p>
  <textarea 
  value={feedbackInput}
  onChange={e => setFeedbackInput(e.target.value)}
@@ -39094,32 +39066,51 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
 
  <button 
- onClick={() => {
+ onClick={async () => {
  if (!feedbackInput.trim()) return alert('수정 멘트를 입력하세요');
- // AI 피드백 저장 (실제 AI 연동은 추후)
- const feedback = {
- id: Date.now(),
- mentId: feedbackMent.id,
- mentName: feedbackMent.name,
- original: feedbackMent.content,
- modified: feedbackInput,
- question: feedbackQuestion || '피드백 요청',
- aiResponse: `좋은 수정입니다!\n\n분석:\n• 기존 멘트 대비 ${feedbackInput.length > feedbackMent.content.length ? '더 구체적인' : '더 간결한'} 표현\n• ${feedbackInput.includes('?') ? '질문형으로 고객 참여 유도' : '단정적 표현으로 신뢰감 전달'}\n\n추가 제안:\n실제 상담에서 사용해보고 반응을 기록해보세요.`,
- createdAt: new Date().toISOString()
- };
- saveFeedback(feedback);
- alert('피드백이 저장되었습니다! 히스토리에서 확인하세요.');
- setShowAiFeedback(false);
- setFeedbackInput('');
- setFeedbackQuestion('');
+ 
+ // 로딩 표시
+ const btn = document.activeElement;
+ const originalText = btn.textContent;
+ btn.textContent = 'AI 분석 중...';
+ btn.disabled = true;
+ 
+ // 실제 Gemini API 호출
+ const result = await callGeminiFeedback(
+   feedbackMent.content,
+   feedbackInput,
+   feedbackQuestion || '이 수정이 어떤가요?'
+ );
+ 
+ if (result.success) {
+   const feedback = {
+     id: Date.now(),
+     mentId: feedbackMent.id,
+     mentName: feedbackMent.name,
+     original: feedbackMent.content,
+     modified: feedbackInput,
+     question: feedbackQuestion || '피드백 요청',
+     aiResponse: result.response,
+     createdAt: new Date().toISOString()
+   };
+   saveFeedback(feedback);
+   alert('AI 피드백이 저장되었습니다!');
+   setShowAiFeedback(false);
+   setFeedbackInput('');
+   setFeedbackQuestion('');
+ } else {
+   alert(`AI 피드백 실패: ${result.error}`);
+   btn.textContent = originalText;
+   btn.disabled = false;
+ }
  }}
- className="w-full bg-neutral-900 text-white rounded-lg"
+ className="w-full bg-neutral-900 text-white rounded-lg py-3 font-medium"
  >AI에게 피드백 받기</button>
 
  {/* 최근 피드백 히스토리 */}
  {mentFeedbacks.filter(f => f.mentId === feedbackMent.id).length > 0 && (
  <div className="mt-4 pt-4 border-t border-neutral-200">
- <p className="text-sm text-neutral-500 mb-2">📜 이 멘트의 피드백 히스토리</p>
+ <p className="text-sm text-neutral-500 mb-2">이 멘트의 피드백 히스토리</p>
  <div className="space-y-2 max-h-40 overflow-y-auto">
  {mentFeedbacks.filter(f => f.mentId === feedbackMent.id).slice(-3).reverse().map(fb => (
  <div key={fb.id} className="p-3 rounded-lg bg-neutral-100/30 border border-neutral-200/30">
@@ -39133,6 +39124,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  </div>
  )}
+ </main>
  </div>
  );
  };
