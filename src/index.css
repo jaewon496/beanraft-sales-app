@@ -1,163 +1,111 @@
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 * {
-  font-family: 'Noto Sans KR', sans-serif;
+  font-family: 'Pretendard Variable', system-ui, sans-serif;
   -webkit-tap-highlight-color: transparent;
 }
 
 body {
-  margin: 0;
-  padding: 0;
-  background-color: #000000;
-  color: #f8fafc;
-  min-height: 100vh;
-  overflow-x: hidden;
-}
-
-/* 스크롤바 스타일 */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: #1e293b;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #475569;
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #64748b;
-}
-
-/* 프리미엄 버튼 스타일 */
-.btn-premium {
-  @apply px-4 py-2 rounded-lg font-medium transition-all duration-200;
-}
-
-.btn-gold {
-  @apply bg-gradient-to-r from-amber-500 to-yellow-500 text-white hover:from-amber-600 hover:to-yellow-600;
-}
-
-.btn-purple {
-  @apply bg-gradient-to-r from-purple-500 to-indigo-500 text-white hover:from-purple-600 hover:to-indigo-600;
-}
-
-/* 프리미엄 인풋 스타일 */
-.input-premium {
-  @apply px-4 py-3 rounded-xl bg-slate-800 border border-slate-600 text-white placeholder-slate-400 focus:outline-none focus:border-purple-500 transition-all;
+  background-color: #FAFAFA;
+  color: #171717;
 }
 
 /* 카드 스타일 */
 .card {
-  @apply bg-white border border-neutral-200 rounded-xl;
+  @apply bg-white rounded-xl border border-neutral-200;
 }
 
 .card-hover {
   @apply hover:border-neutral-300 transition-all duration-200;
 }
 
-/* 애니메이션 */
-.animate-fadeIn {
-  animation: fadeIn 0.3s ease-out;
+/* 입력 필드 */
+input, select, textarea {
+  @apply border border-neutral-200 rounded-lg bg-white text-neutral-900;
 }
 
+input:focus, select:focus, textarea:focus {
+  @apply outline-none border-neutral-400;
+}
+
+/* 버튼 */
+.btn-primary {
+  @apply bg-neutral-900 text-white hover:bg-neutral-800 rounded-lg font-medium;
+}
+
+.btn-secondary {
+  @apply bg-neutral-100 text-neutral-700 hover:bg-neutral-200 rounded-lg font-medium;
+}
+
+/* 스크롤바 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d4d4d4;
+  border-radius: 3px;
+}
+
+/* 기존 유틸리티 */
+.brand-purple { background: #7C3AED; }
+.bg-brand-purple { background: #7C3AED; }
+.text-brand-purple { color: #7C3AED; }
+.border-brand-purple { border-color: #7C3AED; }
+
+/* 로그인 애니메이션 (기존 유지) */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* 네이버 지도 컨테이너 */
-.map-container {
-  width: 100%;
-  height: 400px;
-  border-radius: 12px;
-  overflow: hidden;
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
-@media (max-width: 640px) {
-  .map-container {
-    height: 300px;
-  }
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
-/* Masonry 레이아웃 - 영업관리 사이트 자유 배치 */
-.masonry-grid {
-  columns: 1;
-  column-gap: 1rem;
+.animate-fade-in { animation: fadeIn 0.3s ease-out; }
+.animate-pulse { animation: pulse 2s ease-in-out infinite; }
+.animate-spin { animation: spin 1s linear infinite; }
+
+/* 탭 컨테이너 스크롤 숨김 */
+.tabs-container {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
-@media (min-width: 640px) {
-  .masonry-grid {
-    columns: 2;
-  }
+.tabs-container::-webkit-scrollbar {
+  display: none;
 }
 
-@media (min-width: 1024px) {
-  .masonry-grid {
-    columns: 3;
-  }
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
-.masonry-item {
-  break-inside: avoid;
-  margin-bottom: 1rem;
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }
 
-/* 출처 팝업 스타일 */
-.sources-modal-overlay {
-  animation: fadeInOverlay 0.2s ease-out;
+/* 모달 애니메이션 */
+.modal-enter {
+  animation: modalPop 0.2s ease-out;
 }
 
-@keyframes fadeInOverlay {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.sources-modal-content {
-  animation: slideUp 0.3s ease-out;
-}
-
-@keyframes slideUp {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* 밝은 테마 텍스트 색상 */
-.text-slate-100, .text-slate-200, .text-slate-300 {
-  color: #171717 !important;
-}
-
-.text-slate-400, .text-slate-500 {
-  color: #525252 !important;
-}
-
-/* 버튼 예외 - 흰색 텍스트 유지 */
-button.bg-brand-purple .text-slate-100,
-button.bg-brand-purple .text-slate-200,
-.bg-brand-purple .text-white,
-.bg-emerald-500 *,
-.bg-rose-500 *,
-.bg-blue-600 *,
-.bg-gradient-to-r * {
-  color: inherit !important;
-}
-
-/* 입력 필드 배경 */
-.input-premium {
-  @apply bg-neutral-50 border-neutral-200 text-neutral-900;
-}
-
-/* 탭 버튼 스타일 */
-.tab-button {
-  @apply text-neutral-600 hover:text-neutral-900;
-}
-
-.tab-button.active {
-  @apply text-neutral-900 border-b-2 border-neutral-900;
+@keyframes modalPop {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
 }
