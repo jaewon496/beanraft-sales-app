@@ -638,7 +638,7 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
  const [feedbackMent, setFeedbackMent] = useState(null); // 피드백 받을 멘트
  const [feedbackInput, setFeedbackInput] = useState(''); // 수정 멘트 입력
  const [feedbackQuestion, setFeedbackQuestion] = useState(''); // 질문 입력
- const [settingsTab, setSettingsTab] = useState('theme'); // 설정 탭: 'theme' | 'ments' | 'account'
+ const [settingsTab, setSettingsTab] = useState('salesmode'); // 설정 탭: 'salesmode' | 'ments' | 'account'
  const [selectedMentsForCompany, setSelectedMentsForCompany] = useState([]); // 업체 등록 시 선택된 멘트
  const [companyMentMemo, setCompanyMentMemo] = useState(''); // 업체 멘트 메모
  const [todayContactAlert, setTodayContactAlert] = useState(null); // 오늘 연락할 곳 알림
@@ -675,7 +675,7 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
  const [salesModeSearchLoading, setSalesModeSearchLoading] = useState(false);
  const [salesModeShowSources, setSalesModeShowSources] = useState(false);
  const [salesModeIframeError, setSalesModeIframeError] = useState(false); // iframe 차단 감지
- const [salesModeHomepageUrl, setSalesModeHomepageUrl] = useState('https://beancraft.co.kr'); // 홈페이지 URL
+ const [salesModeHomepageUrl, setSalesModeHomepageUrl] = useState('https://www.beancraft.co.kr'); // 홈페이지 URL
  const [salesModeMapCenter, setSalesModeMapCenter] = useState(null); // 지도 중심 좌표
  const salesModeTimeoutRef = useRef(null);
  const salesModeLockTimeoutRef = useRef(null);
@@ -1582,7 +1582,7 @@ ${question}
  const [companyManagerFilter, setCompanyManagerFilter] = useState('all');
  const [companyPage, setCompanyPage] = useState({});
  const [selectedCity, setSelectedCity] = useState('');
- const [customerForm, setCustomerForm] = useState({ name: '', phone: '', managerId: null, consultDate: '', preferredRegion: '', preferredDate: '', budget: '', preferredSize: '', startupConcepts: [], priorityOrder: [], otherConcept: '', note: '', status: 'consult', memo: '' });
+ const [customerForm, setCustomerForm] = useState({ name: '', phone: '', managerId: null, consultDate: '', note: '', status: 'consult', memo: '' });
  const [saleForm, setSaleForm] = useState({ managerId: null, companyId: null, amount: '', date: '', note: '' });
  const getLocalData = (key) => {
  try {
@@ -4901,8 +4901,8 @@ ${question}
  // 네이버 Directions API로 실제 도로 경로 가져오기
  const fetchDirectionsRoute = async (startLat, startLng, optimizedStops) => {
  if (optimizedStops.length < 1) return null;
- const NCP_CLIENT_ID = import.meta.env.VITE_NCP_CLIENT_ID || 'dx2ymyk2b1';
- const NCP_CLIENT_SECRET = import.meta.env.VITE_NCP_CLIENT_SECRET || '18184ztuYuPVkqzPumsSqRNVsMHCiBFMWhWdRJAJ';
+ const NCP_CLIENT_ID = 'dx2ymyk2b1';
+ const NCP_CLIENT_SECRET = localStorage.getItem('ncp_client_secret') || '18184ztuYuPVkqzPumsSqRNVsMHCiBFMWhWdRJAJ';
  try {
  const start = `${startLng},${startLat}`;
  const goal = `${optimizedStops[optimizedStops.length - 1].lng},${optimizedStops[optimizedStops.length - 1].lat}`;
@@ -5696,7 +5696,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  if (!customerForm.name.trim()) return alert('고객명을 입력하세요');
  const newCustomer = { id: Date.now(), ...customerForm, createdAt: new Date().toLocaleString('ko-KR') };
  saveCustomer(newCustomer);
- setCustomerForm({ name: '', phone: '', managerId: null, consultDate: '', preferredRegion: '', preferredDate: '', budget: '', preferredSize: '', startupConcepts: [], priorityOrder: [], otherConcept: '', note: '', status: 'consult', memo: '' });
+ setCustomerForm({ name: '', phone: '', managerId: null, consultDate: '', note: '', status: 'consult', memo: '' });
  };
  const updateCustomer = () => {
  if (!showCustomerEditModal) return;
@@ -6347,38 +6347,38 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                  <div className="bg-white border-b border-gray-100 p-3">
                    <div className="flex gap-2 overflow-x-auto">
                      <button 
-                       onClick={() => setSalesModeHomepageUrl('https://beancraft.co.kr')}
+                       onClick={() => setSalesModeHomepageUrl('https://www.beancraft.co.kr')}
                        className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium ${salesModeHomepageUrl === 'https://beancraft.co.kr' ? 'bg-neutral-900 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                      >
                        홈
                      </button>
                      <button 
-                       onClick={() => setSalesModeHomepageUrl('https://beancraft.co.kr/consulting')}
-                       className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium ${salesModeHomepageUrl?.includes('/consulting') ? 'bg-neutral-900 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                       onClick={() => setSalesModeHomepageUrl('https://www.beancraft.co.kr/%EC%B0%BD%EC%97%85%EC%95%88%EB%82%B4')}
+                       className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium ${salesModeHomepageUrl?.includes('창업안내') ? 'bg-neutral-900 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                      >
                        창업안내
                      </button>
                      <button 
-                       onClick={() => setSalesModeHomepageUrl('https://beancraft.co.kr/interior')}
-                       className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium ${salesModeHomepageUrl?.includes('/interior') ? 'bg-neutral-900 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                       onClick={() => setSalesModeHomepageUrl('https://www.beancraft.co.kr/%EC%9D%B8%ED%85%8C%EB%A6%AC%EC%96%B4')}
+                       className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium ${salesModeHomepageUrl?.includes('인테리어') ? 'bg-neutral-900 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                      >
                        인테리어
                      </button>
                      <button 
-                       onClick={() => setSalesModeHomepageUrl('https://beancraft.co.kr/equipment')}
-                       className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium ${salesModeHomepageUrl?.includes('/equipment') ? 'bg-neutral-900 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                       onClick={() => setSalesModeHomepageUrl('https://www.beancraft.co.kr/%EA%B8%B0%EA%B8%B0%EC%84%A4%EC%B9%98')}
+                       className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium ${salesModeHomepageUrl?.includes('기기설치') ? 'bg-neutral-900 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                      >
                        기기설치
                      </button>
                      <button 
-                       onClick={() => setSalesModeHomepageUrl('https://beancraft.co.kr/menu')}
-                       className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium ${salesModeHomepageUrl?.includes('/menu') ? 'bg-neutral-900 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                       onClick={() => setSalesModeHomepageUrl('https://www.beancraft.co.kr/%EB%A9%94%EB%89%B4%EA%B0%9C%EB%B0%9C')}
+                       className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium ${salesModeHomepageUrl?.includes('메뉴개발') ? 'bg-neutral-900 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                      >
                        메뉴개발
                      </button>
                      <button 
-                       onClick={() => setSalesModeHomepageUrl('https://beancraft.co.kr/support')}
-                       className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium ${salesModeHomepageUrl?.includes('/support') ? 'bg-neutral-900 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                       onClick={() => setSalesModeHomepageUrl('https://www.beancraft.co.kr/%EC%9A%B4%EC%98%81%EA%B5%90%EC%9C%A1')}
+                       className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium ${salesModeHomepageUrl?.includes('운영교육') ? 'bg-neutral-900 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                      >
                        사후지원
                      </button>
@@ -6421,7 +6421,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* 좌측 사이드바 (PC 전용) - Store OS 스타일 */}
  <aside className="hidden md:flex w-56 flex-col bg-neutral-900">
  <div className="p-5 border-b border-neutral-800">
- <img src="/logo.png" alt="BEANCRAFT" className="h-10 object-contain brightness-0 invert" onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'block'; }} />
+ <img src="/logo.png" alt="BEANCRAFT" className="h-12 w-auto object-contain" onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'block'; }} />
  <h1 className="text-lg font-bold text-white" style={{display: 'none'}}>BEANCRAFT</h1>
  <p className="text-xs text-neutral-500 mt-0.5">영업관리</p>
  </div>
@@ -7809,7 +7809,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
 
  {/* 시장 이슈 */}
- <div className="bg-white border border-neutral-200 rounded-2xl p-4 border-l-4 border-yellow-500">
+ <div className="bg-white border border-neutral-200 rounded-2xl p-4">
  <h3 className="font-bold text-[#171717] mb-3 flex items-center gap-2">
  <span className="text-xl"></span> 시장 이슈 ({marketIssues.length}건)
  </h3>
@@ -8230,65 +8230,65 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <thead>
  <tr className="border-b border-neutral-200">
  <th className="py-3 px-2 text-left text-neutral-500 font-medium">항목</th>
- <th className="py-3 px-2 text-center text-orange-400 font-medium">저가 프랜차이즈</th>
- <th className="py-3 px-2 text-center text-neutral-700 font-medium">빈크래프트</th>
+ <th className="py-3 px-2 text-center text-neutral-900 font-medium">저가 프랜차이즈</th>
+ <th className="py-3 px-2 text-center text-[#1e3a5f] font-medium">빈크래프트</th>
  </tr>
  </thead>
  <tbody className="text-neutral-700">
  <tr className="border-b border-neutral-200">
  <td className="py-3 px-2 font-medium">가맹비</td>
- <td className="py-3 px-2 text-center text-orange-300">500~1,500만원</td>
- <td className="py-3 px-2 text-center text-emerald-300 font-bold">0원</td>
+ <td className="py-3 px-2 text-center text-neutral-700">500~1,500만원</td>
+ <td className="py-3 px-2 text-center text-[#1e3a5f] font-bold">0원</td>
  </tr>
  <tr className="border-b border-neutral-200">
  <td className="py-3 px-2 font-medium">교육비</td>
- <td className="py-3 px-2 text-center text-orange-300">100~300만원</td>
- <td className="py-3 px-2 text-center text-emerald-300">컨설팅 포함</td>
+ <td className="py-3 px-2 text-center text-neutral-700">100~300만원</td>
+ <td className="py-3 px-2 text-center text-[#1e3a5f]">컨설팅 포함</td>
  </tr>
  <tr className="border-b border-neutral-200">
  <td className="py-3 px-2 font-medium">컨설팅</td>
- <td className="py-3 px-2 text-center text-orange-300">-</td>
- <td className="py-3 px-2 text-center text-emerald-300">1,000만원</td>
+ <td className="py-3 px-2 text-center text-neutral-700">-</td>
+ <td className="py-3 px-2 text-center text-[#1e3a5f]">1,000만원</td>
  </tr>
  <tr className="border-b border-neutral-200">
  <td className="py-3 px-2 font-medium">로열티 (월)</td>
- <td className="py-3 px-2 text-center text-orange-300">15~50만원</td>
- <td className="py-3 px-2 text-center text-emerald-300 font-bold">0원</td>
+ <td className="py-3 px-2 text-center text-neutral-700">15~50만원</td>
+ <td className="py-3 px-2 text-center text-[#1e3a5f] font-bold">0원</td>
  </tr>
  <tr className="border-b border-neutral-200">
  <td className="py-3 px-2 font-medium">로열티 (5년)</td>
- <td className="py-3 px-2 text-center text-orange-300">900~3,000만원</td>
- <td className="py-3 px-2 text-center text-emerald-300 font-bold">0원</td>
+ <td className="py-3 px-2 text-center text-neutral-700">900~3,000만원</td>
+ <td className="py-3 px-2 text-center text-[#1e3a5f] font-bold">0원</td>
  </tr>
  <tr className="border-b border-neutral-200">
  <td className="py-3 px-2 font-medium">광고분담금 (월)</td>
- <td className="py-3 px-2 text-center text-orange-300">10~30만원</td>
- <td className="py-3 px-2 text-center text-emerald-300 font-bold">0원</td>
+ <td className="py-3 px-2 text-center text-neutral-700">10~30만원</td>
+ <td className="py-3 px-2 text-center text-[#1e3a5f] font-bold">0원</td>
  </tr>
  <tr className="border-b border-neutral-200">
  <td className="py-3 px-2 font-medium">인테리어</td>
- <td className="py-3 px-2 text-center text-orange-300">본사 지정업체</td>
- <td className="py-3 px-2 text-center text-emerald-300">400만원+견적 별도</td>
+ <td className="py-3 px-2 text-center text-neutral-700">본사 지정업체</td>
+ <td className="py-3 px-2 text-center text-[#1e3a5f]">400만원+견적 별도</td>
  </tr>
  <tr className="border-b border-neutral-200">
  <td className="py-3 px-2 font-medium">기기설비</td>
- <td className="py-3 px-2 text-center text-orange-300">본사 지정업체</td>
- <td className="py-3 px-2 text-center text-emerald-300">400만원+견적 별도</td>
+ <td className="py-3 px-2 text-center text-neutral-700">본사 지정업체</td>
+ <td className="py-3 px-2 text-center text-[#1e3a5f]">400만원+견적 별도</td>
  </tr>
  <tr className="border-b border-neutral-200">
  <td className="py-3 px-2 font-medium">원두공급</td>
- <td className="py-3 px-2 text-center text-orange-300">본사 지정 (강제)</td>
- <td className="py-3 px-2 text-center text-emerald-300">공급가 납품 (선택)</td>
+ <td className="py-3 px-2 text-center text-neutral-700">본사 지정 (강제)</td>
+ <td className="py-3 px-2 text-center text-[#1e3a5f]">공급가 납품 (선택)</td>
  </tr>
  <tr className="border-b border-neutral-200">
  <td className="py-3 px-2 font-medium">메뉴개발</td>
- <td className="py-3 px-2 text-center text-orange-300">본사 고정메뉴</td>
- <td className="py-3 px-2 text-center text-emerald-300">400만원 (15가지)</td>
+ <td className="py-3 px-2 text-center text-neutral-700">본사 고정메뉴</td>
+ <td className="py-3 px-2 text-center text-[#1e3a5f]">400만원 (15가지)</td>
  </tr>
  <tr>
  <td className="py-3 px-2 font-medium">계약기간</td>
- <td className="py-3 px-2 text-center text-orange-300">2~5년 (갱신시 추가비용)</td>
- <td className="py-3 px-2 text-center text-emerald-300">없음</td>
+ <td className="py-3 px-2 text-center text-neutral-700">2~5년 (갱신시 추가비용)</td>
+ <td className="py-3 px-2 text-center text-[#1e3a5f]">없음</td>
  </tr>
  </tbody>
  </table>
@@ -9236,7 +9236,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  )}
  </div>
  <div className="relative">
- <div ref={routeMapRef} className="route-map-container" style={{height: '400px', minHeight: '400px', width: '100%'}}></div>
+ <div ref={routeMapRef} className="route-map-container" style={{height: '600px', minHeight: '600px', width: '100%'}}></div>
  <div className="absolute top-3 right-3 flex flex-col gap-2 z-10">
  <button
  onClick={toggleGps}
@@ -9854,58 +9854,58 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        <tbody className="text-neutral-700">
          <tr className="border-b border-neutral-200">
            <td className="py-3 px-2 font-medium">가맹비</td>
-           <td className="py-3 px-2 text-center text-orange-300">500~1,500만원</td>
-           <td className="py-3 px-2 text-center text-emerald-300 font-bold">0원</td>
+           <td className="py-3 px-2 text-center text-neutral-700">500~1,500만원</td>
+           <td className="py-3 px-2 text-center text-[#1e3a5f] font-bold">0원</td>
          </tr>
          <tr className="border-b border-neutral-200">
            <td className="py-3 px-2 font-medium">교육비</td>
-           <td className="py-3 px-2 text-center text-orange-300">100~300만원</td>
-           <td className="py-3 px-2 text-center text-emerald-300">컨설팅 포함</td>
+           <td className="py-3 px-2 text-center text-neutral-700">100~300만원</td>
+           <td className="py-3 px-2 text-center text-[#1e3a5f]">컨설팅 포함</td>
          </tr>
          <tr className="border-b border-neutral-200">
            <td className="py-3 px-2 font-medium">컨설팅비</td>
-           <td className="py-3 px-2 text-center text-orange-300">-</td>
-           <td className="py-3 px-2 text-center text-emerald-300">1,000만원</td>
+           <td className="py-3 px-2 text-center text-neutral-700">-</td>
+           <td className="py-3 px-2 text-center text-[#1e3a5f]">1,000만원</td>
          </tr>
          <tr className="border-b border-neutral-200">
            <td className="py-3 px-2 font-medium">로열티 (월)</td>
-           <td className="py-3 px-2 text-center text-orange-300">15~50만원</td>
-           <td className="py-3 px-2 text-center text-emerald-300 font-bold">0원</td>
+           <td className="py-3 px-2 text-center text-neutral-700">15~50만원</td>
+           <td className="py-3 px-2 text-center text-[#1e3a5f] font-bold">0원</td>
          </tr>
          <tr className="border-b border-neutral-200">
            <td className="py-3 px-2 font-medium">로열티 (5년)</td>
-           <td className="py-3 px-2 text-center text-orange-300">900~3,000만원</td>
-           <td className="py-3 px-2 text-center text-emerald-300 font-bold">0원</td>
+           <td className="py-3 px-2 text-center text-neutral-700">900~3,000만원</td>
+           <td className="py-3 px-2 text-center text-[#1e3a5f] font-bold">0원</td>
          </tr>
          <tr className="border-b border-neutral-200">
            <td className="py-3 px-2 font-medium">광고분담금 (월)</td>
-           <td className="py-3 px-2 text-center text-orange-300">10~30만원</td>
-           <td className="py-3 px-2 text-center text-emerald-300 font-bold">0원</td>
+           <td className="py-3 px-2 text-center text-neutral-700">10~30만원</td>
+           <td className="py-3 px-2 text-center text-[#1e3a5f] font-bold">0원</td>
          </tr>
          <tr className="border-b border-neutral-200">
            <td className="py-3 px-2 font-medium">인테리어</td>
-           <td className="py-3 px-2 text-center text-orange-300">본사 지정업체</td>
-           <td className="py-3 px-2 text-center text-emerald-300">400만원+견적 별도</td>
+           <td className="py-3 px-2 text-center text-neutral-700">본사 지정업체</td>
+           <td className="py-3 px-2 text-center text-[#1e3a5f]">400만원+견적 별도</td>
          </tr>
          <tr className="border-b border-neutral-200">
            <td className="py-3 px-2 font-medium">기기설비</td>
-           <td className="py-3 px-2 text-center text-orange-300">본사 지정업체</td>
-           <td className="py-3 px-2 text-center text-emerald-300">400만원+견적 별도</td>
+           <td className="py-3 px-2 text-center text-neutral-700">본사 지정업체</td>
+           <td className="py-3 px-2 text-center text-[#1e3a5f]">400만원+견적 별도</td>
          </tr>
          <tr className="border-b border-neutral-200">
            <td className="py-3 px-2 font-medium">원두공급</td>
-           <td className="py-3 px-2 text-center text-orange-300">본사 지정 (강제)</td>
-           <td className="py-3 px-2 text-center text-emerald-300">공급가 납품 (선택)</td>
+           <td className="py-3 px-2 text-center text-neutral-700">본사 지정 (강제)</td>
+           <td className="py-3 px-2 text-center text-[#1e3a5f]">공급가 납품 (선택)</td>
          </tr>
          <tr className="border-b border-neutral-200">
            <td className="py-3 px-2 font-medium">메뉴 구성</td>
-           <td className="py-3 px-2 text-center text-orange-300">본사 통제</td>
-           <td className="py-3 px-2 text-center text-emerald-300">자유롭게 결정</td>
+           <td className="py-3 px-2 text-center text-neutral-700">본사 통제</td>
+           <td className="py-3 px-2 text-center text-[#1e3a5f]">자유롭게 결정</td>
          </tr>
          <tr className="border-b border-neutral-200">
            <td className="py-3 px-2 font-medium">매물 조건</td>
-           <td className="py-3 px-2 text-center text-orange-300">1층/15평 이상</td>
-           <td className="py-3 px-2 text-center text-emerald-300">제한 없음</td>
+           <td className="py-3 px-2 text-center text-neutral-700">1층/15평 이상</td>
+           <td className="py-3 px-2 text-center text-[#1e3a5f]">제한 없음</td>
          </tr>
          <tr className="bg-neutral-100/30">
            <td className="py-3 px-2 font-bold text-white">총 비용 (5년)</td>
@@ -10696,7 +10696,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <p className="text-xs text-neutral-500">특별</p>
  </div>
  <div className="text-center p-2 rounded-xl border border-neutral-200">
- <p className="text-lg font-bold text-emerald-500">{stats.positive}</p>
+ <p className="text-lg font-bold text-neutral-700">{stats.positive}</p>
  <p className="text-xs text-neutral-500">긍정</p>
  </div>
  <div className="text-center p-2 rounded-xl border border-neutral-200">
@@ -10878,61 +10878,16 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  
  {/* 오른쪽: 고객 등록 */}
  <div className="lg:col-span-1">
- <div className="bg-white border border-neutral-200 rounded-2xl p-4 sticky top-20">
+ <div className="bg-white border border-neutral-200 rounded-2xl p-4 rounded-2xl border border-neutral-200 sticky top-20">
  <h3 className="font-bold text-[#171717] mb-4">고객 등록</h3>
  <div className="space-y-3">
- <select value={customerForm.managerId || ''} onChange={e => setCustomerForm({ ...customerForm, managerId: Number(e.target.value) || null })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] focus:outline-none focus:border-neutral-400 transition-all text-sm">
+ <select value={customerForm.managerId || ''} onChange={e => setCustomerForm({ ...customerForm, managerId: Number(e.target.value) || null })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] focus:outline-none focus:border-neutral-400 transition-all text-sm w-full">
  <option value="">영업자 선택</option>
  {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
  </select>
- <input type="text" placeholder="고객명 *" value={customerForm.name} onChange={e => setCustomerForm({ ...customerForm, name: e.target.value })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm" />
- <input type="text" placeholder="연락처" value={customerForm.phone} onChange={e => setCustomerForm({ ...customerForm, phone: e.target.value })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm" />
- <input type="text" placeholder="희망 지역 (예: 강남구, 마포구)" value={customerForm.preferredRegion || ''} onChange={e => setCustomerForm({ ...customerForm, preferredRegion: e.target.value })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm" />
- <input type="date" placeholder="희망 날짜" value={customerForm.preferredDate || ''} onChange={e => setCustomerForm({ ...customerForm, preferredDate: e.target.value })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm" />
- <input type="text" placeholder="준비 비용 (예: 5000만원)" value={customerForm.budget || ''} onChange={e => setCustomerForm({ ...customerForm, budget: e.target.value })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm" />
- <input type="text" placeholder="희망 평수 (예: 15평)" value={customerForm.preferredSize || ''} onChange={e => setCustomerForm({ ...customerForm, preferredSize: e.target.value })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm" />
- 
- {/* 창업 희망 구상 (복수 선택) */}
- <div>
- <p className="text-xs text-neutral-500 mb-2">창업 희망 구상 (복수 선택)</p>
- <div className="flex flex-wrap gap-1">
- {['테이크 아웃', '홀 운영', '디저트/브런치', '동네 상권', '오피스 상권', '가성비', '아직 미정'].map(concept => (
- <button key={concept} type="button" onClick={() => {
-   const concepts = customerForm.startupConcepts || [];
-   const newConcepts = concepts.includes(concept) ? concepts.filter(c => c !== concept) : [...concepts, concept];
-   setCustomerForm({ ...customerForm, startupConcepts: newConcepts });
- }} className={`px-2 py-1 rounded-full text-xs ${(customerForm.startupConcepts || []).includes(concept) ? 'bg-neutral-900 text-white' : 'border border-neutral-200 text-neutral-500'}`}>
- {concept}
- </button>
- ))}
- </div>
- <input type="text" placeholder="기타 (직접 입력)" value={customerForm.otherConcept || ''} onChange={e => setCustomerForm({ ...customerForm, otherConcept: e.target.value })} className="w-full px-3 py-2 mt-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-xs" />
- </div>
- 
- {/* 창업 중요 순서 */}
- <div>
- <p className="text-xs text-neutral-500 mb-2">창업 중요 순서 (클릭 순서대로 1~6번)</p>
- <div className="flex flex-wrap gap-1">
- {['기계', '인테리어', '레시피/교육', '원두', '디자인', '매물'].map(item => {
-   const order = (customerForm.priorityOrder || []).indexOf(item) + 1;
-   return (
-   <button key={item} type="button" onClick={() => {
-     const currentOrder = customerForm.priorityOrder || [];
-     let newOrder;
-     if (currentOrder.includes(item)) {
-       newOrder = currentOrder.filter(i => i !== item);
-     } else {
-       newOrder = [...currentOrder, item];
-     }
-     setCustomerForm({ ...customerForm, priorityOrder: newOrder });
-   }} className={`px-2 py-1 rounded-full text-xs ${order > 0 ? 'bg-neutral-900 text-white' : 'border border-neutral-200 text-neutral-500'}`}>
-   {order > 0 ? `${order}. ${item}` : item}
-   </button>
-   );
- })}
- </div>
- </div>
- 
+ <input type="text" placeholder="고객명 *" value={customerForm.name} onChange={e => setCustomerForm({ ...customerForm, name: e.target.value })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm w-full" />
+ <input type="text" placeholder="연락처" value={customerForm.phone} onChange={e => setCustomerForm({ ...customerForm, phone: e.target.value })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm w-full" />
+ <input type="date" value={customerForm.consultDate} onChange={e => setCustomerForm({ ...customerForm, consultDate: e.target.value })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm w-full" />
  <div className="flex gap-2">
  {['consult', 'contract', 'completed'].map(s => (
  <button key={s} onClick={() => setCustomerForm({ ...customerForm, status: s })} className={`flex-1 px-2 py-2 rounded-full text-xs ${customerForm.status === s ? 'bg-neutral-900 text-white' : 'border border-neutral-200 text-neutral-500'}`}>
@@ -10940,7 +10895,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </button>
  ))}
  </div>
- <textarea placeholder="메모" value={customerForm.memo} onChange={e => setCustomerForm({ ...customerForm, memo: e.target.value })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm h-16 resize-none" />
+ <textarea placeholder="메모" value={customerForm.memo} onChange={e => setCustomerForm({ ...customerForm, memo: e.target.value })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm w-full h-20 resize-none" />
  <button type="button" onClick={handleSaveCustomer} className="w-full py-2 rounded-full border border-neutral-200 text-neutral-700 text-sm hover:border-slate-500">등록</button>
  </div>
  </div>
@@ -10953,13 +10908,13 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  
  {/* 설정 서브탭 */}
  <div className="flex gap-2 p-1 rounded-full border border-neutral-200 w-fit flex-wrap bg-white">
- <button type="button" onClick={() => setSettingsTab('theme')} className={`px-4 py-2 rounded-full text-sm transition-all ${settingsTab === 'theme' ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:text-[#171717]'}`}>테마</button>
  <button type="button" onClick={() => setSettingsTab('salesmode')} className={`px-4 py-2 rounded-full text-sm transition-all ${settingsTab === 'salesmode' ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:text-[#171717]'}`}>영업모드</button>
+ <button type="button" onClick={() => setSettingsTab('ments')} className={`px-4 py-2 rounded-full text-sm transition-all ${settingsTab === 'ments' ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:text-[#171717]'}`}>멘트관리</button>
  <button type="button" onClick={() => setSettingsTab('account')} className={`px-4 py-2 rounded-full text-sm transition-all ${settingsTab === 'account' ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:text-[#171717]'}`}>계정</button>
  {isAdmin && <button type="button" onClick={() => setSettingsTab('admin')} className={`px-4 py-2 rounded-full text-sm transition-all ${settingsTab === 'admin' ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:text-[#171717]'}`}>관리자</button>}
  </div>
  
- {/* 영업모드 설정 탭 */}
+ {/* 영업모드 설정 */}
  {settingsTab === 'salesmode' && (
  <div className="bg-white border border-neutral-200 rounded-2xl p-4">
    <h3 className="font-bold text-[#171717] text-lg mb-2">영업모드</h3>
@@ -11040,43 +10995,22 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  )}
  
- {/* 테마 설정 */}
- {settingsTab === 'theme' && (
- <div className="bg-white border border-neutral-200 rounded-2xl p-4 rounded-2xl border border-neutral-200">
- <h3 className="font-bold text-[#171717] mb-4">화면 테마</h3>
- <div className="grid grid-cols-3 gap-3">
- <button 
- onClick={() => setThemeMode('light')}
- className={`p-4 rounded-xl border transition-all ${themeMode === 'light' ? 'border-slate-400' : 'border-neutral-200 hover:border-slate-500'}`}
- >
- <div className="text-xl mb-1"></div>
- <div className="text-xs text-neutral-700">라이트</div>
- </button>
- <button 
- onClick={() => setThemeMode('dark')}
- className={`p-4 rounded-xl border transition-all ${themeMode === 'dark' ? 'border-slate-400' : 'border-neutral-200 hover:border-slate-500'}`}
- >
- <div className="text-xl mb-1"></div>
- <div className="text-xs text-neutral-700">다크</div>
- </button>
- <button 
- onClick={() => setThemeMode('auto')}
- className={`p-4 rounded-xl border transition-all ${themeMode === 'auto' ? 'border-slate-400' : 'border-neutral-200 hover:border-slate-500'}`}
- >
- <div className="text-xl mb-1"></div>
- <div className="text-xs text-neutral-700">자동</div>
- </button>
- </div>
- <p className="text-xs text-neutral-500 mt-3">
- {themeMode === 'auto' ? '시스템 설정에 따라 자동 전환됩니다.' : 
- themeMode === 'light' ? '밝은 화면으로 표시됩니다.' : '어두운 화면으로 표시됩니다.'}
- </p>
- </div>
- )}
- 
  {/* 계정 설정 탭 */}
  {settingsTab === 'account' && (
  <div className="space-y-2">
+ {/* 영업모드 시작 버튼 */}
+ <div className="bg-white border border-neutral-200 rounded-2xl p-4 bg-neutral-50 border border-neutral-200">
+   <h3 className="font-bold text-neutral-700 text-lg mb-2">영업모드</h3>
+   <p className="text-sm text-neutral-700 mb-4">고객 미팅 시 상권 분석 자료를 보여줄 수 있습니다. 영업모드에서는 관리 데이터가 노출되지 않습니다.</p>
+   <button
+     type="button"
+     onClick={startSalesMode}
+     className="w-full py-4 bg-neutral-900 hover:bg-neutral-800 text-white font-bold rounded-xl transition-all"
+   >
+     영업모드 시작
+   </button>
+ </div>
+
  {/* 비밀번호 변경 */}
  <div className="bg-white border border-neutral-200 rounded-2xl p-3 sm:p-4">
  <h3 className="font-bold text-[#171717] text-lg mb-4">내 비밀번호 변경</h3>
