@@ -3,6 +3,10 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ========================================
+   Store OS Theme - 무채색 미니멀 디자인
+   ======================================== */
+
 * {
   font-family: 'Pretendard Variable', system-ui, sans-serif;
   -webkit-tap-highlight-color: transparent;
@@ -13,34 +17,51 @@ body {
   color: #171717;
 }
 
-/* 카드 스타일 */
+/* ========================================
+   카드 스타일
+   ======================================== */
+
 .card {
   @apply bg-white rounded-xl border border-neutral-200;
 }
 
-.card-hover {
-  @apply hover:border-neutral-300 transition-all duration-200;
-}
+/* ========================================
+   버튼 스타일
+   ======================================== */
 
-/* 입력 필드 */
-input, select, textarea {
-  @apply border border-neutral-200 rounded-lg bg-white text-neutral-900;
-}
-
-input:focus, select:focus, textarea:focus {
-  @apply outline-none border-neutral-400;
-}
-
-/* 버튼 */
 .btn-primary {
-  @apply bg-neutral-900 text-white hover:bg-neutral-800 rounded-lg font-medium;
+  @apply bg-neutral-900 text-white hover:bg-neutral-800 rounded-lg font-medium transition-colors;
 }
 
 .btn-secondary {
-  @apply bg-neutral-100 text-neutral-700 hover:bg-neutral-200 rounded-lg font-medium;
+  @apply bg-white text-neutral-900 hover:bg-neutral-50 border border-neutral-200 rounded-lg font-medium transition-colors;
 }
 
-/* 스크롤바 */
+/* ========================================
+   입력 필드
+   ======================================== */
+
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea {
+  @apply border border-neutral-200 rounded-lg bg-white text-neutral-900;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  @apply outline-none border-neutral-400;
+}
+
+input::placeholder,
+textarea::placeholder {
+  @apply text-neutral-400;
+}
+
+/* ========================================
+   스크롤바
+   ======================================== */
+
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -55,42 +76,6 @@ input:focus, select:focus, textarea:focus {
   border-radius: 3px;
 }
 
-/* 기존 유틸리티 */
-.brand-purple { background: #7C3AED; }
-.bg-brand-purple { background: #7C3AED; }
-.text-brand-purple { color: #7C3AED; }
-.border-brand-purple { border-color: #7C3AED; }
-
-/* 로그인 애니메이션 (기존 유지) */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-.animate-fade-in { animation: fadeIn 0.3s ease-out; }
-.animate-pulse { animation: pulse 2s ease-in-out infinite; }
-.animate-spin { animation: spin 1s linear infinite; }
-
-/* 탭 컨테이너 스크롤 숨김 */
-.tabs-container {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-.tabs-container::-webkit-scrollbar {
-  display: none;
-}
-
 .scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -100,12 +85,171 @@ input:focus, select:focus, textarea:focus {
   display: none;
 }
 
-/* 모달 애니메이션 */
+/* ========================================
+   탭 컨테이너
+   ======================================== */
+
+.tabs-container {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tabs-container::-webkit-scrollbar {
+  display: none;
+}
+
+/* ========================================
+   애니메이션
+   ======================================== */
+
+.animate-fade-in {
+  animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .modal-enter {
   animation: modalPop 0.2s ease-out;
 }
 
 @keyframes modalPop {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-pulse {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* ========================================
+   토스트 메시지
+   ======================================== */
+
+.toast {
+  @apply fixed bottom-20 left-1/2 -translate-x-1/2 bg-neutral-900 text-white px-4 py-3 rounded-xl shadow-lg z-50;
+  animation: toastSlide 0.3s ease-out;
+}
+
+@keyframes toastSlide {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 20px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+/* ========================================
+   유틸리티 클래스
+   ======================================== */
+
+.text-title {
+  @apply text-lg font-bold text-neutral-900;
+}
+
+.text-subtitle {
+  @apply font-medium text-neutral-900;
+}
+
+.text-body {
+  @apply text-neutral-600;
+}
+
+.text-caption {
+  @apply text-sm text-neutral-500;
+}
+
+.text-hint {
+  @apply text-xs text-neutral-400;
+}
+
+/* ========================================
+   프로그레스 바
+   ======================================== */
+
+.progress-bg {
+  @apply h-2 bg-neutral-100 rounded-full overflow-hidden;
+}
+
+.progress-bar {
+  @apply h-full bg-neutral-400 transition-all;
+}
+
+/* ========================================
+   배지/태그
+   ======================================== */
+
+.badge {
+  @apply text-xs px-2 py-1 bg-neutral-100 text-neutral-600 rounded;
+}
+
+.badge-success {
+  @apply bg-emerald-100 text-emerald-700;
+}
+
+.badge-warning {
+  @apply bg-amber-100 text-amber-700;
+}
+
+.badge-error {
+  @apply bg-rose-100 text-rose-700;
+}
+
+/* ========================================
+   호환성 유지 (기존 클래스)
+   ======================================== */
+
+.brand-purple {
+  background: #171717;
+}
+
+.bg-brand-purple {
+  background: #171717;
+}
+
+.text-brand-purple {
+  color: #171717;
+}
+
+.border-brand-purple {
+  border-color: #171717;
 }
