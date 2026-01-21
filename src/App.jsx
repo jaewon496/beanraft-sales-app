@@ -5784,7 +5784,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  { key: 'calendar', icon: '', label: '캘린더' },
  { key: 'route', icon: '', label: '동선' },
  { key: 'map', icon: '', label: '지도' },
- { key: 'managers', icon: '팀', label: '영업팀' },
+ { key: 'managers', icon: '', label: '영업팀' },
  { key: 'companies', icon: '', label: '업체' },
  { key: 'realtors', icon: '', label: '중개사' },
  { key: 'customers', icon: '', label: '고객' },
@@ -6458,14 +6458,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="flex h-screen bg-neutral-50">
  {/* 좌측 사이드바 (PC 전용) */}
  <aside className="hidden md:flex w-64 flex-col bg-white border-r border-neutral-200">
- <div className="p-4 border-b border-neutral-200">
- <div className="flex items-center gap-3">
- <img src="/logo.png" alt="BEANCRAFT" className="w-10 h-10 object-contain" />
- <div>
- <span className="font-bold text-neutral-900 text-sm">BEANCRAFT</span>
- <p className="text-xs text-neutral-500">영업관리</p>
- </div>
- </div>
+ <div className="p-4 border-b border-neutral-200 flex items-center justify-center">
+ <img src="/logo.png" alt="BEANCRAFT" className="h-12 object-contain" />
  </div>
  <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
  {tabs.map(t => (
@@ -9278,7 +9272,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  )}
  </div>
  <div className="relative">
- <div ref={routeMapRef} className="route-map-container"></div>
+ <div ref={routeMapRef} className="route-map-container" style={{height: '400px', minHeight: '400px', width: '100%'}}></div>
  <div className="absolute top-3 right-3 flex flex-col gap-2 z-10">
  <button
  onClick={toggleGps}
@@ -9464,7 +9458,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <p className="text-xs text-neutral-800 mt-2">핀을 클릭하면 업체 정보를 확인할 수 있습니다</p>
  </div>
  </div>
- <div className="card overflow-hidden"><div ref={mapRef} className="map-container"></div></div>
+ <div className="card overflow-hidden" style={{height: 'calc(100vh - 200px)', minHeight: '500px'}}><div ref={mapRef} className="map-container" style={{height: '100%', width: '100%'}}></div></div>
  </div>
  </div>
  )}
