@@ -1,24 +1,8 @@
-# netlify.toml - 캐시 정책 설정
-
-# HTML 파일: 항상 최신 버전 확인
 [[headers]]
   for = "/*"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
 
-# JS 파일: 파일명에 해시 포함되므로 장기 캐싱
-[[headers]]
-  for = "/*.js"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
-
-# CSS 파일: 파일명에 해시 포함되므로 장기 캐싱
-[[headers]]
-  for = "/*.css"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
-
-# 이미지/폰트 등 정적 파일
 [[headers]]
   for = "/assets/*"
   [headers.values]
