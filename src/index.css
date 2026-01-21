@@ -253,3 +253,35 @@ textarea::placeholder {
 .border-brand-purple {
   border-color: #171717;
 }
+
+/* ========================================
+   지도 컨테이너
+   ======================================== */
+
+.map-container {
+  width: 100%;
+  height: calc(100vh - 350px);
+  min-height: 400px;
+  border-radius: 12px;
+}
+
+@media (max-width: 640px) {
+  .map-container {
+    height: calc(100vh - 400px);
+    min-height: 300px;
+  }
+}
+
+.route-map-container {
+  width: 100%;
+  height: calc(100vh - 350px);
+  min-height: 400px;
+  border-radius: 12px;
+}
+
+@media (max-width: 640px) {
+  .route-map-container {
+    height: calc(100vh - 450px);
+    min-height: 300px;
+  }
+}
