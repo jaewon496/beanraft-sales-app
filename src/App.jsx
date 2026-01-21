@@ -559,6 +559,24 @@ const GEMINI_API_KEY = 'AIzaSyAl0PfvfKlD-nZxtAJOC6qhME-A-V_u2L8';
  // 빈크래프트 자동 수집 - 확장프로그램 ID
  // 확장프로그램 통신은 postMessage 방식 사용 (ID 불필요)
  const App = () => {
+ // ✅ 앱 실행 시 구버전 서비스 워커 강제 삭제 및 캐시 정리
+ useEffect(() => {
+   if ('serviceWorker' in navigator) {
+     navigator.serviceWorker.getRegistrations().then((registrations) => {
+       for (let registration of registrations) {
+         registration.unregister();
+       }
+     });
+   }
+   if ('caches' in window) {
+     caches.keys().then((names) => {
+       names.forEach((name) => {
+         caches.delete(name);
+       });
+     });
+   }
+ }, []);
+
  // 로그인 시 명언 문구
  const [loggedIn, setLoggedIn] = useState(false);
  const [user, setUser] = useState(null);
