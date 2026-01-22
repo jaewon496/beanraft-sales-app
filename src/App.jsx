@@ -510,6 +510,9 @@ const COMPANY_QUOTES = [
 // ═══════════════════════════════════════════════════════════════
 // 소상공인365 API 키 (임시승인 2026-01-19 ~ 2026-06-30)
 // ═══════════════════════════════════════════════════════════════
+// 프록시 서버 URL (CORS 우회용)
+const PROXY_SERVER_URL = 'https://naver-scraper.onrender.com';
+
 const SBIZ365_API = {
   BASE_URL: 'https://bigdata.sbiz.or.kr',
   snsAnaly: { key: 'd46f5d518688912176484b6f894664c5d0b252967d92f4bafc690904381d7ff5', path: '/openApi/snsAnaly', name: 'SNS 분석' },
@@ -765,19 +768,13 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
 
    try {
      // ═══════════════════════════════════════════════════════════════
-     // 1단계: 네이버 Geocoding으로 좌표 및 행정구역 얻기
+     // 1단계: 네이버 Geocoding으로 좌표 및 행정구역 얻기 (프록시 서버 경유)
      // ═══════════════════════════════════════════════════════════════
      let coordinates = null;
      let addressInfo = null;
      try {
        const geoResponse = await fetch(
-         `https://naveropenapi.apigw.ntruss.com/map-geocode/v2/geocode?query=${encodeURIComponent(query)}`,
-         {
-           headers: {
-             'X-NCP-APIGW-API-KEY-ID': 'dx2ymyk2b1',
-             'X-NCP-APIGW-API-KEY': '18184ztuYuPVkqzPumsSqRNVsMHCiBFMWhWdRJAJ'
-           }
-         }
+         `${PROXY_SERVER_URL}/api/geocode?query=${encodeURIComponent(query)}`
        );
        const geoData = await geoResponse.json();
        if (geoData.addresses?.[0]) {
@@ -809,11 +806,13 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
        apis: {}
      };
 
-     // 소상공인365 API 호출 함수
+     // 소상공인365 API 호출 함수 (프록시 서버 경유)
      const callSbizAPI = async (apiConfig, params = {}) => {
        try {
-         const url = new URL(apiConfig.path, SBIZ365_API.BASE_URL);
-         url.searchParams.append('serviceKey', apiConfig.key);
+         // API 이름 추출 (예: /openApi/simple → simple)
+         const apiName = apiConfig.path.split('/').pop();
+         const url = new URL(`/api/sbiz/${apiName}`, PROXY_SERVER_URL);
+         
          url.searchParams.append('numOfRows', '100');
          url.searchParams.append('pageNo', '1');
          url.searchParams.append('type', 'json');
@@ -1120,8 +1119,9 @@ JSON 형식으로만 응답하세요:
    return;
  }
  
- // JSON 파싱 시도
- const jsonMatch = text.match(/\{[\s\S]*\}/);
+ // 마크다운 코드 블록 제거 및 JSON 파싱 시도
+ const cleanText = text.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').trim();
+ const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
  if (jsonMatch) {
  const parsed = JSON.parse(jsonMatch[0]);
  setAiReportResult(parsed);
@@ -1219,7 +1219,9 @@ ${JSON.stringify(regionData, null, 2)}
  }
  
  const text = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
- const jsonMatch = text.match(/\{[\s\S]*\}/);
+ // 마크다운 코드 블록 제거
+ const cleanText = text.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').trim();
+ const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
  if (jsonMatch) {
  setAiRegionResult(JSON.parse(jsonMatch[0]));
  setAiLastUpdateTime(new Date());
@@ -1329,7 +1331,9 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
      }
 
      const text = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
-     const jsonMatch = text.match(/\{[\s\S]*\}/);
+     // 마크다운 코드 블록 제거 (```json ... ```)
+     const cleanText = text.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').trim();
+     const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
      
      if (jsonMatch) {
        const parsed = JSON.parse(jsonMatch[0]);
