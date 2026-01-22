@@ -676,6 +676,8 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
  const [salesModeSearchQuery, setSalesModeSearchQuery] = useState('');
  const [salesModeSearchResult, setSalesModeSearchResult] = useState(null);
  const [salesModeSearchLoading, setSalesModeSearchLoading] = useState(false);
+ const [salesModeAnalysisProgress, setSalesModeAnalysisProgress] = useState(0); // 0-100 진행률
+ const [salesModeAnalysisStep, setSalesModeAnalysisStep] = useState(''); // 현재 단계 텍스트
  const [salesModeShowSources, setSalesModeShowSources] = useState(false);
  const [salesModeIframeError, setSalesModeIframeError] = useState(false); // iframe 차단 감지
  const [salesModeHomepageUrl, setSalesModeHomepageUrl] = useState('https://www.beancraft.co.kr'); // 홈페이지 URL
@@ -764,12 +766,16 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
  const searchSalesModeRegion = async (query) => {
    if (!query.trim()) return;
    setSalesModeSearchLoading(true);
+   setSalesModeAnalysisProgress(0);
+   setSalesModeAnalysisStep('검색 준비 중...');
    updateSalesModeActivity();
 
    try {
      // ═══════════════════════════════════════════════════════════════
      // 1단계: 네이버 Geocoding으로 좌표 및 행정구역 얻기 (프록시 서버 경유)
      // ═══════════════════════════════════════════════════════════════
+     setSalesModeAnalysisProgress(10);
+     setSalesModeAnalysisStep('📍 위치 정보 확인 중...');
      let coordinates = null;
      let addressInfo = null;
      try {
@@ -799,6 +805,8 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
      // ═══════════════════════════════════════════════════════════════
      // 2단계: 소상공인365 API로 실제 데이터 수집
      // ═══════════════════════════════════════════════════════════════
+     setSalesModeAnalysisProgress(25);
+     setSalesModeAnalysisStep('📊 상권 데이터 수집 중...');
      const collectedData = {
        source: '소상공인365 빅데이터',
        timestamp: new Date().toISOString(),
@@ -856,11 +864,15 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
      // ═══════════════════════════════════════════════════════════════
      // 3단계: 프랜차이즈 데이터 추가 (하드코딩 - 공정위 정보공개서)
      // ═══════════════════════════════════════════════════════════════
+     setSalesModeAnalysisProgress(50);
+     setSalesModeAnalysisStep('🏪 프랜차이즈 데이터 확인 중...');
      collectedData.franchiseData = FRANCHISE_DATA;
 
      // ═══════════════════════════════════════════════════════════════
      // 4단계: 수집된 데이터를 AI에게 전달하여 분석 요청
      // ═══════════════════════════════════════════════════════════════
+     setSalesModeAnalysisProgress(65);
+     setSalesModeAnalysisStep('🤖 AI 분석 요청 중...');
      const hasApiData = Object.keys(collectedData.apis).length > 0;
      
      const prompt = `당신은 빈크래프트 카페 창업 컨설팅의 전문 AI 어시스턴트입니다.
@@ -931,6 +943,8 @@ JSON 형식으로만 응답하세요:
   "dataDate": "기준일"
 }`;
 
+     setSalesModeAnalysisProgress(80);
+     setSalesModeAnalysisStep('🧠 AI 리포트 생성 중...');
      const response = await fetch(
        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
        {
@@ -955,6 +969,8 @@ JSON 형식으로만 응답하세요:
        }
        // 원본 API 데이터 첨부 (출처 표시용)
        data.rawApiData = hasApiData ? collectedData.apis : null;
+       setSalesModeAnalysisProgress(100);
+       setSalesModeAnalysisStep('✅ 분석 완료!');
        setSalesModeSearchResult({ success: true, data, query, hasApiData });
      } catch (e) {
        setSalesModeSearchResult({ success: false, error: 'AI 응답 파싱 실패', query });
@@ -6323,6 +6339,61 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                          <p>• Google Gemini AI (빈코치) 분석</p>
                        </div>
                      )}
+                   </div>
+                 )}
+
+                 {/* 로딩 중 프로그레스 표시 */}
+                 {salesModeSearchLoading && (
+                   <div className="flex flex-col items-center justify-center py-16">
+                     {/* 원형 프로그레스 바 */}
+                     <div className="relative w-32 h-32 mb-6">
+                       {/* 배경 원 */}
+                       <svg className="w-full h-full transform -rotate-90">
+                         <circle
+                           cx="64"
+                           cy="64"
+                           r="56"
+                           fill="none"
+                           stroke="#E5E7EB"
+                           strokeWidth="8"
+                         />
+                         {/* 진행률 원 */}
+                         <circle
+                           cx="64"
+                           cy="64"
+                           r="56"
+                           fill="none"
+                           stroke="#171717"
+                           strokeWidth="8"
+                           strokeLinecap="round"
+                           strokeDasharray={`${2 * Math.PI * 56}`}
+                           strokeDashoffset={`${2 * Math.PI * 56 * (1 - salesModeAnalysisProgress / 100)}`}
+                           className="transition-all duration-500 ease-out"
+                         />
+                       </svg>
+                       {/* 퍼센트 텍스트 */}
+                       <div className="absolute inset-0 flex items-center justify-center">
+                         <span className="text-2xl font-bold text-black">{salesModeAnalysisProgress}%</span>
+                       </div>
+                     </div>
+                     {/* 단계 텍스트 */}
+                     <p className="text-lg font-medium text-black mb-2">{salesModeAnalysisStep}</p>
+                     <p className="text-sm text-gray-500">잠시만 기다려주세요</p>
+                     {/* 수집 항목 표시 */}
+                     <div className="mt-6 grid grid-cols-2 gap-2 text-xs text-gray-400">
+                       <div className={`flex items-center gap-1 ${salesModeAnalysisProgress >= 10 ? 'text-green-600' : ''}`}>
+                         {salesModeAnalysisProgress >= 10 ? '✓' : '○'} 위치 정보
+                       </div>
+                       <div className={`flex items-center gap-1 ${salesModeAnalysisProgress >= 25 ? 'text-green-600' : ''}`}>
+                         {salesModeAnalysisProgress >= 25 ? '✓' : '○'} 상권 데이터
+                       </div>
+                       <div className={`flex items-center gap-1 ${salesModeAnalysisProgress >= 50 ? 'text-green-600' : ''}`}>
+                         {salesModeAnalysisProgress >= 50 ? '✓' : '○'} 프랜차이즈
+                       </div>
+                       <div className={`flex items-center gap-1 ${salesModeAnalysisProgress >= 65 ? 'text-green-600' : ''}`}>
+                         {salesModeAnalysisProgress >= 65 ? '✓' : '○'} AI 분석
+                       </div>
+                     </div>
                    </div>
                  )}
 
