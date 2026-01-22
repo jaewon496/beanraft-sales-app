@@ -641,7 +641,7 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
  const [feedbackMent, setFeedbackMent] = useState(null); // 피드백 받을 멘트
  const [feedbackInput, setFeedbackInput] = useState(''); // 수정 멘트 입력
  const [feedbackQuestion, setFeedbackQuestion] = useState(''); // 질문 입력
- const [settingsTab, setSettingsTab] = useState('salesmode'); // 설정 탭: 'salesmode' | 'ments' | 'account'
+ const [settingsTab, setSettingsTab] = useState('salesmode'); // 설정 탭: 'salesmode' | 'account'
  const [selectedMentsForCompany, setSelectedMentsForCompany] = useState([]); // 업체 등록 시 선택된 멘트
  const [companyMentMemo, setCompanyMentMemo] = useState(''); // 업체 멘트 메모
  const [todayContactAlert, setTodayContactAlert] = useState(null); // 오늘 연락할 곳 알림
@@ -10984,7 +10984,6 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* 설정 서브탭 */}
  <div className="flex gap-2 p-1 rounded-full border border-neutral-200 w-fit flex-wrap bg-white">
  <button type="button" onClick={() => setSettingsTab('salesmode')} className={`px-4 py-2 rounded-full text-sm transition-all ${settingsTab === 'salesmode' ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:text-[#171717]'}`}>영업모드</button>
- <button type="button" onClick={() => setSettingsTab('ments')} className={`px-4 py-2 rounded-full text-sm transition-all ${settingsTab === 'ments' ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:text-[#171717]'}`}>멘트관리</button>
  <button type="button" onClick={() => setSettingsTab('account')} className={`px-4 py-2 rounded-full text-sm transition-all ${settingsTab === 'account' ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:text-[#171717]'}`}>계정</button>
  {isAdmin && <button type="button" onClick={() => setSettingsTab('admin')} className={`px-4 py-2 rounded-full text-sm transition-all ${settingsTab === 'admin' ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:text-[#171717]'}`}>관리자</button>}
  </div>
@@ -11001,72 +11000,6 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
    >
      영업모드 시작
    </button>
- </div>
- )}
- 
- {/* 멘트 관리 탭 */}
- {settingsTab === 'ments' && (
- <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
- {/* 왼쪽: 멘트 목록 */}
- <div className="lg:col-span-2">
- <div className="bg-white border border-neutral-200 rounded-2xl p-4 rounded-2xl border border-neutral-200">
- <div className="flex justify-between items-center mb-4">
- <h3 className="font-bold text-[#171717]">내 멘트 목록</h3>
- <button type="button" onClick={() => { setEditingMent(null); setShowMentModal(true); }} className="px-3 py-1 rounded-full border border-neutral-200 text-sm text-neutral-700 hover:border-slate-500">+ 새 멘트</button>
- </div>
- 
- {userMents.length === 0 ? (
- <p className="text-center py-8 text-neutral-500">등록된 멘트가 없습니다</p>
- ) : (
- <div className="space-y-3">
- {userMents.map(ment => (
- <div key={ment.id} className="p-4 rounded-xl border border-neutral-200 hover:border-slate-500">
- <div className="flex justify-between items-start mb-2">
- <div className="flex items-center gap-2">
- <span className={`px-2 py-0.5 rounded-full text-xs ${ment.type === 'broker' ? 'text-neutral-700' : 'text-neutral-700'}`}>
- {ment.type === 'broker' ? '중개사' : '고객'}
- </span>
- <span className="font-bold text-[#171717]">{ment.name}</span>
- </div>
- <div className="flex gap-1">
- <button type="button" onClick={() => { setFeedbackMent(ment); setFeedbackInput(ment.content); setShowAiFeedback(true); }} className="px-2 py-1 rounded-full text-xs border border-neutral-200 text-neutral-500 hover:border-slate-500">AI</button>
- <button type="button" onClick={() => { setEditingMent(ment); setMentForm({ name: ment.name, content: ment.content, type: ment.type || 'broker', memo: ment.memo || '' }); setShowMentModal(true); }} className="px-2 py-1 rounded-full text-xs border border-neutral-200 text-neutral-500 hover:border-slate-500">수정</button>
- <button type="button" onClick={() => { if(confirm('삭제하시겠습니까?')) deleteMent(ment.id); }} className="px-2 py-1 rounded-full text-xs border border-rose-600/50 text-rose-400 hover:border-rose-500">삭제</button>
- </div>
- </div>
- <p className="text-sm text-neutral-700 mb-2 whitespace-pre-wrap">{ment.content}</p>
- <div className="flex gap-4 text-xs text-neutral-500">
- <span>사용 {ment.useCount || 0}회</span>
- <span>성공률 {ment.useCount > 0 ? Math.round(((ment.successCount || 0) / ment.useCount) * 100) : 0}%</span>
- </div>
- </div>
- ))}
- </div>
- )}
- </div>
- </div>
- 
- {/* 오른쪽: AI 피드백 히스토리 */}
- <div className="lg:col-span-1">
- <div className="bg-white border border-neutral-200 rounded-2xl p-4 rounded-2xl border border-neutral-200">
- <h3 className="font-bold text-[#171717] mb-4">AI 피드백 히스토리</h3>
- {mentFeedbacks.length === 0 ? (
- <p className="text-center py-4 text-neutral-500 text-sm">기록 없음</p>
- ) : (
- <div className="space-y-2 max-h-60 overflow-y-auto">
- {mentFeedbacks.slice().reverse().slice(0, 10).map(fb => (
- <div key={fb.id} className="p-3 rounded-xl border border-neutral-200">
- <div className="flex justify-between items-center mb-1">
- <span className="font-medium text-neutral-800 text-sm">{fb.mentName}</span>
- <span className="text-xs text-neutral-500">{new Date(fb.createdAt).toLocaleDateString()}</span>
- </div>
- <p className="text-xs text-neutral-500 line-clamp-2">{fb.question}</p>
- </div>
- ))}
- </div>
- )}
- </div>
- </div>
  </div>
  )}
  
