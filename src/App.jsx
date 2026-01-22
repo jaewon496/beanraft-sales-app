@@ -933,7 +933,7 @@ JSON 형식으로만 응답하세요:
 }`;
 
      const response = await fetch(
-       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+       `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
        {
          method: 'POST',
          headers: { 'Content-Type': 'application/json' },
@@ -1063,7 +1063,7 @@ JSON 형식으로만 응답하세요:
 
  try {
  const response = await fetch(
- `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+ `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
  {
  method: 'POST',
  headers: { 'Content-Type': 'application/json' },
@@ -1178,7 +1178,7 @@ ${JSON.stringify(regionData, null, 2)}
 
  try {
  const response = await fetch(
- `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+ `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
  {
  method: 'POST',
  headers: { 'Content-Type': 'application/json' },
@@ -1299,7 +1299,7 @@ JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창�
 
    try {
      const response = await fetch(
-       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+       `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
        {
          method: 'POST',
          headers: { 'Content-Type': 'application/json' },
@@ -1380,7 +1380,7 @@ ${question}
 4. 실전 팁 (1문장)`;
 
      const response = await fetch(
-       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+       `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
        {
          method: 'POST',
          headers: { 'Content-Type': 'application/json' },
