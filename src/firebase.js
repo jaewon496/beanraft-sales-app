@@ -3,16 +3,15 @@ import 'firebase/compat/auth';
 import 'firebase/compat/database';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBRrxkXnyGd3HKXFKEUB2o15sY8U2N2Mic",
-  authDomain: "beancraft-sales-team.firebaseapp.com",
-  databaseURL: "https://beancraft-sales-team-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "beancraft-sales-team",
-  storageBucket: "beancraft-sales-team.firebasestorage.app",
-  messagingSenderId: "803745881200",
-  appId: "1:803745881200:web:fb430162f761e3ecdba8b5"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
-
 export { firebase, database };
