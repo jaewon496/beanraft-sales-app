@@ -550,7 +550,7 @@ const FRANCHISE_DATA = {
 };
 
 // Gemini AI API 키
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+const GEMINI_API_KEY = 'AIzaSyAUOWljMLwQAVikvpnl-v4PcuLp2mIMxgY';
 
 // Store OS 디자인 시스템
 const UI = {
