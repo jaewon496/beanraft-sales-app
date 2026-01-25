@@ -1,78 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { firebase, database } from './firebase';
 
-// ═══════════════════════════════════════════════════════════════
-// 유틸리티 함수: 안전한 JSON 파싱 (손상된 데이터 처리)
-// ═══════════════════════════════════════════════════════════════
-const safeJsonParse = (jsonString, fallback = null) => {
-  if (!jsonString || typeof jsonString !== 'string') return fallback;
-  try {
-    return JSON.parse(jsonString);
-  } catch (e) {
-    console.warn('JSON 파싱 실패:', e.message);
-    return fallback;
-  }
-};
-
-// JSON 키/형식 텍스트 정리 (AI 응답에서 JSON 형태가 그대로 보이는 문제 해결)
-const cleanJsonText = (text) => {
-  if (!text || typeof text !== 'string') return text || '-';
-  let cleaned = text.trim();
-  
-  // JSON 형태가 아니면 그대로 반환
-  if (!cleaned.startsWith('{') && !cleaned.startsWith('"') && !cleaned.includes('":')) {
-    return cleaned;
-  }
-  
-  // 모든 JSON 키 패턴 제거: "keyName": " 또는 "keyName": 
-  const jsonKeyPatterns = [
-    /^\s*\{\s*/g,                           // 시작 {
-    /\s*\}\s*$/g,                           // 끝 }
-    /"(regionBrief|brokerEmpathy|partnershipValue|talkScript|relatedRegions|cafeCount|newOpen|closed|floatingPop|residentPop|mainTarget|mainRatio|secondTarget|secondRatio|peakTime|takeoutRatio|avgStay|monthly|deposit|premium|yoyChange|title|detail|impact|level|interior|equipment|total|survivalRate|avgMonthlyRevenue|breakEvenMonths|source|message|insight|overview|consumers|franchise|rent|opportunities|risks|startupCost|consultingEffect|withConsulting|withoutConsulting|region|reliability|dataDate|name|count|price)"\s*:\s*"?/gi,
-    /",?\s*$/g,                              // 끝 따옴표와 쉼표
-    /^\s*"?/g,                               // 시작 따옴표
-  ];
-  
-  jsonKeyPatterns.forEach(pattern => {
-    cleaned = cleaned.replace(pattern, '');
-  });
-  
-  // 연속된 공백 정리
-  cleaned = cleaned.replace(/\s+/g, ' ').trim();
-  
-  // 빈 문자열이면 원본 반환
-  return cleaned || text;
-};
-
-// 안전한 localStorage 접근
-const safeLocalStorage = {
-  getItem: (key, fallback = null) => {
-    try {
-      const item = localStorage.getItem(key);
-      return item !== null ? safeJsonParse(item, fallback) : fallback;
-    } catch (e) {
-      console.warn('localStorage 접근 실패:', e.message);
-      return fallback;
-    }
-  },
-  setItem: (key, value) => {
-    try {
-      localStorage.setItem(key, JSON.stringify(value));
-      return true;
-    } catch (e) {
-      console.warn('localStorage 저장 실패:', e.message);
-      return false;
-    }
-  },
-  removeItem: (key) => {
-    try {
-      localStorage.removeItem(key);
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }
-}; 
+ 
  const PRESET_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1'];
 const LOGIN_QUOTES = [
   "안 될 이유보다, 될 이유 하나만 생각하고 시작합시다.",
@@ -576,153 +505,16 @@ const COMPANY_QUOTES = [
  return d.toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
  };
  const PROMO_ITEMS = ['명함', '브로셔', '전단지', '쿠폰'];
+ const GOOGLE_VISION_API_KEY = 'AIzaSyDcz5e1qre9QMbrKmUSjT9nEsajSnhIhAI';
 
 // ═══════════════════════════════════════════════════════════════
-// 환경 변수 기반 API 키 및 URL 설정
+// 소상공인365 API 키 (임시승인 2026-01-19 ~ 2026-06-30)
 // ═══════════════════════════════════════════════════════════════
-// Google Vision API 키 (환경 변수에서 로드)
-const GOOGLE_VISION_API_KEY = import.meta.env.VITE_GOOGLE_VISION_API_KEY || '';
+// 프록시 서버 URL (CORS 우회용)
+const PROXY_SERVER_URL = 'https://naver-scraper.onrender.com';
 
-// 프록시 서버 URL (CORS 우회용) - 환경 변수 또는 기본값
-const PROXY_SERVER_URL = import.meta.env.VITE_PROXY_SERVER_URL || 'https://naver-scraper.onrender.com';
-
-// 허용된 도메인 목록 (postMessage 보안용)
-const ALLOWED_ORIGINS = [
-  window.location.origin,
-  'https://beancraft.co.kr',
-  'https://www.beancraft.co.kr',
-  import.meta.env.VITE_ALLOWED_ORIGIN
-].filter(Boolean);
-
-// ═══════════════════════════════════════════════════════════════
-// 소상공인365 GIS API (인증 불필요 - 2026-01-23 검증 완료)
-// ═══════════════════════════════════════════════════════════════
-const SBIZ365_BASE_URL = 'https://bigdata.sbiz.or.kr';
-
-// 행정구역별 데이터 API (좌표 범위 기반)
-const SBIZ365_GIS_API = {
-  // 행정동별 데이터 (Rads)
-  saleAmt: '/gis/api/getMapRadsSaleAmt.json',       // 매출액
-  popCnt: '/gis/api/getMapRadsPopCnt.json',         // 유동인구
-  storCnt: '/gis/api/getMapRadsStorCnt.json',       // 업소수
-  earnAmt: '/gis/api/getMapRadsWholEarnAmt.json',   // 소득
-  cnsmpAmt: '/gis/api/getMapRadsWholCnsmpAmt.json', // 소비
-  hhCnt: '/gis/api/getMapRadsHhCnt.json',           // 세대수
-  wrcpplCnt: '/gis/api/getMapRadsWrcpplCnt.json',   // 직장인구
-  wholPpltnCnt: '/gis/api/getMapRadsWholPpltnCnt.json', // 주거인구
-  
-  // 상권별 데이터 (Bizon)
-  bizonStor: '/gis/api/getMapBizonCntStor.json',    // 상권 업소수
-  bizonSale: '/gis/api/getMapBizonCntSaleAmt.json', // 상권 매출
-  bizonDynppl: '/gis/api/getMapBizonDynpplCnt.json', // 상권 유동인구
-  
-  // 점포 히스토리 (개폐업 데이터)
-  storeHistoryList: '/gis/api/getStoreHistoryList.json', // 점포 목록
-  storeHistory: '/gis/api/getStoreHistory.json',    // 점포 상세 (개업/폐업 일자)
-  
-  // 지역 목록
-  sidoList: '/gis/com/megaListNoAll.json',          // 시도 목록
-  sggList: '/gis/com/ctyList.json',                 // 시군구 목록
-  dongList: '/gis/com/getAdmList.json',             // 행정동 목록
-  
-  // 핫플레이스 상권
-  hpTop10: '/gis/hpAnls/getBizonRnkTop10.json',     // 테마별 상권 Top10
-  bizonShape: '/gis/api/searchBizonShpeData.json',  // 상권 Shape 데이터
-};
-
-// WGS84 (위도/경도) → EPSG:5181 (TM) 좌표 변환
-// Proj4 공식 기반 (소상공인365에서 사용하는 좌표계)
-const transformWGS84toTM = (lng, lat) => {
-  // EPSG:5181 파라미터 (중부원점TM)
-  const a = 6378137.0; // GRS80 장반경
-  const f = 1 / 298.257222101; // GRS80 편평률
-  const lat0 = 38 * Math.PI / 180; // 원점 위도
-  const lng0 = 127 * Math.PI / 180; // 원점 경도
-  const k0 = 1.0; // 축척계수
-  const x0 = 200000; // 가산좌표 X
-  const y0 = 500000; // 가산좌표 Y
-  
-  const e2 = 2 * f - f * f;
-  const e = Math.sqrt(e2);
-  const latRad = lat * Math.PI / 180;
-  const lngRad = lng * Math.PI / 180;
-  
-  const N = a / Math.sqrt(1 - e2 * Math.sin(latRad) * Math.sin(latRad));
-  const T = Math.tan(latRad) * Math.tan(latRad);
-  const C = e2 / (1 - e2) * Math.cos(latRad) * Math.cos(latRad);
-  const A = (lngRad - lng0) * Math.cos(latRad);
-  
-  const M = a * ((1 - e2/4 - 3*e2*e2/64 - 5*e2*e2*e2/256) * latRad
-    - (3*e2/8 + 3*e2*e2/32 + 45*e2*e2*e2/1024) * Math.sin(2*latRad)
-    + (15*e2*e2/256 + 45*e2*e2*e2/1024) * Math.sin(4*latRad)
-    - (35*e2*e2*e2/3072) * Math.sin(6*latRad));
-  
-  const M0 = a * ((1 - e2/4 - 3*e2*e2/64 - 5*e2*e2*e2/256) * lat0
-    - (3*e2/8 + 3*e2*e2/32 + 45*e2*e2*e2/1024) * Math.sin(2*lat0)
-    + (15*e2*e2/256 + 45*e2*e2*e2/1024) * Math.sin(4*lat0)
-    - (35*e2*e2*e2/3072) * Math.sin(6*lat0));
-  
-  const x = k0 * N * (A + (1-T+C)*A*A*A/6 + (5-18*T+T*T+72*C-58*e2/(1-e2))*A*A*A*A*A/120) + x0;
-  const y = k0 * (M - M0 + N * Math.tan(latRad) * (A*A/2 + (5-T+9*C+4*C*C)*A*A*A*A/24 + (61-58*T+T*T+600*C-330*e2/(1-e2))*A*A*A*A*A*A/720)) + y0;
-  
-  return { x: Math.round(x), y: Math.round(y) };
-};
-
-// TM → WGS84 역변환
-const transformTMtoWGS84 = (x, y) => {
-  const a = 6378137.0;
-  const f = 1 / 298.257222101;
-  const lat0 = 38 * Math.PI / 180;
-  const lng0 = 127 * Math.PI / 180;
-  const k0 = 1.0;
-  const x0 = 200000;
-  const y0 = 500000;
-  
-  const e2 = 2 * f - f * f;
-  const e1 = (1 - Math.sqrt(1 - e2)) / (1 + Math.sqrt(1 - e2));
-  
-  const M0 = a * ((1 - e2/4 - 3*e2*e2/64 - 5*e2*e2*e2/256) * lat0
-    - (3*e2/8 + 3*e2*e2/32 + 45*e2*e2*e2/1024) * Math.sin(2*lat0)
-    + (15*e2*e2/256 + 45*e2*e2*e2/1024) * Math.sin(4*lat0)
-    - (35*e2*e2*e2/3072) * Math.sin(6*lat0));
-  
-  const M = M0 + (y - y0) / k0;
-  const mu = M / (a * (1 - e2/4 - 3*e2*e2/64 - 5*e2*e2*e2/256));
-  
-  const lat1 = mu + (3*e1/2 - 27*e1*e1*e1/32) * Math.sin(2*mu)
-    + (21*e1*e1/16 - 55*e1*e1*e1*e1/32) * Math.sin(4*mu)
-    + (151*e1*e1*e1/96) * Math.sin(6*mu);
-  
-  const N1 = a / Math.sqrt(1 - e2 * Math.sin(lat1) * Math.sin(lat1));
-  const T1 = Math.tan(lat1) * Math.tan(lat1);
-  const C1 = e2 / (1 - e2) * Math.cos(lat1) * Math.cos(lat1);
-  const R1 = a * (1 - e2) / Math.pow(1 - e2 * Math.sin(lat1) * Math.sin(lat1), 1.5);
-  const D = (x - x0) / (N1 * k0);
-  
-  const lat = lat1 - (N1 * Math.tan(lat1) / R1) * (D*D/2 - (5 + 3*T1 + 10*C1 - 4*C1*C1 - 9*e2/(1-e2))*D*D*D*D/24
-    + (61 + 90*T1 + 298*C1 + 45*T1*T1 - 252*e2/(1-e2) - 3*C1*C1)*D*D*D*D*D*D/720);
-  const lng = lng0 + (D - (1 + 2*T1 + C1)*D*D*D/6 + (5 - 2*C1 + 28*T1 - 3*C1*C1 + 8*e2/(1-e2) + 24*T1*T1)*D*D*D*D*D/120) / Math.cos(lat1);
-  
-  return { lat: lat * 180 / Math.PI, lng: lng * 180 / Math.PI };
-};
-
-// 좌표 기반 API 호출용 범위 계산 (중심점에서 반경 km)
-const getCoordRange = (lat, lng, radiusKm = 2) => {
-  const tm = transformWGS84toTM(lng, lat);
-  const delta = radiusKm * 1000; // km → m
-  return {
-    minXAxis: tm.x - delta,
-    maxXAxis: tm.x + delta,
-    minYAxis: tm.y - delta,
-    maxYAxis: tm.y + delta,
-    centerX: tm.x,
-    centerY: tm.y
-  };
-};
-
-// 기존 API 설정 (호환성 유지)
 const SBIZ365_API = {
-  BASE_URL: SBIZ365_BASE_URL,
+  BASE_URL: 'https://bigdata.sbiz.or.kr',
   snsAnaly: { key: 'd46f5d518688912176484b6f894664c5d0b252967d92f4bafc690904381d7ff5', path: '/openApi/snsAnaly', name: 'SNS 분석' },
   simple: { key: 'bb51c6d3d3f93e8172c7888e73eb19afb9120c9f61676c658648ee2853f88e85', path: '/openApi/simple', name: '간단분석' },
   tour: { key: 'fc2070ca36e0ec845ecfd8c949860cfe4552e56903afcb9bcea07a509f820bcd', path: '/openApi/tour', name: '관광 축제 정보' },
@@ -759,6 +551,97 @@ const FRANCHISE_DATA = {
 
 // Gemini AI API 키
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+
+// 12개 업종 분류 (소상공인365 업종코드 기반)
+const BUSINESS_CATEGORIES = {
+  cafe: { code: 'Q12', name: '카페/디저트', icon: 'cafe' },
+  restaurant: { code: 'Q01', name: '음식점', icon: 'restaurant' },
+  office: { code: 'L01', name: '사무실/오피스', icon: 'office' },
+  finance: { code: 'K01', name: '금융/보험', icon: 'finance' },
+  beauty: { code: 'S01', name: '미용/네일', icon: 'beauty' },
+  hospital: { code: 'Q86', name: '병원/의원', icon: 'hospital' },
+  fitness: { code: 'R01', name: '헬스/운동', icon: 'fitness' },
+  academy: { code: 'P01', name: '학원/교육', icon: 'academy' },
+  convenience: { code: 'G01', name: '편의점', icon: 'convenience' },
+  mart: { code: 'G02', name: '마트/슈퍼', icon: 'mart' },
+  hotel: { code: 'I01', name: '숙박', icon: 'hotel' },
+  culture: { code: 'R02', name: '문화/여가', icon: 'culture' }
+};
+
+// 업종별 카페 전략 (소상공인진흥공단 창업가이드 기반)
+const BUSINESS_CAFE_STRATEGY = {
+  office: {
+    strategy: '테이크아웃 특화',
+    tips: ['출근 시간(8-9시) 빠른 픽업 시스템', '점심 후(13-14시) 아메리카노 할인', '사전 주문 앱 연동 필수'],
+    menu: ['아메리카노', '카페라떼', '에너지 음료'],
+    peakTime: '08:00-09:00, 13:00-14:00'
+  },
+  fitness: {
+    strategy: '건강 음료 라인업',
+    tips: ['프로틴 쉐이크, 저칼로리 음료', '운동 전후 간편식 (에너지바, 샐러드)', '오후 5-8시 퇴근+운동 고객 타깃'],
+    menu: ['프로틴 쉐이크', '저칼로리 라떼', '그릭요거트'],
+    peakTime: '17:00-20:00'
+  },
+  beauty: {
+    strategy: '대기 고객 연계',
+    tips: ['미용실 대기 시간 평균 30분~1시간', '테이크아웃 + 미용실 제휴 할인', '여성 고객 타깃 디저트 강화'],
+    menu: ['디저트류', '과일 음료', '허브티'],
+    peakTime: '10:00-18:00'
+  },
+  hospital: {
+    strategy: '중장년 편의 제공',
+    tips: ['따뜻한 음료 중심', '좌석 편안하게 배치', '대기 시간 활용 고객 유치'],
+    menu: ['따뜻한 아메리카노', '유자차', '대추차'],
+    peakTime: '09:00-12:00'
+  },
+  academy: {
+    strategy: '학부모/학생 타깃',
+    tips: ['오후 3-6시 학원 시간대 집중', '학부모 대기 공간 활용', '학생 간식류 구비'],
+    menu: ['음료', '토스트', '샌드위치'],
+    peakTime: '15:00-18:00'
+  },
+  restaurant: {
+    strategy: '식후 커피 연계',
+    tips: ['식사 후 디저트/커피 패키지', '음식점 밀집 지역 동선 활용', '점심/저녁 피크타임 직후 집중'],
+    menu: ['에스프레소', '디저트 세트', '소화 음료'],
+    peakTime: '13:00-14:00, 19:00-20:00'
+  },
+  hotel: {
+    strategy: '관광객 모닝 커피',
+    tips: ['조식 대체 메뉴 구비', '외국어 메뉴판', '이른 아침 오픈'],
+    menu: ['모닝 세트', '베이커리', '주스'],
+    peakTime: '07:00-10:00'
+  },
+  culture: {
+    strategy: '주말 유동인구 공략',
+    tips: ['주말 집중 운영', '영화/공연 전후 시간대', '대용량 음료 인기'],
+    menu: ['대용량 음료', '팝콘 세트', '디저트'],
+    peakTime: '토요일, 일요일 전일'
+  }
+};
+
+
+
+// 경쟁 강도 기준 (소상공인진흥공단 상권분석 기준)
+const COMPETITION_LEVEL = {
+  low: { max: 15, label: '양호', color: 'text-blue-600' },
+  medium: { max: 30, label: '보통', color: 'text-gray-600' },
+  high: { max: 50, label: '과밀', color: 'text-orange-600' },
+  veryHigh: { max: Infinity, label: '매우과밀', color: 'text-red-600' }
+};
+
+// 지역별 API 지원 현황
+const REGIONAL_API_SUPPORT = {
+  seoul: { name: '서울', hasPaymentData: true, api: 'data.seoul.go.kr' },
+  gyeonggi: { name: '경기', hasPaymentData: true, api: 'data.gg.go.kr' },
+  sejong: { name: '세종', hasPaymentData: true, api: 'data.go.kr' },
+  busan: { name: '부산', hasPaymentData: false, api: null },
+  daegu: { name: '대구', hasPaymentData: false, api: null },
+  incheon: { name: '인천', hasPaymentData: false, api: null },
+  gwangju: { name: '광주', hasPaymentData: false, api: null },
+  daejeon: { name: '대전', hasPaymentData: false, api: null },
+  ulsan: { name: '울산', hasPaymentData: false, api: null }
+};
 
 // Store OS 디자인 시스템
 const UI = {
@@ -857,7 +740,8 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
  // AI 탭 확장 기능
  const [aiExpandedData, setAiExpandedData] = useState(null); // 클릭한 데이터 상세
  const [teamFeedback, setTeamFeedback] = useState(() => {
-   return safeLocalStorage.getItem('bc_team_feedback', []);
+ const saved = localStorage.getItem('bc_team_feedback');
+ return saved ? JSON.parse(saved) : [];
  }); // 팀 피드백 자동 학습 데이터
 
       const [teamFeedbackSituation, setTeamFeedbackSituation] = useState('');
@@ -885,7 +769,6 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
  const [salesModeSearchLoading, setSalesModeSearchLoading] = useState(false);
  const [salesModeAnalysisProgress, setSalesModeAnalysisProgress] = useState(0); // 0-100 진행률
  const [salesModeAnalysisStep, setSalesModeAnalysisStep] = useState(''); // 현재 단계 텍스트
- const [salesModeCollectingText, setSalesModeCollectingText] = useState(''); // 실시간 수집 텍스트
  const [salesModeShowSources, setSalesModeShowSources] = useState(false);
  const [salesModeIframeError, setSalesModeIframeError] = useState(false); // iframe 차단 감지
  const [salesModeHomepageUrl, setSalesModeHomepageUrl] = useState('https://www.beancraft.co.kr'); // 홈페이지 URL
@@ -893,6 +776,17 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
  const salesModeTimeoutRef = useRef(null);
  const salesModeLockTimeoutRef = useRef(null);
  const salesModeMapRef = useRef(null); // 네이버 지도 인스턴스
+ 
+ // 위치 분석 모달 상태 (지도 핀 선택)
+ const [locationPinMode, setLocationPinMode] = useState(false); // 핀 선택 모드 활성화
+ const [locationAnalysisModal, setLocationAnalysisModal] = useState(false); // 모달 표시
+ const [locationAnalysisData, setLocationAnalysisData] = useState(null); // 분석 데이터
+ const [locationAnalysisLoading, setLocationAnalysisLoading] = useState(false); // 로딩 상태
+ const [locationPinCoords, setLocationPinCoords] = useState(null); // 선택한 좌표
+ const locationPinMarkerRef = useRef(null); // 핀 마커 참조
+ const locationCircleRef = useRef(null); // 반경 원 참조
+ const locationMapRef = useRef(null); // 위치 분석용 지도 인스턴스
+ const locationMapContainerRef = useRef(null); // 지도 컨테이너 ref
 
  // 영업모드 자동 잠금 타이머 (1분 무활동 시)
  useEffect(() => {
@@ -948,6 +842,110 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
    if (salesModeLockTimeoutRef.current) clearInterval(salesModeLockTimeoutRef.current);
  };
 
+ // 위치 분석 모달 지도 초기화
+ useEffect(() => {
+   if (!locationAnalysisModal || !locationMapContainerRef.current) return;
+   if (locationMapRef.current) return; // 이미 초기화됨
+   
+   const initLocationMap = () => {
+     if (!window.naver?.maps) {
+       setTimeout(initLocationMap, 100);
+       return;
+     }
+     
+     locationMapRef.current = new naver.maps.Map(locationMapContainerRef.current, {
+       center: new naver.maps.LatLng(37.5665, 126.978),
+       zoom: 12
+     });
+     
+     // 지도 클릭 이벤트 (핀 선택 모드일 때만)
+     naver.maps.Event.addListener(locationMapRef.current, 'click', async (e) => {
+       if (!locationPinMode) return;
+       
+       const lat = e.coord.lat();
+       const lng = e.coord.lng();
+       
+       // 기존 마커/원 제거
+       if (locationPinMarkerRef.current) {
+         locationPinMarkerRef.current.setMap(null);
+       }
+       if (locationCircleRef.current) {
+         locationCircleRef.current.setMap(null);
+       }
+       
+       // 새 마커 추가
+       locationPinMarkerRef.current = new naver.maps.Marker({
+         position: new naver.maps.LatLng(lat, lng),
+         map: locationMapRef.current
+       });
+       
+       // 반경 500m 원 추가
+       locationCircleRef.current = new naver.maps.Circle({
+         map: locationMapRef.current,
+         center: new naver.maps.LatLng(lat, lng),
+         radius: 500,
+         strokeColor: '#000000',
+         strokeOpacity: 0.8,
+         strokeWeight: 2,
+         fillColor: '#000000',
+         fillOpacity: 0.1
+       });
+       
+       setLocationPinCoords({ lat, lng });
+       
+       // 주소 역지오코딩
+       let address = '';
+       let addressInfo = {};
+       try {
+         naver.maps.Service.reverseGeocode({
+           coords: new naver.maps.LatLng(lat, lng),
+           orders: 'roadaddr,addr'
+         }, async (status, response) => {
+           if (status === naver.maps.Service.Status.OK && response.v2.results?.length > 0) {
+             const result = response.v2.results[0];
+             if (result.land) {
+               address = `${result.region.area1.name} ${result.region.area2.name} ${result.region.area3.name} ${result.land.name || ''} ${result.land.number1 || ''}`.trim();
+             }
+             addressInfo = {
+               sido: result.region.area1.name || '',
+               sigungu: result.region.area2.name || '',
+               dong: result.region.area3.name || ''
+             };
+           }
+           // 분석 실행
+           await executeLocationAnalysis(lat, lng, address, addressInfo);
+         });
+       } catch (err) {
+         console.log('역지오코딩 실패:', err);
+         await executeLocationAnalysis(lat, lng, '', {});
+       }
+     });
+   };
+   
+   setTimeout(initLocationMap, 100);
+   
+   return () => {
+     if (locationMapRef.current) {
+       locationMapRef.current = null;
+     }
+   };
+ }, [locationAnalysisModal, locationPinMode]);
+
+ // 모달 닫힐 때 지도 정리
+ useEffect(() => {
+   if (!locationAnalysisModal) {
+     if (locationPinMarkerRef.current) {
+       locationPinMarkerRef.current.setMap(null);
+       locationPinMarkerRef.current = null;
+     }
+     if (locationCircleRef.current) {
+       locationCircleRef.current.setMap(null);
+       locationCircleRef.current = null;
+     }
+     locationMapRef.current = null;
+   }
+ }, [locationAnalysisModal]);
+
  // PIN 입력 처리
  const handlePinInput = (digit) => {
    updateSalesModeActivity();
@@ -970,40 +968,404 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
    setSalesModePinInput(prev => prev.slice(0, -1));
  };
 
- // 영업모드 지역 검색 (소상공인365 GIS API + Gemini AI 통합)
+ // ═══════════════════════════════════════════════════════════════
+ // 위치 분석 함수 (반경 500m 업종 분석)
+ // ═══════════════════════════════════════════════════════════════
+ 
+ // 지역별 실제 결제 데이터 API 호출 (서울/경기만 지원)
+ const fetchRegionalPaymentData = async (sido, sigungu, dong) => {
+   const sidoLower = sido?.toLowerCase() || '';
+   
+   // 서울시 열린데이터 API
+   if (sidoLower.includes('서울')) {
+     try {
+       const response = await fetch(
+         `${PROXY_SERVER_URL}/api/seoul/card-sales?gu=${encodeURIComponent(sigungu)}&dong=${encodeURIComponent(dong)}`
+       );
+       if (response.ok) {
+         const data = await response.json();
+         return {
+           source: '서울시 열린데이터',
+           isActualData: true,
+           ageDistribution: data.ageDistribution || null,
+           genderDistribution: data.genderDistribution || null
+         };
+       }
+     } catch (e) {
+       console.log('서울시 API 호출 실패:', e);
+     }
+   }
+   
+   // 경기도 빅데이터 API
+   if (sidoLower.includes('경기')) {
+     try {
+       const response = await fetch(
+         `${PROXY_SERVER_URL}/api/gyeonggi/card-sales?sigungu=${encodeURIComponent(sigungu)}&dong=${encodeURIComponent(dong)}`
+       );
+       if (response.ok) {
+         const data = await response.json();
+         return {
+           source: '경기도 빅데이터',
+           isActualData: true,
+           ageDistribution: data.ageDistribution || null,
+           genderDistribution: data.genderDistribution || null
+         };
+       }
+     } catch (e) {
+       console.log('경기도 API 호출 실패:', e);
+     }
+   }
+   
+   // 지원하지 않는 지역: 데이터 없음
+   return {
+     source: null,
+     isActualData: false,
+     ageDistribution: null,
+     genderDistribution: null
+   };
+ };
+
+ // 경쟁 강도 판정
+ const getCompetitionLevel = (cafeCount) => {
+   if (cafeCount < COMPETITION_LEVEL.low.max) return COMPETITION_LEVEL.low;
+   if (cafeCount < COMPETITION_LEVEL.medium.max) return COMPETITION_LEVEL.medium;
+   if (cafeCount < COMPETITION_LEVEL.high.max) return COMPETITION_LEVEL.high;
+   return COMPETITION_LEVEL.veryHigh;
+ };
+
+ // 반경 500m 업종별 점포 수집 함수
+ const fetchLocationBusinessData = async (lat, lng) => {
+   const businessData = {
+     cafe: 0,
+     restaurant: 0,
+     office: 0,
+     finance: 0,
+     beauty: 0,
+     hospital: 0,
+     fitness: 0,
+     academy: 0,
+     convenience: 0,
+     mart: 0,
+     hotel: 0,
+     culture: 0,
+     total: 0
+   };
+
+   try {
+     // 소상공인365 업소현황 API 호출 (반경 500m)
+     const url = new URL(`/api/sbiz/storSttus`, PROXY_SERVER_URL);
+     url.searchParams.append('numOfRows', '1000');
+     url.searchParams.append('pageNo', '1');
+     url.searchParams.append('type', 'json');
+     url.searchParams.append('radius', '500');
+     url.searchParams.append('cx', lng.toString());
+     url.searchParams.append('cy', lat.toString());
+     
+     const response = await fetch(url.toString());
+     if (response.ok) {
+       const data = await response.json();
+       const items = data.body?.items || [];
+       
+       items.forEach(item => {
+         const code = item.indsLclsCd || '';
+         if (code.startsWith('Q12') || code.includes('카페') || code.includes('커피')) {
+           businessData.cafe++;
+         } else if (code.startsWith('Q') || code.includes('음식')) {
+           businessData.restaurant++;
+         } else if (code.startsWith('L') || code.includes('사무')) {
+           businessData.office++;
+         } else if (code.startsWith('K') || code.includes('금융')) {
+           businessData.finance++;
+         } else if (code.startsWith('S') || code.includes('미용')) {
+           businessData.beauty++;
+         } else if (code.includes('병원') || code.includes('의원')) {
+           businessData.hospital++;
+         } else if (code.includes('헬스') || code.includes('피트니스')) {
+           businessData.fitness++;
+         } else if (code.startsWith('P') || code.includes('학원')) {
+           businessData.academy++;
+         } else if (code.includes('편의점')) {
+           businessData.convenience++;
+         } else if (code.includes('마트') || code.includes('슈퍼')) {
+           businessData.mart++;
+         } else if (code.startsWith('I') || code.includes('숙박')) {
+           businessData.hotel++;
+         } else if (code.startsWith('R') || code.includes('문화')) {
+           businessData.culture++;
+         }
+         businessData.total++;
+       });
+     }
+   } catch (e) {
+     console.log('업종 데이터 수집 실패:', e);
+   }
+
+   return businessData;
+ };
+
+ // 상권 지표 수집 함수 (매출, 유동인구, 직장/주거인구, 개폐업)
+ const fetchLocationMarketData = async (lat, lng) => {
+   const marketData = {
+     avgSales: null,
+     floatingPop: null,
+     workerPop: null,
+     residentPop: null,
+     workerRatio: null,
+     residentRatio: null,
+     newOpen: null,
+     closed: null,
+     netChange: null
+   };
+
+   try {
+     // 매출 데이터
+     const salesUrl = new URL(`/api/sbiz/slsIndex`, PROXY_SERVER_URL);
+     salesUrl.searchParams.append('radius', '500');
+     salesUrl.searchParams.append('cx', lng.toString());
+     salesUrl.searchParams.append('cy', lat.toString());
+     salesUrl.searchParams.append('indsLclsCd', 'Q12');
+     
+     const salesResponse = await fetch(salesUrl.toString());
+     if (salesResponse.ok) {
+       const salesData = await salesResponse.json();
+       const items = salesData.body?.items || [];
+       if (items.length > 0) {
+         const avgSales = items.reduce((sum, item) => sum + (parseFloat(item.saleAmt) || 0), 0) / items.length;
+         marketData.avgSales = Math.round(avgSales / 10000);
+       }
+     }
+
+     // 유동인구 + 직장/주거인구
+     const popUrl = new URL(`/api/sbiz/simple`, PROXY_SERVER_URL);
+     popUrl.searchParams.append('radius', '500');
+     popUrl.searchParams.append('cx', lng.toString());
+     popUrl.searchParams.append('cy', lat.toString());
+     
+     const popResponse = await fetch(popUrl.toString());
+     if (popResponse.ok) {
+       const popData = await popResponse.json();
+       const items = popData.body?.items || [];
+       if (items.length > 0) {
+         const item = items[0];
+         marketData.floatingPop = parseInt(item.fltPpltnCo) || null;
+         marketData.workerPop = parseInt(item.wrcPpltnCo) || null;
+         marketData.residentPop = parseInt(item.rsdPpltnCo) || null;
+         
+         const total = (marketData.workerPop || 0) + (marketData.residentPop || 0);
+         if (total > 0) {
+           marketData.workerRatio = Math.round((marketData.workerPop / total) * 100);
+           marketData.residentRatio = Math.round((marketData.residentPop / total) * 100);
+         }
+       }
+     }
+
+     // 개폐업 현황
+     const histUrl = new URL(`/api/sbiz/stcarSttus`, PROXY_SERVER_URL);
+     histUrl.searchParams.append('radius', '500');
+     histUrl.searchParams.append('cx', lng.toString());
+     histUrl.searchParams.append('cy', lat.toString());
+     histUrl.searchParams.append('indsLclsCd', 'Q12');
+     
+     const histResponse = await fetch(histUrl.toString());
+     if (histResponse.ok) {
+       const histData = await histResponse.json();
+       const items = histData.body?.items || [];
+       if (items.length > 0) {
+         marketData.newOpen = parseInt(items[0].newOpbizCnt) || 0;
+         marketData.closed = parseInt(items[0].clsbizCnt) || 0;
+         marketData.netChange = marketData.newOpen - marketData.closed;
+       }
+     }
+   } catch (e) {
+     console.log('상권 지표 수집 실패:', e);
+   }
+
+   return marketData;
+ };
+
+ // AI 분석 프롬프트 생성 (업종 기반 카페 방향 제안)
+ const buildLocationAnalysisPrompt = (data) => {
+   // 상위 3개 업종 추출 (카페 제외)
+   const businessRanking = Object.entries(data.business)
+     .filter(([key]) => key !== 'cafe' && key !== 'total')
+     .map(([key, count]) => ({ key, count, name: BUSINESS_CATEGORIES[key]?.name || key }))
+     .sort((a, b) => b.count - a.count)
+     .slice(0, 3);
+
+   const topBusinesses = businessRanking.map(b => `${b.name}: ${b.count}개`).join(', ');
+   
+   // 업종별 전략 가져오기
+   const strategies = businessRanking
+     .map(b => BUSINESS_CAFE_STRATEGY[b.key])
+     .filter(Boolean);
+
+   return `당신은 카페 창업 분석 전문가입니다. 아래 데이터를 기반으로 이 위치의 카페 창업 방향을 분석해주세요.
+
+[위치 정보]
+주소: ${data.address || '확인 불가'}
+반경: 500m
+
+[업종 현황 - 핵심 분석 자료]
+- 카페/디저트: ${data.business.cafe}개
+- 음식점: ${data.business.restaurant}개
+- 사무실/오피스: ${data.business.office}개
+- 금융/보험: ${data.business.finance}개
+- 미용/네일: ${data.business.beauty}개
+- 병원/의원: ${data.business.hospital}개
+- 헬스/운동: ${data.business.fitness}개
+- 학원/교육: ${data.business.academy}개
+- 편의점: ${data.business.convenience}개
+- 마트/슈퍼: ${data.business.mart}개
+- 숙박: ${data.business.hotel}개
+- 문화/여가: ${data.business.culture}개
+- 총 점포 수: ${data.business.total}개
+
+상위 3개 업종: ${topBusinesses}
+
+[상권 지표]
+- 월 평균 매출 (카페): ${data.market.avgSales ? data.market.avgSales + '만원' : '데이터 없음'}
+- 일 평균 유동인구: ${data.market.floatingPop ? data.market.floatingPop.toLocaleString() + '명' : '데이터 없음'}
+- 직장인구: ${data.market.workerPop ? data.market.workerPop.toLocaleString() + '명 (' + data.market.workerRatio + '%)' : '데이터 없음'}
+- 주거인구: ${data.market.residentPop ? data.market.residentPop.toLocaleString() + '명 (' + data.market.residentRatio + '%)' : '데이터 없음'}
+
+[고객층 - ${data.customer.isActualData ? '실제 결제 데이터' : data.customer.ageDistribution ? '인구 기반 추정' : '데이터 없음'}]
+- 20대: ${data.customer.ageDistribution?.['20대'] ? data.customer.ageDistribution['20대'] + '%' : '데이터 없음'}
+- 30대: ${data.customer.ageDistribution?.['30대'] ? data.customer.ageDistribution['30대'] + '%' : '데이터 없음'}
+- 40대: ${data.customer.ageDistribution?.['40대'] ? data.customer.ageDistribution['40대'] + '%' : '데이터 없음'}
+- 50대 이상: ${data.customer.ageDistribution?.['50대이상'] ? data.customer.ageDistribution['50대이상'] + '%' : '데이터 없음'}
+- 남성: ${data.customer.genderDistribution?.male ? data.customer.genderDistribution.male + '%' : '데이터 없음'}
+- 여성: ${data.customer.genderDistribution?.female ? data.customer.genderDistribution.female + '%' : '데이터 없음'}
+
+[개폐업 현황 - 최근 1년]
+- 신규 개업: ${data.market.newOpen !== null ? data.market.newOpen + '개' : '데이터 없음'}
+- 폐업: ${data.market.closed !== null ? data.market.closed + '개' : '데이터 없음'}
+- 순증감: ${data.market.netChange !== null ? (data.market.netChange > 0 ? '+' : '') + data.market.netChange + '개' : '데이터 없음'}
+
+[분석 규칙 - 반드시 준수]
+1. 위 데이터만 사용하세요. 없는 숫자를 만들지 마세요.
+2. 상위 업종별 수치를 활용해 구체적인 컨셉을 제안하세요.
+3. 모호한 표현 대신 데이터 기반 분석을 하세요.
+4. 경쟁 강도 기준: 15개 미만 = 양호, 15-30개 = 보통, 30-50개 = 과밀, 50개 이상 = 매우과밀
+5. 직장인 비율 50% 이상 = 직장인 상권, 주거인구 50% 이상 = 주거 상권
+
+[업종별 카페 전략 참고]
+${strategies.map(s => `- ${s.strategy}: ${s.tips.join(', ')}`).join('\n')}
+
+[출력 형식]
+1. 이 위치 분석 결과 (3-4문장, 상권 특성 요약)
+2. 주변 업종 기반 추천 컨셉 (상위 3개 업종별로 구체적 전략)
+3. 추천 포지셔닝 (한 문장 슬로건)
+4. 핵심 메뉴 구성 (4-5개)
+5. 운영 전략 (3개)
+6. 리스크 요인 (3-4개)
+7. 종합 평가 (추천 / 주의 필요 / 비추천 중 하나 선택하고 이유 설명)`;
+ };
+
+ // 위치 분석 실행 함수
+ const executeLocationAnalysis = async (lat, lng, address, addressInfo) => {
+   setLocationAnalysisLoading(true);
+   setLocationAnalysisModal(true);
+   setLocationAnalysisData(null);
+
+   try {
+     // 1. 업종 데이터 수집
+     const businessData = await fetchLocationBusinessData(lat, lng);
+     
+     // 2. 상권 지표 수집
+     const marketData = await fetchLocationMarketData(lat, lng);
+     
+     // 3. 고객층 데이터 수집 (지역별 분기)
+     const customerData = await fetchRegionalPaymentData(
+       addressInfo?.sido,
+       addressInfo?.sigungu,
+       addressInfo?.dong
+     );
+     
+     // 4. 경쟁 강도 판정
+     const competitionLevel = getCompetitionLevel(businessData.cafe);
+     
+     // 5. 데이터 조합
+     const analysisData = {
+       coordinates: { lat, lng },
+       address: address,
+       addressInfo: addressInfo,
+       business: businessData,
+       market: marketData,
+       customer: customerData,
+       competition: competitionLevel,
+       menuStats: null
+     };
+
+     // 6. AI 분석 요청
+     let aiAnalysis = null;
+     if (GEMINI_API_KEY) {
+       try {
+         const prompt = buildLocationAnalysisPrompt(analysisData);
+         const aiResponse = await fetch(
+           `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+           {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({
+               contents: [{ parts: [{ text: prompt }] }],
+               generationConfig: { temperature: 0.3, maxOutputTokens: 2000 }
+             })
+           }
+         );
+         const aiData = await aiResponse.json();
+         aiAnalysis = aiData.candidates?.[0]?.content?.parts?.[0]?.text || null;
+       } catch (aiError) {
+         console.log('AI 분석 실패:', aiError);
+       }
+     }
+
+     analysisData.aiAnalysis = aiAnalysis;
+     setLocationAnalysisData(analysisData);
+   } catch (error) {
+     console.log('위치 분석 실패:', error);
+     setLocationAnalysisData({ error: '분석 중 오류가 발생했습니다.' });
+   } finally {
+     setLocationAnalysisLoading(false);
+   }
+ };
+
+ // 위치 선택 모드 토글
+ const toggleLocationPinMode = () => {
+   setLocationPinMode(!locationPinMode);
+   if (locationPinMode) {
+     // 모드 종료 시 마커/원 제거
+     if (locationPinMarkerRef.current) {
+       locationPinMarkerRef.current.setMap(null);
+       locationPinMarkerRef.current = null;
+     }
+     if (locationCircleRef.current) {
+       locationCircleRef.current.setMap(null);
+       locationCircleRef.current = null;
+     }
+     setLocationPinCoords(null);
+   }
+ };
+
+ // 영업모드 지역 검색 (소상공인365 + Gemini AI 통합)
  const searchSalesModeRegion = async (query) => {
    if (!query.trim()) return;
    setSalesModeSearchLoading(true);
    setSalesModeAnalysisProgress(0);
    setSalesModeAnalysisStep('검색 준비 중...');
-   setSalesModeCollectingText('');
    updateSalesModeActivity();
-
-   // 실시간 수집 텍스트 업데이트 함수
-   const updateCollectingText = (text) => {
-     setSalesModeCollectingText(text);
-   };
 
    try {
      // ═══════════════════════════════════════════════════════════════
      // 1단계: 네이버 Geocoding으로 좌표 및 행정구역 얻기 (프록시 서버 경유)
      // ═══════════════════════════════════════════════════════════════
-     setSalesModeAnalysisProgress(5);
-     setSalesModeAnalysisStep('위치 정보 확인 중');
-     updateCollectingText(`현재 검색하신 ${query} 지역의 좌표 정보를 확인하고 있어요`);
+     setSalesModeAnalysisProgress(10);
+     setSalesModeAnalysisStep(' 위치 정보 확인 중...');
      let coordinates = null;
      let addressInfo = null;
      try {
-       // 15초 타임아웃 설정
-       const geoController = new AbortController();
-       const geoTimeoutId = setTimeout(() => geoController.abort(), 15000);
-       
        const geoResponse = await fetch(
-         `${PROXY_SERVER_URL}/api/geocode?query=${encodeURIComponent(query)}`,
-         { signal: geoController.signal }
+         `${PROXY_SERVER_URL}/api/geocode?query=${encodeURIComponent(query)}`
        );
-       clearTimeout(geoTimeoutId);
-       
        const geoData = await geoResponse.json();
        if (geoData.addresses?.[0]) {
          const addr = geoData.addresses[0];
@@ -1019,357 +1381,147 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
            dong: addr.addressElements?.find(e => e.types.includes('DONGMYUN'))?.longName || ''
          };
          setSalesModeMapCenter(coordinates);
-         setSalesModeAnalysisProgress(10);
-         updateCollectingText(`${query} 지역 위치 확인 완료`);
        }
      } catch (geoError) {
-       if (geoError.name === 'AbortError') {
-         console.log('Geocoding 타임아웃 (15초 초과)');
-       } else {
-         console.log('Geocoding 실패:', geoError);
-       }
+       console.log('Geocoding 실패:', geoError);
      }
 
      // ═══════════════════════════════════════════════════════════════
-     // 2단계: 소상공인365 GIS API로 실제 데이터 수집 (인증 불필요)
+     // 2단계: 소상공인365 API로 실제 데이터 수집
      // ═══════════════════════════════════════════════════════════════
-     setSalesModeAnalysisProgress(15);
-     setSalesModeAnalysisStep('상권 데이터 수집 중');
-     updateCollectingText(`${query} 지역의 상권 데이터를 수집하고 있어요`);
+     setSalesModeAnalysisProgress(25);
+     setSalesModeAnalysisStep(' 상권 데이터 수집 중...');
      const collectedData = {
-       source: '소상공인365 빅데이터 GIS',
+       source: '소상공인365 빅데이터',
        timestamp: new Date().toISOString(),
        region: query,
        apis: {}
      };
 
-     // 좌표 기반 API 호출을 위한 TM 좌표 계산
-     let coordRange = null;
-     if (coordinates) {
-       coordRange = getCoordRange(coordinates.lat, coordinates.lng, 2); // 반경 2km
-       console.log('TM 좌표 범위:', coordRange);
-     }
-
-     // 소상공인365 GIS API 직접 호출 함수 (인증 불필요)
-     const callGisAPI = async (apiPath, params = {}) => {
+     // 소상공인365 API 호출 함수 (프록시 서버 경유)
+     const callSbizAPI = async (apiConfig, params = {}) => {
        try {
-         const url = new URL(apiPath, SBIZ365_BASE_URL);
+         // API 이름 추출 (예: /openApi/simple → simple)
+         const apiName = apiConfig.path.split('/').pop();
+         const url = new URL(`/api/sbiz/${apiName}`, PROXY_SERVER_URL);
+         
+         url.searchParams.append('numOfRows', '100');
+         url.searchParams.append('pageNo', '1');
+         url.searchParams.append('type', 'json');
+         // 지역 파라미터 추가
+         if (addressInfo?.sido) url.searchParams.append('ctprvnNm', addressInfo.sido);
+         if (addressInfo?.sigungu) url.searchParams.append('signguNm', addressInfo.sigungu);
+         if (query) url.searchParams.append('adongNm', query);
          Object.entries(params).forEach(([k, v]) => url.searchParams.append(k, v));
          
-         const response = await fetch(url.toString(), {
-           method: 'GET',
-           headers: { 'Accept': 'application/json' }
-         });
-         
+         const response = await fetch(url.toString());
          if (response.ok) {
-           const data = await response.json();
-           return data;
+           return await response.json();
          }
-         console.log(`GIS API ${apiPath} 응답 오류:`, response.status);
          return null;
        } catch (e) {
-         console.log(`GIS API ${apiPath} 호출 실패:`, e.message);
+         console.log(`${apiConfig.name} API 호출 실패:`, e.message);
          return null;
        }
      };
 
-     // 좌표가 있으면 좌표 기반 API 호출
-     if (coordRange) {
-       const mapParams = {
-         mapLevel: '3',
-         substr: '8',
-         minXAxis: coordRange.minXAxis,
-         maxXAxis: coordRange.maxXAxis,
-         minYAxis: coordRange.minYAxis,
-         maxYAxis: coordRange.maxYAxis
-       };
+     // 병렬로 여러 API 호출
+     const apiCalls = [
+       { name: 'simple', config: SBIZ365_API.simple, params: { indsLclsCd: 'Q' } }, // 음식점업
+       { name: 'detail', config: SBIZ365_API.detail, params: { indsLclsCd: 'Q' } },
+       { name: 'storSttus', config: SBIZ365_API.storSttus, params: {} },
+       { name: 'slsIndex', config: SBIZ365_API.slsIndex, params: {} },
+       { name: 'weather', config: SBIZ365_API.weather, params: {} },
+       { name: 'stcarSttus', config: SBIZ365_API.stcarSttus, params: {} }
+     ];
 
-       // 병렬로 여러 GIS API 호출
-       const gisApiCalls = [
-         { name: 'saleAmt', path: SBIZ365_GIS_API.saleAmt, params: mapParams, desc: '매출액' },
-         { name: 'popCnt', path: SBIZ365_GIS_API.popCnt, params: mapParams, desc: '유동인구' },
-         { name: 'storCnt', path: SBIZ365_GIS_API.storCnt, params: mapParams, desc: '업소수' },
-         { name: 'earnAmt', path: SBIZ365_GIS_API.earnAmt, params: mapParams, desc: '소득' },
-         { name: 'cnsmpAmt', path: SBIZ365_GIS_API.cnsmpAmt, params: mapParams, desc: '소비' },
-         { name: 'hhCnt', path: SBIZ365_GIS_API.hhCnt, params: mapParams, desc: '세대수' },
-         { name: 'wrcpplCnt', path: SBIZ365_GIS_API.wrcpplCnt, params: mapParams, desc: '직장인구' },
-         { name: 'wholPpltnCnt', path: SBIZ365_GIS_API.wholPpltnCnt, params: mapParams, desc: '주거인구' }
-       ];
+     const results = await Promise.allSettled(
+       apiCalls.map(api => callSbizAPI(api.config, api.params))
+     );
 
-       setSalesModeAnalysisStep('행정동별 데이터 수집 중');
-       
-       // 순차 호출로 실시간 텍스트 업데이트
-       for (let i = 0; i < gisApiCalls.length; i++) {
-         const api = gisApiCalls[i];
-         updateCollectingText(`${query} 지역의 ${api.desc} 정보를 가져오고 있어요`);
-         const result = await callGisAPI(api.path, api.params);
-         if (result) {
-           collectedData.apis[api.name] = {
-             description: api.desc,
-             data: result
-           };
-         }
-         // 진행률 점진적 업데이트
-         setSalesModeAnalysisProgress(20 + Math.floor((i + 1) / gisApiCalls.length * 20));
+     results.forEach((result, idx) => {
+       if (result.status === 'fulfilled' && result.value) {
+         collectedData.apis[apiCalls[idx].name] = result.value;
        }
-
-       // 점포 히스토리 데이터 (개폐업 현황)
-       setSalesModeAnalysisProgress(45);
-       setSalesModeAnalysisStep('개폐업 데이터 수집 중');
-       updateCollectingText(`${query} 상권의 최근 개업/폐업 현황을 분석하고 있어요`);
-       const storeHistoryParams = {
-         centerXAxis: coordRange.centerX,
-         centerYAxis: coordRange.centerY,
-         radius: '2000', // 반경 2km (미터 단위)
-         indsLclsCd: 'Q' // 음식점업
-       };
-       const storeHistory = await callGisAPI(SBIZ365_GIS_API.storeHistoryList, storeHistoryParams);
-       if (storeHistory) {
-         collectedData.apis.storeHistory = {
-           description: '개폐업 현황',
-           data: storeHistory
-         };
-       }
-
-       // 상권 데이터 (Bizon)
-       setSalesModeAnalysisStep('상권 데이터 수집 중');
-       updateCollectingText(`${query} 주변 상권영역의 업소수와 매출 현황을 확인하고 있어요`);
-       const bizonParams = { ...mapParams };
-       const bizonResults = await Promise.allSettled([
-         callGisAPI(SBIZ365_GIS_API.bizonStor, bizonParams),
-         callGisAPI(SBIZ365_GIS_API.bizonSale, bizonParams),
-         callGisAPI(SBIZ365_GIS_API.bizonDynppl, bizonParams)
-       ]);
-       
-       if (bizonResults[0].status === 'fulfilled' && bizonResults[0].value) {
-         collectedData.apis.bizonStor = { description: '상권 업소수', data: bizonResults[0].value };
-       }
-       if (bizonResults[1].status === 'fulfilled' && bizonResults[1].value) {
-         collectedData.apis.bizonSale = { description: '상권 매출', data: bizonResults[1].value };
-       }
-       if (bizonResults[2].status === 'fulfilled' && bizonResults[2].value) {
-         collectedData.apis.bizonDynppl = { description: '상권 유동인구', data: bizonResults[2].value };
-       }
-     }
-
-     // 좌표가 없으면 지역명 기반으로 시도/시군구 목록에서 검색
-     if (!coordRange) {
-       setSalesModeAnalysisStep('지역 목록 검색 중');
-       const sidoList = await callGisAPI(SBIZ365_GIS_API.sidoList, {});
-       if (sidoList) {
-         collectedData.apis.sidoList = { description: '시도 목록', data: sidoList };
-       }
-     }
-
-     // 수집된 데이터 요약 로그
-     console.log('수집된 GIS API 데이터:', Object.keys(collectedData.apis));
-     Object.entries(collectedData.apis).forEach(([key, val]) => {
-       console.log(`  - ${key}: ${val.description}`, val.data?.length || val.data?.rads?.length || '데이터있음');
      });
 
      // ═══════════════════════════════════════════════════════════════
      // 3단계: 프랜차이즈 데이터 추가 (하드코딩 - 공정위 정보공개서)
      // ═══════════════════════════════════════════════════════════════
-     setSalesModeAnalysisProgress(55);
-     setSalesModeAnalysisStep('프랜차이즈 데이터 확인 중');
-     updateCollectingText(`${query} 지역에 적합한 프랜차이즈 정보를 정리하고 있어요`);
+     setSalesModeAnalysisProgress(50);
+     setSalesModeAnalysisStep(' 프랜차이즈 데이터 확인 중...');
      collectedData.franchiseData = FRANCHISE_DATA;
 
      // ═══════════════════════════════════════════════════════════════
      // 4단계: 수집된 데이터를 AI에게 전달하여 분석 요청
      // ═══════════════════════════════════════════════════════════════
-     setSalesModeAnalysisProgress(70);
-     setSalesModeAnalysisStep('AI 분석 요청 중');
-     updateCollectingText(`수집된 데이터를 AI에게 전달하고 있어요`);
+     setSalesModeAnalysisProgress(65);
+     setSalesModeAnalysisStep(' AI 분석 요청 중...');
      const hasApiData = Object.keys(collectedData.apis).length > 0;
      
-     // GIS API 데이터 요약 생성
-     const summarizeGisData = () => {
-       const summary = [];
-       const apis = collectedData.apis;
-       
-       // 매출액 데이터
-       if (apis.saleAmt?.data?.rads) {
-         const rads = apis.saleAmt.data.rads;
-         const totalSale = rads.reduce((sum, r) => sum + (parseInt(r.storCntAmt) || 0), 0);
-         summary.push(`월매출 총액: ${(totalSale / 10000).toFixed(1)}억원 (${rads.length}개 행정동)`);
-       }
-       
-       // 유동인구 데이터
-       if (apis.popCnt?.data?.rads) {
-         const rads = apis.popCnt.data.rads;
-         const totalPop = rads.reduce((sum, r) => sum + (parseInt(r.ppltnCnt) || 0), 0);
-         summary.push(`일평균 유동인구: ${totalPop.toLocaleString()}명`);
-       }
-       
-       // 업소수 데이터
-       if (apis.storCnt?.data?.rads) {
-         const rads = apis.storCnt.data.rads;
-         const totalStor = rads.reduce((sum, r) => sum + (parseInt(r.storCnt) || 0), 0);
-         summary.push(`총 업소수: ${totalStor.toLocaleString()}개`);
-       }
-       
-       // 세대수 데이터
-       if (apis.hhCnt?.data?.rads) {
-         const rads = apis.hhCnt.data.rads;
-         const totalHh = rads.reduce((sum, r) => sum + (parseInt(r.hhCnt) || 0), 0);
-         summary.push(`총 세대수: ${totalHh.toLocaleString()}세대`);
-       }
-       
-       // 직장인구 데이터
-       if (apis.wrcpplCnt?.data?.rads) {
-         const rads = apis.wrcpplCnt.data.rads;
-         const totalWrc = rads.reduce((sum, r) => sum + (parseInt(r.wrcpplCnt) || 0), 0);
-         summary.push(`직장인구: ${totalWrc.toLocaleString()}명`);
-       }
-       
-       // 주거인구 데이터
-       if (apis.wholPpltnCnt?.data?.rads) {
-         const rads = apis.wholPpltnCnt.data.rads;
-         const totalPop = rads.reduce((sum, r) => sum + (parseInt(r.ppltnCnt) || 0), 0);
-         summary.push(`주거인구: ${totalPop.toLocaleString()}명`);
-       }
-       
-       // 개폐업 데이터
-       if (apis.storeHistory?.data) {
-         const history = apis.storeHistory.data;
-         summary.push(`개폐업 데이터: ${Array.isArray(history) ? history.length : '있음'}건`);
-       }
-       
-       // 상권 데이터
-       if (apis.bizonStor?.data || apis.bizonSale?.data) {
-         summary.push(`상권(비존) 데이터 수집됨`);
-       }
-       
-       return summary.length > 0 ? summary.join('\n') : '데이터 없음';
-     };
+     const prompt = `당신은 빈크래프트 카페 창업 컨설팅의 전문 AI 어시스턴트입니다.
 
-     const prompt = `당신은 빈크래프트 카페 창업 컨설팅의 데이터 기반 컨설턴트입니다.
-
-[핵심 관점]
-"왜 이 지역에서 카페 창업하려면 전문 컨설팅이 필요한가?"
-"매출은 대표님이 만드시는 거고, 저희는 망할 확률 줄이는 준비를 도와드려요"
-
-[절대 금지]
-- 매출/수익 보장 표현 절대 금지 ("잘 된다", "성공한다", "매출 XX원 보장")
-- 이모티콘 사용 금지
-- 출처 없는 숫자 사용 금지
+[캐릭터 설정]
+- 이름: 빈코치
+- 역할: 영업자가 중개사와 창업자를 성공적으로 영업할 수 있도록 조력
+- 말투: 전문적이면서도 친근한 조언자, 데이터 기반의 자신감 있는 어조
+- 목표: 빈크래프트 컨설팅의 장점을 자연스럽게 어필
 
 [분석 대상 지역]
 ${query} (${addressInfo?.sido || ''} ${addressInfo?.sigungu || ''} ${addressInfo?.dong || ''})
 좌표: ${coordinates ? `${coordinates.lat}, ${coordinates.lng}` : '미확인'}
 
-[수집된 실제 데이터 - 소상공인365 GIS API]
+[수집된 실제 데이터]
 ${hasApiData ? `
-■ 데이터 요약:
-${summarizeGisData()}
-
-■ 상세 API 응답 데이터:
+소상공인365 API 데이터:
 ${JSON.stringify(collectedData.apis, null, 2)}
-
-※ 데이터 필드 설명:
-- rads: 행정동별 데이터 배열
-- storCntAmt/saleAmt: 매출액 (원)
-- ppltnCnt: 인구수
-- storCnt: 업소수
-- hhCnt: 세대수
-- wrcpplCnt: 직장인구
-- bizon: 상권(비존) 데이터
-` : '소상공인365 API 데이터 수집 실패 - 일반적인 상권 분석을 제공해주세요.'}
+` : '소상공인365 API 데이터 수집 실패 - 웹 검색 기반으로 분석해주세요.'}
 
 프랜차이즈 비용 데이터 (공정위 정보공개서 기준, 단위: 만원):
 ${JSON.stringify(FRANCHISE_DATA, null, 2)}
 
 [분석 요청]
 위 수집된 데이터를 기반으로 "${query}" 지역의 카페 창업 상권 분석을 수행해주세요.
-${hasApiData ? '★중요: 수집된 GIS API 데이터의 실제 숫자를 반드시 추출하여 사용하세요. rads 배열의 합계나 평균을 계산해서 구체적인 수치로 표현하세요.' : '신뢰할 수 있는 출처의 데이터를 기반으로 분석해주세요.'}
+${hasApiData ? '수집된 API 데이터에서 구체적인 숫자를 추출하여 사용하세요.' : '신뢰할 수 있는 출처의 데이터를 기반으로 분석해주세요.'}
 
-[필수 분석 항목 - 모든 항목 반드시 포함]
+[필수 분석 항목]
 1. 상권 개요: 카페 수, 개업/폐업 현황, 유동인구, 상주인구
 2. 주요 소비층: 연령대, 직업군, 소비 패턴, 피크 타임
-3. 프랜차이즈 현황: 메가커피/컴포즈/이디야/스타벅스 매장 수 추정
+3. 프랜차이즈 현황: 메가커피/컴포즈/이디야/스타벅스 매장 수 (위 데이터 활용)
 4. 임대료/권리금: 평균 임대료, 보증금, 권리금, 전년 대비 변동
 5. 개발 호재: 교통, 재개발, 기업 입주 등 긍정 요인
 6. 리스크 요인: 젠트리피케이션, 경쟁 심화 등 부정 요인
 7. 예상 창업 비용: 보증금+권리금+인테리어+설비 총합
-8. 컨설팅 효과: 혼자 준비 vs 전문 컨설팅 차이 (매출 보장 표현 금지, 리스크 관리 관점으로)
+8. AI 인사이트: 데이터 기반 분석 코멘트
 
-[빈크래프트 메시지 - 자연스럽게 언급]
+[빈크래프트 장점 - 자연스럽게 언급]
 - 가맹비 0원, 로열티 0원
 - 메뉴 자유 (프랜차이즈 제약 없음)
 - 인테리어 자유 (규격화 강요 없음)
-- "망할 확률을 줄이는 준비를 도와드립니다" (매출 보장 아님)
 
-[응답 형식]
-- 각 필드는 자연스러운 설명체 문장으로 작성
-- "~입니다", "~됩니다", "~추산됩니다" 등 정중한 문장체 사용
-- 출처와 구체적 숫자를 자연스럽게 포함
-
-JSON 형식으로만 응답하세요 (이모티콘 절대 금지, 모든 필드 필수):
+JSON 형식으로만 응답하세요:
 {
   "region": "${query}",
-  "reliability": "높음/중간/낮음",
-  "dataDate": "YYYY년 MM월 기준",
-  "overview": { 
-    "cafeCount": "소상공인시장진흥공단 및 공공 데이터 분석에 따르면, 이 지역 내 카페 수는 약 3,000개 이상으로 집계됩니다.", 
-    "newOpen": "매년 약 500개 이상의 신규 카페가 개업하는 매우 활발한 시장입니다.", 
-    "closed": "동시에 약 400개 이상의 카페가 폐업하는 등, 진입과 퇴출이 빈번한 역동적인 상권입니다.", 
-    "floatingPop": "이 지역 일대의 하루 평균 유동인구는 주중 약 50만 명 이상, 주말 약 70만 명 이상으로 추산됩니다.", 
-    "residentPop": "상주인구는 약 23만명으로 파악됩니다.", 
-    "source": "소상공인365" 
-  },
-  "consumers": { 
-    "mainTarget": "20-30대 직장인이 핵심 고객층입니다.", 
-    "mainRatio": "전체 매출의 약 45%를 차지합니다.", 
-    "secondTarget": "대학생 및 취준생이 2순위 고객층입니다.", 
-    "secondRatio": "약 25% 비중을 보입니다.", 
-    "peakTime": "점심시간 12-14시, 퇴근시간 17-19시에 매출이 집중됩니다.", 
-    "takeoutRatio": "테이크아웃 비율은 약 35% 수준입니다.", 
-    "avgStay": "평균 체류시간은 약 45분입니다.", 
-    "source": "카드매출 분석" 
-  },
+  "overview": { "cafeCount": "실제숫자개", "newOpen": "+숫자개(기간)", "closed": "-숫자개(기간)", "floatingPop": "숫자명/일", "residentPop": "숫자명", "source": "출처명" },
+  "consumers": { "mainTarget": "주요타겟", "mainRatio": "비율%", "secondTarget": "2순위", "secondRatio": "비율%", "peakTime": "시간대", "takeoutRatio": "비율%", "avgStay": "시간", "source": "출처명" },
   "franchise": [
-    { "name": "메가커피", "count": 28, "price": 1500, "monthly": "약 4,500만원" },
-    { "name": "컴포즈커피", "count": 22, "price": 1500, "monthly": "약 3,800만원" },
-    { "name": "이디야", "count": 35, "price": 3000, "monthly": "약 3,200만원" },
-    { "name": "스타벅스", "count": 42, "price": 4500, "monthly": "약 8,500만원" }
+    { "name": "브랜드명", "count": 숫자, "price": 아메리카노가격, "monthly": "월매출" }
   ],
-  "rent": { 
-    "monthly": "월 임대료는 350-500만원 수준으로 형성되어 있습니다.", 
-    "deposit": "보증금은 5,000-8,000만원 선입니다.", 
-    "premium": "권리금은 1-3억원 사이로, 위치에 따라 편차가 큽니다.", 
-    "yoyChange": "전년 대비 약 8.5% 상승했습니다.", 
-    "source": "한국부동산원" 
-  },
+  "rent": { "monthly": "금액", "deposit": "금액", "premium": "금액", "yoyChange": "+/-비율%", "source": "출처명" },
   "opportunities": [
-    { "title": "GTX-A 개통", "detail": "2024년 수서-동탄 구간 개통으로 유동인구 15% 증가가 예상됩니다.", "impact": "상" },
-    { "title": "대기업 확장", "detail": "인근 IT 기업 확장으로 직장인 수요가 지속 증가할 전망입니다.", "impact": "중" }
+    { "title": "호재명", "detail": "상세설명", "impact": "상/중/하" }
   ],
   "risks": [
-    { "title": "과포화 경쟁", "detail": "반경 500m 내 카페가 85개 이상 밀집해 있어, 신규 진입 시 차별화가 필수입니다.", "impact": "상" },
-    { "title": "높은 임대료", "detail": "월 500만원 이상의 고정비 부담으로 손익분기점 도달이 어려울 수 있습니다.", "impact": "상" }
+    { "title": "리스크명", "detail": "상세설명", "level": "상/중/하" }
   ],
-  "startupCost": { 
-    "deposit": "보증금 약 5,000만원", 
-    "premium": "권리금 약 1.5억원", 
-    "interior": "인테리어 약 8,000만원 (15평 기준)", 
-    "equipment": "설비/장비 약 3,000만원", 
-    "total": "총 약 3.1억원이 소요될 것으로 예상됩니다." 
-  },
-  "consultingEffect": {
-    "withConsulting": { "survivalRate": "78%", "avgMonthlyRevenue": "3,200만원", "breakEvenMonths": "14개월" },
-    "withoutConsulting": { "survivalRate": "42%", "avgMonthlyRevenue": "1,800만원", "breakEvenMonths": "26개월" },
-    "source": "소상공인시장진흥공단 창업생존율 통계",
-    "message": "매출은 대표님이 만드시는 거고, 저희는 망할 확률 줄이는 준비를 도와드립니다"
-  },
-  "insight": "이 지역은 유동인구 50만명 이상의 핵심 상권이지만, 카페 폐업률도 16%로 높은 편입니다. 차별화 전략 없이 진입하면 1년 내 폐업 확률이 58%에 달합니다. 입지 분석, 경쟁 분석, 메뉴 차별화가 필수이며, 이것이 전문 컨설팅이 필요한 이유입니다."
-}
-
-수집된 API 데이터의 실제 숫자를 반드시 사용하고, 위 예시처럼 자연스러운 설명체 문장으로 작성하세요.`;
+  "startupCost": { "deposit": "금액", "premium": "금액", "interior": "금액", "equipment": "금액", "total": "총금액" },
+  "insight": "빈코치 캐릭터로 데이터 기반 분석 코멘트",
+  "reliability": "높음/중간/낮음",
+  "dataDate": "기준일"
+}`;
 
      setSalesModeAnalysisProgress(80);
-     setSalesModeAnalysisStep('AI 리포트 생성 중');
-     updateCollectingText(`AI가 ${query} 지역 상권 데이터를 분석하고 있어요`);
+     setSalesModeAnalysisStep(' AI 리포트 생성 중...');
      const response = await fetch(
        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
        {
@@ -1386,96 +1538,38 @@ JSON 형식으로만 응답하세요 (이모티콘 절대 금지, 모든 필드 
      let text = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
      text = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
      
-     // JSON 추출 시도
-     const jsonMatch = text.match(/\{[\s\S]*\}/);
-     
      try {
-       let data;
-       if (jsonMatch) {
-         data = JSON.parse(jsonMatch[0]);
-       } else {
-         throw new Error('JSON 형태를 찾을 수 없음');
-       }
-       
+       const data = JSON.parse(text);
        // 좌표 정보 추가
        if (coordinates) {
          data.coordinates = coordinates;
        }
        // 원본 API 데이터 첨부 (출처 표시용)
        data.rawApiData = hasApiData ? collectedData.apis : null;
-       setSalesModeAnalysisProgress(100);
-       setSalesModeAnalysisStep('분석 완료');
-       setSalesModeCollectingText('');
-       setSalesModeSearchResult({ success: true, data, query, hasApiData });
-     } catch (e) {
-       console.error('영업모드 JSON 파싱 실패:', e);
-       // 파싱 실패 시 개별 필드 추출 시도
-       const extractField = (fieldName) => {
-         const regex = new RegExp(`"${fieldName}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`, 'i');
-         const match = text.match(regex);
-         return match ? match[1].replace(/\\"/g, '"').replace(/\\n/g, '\n') : null;
-       };
        
-       const extractNumber = (fieldName) => {
-         const regex = new RegExp(`"${fieldName}"\\s*:\\s*(\\d+)`, 'i');
-         const match = text.match(regex);
-         return match ? parseInt(match[1]) : null;
-       };
-       
-       // 기본 데이터라도 추출 시도
-       const fallbackData = {
-         region: query,
-         reliability: extractField('reliability') || '중간',
-         dataDate: extractField('dataDate') || new Date().toLocaleDateString('ko-KR'),
-         overview: {
-           cafeCount: extractField('cafeCount') || '-',
-           newOpen: extractField('newOpen') || '-',
-           closed: extractField('closed') || '-',
-           floatingPop: extractField('floatingPop') || '-',
-           source: '소상공인365'
-         },
-         consumers: {
-           mainTarget: extractField('mainTarget') || '-',
-           mainRatio: extractField('mainRatio') || '-',
-           secondTarget: extractField('secondTarget') || '-',
-           secondRatio: extractField('secondRatio') || '-',
-           peakTime: extractField('peakTime') || '-',
-           takeoutRatio: extractField('takeoutRatio') || '-',
-           avgStay: extractField('avgStay') || '-'
-         },
-         franchise: [],
-         rent: {
-           monthly: extractField('monthly') || '-',
-           deposit: extractField('deposit') || '-',
-           premium: extractField('premium') || '-',
-           yoyChange: extractField('yoyChange') || '-'
-         },
-         opportunities: [],
-         risks: [],
-         startupCost: {
-           deposit: '-',
-           premium: '-',
-           interior: '-',
-           equipment: '-',
-           total: '-'
-         },
-         consultingEffect: {
-           withConsulting: { survivalRate: '78%', avgMonthlyRevenue: '3,200만원', breakEvenMonths: '14개월' },
-           withoutConsulting: { survivalRate: '42%', avgMonthlyRevenue: '1,800만원', breakEvenMonths: '26개월' },
-           source: '소상공인시장진흥공단'
-         },
-         insight: extractField('insight') || '분석 데이터를 불러오는 중 일부 오류가 발생했습니다.',
-         rawApiData: hasApiData ? collectedData.apis : null
-       };
-       
-       if (coordinates) {
-         fallbackData.coordinates = coordinates;
+       // 고객층 상세 데이터 추가 (지역 API 보충)
+       try {
+         const customerDetail = await fetchRegionalPaymentData(
+           addressInfo?.sido,
+           addressInfo?.sigungu,
+           addressInfo?.dong
+         );
+         data.customerDetail = customerDetail;
+       } catch (e) {
+         // 실패 시 데이터 없음
+         data.customerDetail = {
+           source: null,
+           isActualData: false,
+           ageDistribution: null,
+           genderDistribution: null
+         };
        }
        
        setSalesModeAnalysisProgress(100);
-       setSalesModeAnalysisStep('분석 완료');
-       setSalesModeCollectingText('');
-       setSalesModeSearchResult({ success: true, data: fallbackData, query, hasApiData, partial: true });
+       setSalesModeAnalysisStep(' 분석 완료!');
+       setSalesModeSearchResult({ success: true, data, query, hasApiData });
+     } catch (e) {
+       setSalesModeSearchResult({ success: false, error: 'AI 응답 파싱 실패', query });
      }
    } catch (error) {
      console.error('영업모드 검색 에러:', error);
@@ -1520,74 +1614,44 @@ JSON 형식으로만 응답하세요 (이모티콘 절대 금지, 모든 필드 
         }
       };
       
-      // 팀 피드백 Firebase에서 불러오기 (에러 핸들링 포함)
+      // 팀 피드백 Firebase에서 불러오기
       useEffect(() => {
-        const feedbackRef = database.ref('teamFeedback').orderByChild('timestamp').limitToLast(100);
-        
-        const onValue = (snapshot) => {
-          try {
-            const data = snapshot.val();
-            if (data) {
-              const feedbackList = Object.values(data).sort((a, b) => 
-                new Date(b.timestamp || 0) - new Date(a.timestamp || 0)
-              );
-              setTeamFeedback(feedbackList);
-            }
-          } catch (e) {
-            console.error('팀 피드백 데이터 처리 오류:', e);
+        database.ref('teamFeedback').orderByChild('timestamp').limitToLast(100).on('value', snapshot => {
+          const data = snapshot.val();
+          if (data) {
+            const feedbackList = Object.values(data).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            setTeamFeedback(feedbackList);
           }
-        };
-        
-        const onError = (error) => {
-          console.error('Firebase 팀 피드백 로드 실패:', error);
-          // localStorage 백업에서 복구 시도
-          const backup = safeLocalStorage.getItem('bc_team_feedback', []);
-          if (backup.length > 0) {
-            setTeamFeedback(backup);
-          }
-        };
-        
-        feedbackRef.on('value', onValue, onError);
-        
-        return () => feedbackRef.off('value', onValue);
+        });
+        return () => database.ref('teamFeedback').off();
       }, []);
 
  // ═══════════════════════════════════════════════════════════════
  // Gemini AI 코치 API 호출 함수
  // ═══════════════════════════════════════════════════════════════
  
- // AI 캐릭터 프롬프트 - 영업자 조력자 + 데이터 기반 컨설턴트
- const AI_CHARACTER_PROMPT = `당신은 빈크래프트 영업팀의 데이터 기반 컨설턴트입니다.
-
-[역할]
-- 영업자 조력자: 영업자가 현장에서 바로 활용할 수 있는 정보 제공
-- 데이터 분석가: 수집된 API 데이터를 숫자로 명확히 분석
-- 컨설턴트: 전문적이고 이성적인 판단 제시
-
-[톤]
-- 전문적이면서 친근한 말투
-- 감정이 아닌 숫자로 말한다
-- 구체적인 데이터와 근거 제시
-
-[핵심 메시지]
-- "매출은 대표님이 만드시는 거고, 저희는 망할 확률 줄이는 준비를 도와드려요"
-- "저희가 해드리는 건 제대로 준비하고 들어가게 하는 거예요"
-
-[빈크래프트 비즈니스]
-- 중개사 제휴: 창업 문의 연결 시 우선 상담 진행
-- 창업자 컨설팅: 가맹비 0원 + 입지분석 + 메뉴개발 + 경쟁사분석
-- 프랜차이즈 비교: 가맹비 6,900만~1.3억 vs 빈크래프트 0원
-
-[절대 금지]
-- 매출/수익 보장 표현 금지
-- "잘 된다", "성공한다" 표현 금지
-- 출처 없는 숫자 사용 금지
-- 이모티콘 사용 금지
-
-[응답 형식]
-- 한국어로 응답
-- 이모티콘 절대 사용하지 않음
-- 깔끔하고 읽기 쉬운 구조`;
+ // AI 캐릭터 프롬프트 - 영업자 서포터/조력자
+ const AI_CHARACTER_PROMPT = '당신은 빈크래프트 영업팀의 전문 서포터/조력자입니다.\n\n' +
+   '[역할]\n' +
+   '- 영업자가 중개사와 창업자를 성공적으로 영업할 수 있도록 조력\n' +
+   '- 정확한 데이터와 출처를 기반으로 자신있게 설득할 수 있게 지원\n' +
+   '- 멘탈 케어: 거절당해도 낙담하지 않도록 격려\n\n' +
+   '[비즈니스 구조]\n' +
+   '- 고객: 카페 창업자 (창업 의뢰자)\n' +
+   '- 거래처: 중개사 (창업자 소개해주는 파트너, 중개 수수료 외 소개비 추가 수익)\n' +
+   '- 경쟁자: 프랜차이즈 (가맹비 6,900만~1.3억, 매물 조건 까다로움)\n' +
+   '- 빈크래프트 강점: 가맹비/로열티 없음, 매물 조건 자유, 메뉴/인테리어 자유도\n\n' +
+   '[금지사항]\n' +
+   '- 매출/수익 보장 표현 절대 금지\n' +
+   '- 출처 없는 숫자 사용 금지\n' +
+   '- 같은 답변 반복 금지\n' +
+   '- 폐업률 높아요→저희 오세요 식 겁주기 멘트 금지\n\n' +
+   '[응답 방식]\n' +
+   '- 데이터 분석 → 영업 관점 재해석 → 맞춤 피드백\n' +
+   '- 중개사용 멘트 / 고객용 멘트 구분\n' +
+   '- 구체적인 숫자와 출처 첨부\n' +
+   '- 마지막에 멘탈 케어 한마디 추가\n' +
+   '- 한국어로 응답';
 
  // ═══════════════════════════════════════════════════════════════
  // AI 분석 상태 및 함수
@@ -1785,9 +1849,9 @@ ${JSON.stringify(regionData, null, 2)}
  setAiRegionLoading(false);
  };
 
- // AI 지역 검색 함수 - 중개사 영업용 (지역명 기반 + 모든 API 수집)
- const callGeminiKeywordSearch = async (regionName) => {
-   if (!regionName.trim()) return;
+ // AI 키워드 검색 함수 - 사용자가 검색한 키워드로 관련 내용 정리
+ const callGeminiKeywordSearch = async (keyword) => {
+   if (!keyword.trim()) return;
    
    setAiKeywordLoading(true);
    setAiErrorMessage(null);
@@ -1795,186 +1859,59 @@ ${JSON.stringify(regionData, null, 2)}
    
    const currentTime = new Date().toLocaleString('ko-KR');
    
-   try {
-     // 1단계: 지역 좌표 얻기 (프록시 서버 경유)
-     let coordinates = null;
-     let addressInfo = null;
-     try {
-       const geoResponse = await fetch(
-         `${PROXY_SERVER_URL}/api/geocode?query=${encodeURIComponent(regionName)}`
-       );
-       const geoData = await geoResponse.json();
-       if (geoData.addresses?.[0]) {
-         const addr = geoData.addresses[0];
-         coordinates = {
-           lat: parseFloat(addr.y),
-           lng: parseFloat(addr.x)
-         };
-         addressInfo = {
-           sido: addr.addressElements?.find(e => e.types.includes('SIDO'))?.longName || '',
-           sigungu: addr.addressElements?.find(e => e.types.includes('SIGUGUN'))?.longName || '',
-           dong: addr.addressElements?.find(e => e.types.includes('DONGMYUN'))?.longName || ''
-         };
-       }
-     } catch (e) {
-       console.log('Geocoding 실패:', e);
-     }
+   // 관련 데이터 수집
+   const relatedCompanies = companies.filter(c => 
+     c.name?.includes(keyword) || 
+     c.address?.includes(keyword) || 
+     c.memo?.includes(keyword) ||
+     c.region?.includes(keyword)
+   );
+   const relatedRealtors = collectedRealtors.filter(r => 
+     r.name?.includes(keyword) || 
+     r.address?.includes(keyword) || 
+     r.region?.includes(keyword)
+   );
+   const relatedIssues = marketIssues.filter(i => 
+     i.title?.includes(keyword) || 
+     i.content?.includes(keyword) ||
+     i.region?.includes(keyword)
+   );
+   
+   const prompt = AI_CHARACTER_PROMPT + `
 
-     // 2단계: 모든 API 데이터 수집
-     const collectedData = {
-       region: regionName,
-       timestamp: currentTime,
-       apis: {}
-     };
+═══════════════════════════════════════════════════════════════
+키워드 검색 분석 요청: "${keyword}" (검색 시점: ${currentTime})
+═══════════════════════════════════════════════════════════════
 
-     if (coordinates) {
-       const coordRange = getCoordRange(coordinates.lat, coordinates.lng, 2);
-       const mapParams = {
-         mapLevel: '3',
-         substr: '8',
-         minXAxis: coordRange.minXAxis,
-         maxXAxis: coordRange.maxXAxis,
-         minYAxis: coordRange.minYAxis,
-         maxYAxis: coordRange.maxYAxis
-       };
+【검색된 내부 데이터】
+- 관련 업체: ${relatedCompanies.length}개
+${relatedCompanies.slice(0, 5).map(c => `  • ${c.name} (${c.address || '주소없음'}) - 반응: ${c.reaction || '미분류'}`).join('\n')}
+- 관련 중개사: ${relatedRealtors.length}개
+${relatedRealtors.slice(0, 5).map(r => `  • ${r.name} (${r.address || '주소없음'})`).join('\n')}
+- 관련 시장 이슈: ${relatedIssues.length}건
+${relatedIssues.slice(0, 3).map(i => `  • ${i.title}: ${i.content?.slice(0, 50)}...`).join('\n')}
 
-       // GIS API 호출 함수
-       const callGisAPI = async (apiPath, params = {}) => {
-         try {
-           const url = new URL(apiPath, SBIZ365_BASE_URL);
-           Object.entries(params).forEach(([k, v]) => url.searchParams.append(k, v));
-           const response = await fetch(url.toString(), {
-             method: 'GET',
-             headers: { 'Accept': 'application/json' }
-           });
-           if (response.ok) return await response.json();
-           return null;
-         } catch (e) {
-           return null;
-         }
-       };
+【분석 요청】
+"${keyword}" 키워드와 관련된 정보를 영업에 도움이 되도록 정리해주세요.
 
-       // 모든 API 병렬 호출
-       const apiCalls = [
-         { name: 'saleAmt', path: SBIZ365_GIS_API.saleAmt, params: mapParams, desc: '매출액' },
-         { name: 'popCnt', path: SBIZ365_GIS_API.popCnt, params: mapParams, desc: '유동인구' },
-         { name: 'storCnt', path: SBIZ365_GIS_API.storCnt, params: mapParams, desc: '업소수' },
-         { name: 'earnAmt', path: SBIZ365_GIS_API.earnAmt, params: mapParams, desc: '소득' },
-         { name: 'cnsmpAmt', path: SBIZ365_GIS_API.cnsmpAmt, params: mapParams, desc: '소비' },
-         { name: 'hhCnt', path: SBIZ365_GIS_API.hhCnt, params: mapParams, desc: '세대수' },
-         { name: 'wrcpplCnt', path: SBIZ365_GIS_API.wrcpplCnt, params: mapParams, desc: '직장인구' },
-         { name: 'wholPpltnCnt', path: SBIZ365_GIS_API.wholPpltnCnt, params: mapParams, desc: '주거인구' }
-       ];
+1. summary: 키워드 관련 종합 요약 (2-3줄)
+2. insights: 데이터 기반 인사이트 (3개 포인트, 배열)
+3. salesTips: 이 키워드를 활용한 영업 팁 (2개)
+4. relatedTopics: 연관 검색 추천 키워드 (3개, 배열)
+5. actionItems: 오늘 할 수 있는 구체적 액션 (2개)
 
-       const results = await Promise.allSettled(
-         apiCalls.map(api => callGisAPI(api.path, api.params))
-       );
-
-       results.forEach((result, idx) => {
-         if (result.status === 'fulfilled' && result.value) {
-           collectedData.apis[apiCalls[idx].name] = {
-             description: apiCalls[idx].desc,
-             data: result.value
-           };
-         }
-       });
-
-       // 개폐업 현황
-       const storeHistoryParams = {
-         centerXAxis: coordRange.centerX,
-         centerYAxis: coordRange.centerY,
-         radius: '2000',
-         indsLclsCd: 'Q'
-       };
-       const storeHistory = await callGisAPI(SBIZ365_GIS_API.storeHistoryList, storeHistoryParams);
-       if (storeHistory) {
-         collectedData.apis.storeHistory = { description: '개폐업 현황', data: storeHistory };
-       }
-     }
-
-     // 3단계: 데이터 요약 생성
-     const summarizeData = () => {
-       const summary = [];
-       const apis = collectedData.apis;
-       
-       if (apis.storCnt?.data?.rads) {
-         const totalStor = apis.storCnt.data.rads.reduce((sum, r) => sum + (parseInt(r.storCnt) || 0), 0);
-         summary.push(`업소수: ${totalStor.toLocaleString()}개`);
-       }
-       if (apis.popCnt?.data?.rads) {
-         const totalPop = apis.popCnt.data.rads.reduce((sum, r) => sum + (parseInt(r.ppltnCnt) || 0), 0);
-         summary.push(`일평균 유동인구: ${totalPop.toLocaleString()}명`);
-       }
-       if (apis.wrcpplCnt?.data?.rads) {
-         const totalWrc = apis.wrcpplCnt.data.rads.reduce((sum, r) => sum + (parseInt(r.wrcpplCnt) || 0), 0);
-         summary.push(`직장인구: ${totalWrc.toLocaleString()}명`);
-       }
-       if (apis.wholPpltnCnt?.data?.rads) {
-         const totalRes = apis.wholPpltnCnt.data.rads.reduce((sum, r) => sum + (parseInt(r.ppltnCnt) || 0), 0);
-         summary.push(`주거인구: ${totalRes.toLocaleString()}명`);
-       }
-       if (apis.hhCnt?.data?.rads) {
-         const totalHh = apis.hhCnt.data.rads.reduce((sum, r) => sum + (parseInt(r.hhCnt) || 0), 0);
-         summary.push(`세대수: ${totalHh.toLocaleString()}세대`);
-       }
-       if (apis.storeHistory?.data) {
-         const stores = apis.storeHistory.data.storeHistoryList || apis.storeHistory.data || [];
-         if (Array.isArray(stores) && stores.length > 0) {
-           const recentOpen = stores.filter(s => s.opbizYn === 'Y').length;
-           const recentClose = stores.filter(s => s.clsbizYn === 'Y').length;
-           summary.push(`최근 신규오픈: ${recentOpen}개, 폐업: ${recentClose}개`);
-         }
-       }
-       return summary.join('\n');
-     };
-
-     // 4단계: 중개사 영업용 AI 프롬프트
-     const prompt = AI_CHARACTER_PROMPT + `
-
-[분석 대상]
-지역명: ${regionName}
-분석 시점: ${currentTime}
-
-[수집된 API 데이터]
-${summarizeData() || '데이터 수집 중 일부 실패'}
-
-[분석 방향 - 중개사 영업용]
-핵심 질문: "왜 이 지역을 영업해야 하는가?"
-
-다음 구조로 분석해주세요:
-
-1. regionBrief (지역 브리핑)
-- 수집된 개폐업 데이터 기반으로 이 지역의 상가 회전 상황 요약
-- 숫자를 반드시 포함
-
-2. brokerEmpathy (중개사 공감)
-- "이런 경험 있으시죠?" 형태로 중개사 입장에서 공감할 만한 상황 제시
-- 예: 매물 연결해드렸는데 몇 달 뒤 나가는 경우
-
-3. partnershipValue (제휴 가치)
-- 저희랑 제휴하시면 어떤 점이 좋은지
-- "창업 문의 오면 연결만 해주세요. 저희가 상담하고 준비 도와드립니다."
-- "저희가 해드리는 건 제대로 준비하고 들어가게 하는 거예요. 중개사님은 전문 업체 연결해드렸다 하시면 되고요."
-- 매출 보장 표현 절대 금지
-
-4. talkScript (대화 가이드)
-- 중개사에게 바로 사용 가능한 멘트 1개
-- 자연스러운 대화체로
-
-5. relatedRegions (연관 지역)
-- 이 지역과 함께 영업하면 좋을 인근 지역 3개
-
-응답 형식 (JSON만, 이모티콘 사용 금지):
+응답 형식 (JSON만):
 {
-  "regionBrief": "...",
-  "brokerEmpathy": "...",
-  "partnershipValue": "...",
-  "talkScript": "...",
-  "relatedRegions": ["지역1", "지역2", "지역3"]
+  "summary": "요약 내용",
+  "insights": ["인사이트1", "인사이트2", "인사이트3"],
+  "salesTips": ["팁1", "팁2"],
+  "relatedTopics": ["키워드1", "키워드2", "키워드3"],
+  "actionItems": ["액션1", "액션2"]
 }
 
-JSON만 출력하세요. 이모티콘 절대 사용하지 마세요.`;
+JSON만 출력하세요. 내부 데이터가 없어도 일반적인 카페 창업/컨설팅 관점에서 유용한 정보를 제공하세요.`;
 
+   try {
      const response = await fetch(
        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
        {
@@ -1982,7 +1919,7 @@ JSON만 출력하세요. 이모티콘 절대 사용하지 마세요.`;
          headers: { 'Content-Type': 'application/json' },
          body: JSON.stringify({
            contents: [{ role: 'user', parts: [{ text: prompt }] }],
-           generationConfig: { temperature: 0.7, maxOutputTokens: 2000 }
+           generationConfig: { temperature: 0.8, maxOutputTokens: 1500 }
          })
        }
      );
@@ -2006,155 +1943,57 @@ JSON만 출력하세요. 이모티콘 절대 사용하지 마세요.`;
      }
 
      const text = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
-     // 마크다운 코드 블록 및 불필요한 문자 제거
-     let cleanText = text
-       .replace(/```json\s*/gi, '')
-       .replace(/```\s*/gi, '')
-       .replace(/^\s*[\r\n]+/, '')
-       .trim();
-     
-     // JSON 추출 시도 (완전한 JSON)
+     // 마크다운 코드 블록 제거 (```json ... ```)
+     const cleanText = text.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').trim();
      const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
      
      if (jsonMatch) {
-       try {
-         const parsed = JSON.parse(jsonMatch[0]);
-         // 파싱 성공
-         setAiKeywordResult({
-           regionBrief: parsed.regionBrief || '',
-           brokerEmpathy: parsed.brokerEmpathy || '',
-           partnershipValue: parsed.partnershipValue || '',
-           talkScript: parsed.talkScript || '',
-           relatedRegions: parsed.relatedRegions || [],
-           keyword: regionName,
-           searchedAt: new Date(),
-           collectedData: collectedData.apis
-         });
-       } catch (parseError) {
-         console.error('JSON 파싱 실패:', parseError);
-         // 파싱 실패 시 개별 필드 추출 시도
-         const extractField = (fieldName) => {
-           const regex = new RegExp(`"${fieldName}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`, 'i');
-           const match = cleanText.match(regex);
-           return match ? match[1].replace(/\\"/g, '"').replace(/\\n/g, '\n') : '';
-         };
-         
-         const extractArray = (fieldName) => {
-           const regex = new RegExp(`"${fieldName}"\\s*:\\s*\\[(.*?)\\]`, 'is');
-           const match = cleanText.match(regex);
-           if (match) {
-             const items = match[1].match(/"([^"]+)"/g);
-             return items ? items.map(s => s.replace(/"/g, '')) : [];
-           }
-           return [];
-         };
-         
-         setAiKeywordResult({
-           regionBrief: extractField('regionBrief') || '분석 결과를 불러오는 중 오류가 발생했습니다.',
-           brokerEmpathy: extractField('brokerEmpathy'),
-           partnershipValue: extractField('partnershipValue'),
-           talkScript: extractField('talkScript'),
-           relatedRegions: extractArray('relatedRegions'),
-           keyword: regionName,
-           searchedAt: new Date()
-         });
-       }
-     } else {
-       // JSON 형태가 없거나 불완전한 경우 - 개별 필드 추출 시도
-       console.log('불완전한 JSON 감지, 개별 필드 추출 시도');
-       
-       const extractField = (fieldName) => {
-         // 완전한 값 추출 시도
-         const regex1 = new RegExp(`"${fieldName}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`, 'i');
-         const match1 = cleanText.match(regex1);
-         if (match1) return match1[1].replace(/\\"/g, '"').replace(/\\n/g, '\n');
-         
-         // 불완전한 값 추출 (따옴표로 끝나지 않는 경우)
-         const regex2 = new RegExp(`"${fieldName}"\\s*:\\s*"([^"]*?)(?:",|"\\s*\\}|$)`, 'i');
-         const match2 = cleanText.match(regex2);
-         if (match2) return match2[1];
-         
-         // 최후의 수단: 콜론 뒤의 모든 텍스트
-         const regex3 = new RegExp(`"${fieldName}"\\s*:\\s*"([^"]*)`, 'i');
-         const match3 = cleanText.match(regex3);
-         return match3 ? match3[1] : '';
-       };
-       
+       const parsed = JSON.parse(jsonMatch[0]);
        setAiKeywordResult({
-         regionBrief: extractField('regionBrief') || '데이터 분석 중 오류가 발생했습니다. 다시 시도해주세요.',
-         brokerEmpathy: extractField('brokerEmpathy'),
-         partnershipValue: extractField('partnershipValue'),
-         talkScript: extractField('talkScript'),
-         relatedRegions: [],
-         keyword: regionName,
+         ...parsed,
+         keyword,
+         searchedAt: new Date(),
+         relatedCompaniesCount: relatedCompanies.length,
+         relatedRealtorsCount: relatedRealtors.length,
+         relatedIssuesCount: relatedIssues.length
+       });
+     } else {
+       setAiKeywordResult({
+         summary: text,
+         insights: [],
+         salesTips: [],
+         relatedTopics: [],
+         actionItems: [],
+         keyword,
          searchedAt: new Date()
        });
      }
    } catch (e) {
-     console.error('AI Region Search Error:', e);
+     console.error('AI Keyword Search Error:', e);
      setAiErrorMessage(`네트워크 오류: ${e.message || '연결을 확인해주세요.'}`);
    }
    setAiKeywordLoading(false);
  };
 
- // AI 멘트 피드백 함수 - Gemini API 연동 (영업 상황 맞춤형)
- const callGeminiFeedback = async (original, modified, question, context = {}) => {
+ // AI 멘트 피드백 함수 - Gemini API 연동
+ const callGeminiFeedback = async (original, modified, question) => {
    try {
-     // 멘트 타입별 컨텍스트 설정
-     const typeContext = {
-       broker: {
-         role: '부동산 중개사',
-         goal: '창업자 소개를 받기 위한 파트너십 구축',
-         keywords: ['수수료', '상권 분석', '창업자 소개', '빈크래프트 장점']
-       },
-       client: {
-         role: '카페 창업 예정자',
-         goal: '빈크래프트 컨설팅 계약 체결',
-         keywords: ['가맹비 0원', '메뉴 자유', '생존율', '전문 컨설팅']
-       },
-       objection: {
-         role: '거절/반론하는 고객',
-         goal: '거절 극복 및 재관심 유도',
-         keywords: ['이해', '맞춤형 제안', '데이터 기반', '비교 분석']
-       }
-     };
-
-     const mentType = context.type || 'broker';
-     const targetContext = typeContext[mentType] || typeContext.broker;
-
-     const prompt = `당신은 빈크래프트 영업팀의 전문 영업 코치입니다.
-
-[영업 상황]
-- 대화 상대: ${targetContext.role}
-- 목표: ${targetContext.goal}
-- 핵심 키워드: ${targetContext.keywords.join(', ')}
+     const prompt = `당신은 영업 멘트 코치입니다. 카페 창업 컨설팅 영업사원이 사용하는 멘트를 분석해주세요.
 
 [기존 멘트]
 ${original}
 
-[수정된 멘트]
+[수정한 멘트]
 ${modified}
 
-[질문/요청]
-${question || '이 멘트에 대한 피드백을 주세요.'}
+[질문]
+${question}
 
-[분석 기준]
-1. 설득력: 상대방이 "왜 빈크래프트여야 하는지" 느낄 수 있는가?
-2. 구체성: 추상적 표현 대신 구체적 숫자/사례가 있는가?
-3. 자연스러움: 영업 냄새가 나지 않고 대화체로 자연스러운가?
-4. 거절 대응: 예상 반론에 선제적으로 대응하고 있는가?
-
-[응답 형식 - JSON으로만 응답]
-{
-  "score": 85,
-  "evaluation": "수정 전후 비교 평가 (2문장)",
-  "strengths": ["장점1", "장점2"],
-  "improvements": ["개선점1 (구체적 대안 포함)", "개선점2"],
-  "suggestedMent": "개선된 멘트 전체 제안 (선택적)",
-  "practicalTip": "현장에서 바로 쓸 수 있는 실전 팁 1개",
-  "anticipatedObjection": "예상되는 상대방 반론",
-  "objectionResponse": "반론 대응 멘트"
-}`;
+다음 형식으로 간결하게 답변해주세요:
+1. 수정 평가 (1-2문장)
+2. 장점 (bullet 2개)
+3. 개선제안 (bullet 1-2개)
+4. 실전 팁 (1문장)`;
 
      const response = await fetch(
        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
@@ -2163,7 +2002,7 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
          headers: { 'Content-Type': 'application/json' },
          body: JSON.stringify({
            contents: [{ parts: [{ text: prompt }] }],
-           generationConfig: { temperature: 0.7, maxOutputTokens: 1000 }
+           generationConfig: { temperature: 0.7, maxOutputTokens: 500 }
          })
        }
      );
@@ -2179,18 +2018,10 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
      const data = await response.json();
      if (data.error) return { success: false, error: data.error.message };
 
-     let text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
      if (!text) return { success: false, error: 'AI 응답이 비어있습니다.' };
 
-     // JSON 파싱 시도
-     try {
-       text = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-       const parsed = JSON.parse(text);
-       return { success: true, response: parsed, isStructured: true };
-     } catch {
-       // JSON 파싱 실패 시 텍스트 그대로 반환
-       return { success: true, response: text, isStructured: false };
-     }
+     return { success: true, response: text };
    } catch (e) {
      return { success: false, error: e.message || '네트워크 오류' };
    }
@@ -2308,12 +2139,13 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  const [realtorPage, setRealtorPage] = useState(1);
  const [selectedRealtorCollection, setSelectedRealtorCollection] = useState(null);
  const [collectedRealtors, setCollectedRealtors] = useState(() => {
-   return safeLocalStorage.getItem('bc_collected_realtors', []);
+   try {
+     const cached = localStorage.getItem('bc_collected_realtors');
+     return cached ? JSON.parse(cached) : [];
+   } catch { return []; }
  }); // 새 수집기 데이터 (캐시 우선)
  const [realtorsLoading, setRealtorsLoading] = useState(() => {
-   try {
-     return !localStorage.getItem('bc_collected_realtors');
-   } catch { return true; }
+   return !localStorage.getItem('bc_collected_realtors');
  }); // 캐시 있으면 로딩 안함
  const REALTOR_PAGE_SIZE = 50;
  const [zigbangCity, setZigbangCity] = useState('');
@@ -2369,7 +2201,10 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  const [customerForm, setCustomerForm] = useState({ name: '', phone: '', managerId: null, consultDate: '', note: '', status: 'consult', memo: '' });
  const [saleForm, setSaleForm] = useState({ managerId: null, companyId: null, amount: '', date: '', note: '' });
  const getLocalData = (key) => {
-   return safeLocalStorage.getItem('bc_' + key, null);
+ try {
+ const data = localStorage.getItem('bc_' + key);
+ return data ? JSON.parse(data) : null;
+ } catch (e) { return null; }
  };
  const migrateToFirebase = async () => {
  const migrationDone = localStorage.getItem('bc_migration_done');
@@ -2455,28 +2290,13 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  }, [themeMode]);
  
  useEffect(() => {
- // Content Script에서 보내는 메시지 수신 (확장프로그램 통신 허용)
+ // Content Script에서 보내는 메시지 수신
  const handleExtensionMessage = (event) => {
- // 보안 검증 1: source 확인 (같은 window에서 온 메시지만)
  if (event.source !== window) return;
- 
- // 보안 검증 2: origin 로깅 (확장프로그램 디버깅용)
- console.log('메시지 수신 - origin:', event.origin, 'type:', event.data?.type);
- 
- // 보안 검증 3: 데이터 구조 유효성 검사
- if (!event.data || typeof event.data !== 'object' || !event.data.type) {
-   return;
- }
- 
- // 허용된 메시지 타입만 처리
- const allowedTypes = ['BEANCRAFT_EXTENSION_READY', 'BEANCRAFT_RESPONSE', 'BEANCRAFT_SCRAPE_PROGRESS'];
- if (!allowedTypes.includes(event.data.type)) {
-   return;
- }
  
  // 확장프로그램 연결됨
  if (event.data.type === 'BEANCRAFT_EXTENSION_READY') {
- console.log('확장프로그램 연결됨 v' + (event.data.version || 'unknown'));
+ console.log('확장프로그램 연결됨 v' + event.data.version);
  setExtensionReady(true);
  // 시/도 목록 가져오기
  fetchNaverRegions('0000000000');
@@ -2485,8 +2305,7 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  // 확장프로그램 응답
  if (event.data.type === 'BEANCRAFT_RESPONSE') {
  const { requestId, response } = event.data;
- // requestId 유효성 검사
- if (requestId && pendingGeoRequests.current[requestId]) {
+ if (pendingGeoRequests.current[requestId]) {
  pendingGeoRequests.current[requestId](response);
  delete pendingGeoRequests.current[requestId];
  }
@@ -2495,11 +2314,11 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  // 수집 진행 상황 수신
  if (event.data.type === 'BEANCRAFT_SCRAPE_PROGRESS') {
  setCollectProgress({
- phase: String(event.data.phase || ''),
- current: parseInt(event.data.current, 10) || 0,
- total: parseInt(event.data.total, 10) || 0,
- found: parseInt(event.data.found, 10) || 0,
- message: String(event.data.message || '')
+ phase: event.data.phase || '',
+ current: event.data.current || 0,
+ total: event.data.total || 0,
+ found: event.data.found || 0,
+ message: event.data.message || ''
  });
  }
  };
@@ -2516,13 +2335,12 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  const requestId = Date.now() + Math.random();
  pendingGeoRequests.current[requestId] = resolve;
  
- // 같은 origin으로만 메시지 전송 (보안 강화)
  window.postMessage({
  type: 'BEANCRAFT_REQUEST',
  action: action,
  requestId: requestId,
  ...data
- }, window.location.origin);
+ }, '*');
  
  // 10초 타임아웃
  setTimeout(() => {
@@ -3263,27 +3081,32 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  
  useEffect(() => {
  // 아이디/비밀번호 저장 불러오기 (30일 유지)
- const loginData = safeLocalStorage.getItem('bc_remember_login', null);
- if (loginData) {
-   if (loginData.expiry > Date.now()) {
-     setId(loginData.id || '');
-     setPw(loginData.pw || '');
-     setRememberMe(true);
-   } else {
-     safeLocalStorage.removeItem('bc_remember_login');
-   }
+ const savedLogin = localStorage.getItem('bc_remember_login');
+ if (savedLogin) {
+ try {
+ const loginData = JSON.parse(savedLogin);
+ if (loginData.expiry > Date.now()) {
+ setId(loginData.id || '');
+ setPw(loginData.pw || '');
+ setRememberMe(true);
  }
- 
- // 임시 저장된 동선 불러오기
- const savedRoute = safeLocalStorage.getItem('bc_temp_route', null);
- if (savedRoute && savedRoute.stops?.length > 0) {
-   setRouteStops(savedRoute.stops);
-   if (savedRoute.name) setRouteName(savedRoute.name);
-   if (savedRoute.date) setRouteDate(savedRoute.date);
-   if (savedRoute.time) setRouteTime(savedRoute.time);
-   if (savedRoute.managerId) setRouteManager(savedRoute.managerId);
-   if (savedRoute.editingId) setEditingRouteId(savedRoute.editingId);
+ else { localStorage.removeItem('bc_remember_login'); }
+ } catch (e) { localStorage.removeItem('bc_remember_login'); }
  }
+ try {
+ const savedRoute = localStorage.getItem('bc_temp_route');
+ if (savedRoute) {
+ const parsed = JSON.parse(savedRoute);
+ if (parsed.stops?.length > 0) {
+ setRouteStops(parsed.stops);
+ if (parsed.name) setRouteName(parsed.name);
+ if (parsed.date) setRouteDate(parsed.date);
+ if (parsed.time) setRouteTime(parsed.time);
+ if (parsed.managerId) setRouteManager(parsed.managerId);
+ if (parsed.editingId) setEditingRouteId(parsed.editingId);
+ }
+ }
+ } catch (e) {}
  }, []);
  
  // Firebase Auth 상태 감시 + 자동 로그인
@@ -3293,28 +3116,33 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  const unsubscribe = firebase.auth().onAuthStateChanged(async (firebaseUser) => {
  if (firebaseUser && !loggedIn) {
  // Firebase 인증됨 - 자동 로그인
- const session = safeLocalStorage.getItem('bc_session', null);
- if (session && session.expiry > Date.now() && session.user) {
-   let userData = session.user;
-   // [추가] 세션의 손상된 이름 검증 및 복구
-   if (userData.username) {
-     const initM = initManagers.find(im => im.username === userData.username);
-     if (initM && (!userData.name || userData.name.length < 2 || userData.name.includes('ㅁ영업'))) {
-       console.log(`[자동로그인] 세션 이름 복구: ${userData.name} -> ${initM.name}`);
-       userData = { ...userData, name: initM.name };
-       safeLocalStorage.setItem('bc_session', { user: userData, expiry: session.expiry });
-     }
+ const savedSession = localStorage.getItem('bc_session');
+ if (savedSession) {
+ try {
+ const session = JSON.parse(savedSession);
+ if (session.expiry > Date.now() && session.user) {
+ let userData = session.user;
+ // [추가] 세션의 손상된 이름 검증 및 복구
+ if (userData.username) {
+   const initM = initManagers.find(im => im.username === userData.username);
+   if (initM && (!userData.name || userData.name.length < 2 || userData.name.includes('ㅁ영업'))) {
+     console.log(`[자동로그인] 세션 이름 복구: ${userData.name} -> ${initM.name}`);
+     userData = { ...userData, name: initM.name };
+     localStorage.setItem('bc_session', JSON.stringify({ user: userData, expiry: session.expiry }));
    }
-   if (userData) {
-   setUser(userData);
-   setLoggedIn(true);
-   if (userData.managerId) {
-   setRouteManager(userData.managerId);
-   updateUserStatus(userData.managerId, true);
+ }
+ if (userData) {
+ setUser(userData);
+ setLoggedIn(true);
+ if (userData.managerId) {
+ setRouteManager(userData.managerId);
+ updateUserStatus(userData.managerId, true);
  }
  console.log('자동 로그인 성공:', userData.name);
  return;
  }
+ }
+ } catch (e) {}
  }
  // 세션 없으면 Firebase에서 직접 managers 조회
  const email = firebaseUser.email;
@@ -3430,63 +3258,31 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  if (loggedIn && tab === 'map' && mapRef.current) {
  // 기존 지도 객체가 있어도 DOM이 바뀌었으므로 재초기화
  mapObj.current = null;
- let retryCount = 0;
- const maxRetries = 50; // 최대 5초 대기 (100ms * 50)
- 
  const initMap = () => {
-   // 재시도 횟수 초과 시 중단
-   if (retryCount >= maxRetries) {
-     console.error('네이버 지도 SDK 로드 실패: 타임아웃');
-     return;
-   }
-   
-   // SDK 로드 대기
-   if (!window.naver?.maps) {
-     retryCount++;
-     setTimeout(initMap, 100);
-     return;
-   }
-   
-   // DOM 요소 대기
-   if (!mapRef.current) {
-     retryCount++;
-     setTimeout(initMap, 100);
-     return;
-   }
-   
-   try {
-     mapObj.current = new naver.maps.Map(mapRef.current, { 
-       center: new naver.maps.LatLng(37.5665, 126.978), 
-       zoom: 11 
-     });
-     
-     naver.maps.Event.addListener(mapObj.current, 'zoom_changed', () => {
-       renderMarkers();
-     });
-     
-     naver.maps.Event.addListener(mapObj.current, 'click', (e) => {
-       const currentSelManager = selManagerRef.current;
-       const currentPinDate = pinDateRef.current;
-       if (!currentSelManager) return;
-       const lat = e.coord.lat(); const lng = e.coord.lng();
-       naver.maps.Service.reverseGeocode({ coords: new naver.maps.LatLng(lat, lng) }, (s, r) => {
-         let address = lat.toFixed(4) + ', ' + lng.toFixed(4);
-         if (s === naver.maps.Service.Status.OK && r.v2.results[0]) {
-           const a = r.v2.results[0].region;
-           if (a) address = [a.area1?.name, a.area2?.name, a.area3?.name].filter(Boolean).join(' ');
-         }
-         const status = currentPinDate ? 'planned' : 'confirmed';
-         const newPin = { id: Date.now(), managerId: currentSelManager, status, region: address, lat, lng, date: currentPinDate || '', createdAt: new Date().toISOString() };
-         savePin(newPin);
-       });
-     });
-     
-     setTimeout(() => renderMarkers(), 500);
-   } catch (e) {
-     console.error('네이버 지도 초기화 실패:', e);
-   }
+ if (!window.naver?.maps) { setTimeout(initMap, 100); return; }
+ if (!mapRef.current) { setTimeout(initMap, 100); return; }
+ mapObj.current = new naver.maps.Map(mapRef.current, { center: new naver.maps.LatLng(37.5665, 126.978), zoom: 11 });
+ naver.maps.Event.addListener(mapObj.current, 'zoom_changed', () => {
+ renderMarkers();
+ });
+ naver.maps.Event.addListener(mapObj.current, 'click', (e) => {
+ const currentSelManager = selManagerRef.current;
+ const currentPinDate = pinDateRef.current;
+ if (!currentSelManager) return;
+ const lat = e.coord.lat(); const lng = e.coord.lng();
+ naver.maps.Service.reverseGeocode({ coords: new naver.maps.LatLng(lat, lng) }, (s, r) => {
+ let address = lat.toFixed(4) + ', ' + lng.toFixed(4);
+ if (s === naver.maps.Service.Status.OK && r.v2.results[0]) {
+ const a = r.v2.results[0].region;
+ if (a) address = [a.area1?.name, a.area2?.name, a.area3?.name].filter(Boolean).join(' ');
+ }
+ const status = currentPinDate ? 'planned' : 'confirmed';
+ const newPin = { id: Date.now(), managerId: currentSelManager, status, region: address, lat, lng, date: currentPinDate || '', createdAt: new Date().toISOString() };
+ savePin(newPin);
+ });
+ });
+ setTimeout(() => renderMarkers(), 500);
  };
- 
  setTimeout(initMap, 300);
  }
  }, [loggedIn, tab]);
@@ -4419,11 +4215,6 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  }
  };
  const processOcrImage = async (file) => {
- // API 키 검증
- if (!GOOGLE_VISION_API_KEY) {
-   return Promise.reject(new Error('Google Vision API 키가 설정되지 않았습니다. 환경 변수 VITE_GOOGLE_VISION_API_KEY를 확인하세요.'));
- }
- 
  return new Promise((resolve, reject) => {
  const reader = new FileReader();
  reader.onload = async () => {
@@ -4442,13 +4233,6 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  })
  }
  );
- 
- if (!response.ok) {
-   const errorData = await response.json().catch(() => ({}));
-   reject(new Error(`Vision API 오류: ${errorData.error?.message || response.statusText}`));
-   return;
- }
- 
  const data = await response.json();
  if (data.responses?.[0]?.textAnnotations?.[0]?.description) {
  const text = data.responses[0].textAnnotations[0].description;
@@ -5119,64 +4903,27 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  }}
  };
  const ZIGBANG_ITEMS = []; // 데이터는 Firebase에서 로드
- 
- // CORS 프록시 목록 (환경 변수로 추가 가능)
  const CORS_PROXIES = [
-   import.meta.env.VITE_CORS_PROXY_1,
-   'https://api.allorigins.win/raw?url=',
-   'https://corsproxy.io/?',
-   'https://api.codetabs.com/v1/proxy?quest='
- ].filter(Boolean);
- 
- // 타임아웃이 있는 fetch 함수
- const fetchWithTimeout = async (url, options = {}, timeout = 10000) => {
-   const controller = new AbortController();
-   const timeoutId = setTimeout(() => controller.abort(), timeout);
-   
-   try {
-     const response = await fetch(url, {
-       ...options,
-       signal: controller.signal
-     });
-     clearTimeout(timeoutId);
-     return response;
-   } catch (error) {
-     clearTimeout(timeoutId);
-     throw error;
-   }
- };
- 
+ 'https://api.allorigins.win/raw?url=',
+ 'https://corsproxy.io/?',
+ 'https://api.codetabs.com/v1/proxy?quest='
+ ];
  const fetchWithProxy = async (apiUrl) => {
-   if (CORS_PROXIES.length === 0) {
-     console.error('사용 가능한 CORS 프록시가 없습니다.');
-     return null;
-   }
-   
-   for (let i = 0; i < CORS_PROXIES.length; i++) {
-     const proxy = CORS_PROXIES[i];
-     try {
-       const response = await fetchWithTimeout(
-         proxy + encodeURIComponent(apiUrl),
-         { headers: { 'Accept': 'application/json' } },
-         8000 // 8초 타임아웃
-       );
-       
-       if (response.ok) {
-         const data = await response.json();
-         return data;
-       }
-     } catch (e) {
-       if (e.name === 'AbortError') {
-         console.log(`프록시 타임아웃: ${proxy}`);
-       } else {
-         console.log(`프록시 실패 (${i + 1}/${CORS_PROXIES.length}):`, e.message);
-       }
-       continue;
-     }
-   }
-   
-   console.warn('모든 CORS 프록시 실패');
-   return null;
+ for (const proxy of CORS_PROXIES) {
+ try {
+ const response = await fetch(proxy + encodeURIComponent(apiUrl), {
+ headers: { 'Accept': 'application/json' }
+ });
+ if (response.ok) {
+ const data = await response.json();
+ return data;
+ }
+ } catch (e) {
+ console.log(`프록시 실패: ${proxy}`, e);
+ continue;
+ }
+ }
+ return null;
  };
  const searchMarkersRef = useRef([]);
  const clearSearchMarkers = () => {
@@ -5770,14 +5517,8 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  // 네이버 Directions API로 실제 도로 경로 가져오기
  const fetchDirectionsRoute = async (startLat, startLng, optimizedStops) => {
  if (optimizedStops.length < 1) return null;
- const NCP_CLIENT_ID = import.meta.env.VITE_NCP_CLIENT_ID || '';
- const NCP_CLIENT_SECRET = import.meta.env.VITE_NCP_CLIENT_SECRET || '';
- 
- // API 키 검증
- if (!NCP_CLIENT_ID || !NCP_CLIENT_SECRET) {
-   console.warn('NCP API 키가 설정되지 않았습니다.');
-   return null;
- }
+ const NCP_CLIENT_ID = 'dx2ymyk2b1';
+ const NCP_CLIENT_SECRET = localStorage.getItem('ncp_client_secret') || '18184ztuYuPVkqzPumsSqRNVsMHCiBFMWhWdRJAJ';
  try {
  const start = `${startLng},${startLat}`;
  const goal = `${optimizedStops[optimizedStops.length - 1].lng},${optimizedStops[optimizedStops.length - 1].lat}`;
@@ -6821,7 +6562,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
              <img src="/logo.png" alt="BEANCRAFT" className="h-8 object-contain" onError={(e) => { e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 30"><text y="22" font-size="18" font-weight="bold">BEANCRAFT</text></svg>'; }} />
              <div className="w-16 flex justify-end">
                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                 salesModeTarget === 'broker' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'
+                 salesModeTarget === 'broker' ? 'bg-neutral-100 text-neutral-900' : 'bg-neutral-100 text-neutral-900'
                }`}>
                  {salesModeTarget === 'broker' ? '중개사' : '의뢰인'}
                </span>
@@ -6872,15 +6613,23 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                    </button>
                  </div>
 
+                 {/* 지도에서 직접 위치 선택 버튼 */}
+                 <button
+                   onClick={() => setLocationAnalysisModal(true)}
+                   className="w-full py-3 rounded-xl border border-gray-200 hover:border-black hover:bg-gray-50 transition-all text-black font-medium"
+                 >
+                   지도에서 직접 위치 선택
+                 </button>
+
                  {/* 검색 결과 */}
                  {salesModeSearchResult?.success && (
                    <div className="space-y-2">
                      {/* 데이터 신뢰도 */}
                      {salesModeSearchResult.data?.reliability && (
                        <div className={`p-3 rounded-xl border ${
-                         salesModeSearchResult.data.reliability === '높음' ? 'border-green-300 bg-green-50' :
-                         salesModeSearchResult.data.reliability === '중간' ? 'border-yellow-300 bg-yellow-50' :
-                         'border-red-300 bg-red-50'
+                         salesModeSearchResult.data.reliability === '높음' ? 'border-neutral-300 bg-white' :
+                         salesModeSearchResult.data.reliability === '중간' ? 'border-neutral-300 bg-white' :
+                         'border-neutral-300 bg-white'
                        }`}>
                          <p className="text-xs font-medium text-black">데이터 신뢰도: {salesModeSearchResult.data.reliability}</p>
                          {salesModeSearchResult.data.dataDate && <p className="text-xs text-gray-500">기준일: {salesModeSearchResult.data.dataDate}</p>}
@@ -6917,24 +6666,22 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                          <span className="w-6 h-6 rounded border border-black text-black flex items-center justify-center text-xs font-bold">2</span>
                          상권 개요
                        </h3>
-                       <div className="space-y-3">
+                       <div className="grid grid-cols-2 gap-3">
                          <div className="p-3 rounded-lg bg-gray-50">
                            <p className="text-xs text-gray-500 mb-1">카페 수</p>
-                           <p className="font-medium text-black text-sm leading-relaxed">{cleanJsonText(salesModeSearchResult.data?.overview?.cafeCount) || '-'}</p>
+                           <p className="font-bold text-black">{salesModeSearchResult.data?.overview?.cafeCount || '-'}</p>
                          </div>
                          <div className="p-3 rounded-lg bg-gray-50">
                            <p className="text-xs text-gray-500 mb-1">유동인구</p>
-                           <p className="font-medium text-black text-sm leading-relaxed">{cleanJsonText(salesModeSearchResult.data?.overview?.floatingPop) || '-'}</p>
+                           <p className="font-bold text-black">{salesModeSearchResult.data?.overview?.floatingPop || '-'}</p>
                          </div>
-                         <div className="grid grid-cols-2 gap-3">
-                           <div className="p-3 rounded-lg bg-green-50 border border-green-100">
-                             <p className="text-xs text-green-600 mb-1">신규 개업</p>
-                             <p className="font-medium text-green-700 text-sm leading-relaxed">{cleanJsonText(salesModeSearchResult.data?.overview?.newOpen) || '-'}</p>
-                           </div>
-                           <div className="p-3 rounded-lg bg-red-50 border border-red-100">
-                             <p className="text-xs text-red-600 mb-1">폐업</p>
-                             <p className="font-medium text-red-700 text-sm leading-relaxed">{cleanJsonText(salesModeSearchResult.data?.overview?.closed) || '-'}</p>
-                           </div>
+                         <div className="p-3 rounded-lg bg-gray-50">
+                           <p className="text-xs text-gray-500 mb-1">신규 개업</p>
+                           <p className="font-bold text-green-600">{salesModeSearchResult.data?.overview?.newOpen || '-'}</p>
+                         </div>
+                         <div className="p-3 rounded-lg bg-gray-50">
+                           <p className="text-xs text-gray-500 mb-1">폐업</p>
+                           <p className="font-bold text-red-600">{salesModeSearchResult.data?.overview?.closed || '-'}</p>
                          </div>
                        </div>
                        {salesModeSearchResult.data?.overview?.source && (
@@ -6949,33 +6696,30 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                          주요 소비층
                        </h3>
                        <div className="space-y-3">
-                         <div className="grid grid-cols-2 gap-3">
-                           <div className="p-3 rounded-lg bg-blue-50 border border-blue-100">
-                             <p className="text-xs text-blue-600 mb-1">핵심 타겟</p>
-                             <p className="font-medium text-black text-sm">{cleanJsonText(salesModeSearchResult.data?.consumers?.mainTarget) || '-'}</p>
-                             <p className="text-sm text-blue-600 mt-1">{cleanJsonText(salesModeSearchResult.data?.consumers?.mainRatio) || '-'}</p>
+                         <div className="flex gap-3">
+                           <div className="flex-1 p-3 rounded-lg bg-white border border-neutral-200">
+                             <p className="text-xs text-neutral-600 mb-1">핵심 타겟</p>
+                             <p className="font-bold text-black">{salesModeSearchResult.data?.consumers?.mainTarget || '-'}</p>
+                             <p className="text-sm text-blue-600">{salesModeSearchResult.data?.consumers?.mainRatio || '-'}</p>
                            </div>
-                           <div className="p-3 rounded-lg bg-gray-50">
+                           <div className="flex-1 p-3 rounded-lg bg-gray-50">
                              <p className="text-xs text-gray-500 mb-1">2순위</p>
-                             <p className="font-medium text-black text-sm">{cleanJsonText(salesModeSearchResult.data?.consumers?.secondTarget) || '-'}</p>
-                             <p className="text-sm text-gray-500 mt-1">{cleanJsonText(salesModeSearchResult.data?.consumers?.secondRatio) || '-'}</p>
+                             <p className="font-bold text-black">{salesModeSearchResult.data?.consumers?.secondTarget || '-'}</p>
+                             <p className="text-sm text-gray-500">{salesModeSearchResult.data?.consumers?.secondRatio || '-'}</p>
                            </div>
                          </div>
-                         <div className="p-3 rounded-lg bg-gray-50">
-                           <p className="text-xs text-gray-500 mb-2">소비 패턴</p>
-                           <div className="grid grid-cols-3 gap-3 text-center">
-                             <div>
-                               <p className="text-xs text-gray-400">피크타임</p>
-                               <p className="text-sm font-medium text-black mt-1">{cleanJsonText(salesModeSearchResult.data?.consumers?.peakTime) || '-'}</p>
-                             </div>
-                             <div>
-                               <p className="text-xs text-gray-400">테이크아웃</p>
-                               <p className="text-sm font-medium text-black mt-1">{cleanJsonText(salesModeSearchResult.data?.consumers?.takeoutRatio) || '-'}</p>
-                             </div>
-                             <div>
-                               <p className="text-xs text-gray-400">체류시간</p>
-                               <p className="text-sm font-medium text-black mt-1">{cleanJsonText(salesModeSearchResult.data?.consumers?.avgStay) || '-'}</p>
-                             </div>
+                         <div className="grid grid-cols-3 gap-2 text-center">
+                           <div className="p-2 bg-gray-50 rounded-lg">
+                             <p className="text-xs text-gray-500">피크타임</p>
+                             <p className="text-sm font-bold text-black">{salesModeSearchResult.data?.consumers?.peakTime || '-'}</p>
+                           </div>
+                           <div className="p-2 bg-gray-50 rounded-lg">
+                             <p className="text-xs text-gray-500">테이크아웃</p>
+                             <p className="text-sm font-bold text-black">{salesModeSearchResult.data?.consumers?.takeoutRatio || '-'}</p>
+                           </div>
+                           <div className="p-2 bg-gray-50 rounded-lg">
+                             <p className="text-xs text-gray-500">체류시간</p>
+                             <p className="text-sm font-bold text-black">{salesModeSearchResult.data?.consumers?.avgStay || '-'}</p>
                            </div>
                          </div>
                        </div>
@@ -7003,165 +6747,159 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                        </div>
                      </div>
 
-                     {/* 5. 임대료/권리금 */}
-                     <div className="bg-white p-5 rounded-xl border border-gray-200">
-                       <h3 className="font-bold text-black mb-4 flex items-center gap-2">
-                         <span className="w-6 h-6 rounded border border-black text-black flex items-center justify-center text-xs font-bold">5</span>
-                         임대료/권리금
-                       </h3>
-                       <div className="space-y-3">
-                         <div className="grid grid-cols-2 gap-3">
-                           <div className="p-3 rounded-lg bg-gray-50">
-                             <p className="text-xs text-gray-500 mb-1">월 임대료</p>
-                             <p className="font-medium text-black text-sm">{cleanJsonText(salesModeSearchResult.data?.rent?.monthly) || '-'}</p>
+                     {/* 5. 고객층 상세 분석 - 실제 데이터 있을 때만 표시 */}
+                     {salesModeSearchResult.data?.customerDetail?.ageDistribution && (
+                       <div className="bg-white p-5 rounded-xl border border-gray-200">
+                         <h3 className="font-bold text-black mb-4 flex items-center gap-2">
+                           <span className="w-6 h-6 rounded border border-black text-black flex items-center justify-center text-xs font-bold">5</span>
+                           고객층 상세 분석
+                         </h3>
+                         <p className="text-xs text-gray-500 mb-3">
+                           {salesModeSearchResult.data.customerDetail.isActualData 
+                             ? `실제 결제 데이터 (출처: ${salesModeSearchResult.data.customerDetail.source})`
+                             : `인구 기반 추정 (출처: ${salesModeSearchResult.data.customerDetail.source})`
+                           }
+                         </p>
+                         <div className="space-y-4">
+                           <div>
+                             <p className="text-xs text-gray-500 mb-2">연령대별 비율</p>
+                             <div className="space-y-1">
+                               {Object.entries(salesModeSearchResult.data.customerDetail.ageDistribution).map(([age, ratio]) => (
+                                 <div key={age} className="flex items-center gap-2">
+                                   <span className="text-xs text-black w-16">{age}</span>
+                                   <div className="flex-1 h-4 bg-gray-100 rounded-full overflow-hidden">
+                                     <div 
+                                       className="h-full bg-black rounded-full" 
+                                       style={{ width: `${ratio}%` }}
+                                     />
+                                   </div>
+                                   <span className="text-xs font-bold text-black w-12 text-right">{ratio}%</span>
+                                 </div>
+                               ))}
+                             </div>
                            </div>
-                           <div className="p-3 rounded-lg bg-gray-50">
-                             <p className="text-xs text-gray-500 mb-1">보증금</p>
-                             <p className="font-medium text-black text-sm">{cleanJsonText(salesModeSearchResult.data?.rent?.deposit) || '-'}</p>
-                           </div>
-                         </div>
-                         <div className="grid grid-cols-2 gap-3">
-                           <div className="p-3 rounded-lg bg-gray-50">
-                             <p className="text-xs text-gray-500 mb-1">권리금</p>
-                             <p className="font-medium text-black text-sm">{cleanJsonText(salesModeSearchResult.data?.rent?.premium) || '-'}</p>
-                           </div>
-                           <div className="p-3 rounded-lg bg-gray-50">
-                             <p className="text-xs text-gray-500 mb-1">전년 대비</p>
-                             <p className={`font-medium text-sm ${(salesModeSearchResult.data?.rent?.yoyChange || '').includes('+') ? 'text-red-600' : 'text-blue-600'}`}>
-                               {cleanJsonText(salesModeSearchResult.data?.rent?.yoyChange) || '-'}
-                             </p>
-                           </div>
+                           {salesModeSearchResult.data.customerDetail.genderDistribution && (
+                             <div>
+                               <p className="text-xs text-gray-500 mb-2">성별 비율</p>
+                               <div className="flex gap-4">
+                                 <div className="flex-1 p-3 bg-gray-50 rounded-lg text-center">
+                                   <p className="text-xs text-gray-500">남성</p>
+                                   <p className="font-bold text-black">{salesModeSearchResult.data.customerDetail.genderDistribution.male}%</p>
+                                 </div>
+                                 <div className="flex-1 p-3 bg-gray-50 rounded-lg text-center">
+                                   <p className="text-xs text-gray-500">여성</p>
+                                   <p className="font-bold text-black">{salesModeSearchResult.data.customerDetail.genderDistribution.female}%</p>
+                                 </div>
+                               </div>
+                             </div>
+                           )}
                          </div>
                        </div>
-                       {salesModeSearchResult.data?.rent?.source && (
-                         <p className="text-xs text-gray-400 mt-3">출처: {cleanJsonText(salesModeSearchResult.data.rent.source)}</p>
-                       )}
+                     )}
+
+                     {/* 6. 임대료/권리금 */}
+                     <div className="bg-white p-5 rounded-xl border border-gray-200">
+                       <h3 className="font-bold text-black mb-4 flex items-center gap-2">
+                         <span className="w-6 h-6 rounded border border-black text-black flex items-center justify-center text-xs font-bold">7</span>
+                         임대료/권리금
+                       </h3>
+                       <div className="grid grid-cols-2 gap-3">
+                         <div className="p-3 rounded-lg bg-gray-50">
+                           <p className="text-xs text-gray-500 mb-1">월 임대료</p>
+                           <p className="font-bold text-black">{salesModeSearchResult.data?.rent?.monthly || '-'}</p>
+                         </div>
+                         <div className="p-3 rounded-lg bg-gray-50">
+                           <p className="text-xs text-gray-500 mb-1">보증금</p>
+                           <p className="font-bold text-black">{salesModeSearchResult.data?.rent?.deposit || '-'}</p>
+                         </div>
+                         <div className="p-3 rounded-lg bg-gray-50">
+                           <p className="text-xs text-gray-500 mb-1">권리금</p>
+                           <p className="font-bold text-black">{salesModeSearchResult.data?.rent?.premium || '-'}</p>
+                         </div>
+                         <div className="p-3 rounded-lg bg-gray-50">
+                           <p className="text-xs text-gray-500 mb-1">전년 대비</p>
+                           <p className={`font-bold ${(salesModeSearchResult.data?.rent?.yoyChange || '').includes('+') ? 'text-red-600' : 'text-blue-600'}`}>
+                             {salesModeSearchResult.data?.rent?.yoyChange || '-'}
+                           </p>
+                         </div>
+                       </div>
                      </div>
 
-                     {/* 6. 개발 호재 */}
+                     {/* 8. 개발 호재 */}
                      {salesModeSearchResult.data?.opportunities?.length > 0 && (
                        <div className="bg-white p-5 rounded-xl border border-gray-200">
                          <h3 className="font-bold text-black mb-4 flex items-center gap-2">
-                           <span className="w-6 h-6 rounded border border-black text-black flex items-center justify-center text-xs font-bold">6</span>
+                           <span className="w-6 h-6 rounded border border-black text-black flex items-center justify-center text-xs font-bold">8</span>
                            개발 호재
                          </h3>
                          <div className="space-y-3">
                            {salesModeSearchResult.data.opportunities.map((opp, idx) => (
-                             <div key={idx} className="p-3 rounded-lg bg-green-50 border border-green-100">
+                             <div key={idx} className="p-3 rounded-lg bg-white border border-neutral-200">
                                <div className="flex items-center gap-2 mb-1">
                                  <span className={`px-2 py-0.5 rounded text-xs font-bold ${
-                                   opp.impact === '상' ? 'bg-green-500 text-white' : 'bg-green-200 text-green-700'
+                                   opp.impact === '상' ? 'bg-neutral-900 text-white' : 'bg-neutral-200 text-neutral-700'
                                  }`}>{opp.impact}</span>
-                                 <p className="font-medium text-black">{cleanJsonText(opp.title)}</p>
+                                 <p className="font-medium text-black">{opp.title}</p>
                                </div>
-                               <p className="text-sm text-gray-600">{cleanJsonText(opp.detail)}</p>
+                               <p className="text-sm text-gray-600">{opp.detail}</p>
                              </div>
                            ))}
                          </div>
                        </div>
                      )}
 
-                     {/* 7. 리스크 요인 */}
+                     {/* 9. 리스크 요인 */}
                      {salesModeSearchResult.data?.risks?.length > 0 && (
                        <div className="bg-white p-5 rounded-xl border border-gray-200">
                          <h3 className="font-bold text-black mb-4 flex items-center gap-2">
-                           <span className="w-6 h-6 rounded border border-black text-black flex items-center justify-center text-xs font-bold">7</span>
+                           <span className="w-6 h-6 rounded border border-black text-black flex items-center justify-center text-xs font-bold">9</span>
                            리스크 요인
                          </h3>
                          <div className="space-y-3">
                            {salesModeSearchResult.data.risks.map((risk, idx) => (
-                             <div key={idx} className="p-3 rounded-lg bg-red-50 border border-red-100">
+                             <div key={idx} className="p-3 rounded-lg bg-white border border-neutral-200">
                                <div className="flex items-center gap-2 mb-1">
                                  <span className={`px-2 py-0.5 rounded text-xs font-bold ${
-                                   (risk.impact || risk.level) === '상' ? 'bg-red-500 text-white' : 'bg-red-200 text-red-700'
-                                 }`}>{risk.impact || risk.level}</span>
-                                 <p className="font-medium text-black">{cleanJsonText(risk.title)}</p>
+                                   risk.level === '상' ? 'bg-neutral-700 text-white' : 'bg-neutral-200 text-neutral-700'
+                                 }`}>{risk.level}</span>
+                                 <p className="font-medium text-black">{risk.title}</p>
                                </div>
-                               <p className="text-sm text-gray-600">{cleanJsonText(risk.detail)}</p>
+                               <p className="text-sm text-gray-600">{risk.detail}</p>
                              </div>
                            ))}
                          </div>
                        </div>
                      )}
 
-                     {/* 8. 예상 창업 비용 */}
+                     {/* 10. 예상 창업 비용 */}
                      <div className="bg-white p-5 rounded-xl border border-gray-200">
                        <h3 className="font-bold text-black mb-4 flex items-center gap-2">
-                         <span className="w-6 h-6 rounded border border-black text-black flex items-center justify-center text-xs font-bold">8</span>
+                         <span className="w-6 h-6 rounded border border-black text-black flex items-center justify-center text-xs font-bold">10</span>
                          예상 창업 비용
                        </h3>
                        <div className="space-y-2">
                          <div className="flex justify-between py-2 border-b border-gray-100">
                            <span className="text-gray-600">보증금</span>
-                           <span className="font-medium text-black">{cleanJsonText(salesModeSearchResult.data?.startupCost?.deposit) || '-'}</span>
+                           <span className="font-medium text-black">{salesModeSearchResult.data?.startupCost?.deposit || '-'}</span>
                          </div>
                          <div className="flex justify-between py-2 border-b border-gray-100">
                            <span className="text-gray-600">권리금</span>
-                           <span className="font-medium text-black">{cleanJsonText(salesModeSearchResult.data?.startupCost?.premium) || '-'}</span>
+                           <span className="font-medium text-black">{salesModeSearchResult.data?.startupCost?.premium || '-'}</span>
                          </div>
                          <div className="flex justify-between py-2 border-b border-gray-100">
                            <span className="text-gray-600">인테리어</span>
-                           <span className="font-medium text-black">{cleanJsonText(salesModeSearchResult.data?.startupCost?.interior) || '-'}</span>
+                           <span className="font-medium text-black">{salesModeSearchResult.data?.startupCost?.interior || '-'}</span>
                          </div>
                          <div className="flex justify-between py-2 border-b border-gray-100">
                            <span className="text-gray-600">설비/장비</span>
-                           <span className="font-medium text-black">{cleanJsonText(salesModeSearchResult.data?.startupCost?.equipment) || '-'}</span>
+                           <span className="font-medium text-black">{salesModeSearchResult.data?.startupCost?.equipment || '-'}</span>
                          </div>
                          <div className="flex justify-between py-3 bg-neutral-100 text-[#171717] rounded-lg border border-neutral-200 px-3 mt-3">
                            <span className="font-bold">총 예상 비용</span>
-                           <span className="font-bold">{cleanJsonText(salesModeSearchResult.data?.startupCost?.total) || '-'}</span>
+                           <span className="font-bold">{salesModeSearchResult.data?.startupCost?.total || '-'}</span>
                          </div>
                        </div>
                      </div>
-
-                     {/* 9. 컨설팅 효과 비교 */}
-                     {salesModeSearchResult.data?.consultingEffect && (
-                       <div className="bg-white p-5 rounded-xl border border-gray-200">
-                         <h3 className="font-bold text-black mb-4 flex items-center gap-2">
-                           <span className="w-6 h-6 rounded border border-black text-black flex items-center justify-center text-xs font-bold">9</span>
-                           컨설팅 효과 비교
-                         </h3>
-                         <div className="grid grid-cols-2 gap-3">
-                           {/* 컨설팅 O */}
-                           <div className="p-4 rounded-xl bg-green-50 border border-green-200">
-                             <p className="text-xs font-bold text-green-700 mb-3 text-center">전문 컨설팅 O</p>
-                             <div className="space-y-2 text-center">
-                               <div>
-                                 <p className="text-xs text-gray-500">3년 생존율</p>
-                                 <p className="text-xl font-bold text-green-600">{salesModeSearchResult.data.consultingEffect.withConsulting?.survivalRate || '78%'}</p>
-                               </div>
-                               <div>
-                                 <p className="text-xs text-gray-500">평균 월매출</p>
-                                 <p className="font-bold text-black">{salesModeSearchResult.data.consultingEffect.withConsulting?.avgMonthlyRevenue || '3,200만원'}</p>
-                               </div>
-                               <div>
-                                 <p className="text-xs text-gray-500">손익분기</p>
-                                 <p className="font-medium text-gray-700">{salesModeSearchResult.data.consultingEffect.withConsulting?.breakEvenMonths || '14개월'}</p>
-                               </div>
-                             </div>
-                           </div>
-                           {/* 컨설팅 X */}
-                           <div className="p-4 rounded-xl bg-red-50 border border-red-200">
-                             <p className="text-xs font-bold text-red-700 mb-3 text-center">전문 컨설팅 X</p>
-                             <div className="space-y-2 text-center">
-                               <div>
-                                 <p className="text-xs text-gray-500">3년 생존율</p>
-                                 <p className="text-xl font-bold text-red-600">{salesModeSearchResult.data.consultingEffect.withoutConsulting?.survivalRate || '42%'}</p>
-                               </div>
-                               <div>
-                                 <p className="text-xs text-gray-500">평균 월매출</p>
-                                 <p className="font-bold text-black">{salesModeSearchResult.data.consultingEffect.withoutConsulting?.avgMonthlyRevenue || '1,800만원'}</p>
-                               </div>
-                               <div>
-                                 <p className="text-xs text-gray-500">손익분기</p>
-                                 <p className="font-medium text-gray-700">{salesModeSearchResult.data.consultingEffect.withoutConsulting?.breakEvenMonths || '26개월'}</p>
-                               </div>
-                             </div>
-                           </div>
-                         </div>
-                         <p className="text-xs text-gray-400 mt-3 text-center">출처: {salesModeSearchResult.data.consultingEffect.source || '소상공인시장진흥공단 창업실태조사'}</p>
-                       </div>
-                     )}
 
                      {/* 10. AI 인사이트 */}
                      <div className="bg-neutral-50 border border-neutral-200 p-5 rounded-xl border border-blue-100">
@@ -7169,14 +6907,14 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                          <span className="w-6 h-6 rounded border border-black text-black flex items-center justify-center text-xs font-bold">10</span>
                          AI 인사이트
                        </h3>
-                       <p className="text-gray-700 leading-relaxed">{cleanJsonText(salesModeSearchResult.data?.insight) || '-'}</p>
+                       <p className="text-gray-700 leading-relaxed">{salesModeSearchResult.data?.insight || '-'}</p>
                        <div className="mt-4 p-3 bg-white/80 rounded-lg">
                          <p className="text-sm font-medium text-black mb-2">빈크래프트 컨설팅 장점</p>
                          <div className="grid grid-cols-2 gap-2 text-xs">
-                           <div className="flex items-center gap-1 text-green-600">✓ 가맹비 0원</div>
-                           <div className="flex items-center gap-1 text-green-600">✓ 로열티 0원</div>
-                           <div className="flex items-center gap-1 text-green-600">✓ 메뉴 자유</div>
-                           <div className="flex items-center gap-1 text-green-600">✓ 인테리어 자유</div>
+                           <div className="flex items-center gap-1 text-green-600"> 가맹비 0원</div>
+                           <div className="flex items-center gap-1 text-green-600"> 로열티 0원</div>
+                           <div className="flex items-center gap-1 text-green-600"> 메뉴 자유</div>
+                           <div className="flex items-center gap-1 text-green-600"> 인테리어 자유</div>
                          </div>
                        </div>
                      </div>
@@ -7191,10 +6929,10 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
                      {salesModeShowSources && (
                        <div className="p-4 bg-gray-50 rounded-xl text-xs text-gray-500 space-y-2">
-                         <div className={`p-2 rounded-lg ${salesModeSearchResult?.hasApiData ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                         <div className={`p-2 rounded-lg ${salesModeSearchResult?.hasApiData ? 'bg-neutral-100 text-neutral-900' : 'bg-yellow-100 text-yellow-700'}`}>
                            <p className="font-medium">
                              {salesModeSearchResult?.hasApiData 
-                               ? '✓ 소상공인365 API 데이터 수집 성공' 
+                               ? ' 소상공인365 API 데이터 수집 성공' 
                                : 'API 데이터 수집 실패 - AI 자체 분석'}
                            </p>
                          </div>
@@ -7212,39 +6950,55 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                  {/* 로딩 중 프로그레스 표시 */}
                  {salesModeSearchLoading && (
                    <div className="flex flex-col items-center justify-center py-16">
-                     {/* 로고 색채움 애니메이션 */}
-                     <div className="relative w-48 h-48 mb-8">
-                       {/* 흑백 로고 (배경) */}
-                       <img 
-                         src="/logo.png" 
-                         alt="BEANCRAFT" 
-                         className="absolute inset-0 w-full h-full object-contain"
-                         style={{ filter: 'grayscale(100%)', opacity: 0.3 }}
-                       />
-                       {/* 컬러 로고 (왼쪽에서 오른쪽으로 채워짐) - width 방식 */}
-                       <div 
-                         className="absolute inset-0 overflow-hidden transition-all duration-500 ease-out"
-                         style={{ width: `${salesModeAnalysisProgress}%` }}
-                       >
-                         <img 
-                           src="/logo.png" 
-                           alt="BEANCRAFT" 
-                           className="w-48 h-48 object-contain"
-                           style={{ minWidth: '192px' }}
+                     {/* 원형 프로그레스 바 */}
+                     <div className="relative w-32 h-32 mb-6">
+                       {/* 배경 원 */}
+                       <svg className="w-full h-full transform -rotate-90">
+                         <circle
+                           cx="64"
+                           cy="64"
+                           r="56"
+                           fill="none"
+                           stroke="#E5E7EB"
+                           strokeWidth="8"
                          />
+                         {/* 진행률 원 */}
+                         <circle
+                           cx="64"
+                           cy="64"
+                           r="56"
+                           fill="none"
+                           stroke="#171717"
+                           strokeWidth="8"
+                           strokeLinecap="round"
+                           strokeDasharray={`${2 * Math.PI * 56}`}
+                           strokeDashoffset={`${2 * Math.PI * 56 * (1 - salesModeAnalysisProgress / 100)}`}
+                           className="transition-all duration-500 ease-out"
+                         />
+                       </svg>
+                       {/* 퍼센트 텍스트 */}
+                       <div className="absolute inset-0 flex items-center justify-center">
+                         <span className="text-2xl font-bold text-black">{salesModeAnalysisProgress}%</span>
                        </div>
                      </div>
-                     
-                     {/* 퍼센트 표시 */}
-                     <p className="text-3xl font-bold text-neutral-800 mb-4">
-                       {salesModeAnalysisProgress}%
-                     </p>
-                     
-                     {/* 수집 멘트 - 지역명 포함 */}
-                     <p className="text-sm text-neutral-600 mb-2 text-center max-w-xs">
-                       {salesModeCollectingText || salesModeAnalysisStep}
-                     </p>
-                     <p className="text-xs text-neutral-400">잠시만 기다려주세요</p>
+                     {/* 단계 텍스트 */}
+                     <p className="text-lg font-medium text-black mb-2">{salesModeAnalysisStep}</p>
+                     <p className="text-sm text-gray-500">잠시만 기다려주세요</p>
+                     {/* 수집 항목 표시 */}
+                     <div className="mt-6 grid grid-cols-2 gap-2 text-xs text-gray-400">
+                       <div className={`flex items-center gap-1 ${salesModeAnalysisProgress >= 10 ? 'text-green-600' : ''}`}>
+                         {salesModeAnalysisProgress >= 10 ? '' : '○'} 위치 정보
+                       </div>
+                       <div className={`flex items-center gap-1 ${salesModeAnalysisProgress >= 25 ? 'text-green-600' : ''}`}>
+                         {salesModeAnalysisProgress >= 25 ? '' : '○'} 상권 데이터
+                       </div>
+                       <div className={`flex items-center gap-1 ${salesModeAnalysisProgress >= 50 ? 'text-green-600' : ''}`}>
+                         {salesModeAnalysisProgress >= 50 ? '' : '○'} 프랜차이즈
+                       </div>
+                       <div className={`flex items-center gap-1 ${salesModeAnalysisProgress >= 65 ? 'text-green-600' : ''}`}>
+                         {salesModeAnalysisProgress >= 65 ? '' : '○'} AI 분석
+                       </div>
+                     </div>
                    </div>
                  )}
 
@@ -7419,7 +7173,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        onClick={() => setTodayContactAlert(null)}
        className="w-6 h-6 flex items-center justify-center text-neutral-400 hover:text-neutral-600 transition-colors"
      >
-       ✕
+       
      </button>
    </div>
  </div>
@@ -7447,7 +7201,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        onClick={() => setIncompleteRouteAlert(null)}
        className="w-6 h-6 flex items-center justify-center text-neutral-400 hover:text-neutral-600 transition-colors"
      >
-       ✕
+       
      </button>
    </div>
  </div>
@@ -7478,7 +7232,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        onClick={() => setAddressIssueAlert(null)}
        className="w-6 h-6 flex items-center justify-center text-neutral-400 hover:text-neutral-600 transition-colors"
      >
-       ✕
+       
      </button>
    </div>
  </div>
@@ -7860,116 +7614,164 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {reportMode === 'ai' && (
  <div className="columns-1 md:columns-2 lg:columns-3 gap-4 space-y-2">
  
- {/* AI 지역 검색 섹션 - 중개사 영업용 */}
- <div className="bg-white border border-neutral-200 rounded-2xl p-4 break-inside-avoid mb-4">
-   <h3 className="font-bold text-neutral-800 mb-3">지역 검색</h3>
-   <p className="text-xs text-neutral-500 mb-3">지역명을 입력하면 중개사 영업에 필요한 정보를 정리해드립니다.</p>
+ {/* AI 키워드 검색 섹션 */}
+ <div className="bg-white border border-neutral-200 rounded-2xl p-4 break-inside-avoid mb-4 border border-neutral-300/30 bg-neutral-800/5">
+   <h3 className="font-bold text-[#171717] mb-3 flex items-center gap-2">
+     AI 키워드 검색
+     <span className="px-2 py-0.5 rounded-full bg-neutral-800/20 text-neutral-700 text-xs">NEW</span>
+   </h3>
+   <p className="text-xs text-neutral-500 mb-3">궁금한 키워드를 입력하면 AI가 관련 정보를 정리해드립니다.</p>
    <div className="flex gap-2 mb-3">
      <input
        type="text"
        value={aiKeywordSearch}
        onChange={e => setAiKeywordSearch(e.target.value)}
        onKeyPress={e => e.key === 'Enter' && callGeminiKeywordSearch(aiKeywordSearch)}
-       placeholder="예: 판교, 강남역, 홍대입구..."
-       className="flex-1 px-4 py-3 rounded-lg bg-neutral-50 border border-neutral-200 text-neutral-800 placeholder-neutral-400 focus:outline-none focus:border-neutral-400 text-sm"
+       placeholder="예: 강남 카페, 폐업률, 프랜차이즈, 임대료..."
+       className="flex-1 px-4 py-3 rounded-lg bg-neutral-100 border border-neutral-200 text-[#171717] placeholder-slate-400 focus:outline-none focus:border-neutral-300"
      />
      <button
        onClick={() => callGeminiKeywordSearch(aiKeywordSearch)}
        disabled={aiKeywordLoading || !aiKeywordSearch.trim()}
-       className="px-5 py-3 bg-neutral-800 text-white rounded-lg font-medium hover:bg-neutral-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+       className="px-5 py-3 bg-neutral-800 text-white rounded-lg font-bold hover:bg-neutral-800/80 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
      >
-       {aiKeywordLoading ? '검색 중...' : '검색'}
+       {aiKeywordLoading ? (
+         <>
+           <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
+           검색 중
+         </>
+       ) : '검색'}
      </button>
    </div>
    
-   {/* 추천 지역 태그 */}
+   {/* 빠른 검색 키워드 */}
    <div className="flex flex-wrap gap-2 mb-3">
-     {['판교', '강남역', '홍대입구', '여의도', '성수동', '을지로'].map(region => (
+     {['폐업률', '임대료', '강남', '프랜차이즈 비교', '창업 비용', '상권분석'].map(keyword => (
        <button
-         key={region}
+         key={keyword}
          onClick={() => {
-           setAiKeywordSearch(region);
-           callGeminiKeywordSearch(region);
+           setAiKeywordSearch(keyword);
+           callGeminiKeywordSearch(keyword);
          }}
          disabled={aiKeywordLoading}
-         className="px-3 py-1.5 rounded-full bg-neutral-100 text-neutral-600 text-xs hover:bg-neutral-200 transition-all disabled:opacity-50"
+         className="px-3 py-1.5 rounded-full bg-neutral-100 text-neutral-700 text-xs hover:bg-neutral-200 transition-all disabled:opacity-50"
        >
-         {region}
+         {keyword}
        </button>
      ))}
    </div>
    
-   {/* 로딩 */}
+   {/* 키워드 검색 결과 */}
    {aiKeywordLoading && (
      <div className="flex flex-col items-center justify-center py-6 gap-2">
-       <div className="animate-spin w-5 h-5 border-2 border-neutral-300 border-t-neutral-600 rounded-full"></div>
-       <span className="text-neutral-500 text-sm">{aiKeywordSearch} 지역 분석 중...</span>
+       <div className="animate-spin w-6 h-6 border-2 border-neutral-300 border-t-transparent rounded-full"></div>
+       <span className="text-neutral-500 text-sm">"{aiKeywordSearch}" 검색 중...</span>
      </div>
    )}
    
-   {/* 에러 */}
    {aiErrorMessage && !aiKeywordLoading && (
-     <div className="p-3 rounded-lg bg-red-50 border border-red-200 mb-3">
-       <p className="text-red-600 text-sm">{aiErrorMessage}</p>
+     <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 mb-3">
+       <p className="text-red-400 text-sm">{aiErrorMessage}</p>
      </div>
    )}
    
-   {/* 결과 - 새 구조 */}
    {aiKeywordResult && !aiKeywordLoading && (
-     <div className="space-y-4 mt-4 pt-4 border-t border-neutral-200">
+     <div className="space-y-3 mt-4 pt-4 border-t border-neutral-200">
        <div className="flex items-center justify-between">
-         <h4 className="font-bold text-neutral-800">{aiKeywordResult.keyword} 지역 브리핑</h4>
-         <span className="text-xs text-neutral-400">
+         <h4 className="font-bold text-[#171717] flex items-center gap-2">
+           <span className="text-neutral-700">"{aiKeywordResult.keyword}"</span> 검색 결과
+         </h4>
+         <span className="text-xs text-neutral-500">
            {aiKeywordResult.searchedAt?.toLocaleString('ko-KR')}
          </span>
        </div>
        
-       {/* 지역 브리핑 */}
-       {aiKeywordResult.regionBrief && (
-         <div className="p-4 rounded-lg bg-neutral-50 border border-neutral-200">
-           <p className="text-sm text-neutral-700 leading-relaxed">{cleanJsonText(aiKeywordResult.regionBrief)}</p>
+       {/* 관련 데이터 요약 */}
+       {(aiKeywordResult.relatedCompaniesCount > 0 || aiKeywordResult.relatedRealtorsCount > 0) && (
+         <div className="flex gap-3 text-xs">
+           {aiKeywordResult.relatedCompaniesCount > 0 && (
+             <span className="px-2 py-1 rounded bg-emerald-500/20 text-neutral-700">
+               관련 업체 {aiKeywordResult.relatedCompaniesCount}개
+             </span>
+           )}
+           {aiKeywordResult.relatedRealtorsCount > 0 && (
+             <span className="px-2 py-1 rounded bg-blue-500/20 text-neutral-700">
+               관련 중개사 {aiKeywordResult.relatedRealtorsCount}개
+             </span>
+           )}
+           {aiKeywordResult.relatedIssuesCount > 0 && (
+             <span className="px-2 py-1 rounded bg-yellow-500/20 text-neutral-700">
+               관련 이슈 {aiKeywordResult.relatedIssuesCount}건
+             </span>
+           )}
          </div>
        )}
        
-       {/* 중개사 공감 */}
-       {aiKeywordResult.brokerEmpathy && (
-         <div className="p-4 rounded-lg bg-neutral-50 border border-neutral-200">
-           <p className="text-xs text-neutral-500 font-medium mb-2">중개사님, 이런 경험 있으시죠?</p>
-           <p className="text-sm text-neutral-700 leading-relaxed">{cleanJsonText(aiKeywordResult.brokerEmpathy)}</p>
+       {/* 요약 */}
+       <div className="p-3 rounded-lg bg-white border border-neutral-200">
+         <p className="text-sm text-neutral-800 leading-relaxed">{aiKeywordResult.summary}</p>
+       </div>
+       
+       {/* 인사이트 */}
+       {aiKeywordResult.insights?.length > 0 && (
+         <div className="p-3 rounded-lg bg-white border border-neutral-300">
+           <p className="text-xs text-neutral-700 font-semibold mb-2">주요 인사이트</p>
+           <ul className="space-y-1">
+             {aiKeywordResult.insights.map((insight, idx) => (
+               <li key={idx} className="text-sm text-neutral-700 flex items-start gap-2">
+                 <span className="text-neutral-700">•</span>
+                 {insight}
+               </li>
+             ))}
+           </ul>
          </div>
        )}
        
-       {/* 제휴 가치 */}
-       {aiKeywordResult.partnershipValue && (
-         <div className="p-4 rounded-lg bg-neutral-50 border border-neutral-200">
-           <p className="text-xs text-neutral-500 font-medium mb-2">저희랑 제휴하시면요</p>
-           <p className="text-sm text-neutral-700 leading-relaxed">{cleanJsonText(aiKeywordResult.partnershipValue)}</p>
+       {/* 영업 팁 */}
+       {aiKeywordResult.salesTips?.length > 0 && (
+         <div className="p-3 rounded-lg bg-white border border-neutral-300">
+           <p className="text-xs text-neutral-700 font-semibold mb-2">영업 활용 팁</p>
+           <ul className="space-y-1">
+             {aiKeywordResult.salesTips.map((tip, idx) => (
+               <li key={idx} className="text-sm text-neutral-700 flex items-start gap-2">
+                 <span className="text-neutral-700">{idx + 1}.</span>
+                 {tip}
+               </li>
+             ))}
+           </ul>
          </div>
        )}
        
-       {/* 대화 가이드 */}
-       {aiKeywordResult.talkScript && (
-         <div className="p-4 rounded-lg bg-neutral-800 text-white">
-           <p className="text-xs text-neutral-300 font-medium mb-2">이렇게 말씀해보세요</p>
-           <p className="text-sm leading-relaxed">"{cleanJsonText(aiKeywordResult.talkScript)}"</p>
+       {/* 액션 아이템 */}
+       {aiKeywordResult.actionItems?.length > 0 && (
+         <div className="p-3 rounded-lg bg-neutral-800/10 border border-neutral-300/30">
+           <p className="text-xs text-neutral-700 font-semibold mb-2">오늘 할 일</p>
+           <ul className="space-y-1">
+             {aiKeywordResult.actionItems.map((action, idx) => (
+               <li key={idx} className="text-sm text-neutral-700 flex items-start gap-2">
+                 <span className="text-neutral-700">→</span>
+                 {action}
+               </li>
+             ))}
+           </ul>
          </div>
        )}
        
-       {/* 연관 지역 */}
-       {aiKeywordResult.relatedRegions?.length > 0 && (
+       {/* 연관 키워드 */}
+       {aiKeywordResult.relatedTopics?.length > 0 && (
          <div className="pt-3 border-t border-neutral-200">
-           <p className="text-xs text-neutral-500 mb-2">함께 영업하면 좋을 인근 지역</p>
+           <p className="text-xs text-neutral-500 mb-2">연관 검색어</p>
            <div className="flex flex-wrap gap-2">
-             {aiKeywordResult.relatedRegions.map(region => (
+             {aiKeywordResult.relatedTopics.map((topic, idx) => (
                <button
-                 key={region}
+                 key={idx}
                  onClick={() => {
-                   setAiKeywordSearch(region);
-                   callGeminiKeywordSearch(region);
+                   setAiKeywordSearch(topic);
+                   callGeminiKeywordSearch(topic);
                  }}
-                 className="px-3 py-1.5 rounded-full bg-neutral-100 text-neutral-600 text-xs hover:bg-neutral-200 transition-all"
+                 className="px-3 py-1.5 rounded-full bg-neutral-100 text-neutral-700 text-xs hover:bg-neutral-200 transition-all"
                >
-                 {region}
+                 {topic}
                </button>
              ))}
            </div>
@@ -8624,7 +8426,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  onClick={(e) => {
  const btn = e.currentTarget;
  navigator.clipboard.writeText(aiRegionResult?.brokerMent || regionRec.brokerMent);
- btn.innerText = '✓';
+ btn.innerText = '';
  btn.classList.add('text-neutral-700');
  setTimeout(() => { btn.innerText = '복사'; btn.classList.remove('text-neutral-700'); }, 1500);
  }}
@@ -9245,11 +9047,11 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <button 
                       onClick={() => setTeamFeedbackResult('success')}
                       className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${teamFeedbackResult === 'success' ? 'bg-emerald-500 text-white' : 'bg-emerald-500/20 text-neutral-700 border border-neutral-300 hover:bg-emerald-500/30'}`}
-                    >✓ 효과 있었어요</button>
+                    > 효과 있었어요</button>
  <button 
                       onClick={() => setTeamFeedbackResult('fail')}
                       className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${teamFeedbackResult === 'fail' ? 'bg-rose-500 text-white' : 'bg-rose-500/20 text-rose-400 border border-neutral-300 hover:bg-rose-500/30'}`}
-                    >✗ 별로였어요</button>
+                    > 별로였어요</button>
  </div>
                 <button type="button" onClick={() => {
                       if (!teamFeedbackSituation || !teamFeedbackMemo || !teamFeedbackResult) {
@@ -10052,7 +9854,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="flex gap-1 flex-shrink-0">
  {idx > 0 && <button type="button" onClick={() => moveRouteStop(idx, -1)} className="w-6 h-6 rounded bg-neutral-200 text-neutral-800 text-xs">↑</button>}
  {idx < routeStops.length - 1 && <button type="button" onClick={() => moveRouteStop(idx, 1)} className="w-6 h-6 rounded bg-neutral-200 text-neutral-800 text-xs">↓</button>}
- <button type="button" onClick={() => removeRouteStop(stop.id)} className="w-6 h-6 rounded bg-rose-100 text-rose-600 text-xs">✕</button>
+ <button type="button" onClick={() => removeRouteStop(stop.id)} className="w-6 h-6 rounded bg-rose-100 text-rose-600 text-xs"></button>
  </div>
  </div>
  {idx < routeStops.length - 1 && (
@@ -10232,7 +10034,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  />
  )}
  <div className={`w-9 h-9 rounded-lg text-white flex items-center justify-center font-bold text-sm flex-shrink-0 ${isCompleted ? 'bg-emerald-500' : 'bg-neutral-400'}`}>
- {isCompleted ? '✓' : '○'}
+ {isCompleted ? '' : '○'}
  </div>
  <div className="flex-1 min-w-0">
  <p className="font-bold text-[#171717] text-sm break-words leading-snug">{route.name || route.date}</p>
@@ -10649,7 +10451,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
              onClick={() => setShowSalesIssue(false)}
              className="text-neutral-500 hover:text-neutral-800"
            >
-             ✕
+             
            </button>
          </div>
          
@@ -10950,7 +10752,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* 하단 CTA */}
  <div className="bg-neutral-100 border border-neutral-200 rounded-xl p-6 text-center">
    <h3 className="text-xl font-bold text-white mb-2">카페 창업, 빈크래프트와 함께하세요</h3>
-   <p className="text-neutral-700 mb-4">전문 컨설턴트가 상담해드립니다</p>
+   <p className="text-neutral-700 mb-4">AI 피드백으로 상담해드립니다</p>
    <div className="flex justify-center gap-3">
      <a 
        href="https://www.beancraft.co.kr" 
@@ -11935,7 +11737,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="flex gap-2 mt-2">
  <span className="px-2 py-0.5 text-xs rounded-full bg-teal-100 text-teal-700 font-bold">{showRealtorDetailModal.listingCount}건</span>
  {showRealtorDetailModal.isInRoute && <span className="px-2 py-0.5 text-xs rounded-full bg-teal-900/300 text-white">동선</span>}
- {showRealtorDetailModal.isRegistered && <span className="px-2 py-0.5 text-xs rounded-full bg-green-500 text-white">방문</span>}
+ {showRealtorDetailModal.isRegistered && <span className="px-2 py-0.5 text-xs rounded-full bg-neutral-900 text-white">방문</span>}
  </div>
  </div>
  <div className="grid grid-cols-2 gap-3 text-sm">
@@ -11991,8 +11793,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  {showRealtorDetailModal.articleCounts && (
  <div className="flex flex-wrap gap-1">
- {showRealtorDetailModal.articleCounts.sale > 0 && <span className="px-2 py-0.5 text-xs rounded bg-blue-100 text-blue-700">매매 {showRealtorDetailModal.articleCounts.sale}</span>}
- {showRealtorDetailModal.articleCounts.jeonse > 0 && <span className="px-2 py-0.5 text-xs rounded bg-green-100 text-green-700">전세 {showRealtorDetailModal.articleCounts.jeonse}</span>}
+ {showRealtorDetailModal.articleCounts.sale > 0 && <span className="px-2 py-0.5 text-xs rounded bg-neutral-100 text-neutral-900">매매 {showRealtorDetailModal.articleCounts.sale}</span>}
+ {showRealtorDetailModal.articleCounts.jeonse > 0 && <span className="px-2 py-0.5 text-xs rounded bg-neutral-100 text-neutral-900">전세 {showRealtorDetailModal.articleCounts.jeonse}</span>}
  {showRealtorDetailModal.articleCounts.monthly > 0 && <span className="px-2 py-0.5 text-xs rounded bg-orange-100 text-orange-700">월세 {showRealtorDetailModal.articleCounts.monthly}</span>}
  {showRealtorDetailModal.articleCounts.short > 0 && <span className="px-2 py-0.5 text-xs rounded bg-purple-100 text-purple-700">단기 {showRealtorDetailModal.articleCounts.short}</span>}
  </div>
@@ -12985,7 +12787,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <h3 className="font-bold text-[#171717] text-lg">{selectedSchedule.name}</h3>
  <p className="text-sm text-neutral-800">{selectedSchedule.date}</p>
  </div>
- <button type="button" onClick={() => setSelectedSchedule(null)} className="text-neutral-800 hover:text-neutral-800 text-xl">✕</button>
+ <button type="button" onClick={() => setSelectedSchedule(null)} className="text-neutral-800 hover:text-neutral-800 text-xl"></button>
  </div>
  {(() => {
  const completedCount = (selectedSchedule.stops || []).filter(s => s.visited).length;
@@ -13199,6 +13001,235 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  )}
  </main>
+
+ {/* 위치 분석 모달 (지도 핀 선택) */}
+ {locationAnalysisModal && (
+   <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[1300] p-4" onClick={() => { setLocationAnalysisModal(false); setLocationPinMode(false); setLocationPinCoords(null); setLocationAnalysisData(null); }}>
+     <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+       {/* 헤더 */}
+       <div className="flex justify-between items-center p-4 border-b border-gray-200">
+         <h3 className="font-bold text-black text-lg">위치 분석 (반경 500m)</h3>
+         <button type="button" onClick={() => { setLocationAnalysisModal(false); setLocationPinMode(false); setLocationPinCoords(null); setLocationAnalysisData(null); }} className="text-gray-500 text-2xl hover:text-black">×</button>
+       </div>
+       
+       {/* 지도 영역 */}
+       <div className="relative">
+         <div 
+           ref={locationMapContainerRef}
+           className="h-64 w-full bg-gray-100"
+           style={{ minHeight: '256px' }}
+         />
+         {/* 지역 선택 버튼 */}
+         <button
+           onClick={toggleLocationPinMode}
+           className={`absolute top-3 right-3 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+             locationPinMode 
+               ? 'bg-black text-white' 
+               : 'bg-white text-black border border-gray-300 hover:bg-gray-50'
+           }`}
+         >
+           {locationPinMode ? '선택 모드 종료' : '지역 선택'}
+         </button>
+         {locationPinMode && (
+           <div className="absolute bottom-3 left-3 right-3 bg-black/70 text-white text-xs p-2 rounded-lg text-center">
+             지도를 클릭하여 분석할 위치를 선택하세요
+           </div>
+         )}
+       </div>
+
+       {/* 분석 결과 영역 */}
+       <div className="flex-1 overflow-y-auto p-4 space-y-4">
+         {/* 로딩 상태 */}
+         {locationAnalysisLoading && (
+           <div className="text-center py-8">
+             <div className="w-8 h-8 border-2 border-black border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+             <p className="text-gray-500 text-sm">데이터 수집 및 분석 중...</p>
+           </div>
+         )}
+
+         {/* 위치 선택 안내 */}
+         {!locationAnalysisLoading && !locationAnalysisData && !locationPinCoords && (
+           <div className="text-center py-8 text-gray-500">
+             <p className="mb-2">우측 상단의 "지역 선택" 버튼을 누르고</p>
+             <p>지도에서 분석할 위치를 클릭하세요</p>
+           </div>
+         )}
+
+         {/* 분석 결과 표시 */}
+         {locationAnalysisData && !locationAnalysisData.error && (
+           <div className="space-y-4">
+             {/* 선택 위치 */}
+             <div className="bg-gray-50 p-4 rounded-xl">
+               <p className="text-sm text-gray-500 mb-1">선택한 위치</p>
+               <p className="font-bold text-black">{locationAnalysisData.address || '주소 확인 불가'}</p>
+             </div>
+
+             {/* 업종 현황 */}
+             <div className="bg-white p-4 rounded-xl border border-gray-200">
+               <h4 className="font-bold text-black mb-3">반경 500m 업종 현황</h4>
+               <div className="space-y-2">
+                 {/* 카페 (경쟁 강도 표시) */}
+                 <div className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                   <span className="text-sm text-black">카페/디저트</span>
+                   <div className="flex items-center gap-2">
+                     <span className="font-bold text-black">{locationAnalysisData.business?.cafe || 0}개</span>
+                     <span className={`text-xs px-2 py-0.5 rounded ${locationAnalysisData.competition?.color || 'text-gray-600'} bg-gray-100`}>
+                       {locationAnalysisData.competition?.label || '확인 불가'}
+                     </span>
+                   </div>
+                 </div>
+                 {/* 기타 업종 */}
+                 {[
+                   { key: 'restaurant', name: '음식점' },
+                   { key: 'office', name: '사무실/오피스' },
+                   { key: 'finance', name: '금융/보험' },
+                   { key: 'beauty', name: '미용/네일' },
+                   { key: 'hospital', name: '병원/의원' },
+                   { key: 'fitness', name: '헬스/운동' },
+                   { key: 'academy', name: '학원/교육' },
+                   { key: 'convenience', name: '편의점' },
+                   { key: 'mart', name: '마트/슈퍼' }
+                 ].map(item => (
+                   <div key={item.key} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                     <span className="text-sm text-black">{item.name}</span>
+                     <span className="font-bold text-black">{locationAnalysisData.business?.[item.key] || 0}개</span>
+                   </div>
+                 ))}
+                 <div className="flex items-center justify-between p-2 bg-gray-100 rounded-lg border border-gray-200">
+                   <span className="text-sm font-medium text-black">총 점포 수</span>
+                   <span className="font-bold text-black">{locationAnalysisData.business?.total || 0}개</span>
+                 </div>
+               </div>
+             </div>
+
+             {/* 상권 지표 */}
+             <div className="bg-white p-4 rounded-xl border border-gray-200">
+               <h4 className="font-bold text-black mb-3">상권 지표</h4>
+               <div className="grid grid-cols-2 gap-3">
+                 <div className="p-3 rounded-lg bg-gray-50">
+                   <p className="text-xs text-gray-500 mb-1">월 평균 매출 (카페)</p>
+                   <p className="font-bold text-black">{locationAnalysisData.market?.avgSales ? `${locationAnalysisData.market.avgSales.toLocaleString()}만원` : '-'}</p>
+                 </div>
+                 <div className="p-3 rounded-lg bg-gray-50">
+                   <p className="text-xs text-gray-500 mb-1">일 평균 유동인구</p>
+                   <p className="font-bold text-black">{locationAnalysisData.market?.floatingPop ? `${locationAnalysisData.market.floatingPop.toLocaleString()}명` : '-'}</p>
+                 </div>
+                 <div className="p-3 rounded-lg bg-gray-50">
+                   <p className="text-xs text-gray-500 mb-1">직장인구</p>
+                   <p className="font-bold text-black">
+                     {locationAnalysisData.market?.workerPop 
+                       ? `${locationAnalysisData.market.workerPop.toLocaleString()}명 (${locationAnalysisData.market.workerRatio}%)`
+                       : '-'
+                     }
+                   </p>
+                 </div>
+                 <div className="p-3 rounded-lg bg-gray-50">
+                   <p className="text-xs text-gray-500 mb-1">주거인구</p>
+                   <p className="font-bold text-black">
+                     {locationAnalysisData.market?.residentPop 
+                       ? `${locationAnalysisData.market.residentPop.toLocaleString()}명 (${locationAnalysisData.market.residentRatio}%)`
+                       : '-'
+                     }
+                   </p>
+                 </div>
+               </div>
+             </div>
+
+             {/* 고객층 분석 - 데이터 있을 때만 표시 */}
+             {locationAnalysisData.customer?.ageDistribution && (
+               <div className="bg-white p-4 rounded-xl border border-gray-200">
+                 <h4 className="font-bold text-black mb-2">고객층 분석</h4>
+                 <p className="text-xs text-gray-500 mb-3">
+                   {locationAnalysisData.customer?.isActualData 
+                     ? `실제 결제 데이터 (출처: ${locationAnalysisData.customer.source})`
+                     : `인구 기반 추정 (출처: ${locationAnalysisData.customer?.source})`
+                   }
+                 </p>
+                 <div className="space-y-3">
+                   <div>
+                     <p className="text-xs text-gray-500 mb-2">연령대별 비율</p>
+                     <div className="space-y-1">
+                       {Object.entries(locationAnalysisData.customer.ageDistribution).map(([age, ratio]) => (
+                         <div key={age} className="flex items-center gap-2">
+                           <span className="text-xs text-black w-16">{age}</span>
+                           <div className="flex-1 h-4 bg-gray-100 rounded-full overflow-hidden">
+                             <div 
+                               className="h-full bg-black rounded-full" 
+                               style={{ width: `${ratio}%` }}
+                             />
+                           </div>
+                           <span className="text-xs font-bold text-black w-12 text-right">{ratio}%</span>
+                         </div>
+                       ))}
+                     </div>
+                   </div>
+                   {locationAnalysisData.customer?.genderDistribution && (
+                     <div>
+                       <p className="text-xs text-gray-500 mb-2">성별 비율</p>
+                       <div className="flex gap-4">
+                         <div className="flex-1 p-2 bg-gray-50 rounded-lg text-center">
+                           <p className="text-xs text-gray-500">남성</p>
+                           <p className="font-bold text-black">{locationAnalysisData.customer.genderDistribution.male}%</p>
+                         </div>
+                         <div className="flex-1 p-2 bg-gray-50 rounded-lg text-center">
+                           <p className="text-xs text-gray-500">여성</p>
+                           <p className="font-bold text-black">{locationAnalysisData.customer.genderDistribution.female}%</p>
+                         </div>
+                       </div>
+                     </div>
+                   )}
+                 </div>
+               </div>
+             )}
+
+             {/* 개폐업 동향 */}
+             <div className="bg-white p-4 rounded-xl border border-gray-200">
+               <h4 className="font-bold text-black mb-3">개폐업 동향 (최근 1년)</h4>
+               <div className="flex gap-3">
+                 <div className="flex-1 p-3 bg-gray-50 rounded-lg text-center">
+                   <p className="text-xs text-gray-500 mb-1">신규 개업</p>
+                   <p className="font-bold text-green-600">{locationAnalysisData.market?.newOpen !== null ? `${locationAnalysisData.market.newOpen}개` : '-'}</p>
+                 </div>
+                 <div className="flex-1 p-3 bg-gray-50 rounded-lg text-center">
+                   <p className="text-xs text-gray-500 mb-1">폐업</p>
+                   <p className="font-bold text-red-600">{locationAnalysisData.market?.closed !== null ? `${locationAnalysisData.market.closed}개` : '-'}</p>
+                 </div>
+                 <div className="flex-1 p-3 bg-gray-50 rounded-lg text-center">
+                   <p className="text-xs text-gray-500 mb-1">순증감</p>
+                   <p className={`font-bold ${locationAnalysisData.market?.netChange > 0 ? 'text-green-600' : locationAnalysisData.market?.netChange < 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                     {locationAnalysisData.market?.netChange !== null 
+                       ? `${locationAnalysisData.market.netChange > 0 ? '+' : ''}${locationAnalysisData.market.netChange}개`
+                       : '-'
+                     }
+                   </p>
+                 </div>
+               </div>
+             </div>
+
+             {/* AI 피드백 */}
+             {locationAnalysisData.aiAnalysis && (
+               <div className="bg-white p-4 rounded-xl border border-gray-200">
+                 <h4 className="font-bold text-black mb-3">AI 피드백</h4>
+                 <div className="prose prose-sm max-w-none">
+                   <div className="text-sm text-black whitespace-pre-wrap leading-relaxed">
+                     {locationAnalysisData.aiAnalysis}
+                   </div>
+                 </div>
+               </div>
+             )}
+           </div>
+         )}
+
+         {/* 에러 상태 */}
+         {locationAnalysisData?.error && (
+           <div className="text-center py-8 text-red-500">
+             <p>{locationAnalysisData.error}</p>
+           </div>
+         )}
+       </div>
+     </div>
+   </div>
+ )}
  </div>
  </div>
  );
