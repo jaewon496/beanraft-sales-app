@@ -1874,6 +1874,8 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
  const salesModeMapContainerRef = useRef(null); // 지도 컨테이너 DOM ref
  const salesModeMapMarkerRef = useRef(null); // 지도 마커
  const salesModeMapCircleRef = useRef(null); // 지도 500m 원
+ const salesModeSelectMapRef = useRef(null); // 위치 선택용 지도 인스턴스
+ const salesModeSelectMapContainerRef = useRef(null); // 위치 선택용 지도 컨테이너
 
  // ═══════════════════════════════════════════════════════════════
  // 영업모드 지역 선택 기능 (반경 500m 분석)
@@ -2032,6 +2034,83 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
    });
    
  }, [salesModeMapCenter]);
+
+ // 영업모드 위치 선택용 지도 초기화
+ useEffect(() => {
+   if (!salesModeActive || !locationSelectMode || !salesModeSelectMapContainerRef.current || !window.naver?.maps) return;
+   
+   // 이미 지도가 있으면 리턴
+   if (salesModeSelectMapRef.current) return;
+   
+   // 기본 위치 (서울 시청)
+   const defaultCenter = new window.naver.maps.LatLng(37.5666805, 126.9784147);
+   
+   const mapOptions = {
+     center: defaultCenter,
+     zoom: 15,
+     mapTypeControl: false,
+     scaleControl: false,
+     logoControl: false,
+     mapDataControl: false,
+     zoomControl: true,
+     zoomControlOptions: {
+       position: window.naver.maps.Position.RIGHT_CENTER
+     }
+   };
+   
+   salesModeSelectMapRef.current = new window.naver.maps.Map(salesModeSelectMapContainerRef.current, mapOptions);
+   
+   // 지도 클릭 이벤트 - 위치 선택
+   window.naver.maps.Event.addListener(salesModeSelectMapRef.current, 'click', async (e) => {
+     const lat = e.coord.lat();
+     const lng = e.coord.lng();
+     
+     // 기존 마커/원 제거
+     if (salesModeMapMarkerRef.current) {
+       salesModeMapMarkerRef.current.setMap(null);
+     }
+     if (salesModeMapCircleRef.current) {
+       salesModeMapCircleRef.current.setMap(null);
+     }
+     
+     // 새 마커 생성
+     salesModeMapMarkerRef.current = new window.naver.maps.Marker({
+       position: e.coord,
+       map: salesModeSelectMapRef.current,
+       icon: {
+         content: '<div style="width:24px;height:24px;background:#ffffff;border-radius:50%;border:3px solid #171717;box-shadow:0 2px 6px rgba(0,0,0,0.3);"></div>',
+         anchor: new window.naver.maps.Point(12, 12)
+       }
+     });
+     
+     // 500m 원 생성
+     salesModeMapCircleRef.current = new window.naver.maps.Circle({
+       center: e.coord,
+       radius: 500,
+       map: salesModeSelectMapRef.current,
+       strokeColor: '#ffffff',
+       strokeOpacity: 0.8,
+       strokeWeight: 2,
+       fillColor: '#ffffff',
+       fillOpacity: 0.15
+     });
+     
+     // 검색 실행
+     setSalesModeSearchQuery(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+     setSalesModeMapCenter({ lat, lng });
+     await searchSalesModeRegion(`${lat}, ${lng}`);
+     
+     // 위치 선택 모드 종료
+     setLocationSelectMode(false);
+   });
+   
+   return () => {
+     if (salesModeSelectMapRef.current) {
+       salesModeSelectMapRef.current.destroy();
+       salesModeSelectMapRef.current = null;
+     }
+   };
+ }, [salesModeActive, locationSelectMode]);
 
  // ═══════════════════════════════════════════════════════════════
  // 지역 선택 기능 - 반경 500m 업종별 분석
@@ -2445,7 +2524,7 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
 
    try {
      const response = await fetch(
-       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
        {
          method: 'POST',
          headers: { 'Content-Type': 'application/json' },
@@ -2951,7 +3030,7 @@ ${hasApiData ? '중요: 수집된 GIS API 데이터의 실제 숫자를 반드�
            const timeoutId = setTimeout(() => controller.abort(), 60000); // 60초 타임아웃
            
            const response = await fetch(
-             `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+             `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
              {
                method: 'POST',
                headers: { 'Content-Type': 'application/json' },
@@ -3410,7 +3489,7 @@ ${hasApiData ? '중요: 수집된 GIS API 데이터의 실제 숫자를 반드�
 
  try {
  const response = await fetch(
- `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+ `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
  {
  method: 'POST',
  headers: { 'Content-Type': 'application/json' },
@@ -3567,7 +3646,7 @@ ${JSON.stringify(regionData, null, 2)}
 
  try {
  const response = await fetch(
- `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+ `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
  {
  method: 'POST',
  headers: { 'Content-Type': 'application/json' },
@@ -3818,7 +3897,7 @@ ${summarizeData() || '데이터 수집 중 일부 실패'}
 JSON만 출력하세요. 이모티콘 절대 사용하지 마세요.`;
 
      const response = await fetch(
-       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
        {
          method: 'POST',
          headers: { 'Content-Type': 'application/json' },
@@ -3999,7 +4078,7 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
 }`;
 
      const response = await fetch(
-       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
        {
          method: 'POST',
          headers: { 'Content-Type': 'application/json' },
@@ -8653,7 +8732,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        {/* 대상 선택 화면 */}
        {salesModeScreen === 'select' && (
          <div className="min-h-screen flex flex-col items-center justify-center p-6">
-           <img src="/logo.png" alt="BEANCRAFT" className="w-32 h-32 object-contain mb-8 invert" onError={(e) => { e.target.style.display = 'none'; }} />
+           <img src="/logo.png" alt="BEANCRAFT" className="w-32 h-32 object-contain mb-8" onError={(e) => { e.target.style.display = 'none'; }} />
            <h2 className="text-2xl font-bold text-white mb-2">영업모드</h2>
            <p className="text-gray-400 mb-8">대상을 선택해주세요</p>
            <div className="w-full max-w-sm space-y-2">
@@ -8747,7 +8826,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
              >
                관리자
              </button>
-             <img src="/logo.png" alt="BEANCRAFT" className="h-8 object-contain invert" onError={(e) => { e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 30"><text y="22" font-size="18" font-weight="bold" fill="white">BEANCRAFT</text></svg>'; }} />
+             <img src="/logo.png" alt="BEANCRAFT" className="h-8 object-contain" onError={(e) => { e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 30"><text y="22" font-size="18" font-weight="bold" fill="white">BEANCRAFT</text></svg>'; }} />
              <div className="w-16 flex justify-end">
                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                  salesModeTarget === 'broker' ? 'bg-neutral-800 text-white' : 'bg-neutral-800 text-white'
@@ -8815,14 +8894,22 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
                  {/* 지역 선택 모드 안내 */}
                  {locationSelectMode && (
-                   <div className="p-3 bg-neutral-800 rounded-xl">
-                     <p className="text-sm text-gray-300 text-center">지도를 탭하면 해당 위치의 반경 500m 업종 분석을 시작합니다</p>
-                     <button
-                       onClick={exitLocationSelectMode}
-                       className="w-full mt-2 py-2 text-sm text-gray-500 hover:text-gray-300"
-                     >
-                       취소
-                     </button>
+                   <div className="space-y-3">
+                     <div className="p-3 bg-neutral-800 rounded-xl">
+                       <p className="text-sm text-gray-300 text-center">지도를 탭하면 해당 위치의 반경 500m 업종 분석을 시작합니다</p>
+                       <button
+                         onClick={exitLocationSelectMode}
+                         className="w-full mt-2 py-2 text-sm text-gray-500 hover:text-gray-300"
+                       >
+                         취소
+                       </button>
+                     </div>
+                     {/* 위치 선택용 지도 */}
+                     <div 
+                       ref={salesModeSelectMapContainerRef}
+                       className="h-80 bg-neutral-700 rounded-xl overflow-hidden"
+                       style={{ minHeight: '320px' }}
+                     />
                    </div>
                  )}
 
@@ -9197,7 +9284,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                        <img 
                          src="/logo.png" 
                          alt="BEANCRAFT" 
-                         className="absolute inset-0 w-full h-full object-contain invert"
+                         className="absolute inset-0 w-full h-full object-contain"
                          style={{ filter: 'grayscale(100%)', opacity: 0.3 }}
                        />
                        {/* 컬러 로고 (왼쪽에서 오른쪽으로 채워짐) - width 방식 */}
@@ -9208,7 +9295,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                          <img 
                            src="/logo.png" 
                            alt="BEANCRAFT" 
-                           className="w-48 h-48 object-contain invert"
+                           className="w-48 h-48 object-contain"
                            style={{ minWidth: '192px' }}
                          />
                        </div>
