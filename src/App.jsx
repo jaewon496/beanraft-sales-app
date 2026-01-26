@@ -1989,10 +1989,10 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
        map: salesModeMapRef.current,
        center: newCenter,
        radius: 500,
-       strokeColor: '#171717',
+       strokeColor: '#3b82f6',
        strokeOpacity: 0.8,
        strokeWeight: 2,
-       fillColor: '#171717',
+       fillColor: '#3b82f6',
        fillOpacity: 0.1
      });
      return;
@@ -2026,10 +2026,10 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
      map: salesModeMapRef.current,
      center: new window.naver.maps.LatLng(salesModeMapCenter.lat, salesModeMapCenter.lng),
      radius: 500,
-     strokeColor: '#171717',
+     strokeColor: '#3b82f6',
      strokeOpacity: 0.8,
      strokeWeight: 2,
-     fillColor: '#171717',
+     fillColor: '#3b82f6',
      fillOpacity: 0.1
    });
    
@@ -2088,10 +2088,10 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
        center: e.coord,
        radius: 500,
        map: salesModeSelectMapRef.current,
-       strokeColor: '#ffffff',
+       strokeColor: '#3b82f6',
        strokeOpacity: 0.8,
        strokeWeight: 2,
-       fillColor: '#ffffff',
+       fillColor: '#3b82f6',
        fillOpacity: 0.15
      });
      
@@ -2166,10 +2166,10 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
      map: mapInstance,
      center: new window.naver.maps.LatLng(lat, lng),
      radius: 500,
-     strokeColor: '#171717',
+     strokeColor: '#3b82f6',
      strokeOpacity: 0.8,
      strokeWeight: 2,
-     fillColor: '#171717',
+     fillColor: '#3b82f6',
      fillOpacity: 0.1
    });
    setLocationCircle(newCircle);
@@ -3858,36 +3858,43 @@ ${JSON.stringify(regionData, null, 2)}
 [수집된 API 데이터]
 ${summarizeData() || '데이터 수집 중 일부 실패'}
 
-[분석 방향 - 중개사 영업용, 직설적 대화체]
+[분석 방향 - 중개사 영업용]
 핵심 질문: "왜 이 지역을 영업해야 하는가?"
 
-다음 구조로 분석해주세요 (직설적인 "~에요", "~거든요" 말투 사용):
+다음 구조로 분석해주세요. 
+중요: 매번 다른 표현과 문장 구조를 사용하세요. "솔직히 말씀드릴게요"같은 동일한 시작 문구 반복 금지.
 
-1. regionBrief (지역 브리핑)
-- 수집된 개폐업 데이터 기반으로 이 지역의 상가 회전 상황 요약
-- 숫자를 반드시 포함
-- 예: "솔직히 말씀드릴게요. 이 지역 카페 개폐업률 XX%에요. 1년에 XX개가 문 닫는다는 거죠."
+1. regionBrief (지역 브리핑) - 2~3문단으로 작성
+[첫 문단] 이 지역의 핵심 특성을 수치와 함께 설명
+[둘째 문단] 상가 회전율, 경쟁 상황 등 현실적인 분석
+[셋째 문단] 결론 및 영업 포인트
+
+문장 시작 예시 (랜덤하게 선택):
+- "데이터를 보니까요,"
+- "이 지역 특징이 있어요."
+- "현실적으로 말씀드리면,"
+- "숫자로 보여드릴게요."
+- "직접 조사해보니,"
 
 2. brokerEmpathy (중개사 공감)
-- "이런 경험 있으시죠?" 형태로 중개사 입장에서 공감할 만한 상황 제시
-- 예: "매물 연결해드렸는데 몇 달 뒤에 폐업하면 좀 찝찝하시잖아요."
+중개사 입장에서 공감할 수 있는 상황을 자연스럽게 제시
+다양한 표현 사용 (예: "이런 고민 있으시죠?", "혹시 이런 경험요?", "아마 느끼셨을 텐데요")
 
 3. partnershipValue (제휴 가치)
-- 저희랑 제휴하시면 어떤 점이 좋은지
-- "창업 문의 오면 연결만 해주세요. 저희가 상담하고 준비 도와드려요."
-- "저희가 해드리는 건 제대로 준비하고 들어가게 하는 거에요. 중개사님은 전문 업체 연결해드렸다 하시면 되고요."
-- 매출 보장 표현 절대 금지
+빈크래프트와 제휴했을 때의 구체적인 이점
+매출 보장 표현 절대 금지
+"창업 문의가 오면 저희에게 연결만 해주세요" 형태로
 
 4. talkScript (대화 가이드)
-- 중개사에게 바로 사용 가능한 멘트 1개
-- 자연스러운 대화체로
+중개사가 손님에게 바로 사용할 수 있는 멘트 1개
+큰따옴표로 감싸서 제공
 
 5. relatedRegions (연관 지역)
-- 이 지역과 함께 영업하면 좋을 인근 지역 3개
+이 지역과 함께 영업하면 좋을 인근 지역 3개
 
 응답 형식 (JSON만, 이모티콘 사용 금지):
 {
-  "regionBrief": "...",
+  "regionBrief": "...(2~3문단, 줄바꿈 포함)...",
   "brokerEmpathy": "...",
   "partnershipValue": "...",
   "talkScript": "...",
@@ -8732,7 +8739,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        {/* 대상 선택 화면 */}
        {salesModeScreen === 'select' && (
          <div className="min-h-screen flex flex-col items-center justify-center p-6">
-           <img src="/logo.png" alt="BEANCRAFT" className="w-32 h-32 object-contain mb-8" onError={(e) => { e.target.style.display = 'none'; }} />
+           <img src="/logo.png" alt="BEANCRAFT" className="w-48 h-48 object-contain mb-8" onError={(e) => { e.target.style.display = 'none'; }} />
            <h2 className="text-2xl font-bold text-white mb-2">영업모드</h2>
            <p className="text-gray-400 mb-8">대상을 선택해주세요</p>
            <div className="w-full max-w-sm space-y-2">
@@ -8907,8 +8914,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                      {/* 위치 선택용 지도 */}
                      <div 
                        ref={salesModeSelectMapContainerRef}
-                       className="h-80 bg-neutral-700 rounded-xl overflow-hidden"
-                       style={{ minHeight: '320px' }}
+                       className="h-[60vh] bg-neutral-700 rounded-xl overflow-hidden"
+                       style={{ minHeight: '400px' }}
                      />
                    </div>
                  )}
@@ -9085,7 +9092,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                                  }`}>{opp.impact}</span>
                                  <p className="font-medium text-white">{cleanJsonText(opp.title)}</p>
                                </div>
-                               <p className="text-sm text-gray-600">{cleanJsonText(opp.detail)}</p>
+                               <p className="text-sm text-gray-300">{cleanJsonText(opp.detail)}</p>
                              </div>
                            ))}
                          </div>
@@ -9108,7 +9115,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                                  }`}>{risk.impact || risk.level}</span>
                                  <p className="font-medium text-white">{cleanJsonText(risk.title)}</p>
                                </div>
-                               <p className="text-sm text-gray-600">{cleanJsonText(risk.detail)}</p>
+                               <p className="text-sm text-gray-300">{cleanJsonText(risk.detail)}</p>
                              </div>
                            ))}
                          </div>
@@ -9206,43 +9213,43 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                          예상 창업 비용
                        </h3>
                        <div className="space-y-2">
-                         <div className="flex justify-between py-2 border-b border-gray-100">
-                           <span className="text-gray-600">보증금</span>
+                         <div className="flex justify-between py-2 border-b border-neutral-600">
+                           <span className="text-gray-300">보증금</span>
                            <span className="font-medium text-white">{cleanJsonText(salesModeSearchResult.data?.startupCost?.deposit) || '-'}</span>
                          </div>
-                         <div className="flex justify-between py-2 border-b border-gray-100">
-                           <span className="text-gray-600">권리금</span>
+                         <div className="flex justify-between py-2 border-b border-neutral-600">
+                           <span className="text-gray-300">권리금</span>
                            <span className="font-medium text-white">{cleanJsonText(salesModeSearchResult.data?.startupCost?.premium) || '-'}</span>
                          </div>
-                         <div className="flex justify-between py-2 border-b border-gray-100">
-                           <span className="text-gray-600">인테리어</span>
+                         <div className="flex justify-between py-2 border-b border-neutral-600">
+                           <span className="text-gray-300">인테리어</span>
                            <span className="font-medium text-white">{cleanJsonText(salesModeSearchResult.data?.startupCost?.interior) || '-'}</span>
                          </div>
-                         <div className="flex justify-between py-2 border-b border-gray-100">
-                           <span className="text-gray-600">설비/장비</span>
+                         <div className="flex justify-between py-2 border-b border-neutral-600">
+                           <span className="text-gray-300">설비/장비</span>
                            <span className="font-medium text-white">{cleanJsonText(salesModeSearchResult.data?.startupCost?.equipment) || '-'}</span>
                          </div>
-                         <div className="flex justify-between py-3 bg-neutral-100 text-[#171717] rounded-lg border border-neutral-200 px-3 mt-3">
-                           <span className="font-bold">총 예상 비용</span>
-                           <span className="font-bold">{cleanJsonText(salesModeSearchResult.data?.startupCost?.total) || '-'}</span>
+                         <div className="flex justify-between py-3 bg-neutral-700 rounded-lg border border-neutral-600 px-3 mt-3">
+                           <span className="font-bold text-white">총 예상 비용</span>
+                           <span className="font-bold text-white">{cleanJsonText(salesModeSearchResult.data?.startupCost?.total) || '-'}</span>
                          </div>
                        </div>
                      </div>
 
                      {/* 9. AI 인사이트 */}
-                     <div className="bg-neutral-50 border border-neutral-200 p-5 rounded-xl border border-blue-100">
+                     <div className="bg-neutral-800 border border-neutral-700 p-5 rounded-xl">
                        <h3 className="font-bold text-white mb-3 flex items-center gap-2">
                          <span className="w-6 h-6 rounded border border-white text-white flex items-center justify-center text-xs font-bold">10</span>
                          AI 인사이트
                        </h3>
-                       <p className="text-gray-700 leading-relaxed">{cleanJsonText(salesModeSearchResult.data?.insight) || '-'}</p>
-                       <div className="mt-4 p-3 bg-white/80 rounded-lg">
+                       <p className="text-gray-300 leading-relaxed">{cleanJsonText(salesModeSearchResult.data?.insight) || '-'}</p>
+                       <div className="mt-4 p-3 bg-neutral-700 rounded-lg">
                          <p className="text-sm font-medium text-white mb-2">빈크래프트 컨설팅 장점</p>
                          <div className="grid grid-cols-2 gap-2 text-xs">
-                           <div className="flex items-center gap-1 text-green-600"> 가맹비 0원</div>
-                           <div className="flex items-center gap-1 text-green-600"> 로열티 0원</div>
-                           <div className="flex items-center gap-1 text-green-600"> 메뉴 자유</div>
-                           <div className="flex items-center gap-1 text-green-600"> 인테리어 자유</div>
+                           <div className="flex items-center gap-1 text-green-400"> 가맹비 0원</div>
+                           <div className="flex items-center gap-1 text-green-400"> 로열티 0원</div>
+                           <div className="flex items-center gap-1 text-green-400"> 메뉴 자유</div>
+                           <div className="flex items-center gap-1 text-green-400"> 인테리어 자유</div>
                          </div>
                        </div>
                      </div>
