@@ -1,20 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { db, auth } from './firebase';
-import { 
-  collection, 
-  doc, 
-  getDocs, 
-  getDoc, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  query, 
-  where, 
-  orderBy,
-  onSnapshot,
-  serverTimestamp,
-  Timestamp
-} from 'firebase/firestore';
+import { firebase, database } from './firebase';
 
 // ═══════════════════════════════════════════════════════════════
 // 앱 버전 관리 - 캐시 무효화용
