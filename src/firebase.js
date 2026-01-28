@@ -1,18 +1,18 @@
-import firebase from 'firebase/compat/app';
-import 'firebase/compat/auth';
-import 'firebase/compat/database';
+// Firebase 설정
+import { initializeApp } from 'firebase/app';
+import { getFirestore } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID
+  apiKey: "AIzaSyBGYNPDCLpuAJqwNWzuoLBp_o0DuqjfHNE",
+  authDomain: "beancraft-sales.firebaseapp.com",
+  projectId: "beancraft-sales",
+  storageBucket: "beancraft-sales.firebasestorage.app",
+  messagingSenderId: "692498037498",
+  appId: "1:692498037498:web:ae0b98765d7a5c4a8d5e7f"
 };
 
-firebase.initializeApp(firebaseConfig);
-const database = firebase.database();
-
-export { firebase, database };
+const app = initializeApp(firebaseConfig);
+export const db = getFirestore(app);
+export const auth = getAuth(app);
+export default app;
