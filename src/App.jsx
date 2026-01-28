@@ -4,7 +4,7 @@ import { firebase, database } from './firebase';
 // ═══════════════════════════════════════════════════════════════
 // 앱 버전 관리 - 캐시 무효화용
 // ═══════════════════════════════════════════════════════════════
-const APP_VERSION = '2026.01.27.v3';
+const APP_VERSION = '2026.01.28.v1-proxy-ui';
 
 // 앱 시작 시 버전 출력 및 캐시 체크
 (() => {
@@ -119,7 +119,350 @@ const safeLocalStorage = {
     }
   }
 }; 
- const PRESET_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1'];
+
+// ═══════════════════════════════════════════════════════════════
+// UI 유틸리티 컴포넌트 - 2026 트렌드 적용
+// ═══════════════════════════════════════════════════════════════
+
+// 숫자 카운트업 애니메이션 훅
+const useCountUp = (end, duration = 1500, start = 0) => {
+  const [count, setCount] = useState(start);
+  const countRef = useRef(null);
+  
+  useEffect(() => {
+    if (typeof end !== 'number' || isNaN(end)) {
+      setCount(end || 0);
+      return;
+    }
+    
+    const startTime = Date.now();
+    const startValue = start;
+    const endValue = end;
+    
+    const animate = () => {
+      const now = Date.now();
+      const progress = Math.min((now - startTime) / duration, 1);
+      // easeOutExpo
+      const eased = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
+      const current = Math.floor(startValue + (endValue - startValue) * eased);
+      setCount(current);
+      
+      if (progress < 1) {
+        countRef.current = requestAnimationFrame(animate);
+      }
+    };
+    
+    countRef.current = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(countRef.current);
+  }, [end, duration, start]);
+  
+  return count;
+};
+
+// 카운트업 숫자 컴포넌트
+const CountUpNumber = ({ value, suffix = '', prefix = '', className = '', formatNumber = true }) => {
+  const numericValue = typeof value === 'string' 
+    ? parseFloat(value.replace(/[^0-9.-]/g, '')) 
+    : value;
+  const count = useCountUp(numericValue || 0);
+  
+  const displayValue = formatNumber 
+    ? (count || 0).toLocaleString() 
+    : count;
+  
+  return (
+    <span className={`tabular-nums ${className}`}>
+      {prefix}{displayValue}{suffix}
+    </span>
+  );
+};
+
+// 아코디언 컴포넌트
+const Accordion = ({ title, children, defaultOpen = false, icon = null, badge = null }) => {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+  const contentRef = useRef(null);
+  
+  return (
+    <div className="bg-neutral-800 rounded-xl border border-neutral-700 overflow-hidden transition-all duration-300">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full p-4 flex items-center justify-between text-left hover:bg-neutral-750 transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          {icon && <span className="text-lg">{icon}</span>}
+          <span className="font-bold text-white">{title}</span>
+          {badge && (
+            <span className="px-2 py-0.5 bg-white/10 text-white text-xs rounded-full">
+              {badge}
+            </span>
+          )}
+        </div>
+        <svg 
+          className={`w-5 h-5 text-gray-400 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}
+          fill="none" 
+          viewBox="0 0 24 24" 
+          stroke="currentColor"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      <div 
+        className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}
+      >
+        <div className="p-4 pt-0 border-t border-neutral-700">
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// 프로그레스 바 컴포넌트
+const ProgressBar = ({ value, max = 100, color = 'bg-white', label = '', showPercent = true, animated = true }) => {
+  const percentage = Math.min(Math.max((value / max) * 100, 0), 100);
+  
+  return (
+    <div className="space-y-1">
+      {(label || showPercent) && (
+        <div className="flex justify-between text-xs">
+          <span className="text-gray-400">{label}</span>
+          {showPercent && <span className="text-gray-300">{Math.round(percentage)}%</span>}
+        </div>
+      )}
+      <div className="h-2 bg-neutral-700 rounded-full overflow-hidden">
+        <div 
+          className={`h-full ${color} rounded-full transition-all duration-1000 ease-out ${animated ? 'animate-pulse' : ''}`}
+          style={{ width: `${percentage}%` }}
+        />
+      </div>
+    </div>
+  );
+};
+
+// 스켈레톤 로딩 컴포넌트
+const Skeleton = ({ className = '', variant = 'default' }) => {
+  const variants = {
+    default: 'h-4 w-full',
+    title: 'h-6 w-3/4',
+    avatar: 'h-12 w-12 rounded-full',
+    card: 'h-32 w-full',
+    button: 'h-10 w-24 rounded-lg',
+    text: 'h-4 w-full',
+    number: 'h-8 w-20'
+  };
+  
+  return (
+    <div className={`animate-pulse bg-neutral-700 rounded ${variants[variant]} ${className}`} />
+  );
+};
+
+// 스켈레톤 카드 (영업모드용)
+const SkeletonCard = ({ lines = 3 }) => (
+  <div className="bg-neutral-800 p-5 rounded-xl border border-neutral-700 space-y-4">
+    <div className="flex items-center gap-3">
+      <Skeleton variant="avatar" className="w-6 h-6" />
+      <Skeleton variant="title" />
+    </div>
+    <div className="space-y-3">
+      {[...Array(lines)].map((_, i) => (
+        <Skeleton key={i} variant="text" className={i === lines - 1 ? 'w-2/3' : ''} />
+      ))}
+    </div>
+  </div>
+);
+
+// 미니 도넛 차트 (CSS 기반)
+const MiniDonutChart = ({ data = [], size = 80, strokeWidth = 8 }) => {
+  const total = data.reduce((sum, item) => sum + (item.value || 0), 0);
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  
+  let cumulativePercent = 0;
+  
+  return (
+    <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        {/* 배경 원 */}
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke="#374151"
+          strokeWidth={strokeWidth}
+        />
+        {/* 데이터 세그먼트 */}
+        {data.map((item, index) => {
+          const percent = total > 0 ? (item.value / total) * 100 : 0;
+          const strokeDasharray = `${(percent / 100) * circumference} ${circumference}`;
+          const strokeDashoffset = -(cumulativePercent / 100) * circumference;
+          cumulativePercent += percent;
+          
+          return (
+            <circle
+              key={index}
+              cx={size / 2}
+              cy={size / 2}
+              r={radius}
+              fill="none"
+              stroke={item.color || '#3b82f6'}
+              strokeWidth={strokeWidth}
+              strokeDasharray={strokeDasharray}
+              strokeDashoffset={strokeDashoffset}
+              className="transition-all duration-1000"
+            />
+          );
+        })}
+      </svg>
+      {/* 중앙 텍스트 */}
+      <div className="absolute inset-0 flex items-center justify-center">
+        <span className="text-xs font-bold text-white">{total > 0 ? total.toLocaleString() : '-'}</span>
+      </div>
+    </div>
+  );
+};
+
+// 미니 막대 차트 (가로)
+const MiniBarChart = ({ data = [], maxValue = null, height = 120 }) => {
+  const max = maxValue || Math.max(...data.map(d => d.value || 0), 1);
+  
+  return (
+    <div className="space-y-2" style={{ minHeight: height }}>
+      {data.map((item, index) => {
+        const percent = (item.value / max) * 100;
+        return (
+          <div key={index} className="space-y-1">
+            <div className="flex justify-between text-xs">
+              <span className="text-gray-400">{item.label}</span>
+              <span className="text-gray-300">{(item.value || 0).toLocaleString()}{item.suffix || ''}</span>
+            </div>
+            <div className="h-2 bg-neutral-700 rounded-full overflow-hidden">
+              <div 
+                className="h-full rounded-full transition-all duration-700 ease-out"
+                style={{ 
+                  width: `${percent}%`,
+                  backgroundColor: item.color || '#3b82f6'
+                }}
+              />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+// 스크롤 페이드인 훅
+const useScrollFadeIn = (direction = 'up', duration = 0.6, delay = 0) => {
+  const ref = useRef(null);
+  const [isVisible, setIsVisible] = useState(false);
+  
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+        }
+      },
+      { threshold: 0.1 }
+    );
+    
+    if (ref.current) {
+      observer.observe(ref.current);
+    }
+    
+    return () => observer.disconnect();
+  }, []);
+  
+  const transforms = {
+    up: 'translateY(20px)',
+    down: 'translateY(-20px)',
+    left: 'translateX(20px)',
+    right: 'translateX(-20px)'
+  };
+  
+  const style = {
+    opacity: isVisible ? 1 : 0,
+    transform: isVisible ? 'translate(0)' : transforms[direction],
+    transition: `opacity ${duration}s ease-out ${delay}s, transform ${duration}s ease-out ${delay}s`
+  };
+  
+  return { ref, style, isVisible };
+};
+
+// 페이드인 래퍼 컴포넌트
+const FadeInSection = ({ children, delay = 0, direction = 'up', className = '' }) => {
+  const { ref, style } = useScrollFadeIn(direction, 0.6, delay);
+  
+  return (
+    <div ref={ref} style={style} className={className}>
+      {children}
+    </div>
+  );
+};
+
+// 글래스모피즘 카드
+const GlassCard = ({ children, className = '', hover = false }) => (
+  <div className={`
+    bg-white/5 backdrop-blur-lg border border-white/10 rounded-xl
+    ${hover ? 'hover:bg-white/10 hover:border-white/20 transition-all duration-300' : ''}
+    ${className}
+  `}>
+    {children}
+  </div>
+);
+
+// 데이터 카드 (영업모드용 통계 표시)
+const DataCard = ({ 
+  title, 
+  value, 
+  subtitle = '', 
+  icon = null, 
+  trend = null, 
+  color = 'white',
+  animate = true 
+}) => {
+  const numericValue = typeof value === 'string' 
+    ? parseFloat(value.replace(/[^0-9.-]/g, ''))
+    : value;
+  const isNumeric = !isNaN(numericValue);
+  
+  return (
+    <div className="bg-neutral-700 p-4 rounded-lg border border-neutral-600 hover:border-neutral-500 transition-colors">
+      <div className="flex items-start justify-between mb-2">
+        <p className="text-xs text-gray-400">{title}</p>
+        {icon && <span className="text-lg opacity-60">{icon}</span>}
+      </div>
+      <div className="flex items-baseline gap-2">
+        <p className={`text-xl font-bold text-${color}`}>
+          {animate && isNumeric ? (
+            <CountUpNumber value={numericValue} />
+          ) : (
+            value || '-'
+          )}
+        </p>
+        {trend && (
+          <span className={`text-xs ${trend > 0 ? 'text-green-400' : 'text-red-400'}`}>
+            {trend > 0 ? '↑' : '↓'} {Math.abs(trend)}%
+          </span>
+        )}
+      </div>
+      {subtitle && <p className="text-xs text-gray-500 mt-1">{subtitle}</p>}
+    </div>
+  );
+};
+
+// API 상태 표시 컴포넌트
+const ApiStatusIndicator = ({ hasData, apiName = '소상공인365' }) => (
+  <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs ${
+    hasData ? 'bg-green-500/20 text-green-400' : 'bg-amber-500/20 text-amber-400'
+  }`}>
+    <span className={`w-1.5 h-1.5 rounded-full ${hasData ? 'bg-green-400' : 'bg-amber-400'} animate-pulse`} />
+    {hasData ? `${apiName} 연동` : 'AI 추정치'}
+  </div>
+);
+
+const PRESET_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1'];
 const LOGIN_QUOTES = [
   "안 될 이유보다, 될 이유 하나만 생각하고 시작합시다.",
   "오늘의 거절은 더 큰 계약을 위한 과정일 뿐입니다.",
@@ -644,6 +987,97 @@ const ALLOWED_ORIGINS = [
 // 소상공인365 GIS API (인증 불필요 - 2026-01-23 검증 완료)
 // ═══════════════════════════════════════════════════════════════
 const SBIZ365_BASE_URL = 'https://bigdata.sbiz.or.kr';
+
+// ═══════════════════════════════════════════════════════════════
+// Netlify Functions 프록시 URL (CORS 우회)
+// ═══════════════════════════════════════════════════════════════
+const SBIZ_PROXY_URL = '/api/sbiz-proxy';
+
+// 프록시를 통한 GIS API 호출 (CORS 우회)
+const callGisAPIViaProxy = async (apiPath, params = {}, maxRetry = 3) => {
+  for (let attempt = 1; attempt <= maxRetry; attempt++) {
+    try {
+      const proxyUrl = new URL(SBIZ_PROXY_URL, window.location.origin);
+      proxyUrl.searchParams.append('api', 'gis');
+      proxyUrl.searchParams.append('endpoint', apiPath);
+      
+      // WGS84 좌표가 있으면 프록시에서 TM 변환
+      if (params.wgs84_lat && params.wgs84_lng) {
+        proxyUrl.searchParams.append('wgs84_lat', params.wgs84_lat);
+        proxyUrl.searchParams.append('wgs84_lng', params.wgs84_lng);
+        delete params.wgs84_lat;
+        delete params.wgs84_lng;
+      }
+      
+      // 나머지 파라미터 추가
+      Object.entries(params).forEach(([k, v]) => {
+        if (v !== undefined && v !== null) {
+          proxyUrl.searchParams.append(k, v.toString());
+        }
+      });
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      
+      const response = await fetch(proxyUrl.toString(), {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          console.log(`✅ GIS API ${apiPath} 성공 (${result.elapsedMs}ms)`);
+          return result.data;
+        }
+        console.warn(`⚠️ GIS API ${apiPath} 응답 실패:`, result.error || '알 수 없는 오류');
+      } else {
+        console.warn(`⚠️ GIS API ${apiPath} HTTP 오류:`, response.status);
+      }
+    } catch (e) {
+      console.warn(`⚠️ GIS API ${apiPath} 호출 실패 (${attempt}/${maxRetry}):`, e.message);
+      if (attempt < maxRetry) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+      }
+    }
+  }
+  return null;
+};
+
+// 프록시를 통한 OpenAPI 호출 (키 자동 포함)
+const callOpenAPIViaProxy = async (apiName, apiPath, params = {}) => {
+  try {
+    const proxyUrl = new URL(SBIZ_PROXY_URL, window.location.origin);
+    proxyUrl.searchParams.append('api', 'open');
+    proxyUrl.searchParams.append('endpoint', apiPath);
+    proxyUrl.searchParams.append('apiName', apiName);
+    
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null) {
+        proxyUrl.searchParams.append(k, v.toString());
+      }
+    });
+    
+    const response = await fetch(proxyUrl.toString(), {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' }
+    });
+    
+    if (response.ok) {
+      const result = await response.json();
+      if (result.success && result.data) {
+        console.log(`✅ OpenAPI ${apiName} 성공`);
+        return result.data;
+      }
+    }
+  } catch (e) {
+    console.warn(`⚠️ OpenAPI ${apiName} 호출 실패:`, e.message);
+  }
+  return null;
+};
 
 // 행정구역별 데이터 API (좌표 범위 기반)
 const SBIZ365_GIS_API = {
@@ -2219,29 +2653,13 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
    await analyzeLocationRadius(lat, lng, address);
  };
  
- // 반경 500m 업종별 분석 (소상공인365 GIS API 활용)
+ // 반경 500m 업종별 분석 (소상공인365 GIS API 활용 - 프록시 경유)
  const analyzeLocationRadius = async (lat, lng, address) => {
    try {
      const tmCoords = transformWGS84toTM(lng, lat);
      const radius = 500; // 500m
      
-     // 소상공인365 GIS API 호출 함수
-     const callGisAPI = async (apiPath, params = {}) => {
-       const queryParams = new URLSearchParams({
-         ...params,
-         callback: 'callback'
-       });
-       const url = `${SBIZ365_BASE_URL}${apiPath}?${queryParams}`;
-       const response = await fetch(url);
-       const text = await response.text();
-       const jsonMatch = text.match(/callback\(([\s\S]*)\)/);
-       if (jsonMatch) {
-         return JSON.parse(jsonMatch[1]);
-       }
-       return JSON.parse(text);
-     };
-     
-     // API 호출 파라미터
+     // API 호출 파라미터 (TM 좌표 사용)
      const mapParams = {
        type: 'dong',
        cx: tmCoords.x,
@@ -2249,7 +2667,7 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
        radius: radius
      };
      
-     // 병렬 API 호출
+     // 병렬 API 호출 (프록시 경유)
      const [
        saleAmtData,
        popCntData,
@@ -2257,11 +2675,11 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
        wrcpplData,
        wholPpltnData
      ] = await Promise.all([
-       callGisAPI(SBIZ365_GIS_API.saleAmt, mapParams).catch(() => null),
-       callGisAPI(SBIZ365_GIS_API.popCnt, mapParams).catch(() => null),
-       callGisAPI(SBIZ365_GIS_API.storCnt, mapParams).catch(() => null),
-       callGisAPI(SBIZ365_GIS_API.wrcpplCnt, mapParams).catch(() => null),
-       callGisAPI(SBIZ365_GIS_API.wholPpltnCnt, mapParams).catch(() => null)
+       callGisAPIViaProxy(SBIZ365_GIS_API.saleAmt, mapParams).catch(() => null),
+       callGisAPIViaProxy(SBIZ365_GIS_API.popCnt, mapParams).catch(() => null),
+       callGisAPIViaProxy(SBIZ365_GIS_API.storCnt, mapParams).catch(() => null),
+       callGisAPIViaProxy(SBIZ365_GIS_API.wrcpplCnt, mapParams).catch(() => null),
+       callGisAPIViaProxy(SBIZ365_GIS_API.wholPpltnCnt, mapParams).catch(() => null)
      ]);
      
      // 개폐업 데이터 (점포 히스토리)
@@ -2272,15 +2690,16 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
        indsLclsCd: 'Q', // 음식점업
        indsMclsCd: '01' // 커피/음료
      };
-     const storeHistoryData = await callGisAPI(SBIZ365_GIS_API.storeHistoryList, storeHistoryParams).catch(() => null);
+     const storeHistoryData = await callGisAPIViaProxy(SBIZ365_GIS_API.storeHistoryList, storeHistoryParams).catch(() => null);
      
-     // SNS 분석 데이터 (소상공인365 OpenAPI)
+     // SNS 분석 데이터 (소상공인365 OpenAPI - 프록시 경유)
      let snsData = null;
      try {
-       const snsResponse = await fetch(`${SBIZ365_BASE_URL}${SBIZ365_API.snsAnaly.path}?key=${SBIZ365_API.snsAnaly.key}&indsLclsCd=Q&indsMclsCd=01&areaCd=${tmCoords.x}_${tmCoords.y}`);
-       const snsText = await snsResponse.text();
-       const snsJsonMatch = snsText.match(/\{[\s\S]*\}/);
-       if (snsJsonMatch) snsData = JSON.parse(snsJsonMatch[0]);
+       snsData = await callOpenAPIViaProxy('snsAnaly', SBIZ365_API.snsAnaly.path, {
+         indsLclsCd: 'Q',
+         indsMclsCd: '01',
+         areaCd: `${tmCoords.x}_${tmCoords.y}`
+       });
      } catch (e) {
        console.log('SNS 분석 데이터 없음');
      }
@@ -2693,39 +3112,8 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
        console.log('TM 좌표 범위:', coordRange);
      }
 
-     // 소상공인365 GIS API 직접 호출 함수 (재시도 로직 포함)
-     const callGisAPI = async (apiPath, params = {}, maxRetry = 3) => {
-       for (let attempt = 1; attempt <= maxRetry; attempt++) {
-         try {
-           const url = new URL(apiPath, SBIZ365_BASE_URL);
-           Object.entries(params).forEach(([k, v]) => url.searchParams.append(k, v));
-           
-           const controller = new AbortController();
-           const timeoutId = setTimeout(() => controller.abort(), 10000); // 10초 타임아웃
-           
-           const response = await fetch(url.toString(), {
-             method: 'GET',
-             headers: { 'Accept': 'application/json' },
-             signal: controller.signal
-           });
-           
-           clearTimeout(timeoutId);
-           
-           if (response.ok) {
-             const data = await response.json();
-             return data;
-           }
-           console.log(`GIS API ${apiPath} 응답 오류 (${attempt}/${maxRetry}):`, response.status);
-         } catch (e) {
-           console.log(`GIS API ${apiPath} 호출 실패 (${attempt}/${maxRetry}):`, e.message);
-           if (attempt < maxRetry) {
-             // 재시도 전 대기 (2초, 4초, 6초)
-             await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
-           }
-         }
-       }
-       return null;
-     };
+     // callGisAPI는 전역 callGisAPIViaProxy 함수 사용 (프록시 경유 - CORS 해결)
+     const callGisAPI = callGisAPIViaProxy;
 
      // 좌표가 있으면 좌표 기반 API 호출
      if (coordRange) {
@@ -4241,21 +4629,8 @@ ${JSON.stringify(regionData, null, 2)}
          maxYAxis: coordRange.maxYAxis
        };
 
-       // GIS API 호출 함수
-       const callGisAPI = async (apiPath, params = {}) => {
-         try {
-           const url = new URL(apiPath, SBIZ365_BASE_URL);
-           Object.entries(params).forEach(([k, v]) => url.searchParams.append(k, v));
-           const response = await fetch(url.toString(), {
-             method: 'GET',
-             headers: { 'Accept': 'application/json' }
-           });
-           if (response.ok) return await response.json();
-           return null;
-         } catch (e) {
-           return null;
-         }
-       };
+       // callGisAPI는 전역 프록시 함수 사용 (CORS 해결)
+       const callGisAPI = callGisAPIViaProxy;
 
        // 모든 API 병렬 호출
        const apiCalls = [
@@ -9421,137 +9796,164 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
                  {/* 검색 결과 */}
                  {salesModeSearchResult?.success && (
-                   <div className="space-y-2">
-                     {/* 데이터 신뢰도 */}
-                     {salesModeSearchResult.data?.reliability && (
-                       <div className={`p-3 rounded-xl border border-neutral-700 bg-neutral-800`}>
-                         <p className="text-xs font-medium text-white">데이터 신뢰도: {salesModeSearchResult.data.reliability}</p>
-                         {salesModeSearchResult.data.dataDate && <p className="text-xs text-gray-300">기준일: {salesModeSearchResult.data.dataDate}</p>}
+                   <div className="space-y-3">
+                     {/* 데이터 신뢰도 + API 상태 */}
+                     <FadeInSection delay={0}>
+                       <div className="p-4 rounded-xl border border-neutral-700 bg-neutral-800/80 backdrop-blur">
+                         <div className="flex items-center justify-between mb-2">
+                           <p className="text-sm font-medium text-white">
+                             {salesModeSearchResult.data?.region || '상권 분석 결과'}
+                           </p>
+                           <ApiStatusIndicator hasData={salesModeSearchResult.data?.hasApiData} />
+                         </div>
+                         <div className="flex items-center gap-4 text-xs text-gray-400">
+                           {salesModeSearchResult.data?.reliability && (
+                             <span>신뢰도: {salesModeSearchResult.data.reliability}</span>
+                           )}
+                           {salesModeSearchResult.data?.dataDate && (
+                             <span>기준: {salesModeSearchResult.data.dataDate}</span>
+                           )}
+                         </div>
                        </div>
-                     )}
+                     </FadeInSection>
 
                      {/* 1. 지도 - 동적 네이버 지도 + 500m 원 */}
                      {salesModeMapCenter && (
-                       <div className="bg-neutral-800 p-4 rounded-xl border border-neutral-700">
-                         <h3 className="font-bold text-white mb-3 flex items-center gap-2">
-                           <span className="w-6 h-6 rounded border border-white text-white flex items-center justify-center text-xs font-bold">1</span>
-                           위치 (반경 500m)
-                         </h3>
-                         <div 
-                           ref={salesModeMapContainerRef}
-                           className="h-48 bg-gray-100 rounded-lg overflow-hidden"
-                           style={{ minHeight: '192px' }}
-                         />
-                         {salesModeMapCenter.roadAddress && (
-                           <p className="text-xs text-gray-300 mt-2">{salesModeMapCenter.roadAddress}</p>
-                         )}
-                       </div>
+                       <FadeInSection delay={0.1}>
+                         <div className="bg-neutral-800 p-4 rounded-xl border border-neutral-700">
+                           <h3 className="font-bold text-white mb-3 flex items-center gap-2">
+                             <span className="w-6 h-6 rounded bg-white/10 text-white flex items-center justify-center text-xs font-bold">1</span>
+                             위치 (반경 500m)
+                           </h3>
+                           <div 
+                             ref={salesModeMapContainerRef}
+                             className="h-48 bg-neutral-700 rounded-lg overflow-hidden"
+                             style={{ minHeight: '192px' }}
+                           />
+                           {salesModeMapCenter.roadAddress && (
+                             <p className="text-xs text-gray-400 mt-2">{salesModeMapCenter.roadAddress}</p>
+                           )}
+                         </div>
+                       </FadeInSection>
                      )}
 
-                     {/* 2. 상권 개요 */}
-                     <div className="bg-neutral-800 p-5 rounded-xl border border-neutral-700">
-                       <h3 className="font-bold text-white mb-4 flex items-center gap-2">
-                         <span className="w-6 h-6 rounded border border-white text-white flex items-center justify-center text-xs font-bold">2</span>
-                         상권 개요
-                       </h3>
-                       <div className="space-y-3">
-                         <div className="p-3 rounded-lg bg-neutral-700">
-                           <p className="text-xs text-gray-300 mb-1">카페 수</p>
-                           <p className="font-medium text-white text-sm leading-relaxed">{cleanJsonText(salesModeSearchResult.data?.overview?.cafeCount) || '-'}</p>
-                         </div>
-                         <div className="p-3 rounded-lg bg-neutral-700">
-                           <p className="text-xs text-gray-300 mb-1">유동인구</p>
-                           <p className="font-medium text-white text-sm leading-relaxed">{cleanJsonText(salesModeSearchResult.data?.overview?.floatingPop) || '-'}</p>
-                         </div>
-                         <div className="grid grid-cols-2 gap-3">
-                           <div className="p-3 rounded-lg bg-neutral-700 border border-neutral-600">
-                             <p className="text-xs text-gray-300 mb-1">신규 개업</p>
-                             <p className="font-medium text-gray-300 text-sm leading-relaxed">{cleanJsonText(salesModeSearchResult.data?.overview?.newOpen) || '-'}</p>
+                     {/* 2. 상권 개요 - 카운트업 애니메이션 적용 */}
+                     <FadeInSection delay={0.2}>
+                       <Accordion title="상권 개요" icon="📊" defaultOpen={true}>
+                         <div className="space-y-3">
+                           {/* 핵심 지표 그리드 */}
+                           <div className="grid grid-cols-2 gap-3">
+                             <DataCard 
+                               title="카페 수" 
+                               value={cleanJsonText(salesModeSearchResult.data?.overview?.cafeCount) || '-'}
+                               icon="☕"
+                             />
+                             <DataCard 
+                               title="일 유동인구" 
+                               value={cleanJsonText(salesModeSearchResult.data?.overview?.floatingPop) || '-'}
+                               icon="👥"
+                             />
                            </div>
-                           <div className="p-3 rounded-lg bg-neutral-700 border border-neutral-600">
-                             <p className="text-xs text-gray-300 mb-1">폐업</p>
-                             <p className="font-medium text-gray-300 text-sm leading-relaxed">{cleanJsonText(salesModeSearchResult.data?.overview?.closed) || '-'}</p>
+                           
+                           {/* 개폐업 현황 */}
+                           <div className="grid grid-cols-2 gap-3">
+                             <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+                               <p className="text-xs text-green-400 mb-1">신규 개업</p>
+                               <p className="font-bold text-green-400 text-lg">
+                                 {cleanJsonText(salesModeSearchResult.data?.overview?.newOpen) || '-'}
+                               </p>
+                             </div>
+                             <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+                               <p className="text-xs text-red-400 mb-1">폐업</p>
+                               <p className="font-bold text-red-400 text-lg">
+                                 {cleanJsonText(salesModeSearchResult.data?.overview?.closed) || '-'}
+                               </p>
+                             </div>
                            </div>
+                           
+                           {salesModeSearchResult.data?.overview?.source && (
+                             <p className="text-xs text-gray-500">출처: {salesModeSearchResult.data.overview.source}</p>
+                           )}
                          </div>
-                       </div>
-                       {salesModeSearchResult.data?.overview?.source && (
-                         <p className="text-xs text-gray-300 mt-3">출처: {salesModeSearchResult.data.overview.source}</p>
-                       )}
-                     </div>
+                       </Accordion>
+                     </FadeInSection>
 
                      {/* 3. 주요 소비층 */}
-                     <div className="bg-neutral-800 p-5 rounded-xl border border-neutral-700">
-                       <h3 className="font-bold text-white mb-4 flex items-center gap-2">
-                         <span className="w-6 h-6 rounded border border-white text-white flex items-center justify-center text-xs font-bold">3</span>
-                         주요 소비층
-                       </h3>
-                       <div className="space-y-3">
-                         <div className="grid grid-cols-2 gap-3">
-                           <div className="p-3 rounded-lg bg-neutral-700 border border-neutral-600">
-                             <p className="text-xs text-gray-300 mb-1">핵심 타겟</p>
-                             <p className="font-medium text-white text-sm">{cleanJsonText(salesModeSearchResult.data?.consumers?.mainTarget) || '-'}</p>
-                             <p className="text-sm text-gray-300 mt-1">{cleanJsonText(salesModeSearchResult.data?.consumers?.mainRatio) || '-'}</p>
+                     <FadeInSection delay={0.3}>
+                       <Accordion title="주요 소비층" icon="👤" defaultOpen={true}>
+                         <div className="space-y-3">
+                           <div className="grid grid-cols-2 gap-3">
+                             <div className="p-4 rounded-lg bg-gradient-to-br from-blue-500/20 to-blue-600/10 border border-blue-500/20">
+                               <p className="text-xs text-blue-300 mb-1">핵심 타겟</p>
+                               <p className="font-bold text-white">{cleanJsonText(salesModeSearchResult.data?.consumers?.mainTarget) || '-'}</p>
+                               <p className="text-sm text-blue-300 mt-1">{cleanJsonText(salesModeSearchResult.data?.consumers?.mainRatio) || '-'}</p>
+                             </div>
+                             <div className="p-4 rounded-lg bg-neutral-700/50 border border-neutral-600">
+                               <p className="text-xs text-gray-400 mb-1">2순위</p>
+                               <p className="font-medium text-white">{cleanJsonText(salesModeSearchResult.data?.consumers?.secondTarget) || '-'}</p>
+                               <p className="text-sm text-gray-400 mt-1">{cleanJsonText(salesModeSearchResult.data?.consumers?.secondRatio) || '-'}</p>
+                             </div>
                            </div>
-                           <div className="p-3 rounded-lg bg-neutral-700">
-                             <p className="text-xs text-gray-300 mb-1">2순위</p>
-                             <p className="font-medium text-white text-sm">{cleanJsonText(salesModeSearchResult.data?.consumers?.secondTarget) || '-'}</p>
-                             <p className="text-sm text-gray-300 mt-1">{cleanJsonText(salesModeSearchResult.data?.consumers?.secondRatio) || '-'}</p>
+                           
+                           {/* 소비 패턴 - 프로그레스 바 시각화 */}
+                           <div className="p-4 rounded-lg bg-neutral-700/50">
+                             <p className="text-xs text-gray-400 mb-3">소비 패턴</p>
+                             <div className="grid grid-cols-3 gap-4 text-center">
+                               <div className="space-y-1">
+                                 <p className="text-xs text-gray-500">피크타임</p>
+                                 <p className="text-sm font-bold text-white">{cleanJsonText(salesModeSearchResult.data?.consumers?.peakTime) || '-'}</p>
+                               </div>
+                               <div className="space-y-1">
+                                 <p className="text-xs text-gray-500">테이크아웃</p>
+                                 <p className="text-sm font-bold text-white">{cleanJsonText(salesModeSearchResult.data?.consumers?.takeoutRatio) || '-'}</p>
+                               </div>
+                               <div className="space-y-1">
+                                 <p className="text-xs text-gray-500">체류시간</p>
+                                 <p className="text-sm font-bold text-white">{cleanJsonText(salesModeSearchResult.data?.consumers?.avgStay) || '-'}</p>
+                               </div>
+                             </div>
                            </div>
                          </div>
-                         <div className="p-3 rounded-lg bg-neutral-700">
-                           <p className="text-xs text-gray-300 mb-2">소비 패턴</p>
-                           <div className="grid grid-cols-3 gap-3 text-center">
-                             <div>
-                               <p className="text-xs text-gray-300">피크타임</p>
-                               <p className="text-sm font-medium text-white mt-1">{cleanJsonText(salesModeSearchResult.data?.consumers?.peakTime) || '-'}</p>
-                             </div>
-                             <div>
-                               <p className="text-xs text-gray-300">테이크아웃</p>
-                               <p className="text-sm font-medium text-white mt-1">{cleanJsonText(salesModeSearchResult.data?.consumers?.takeoutRatio) || '-'}</p>
-                             </div>
-                             <div>
-                               <p className="text-xs text-gray-300">체류시간</p>
-                               <p className="text-sm font-medium text-white mt-1">{cleanJsonText(salesModeSearchResult.data?.consumers?.avgStay) || '-'}</p>
-                             </div>
-                           </div>
-                         </div>
-                       </div>
-                     </div>
+                       </Accordion>
+                     </FadeInSection>
 
                      {/* 4. 프랜차이즈 현황 */}
-                     <div className="bg-neutral-800 p-5 rounded-xl border border-neutral-700">
-                       <h3 className="font-bold text-white mb-4 flex items-center gap-2">
-                         <span className="w-6 h-6 rounded border border-white text-white flex items-center justify-center text-xs font-bold">4</span>
-                         프랜차이즈 경쟁 현황
-                       </h3>
-                       <div className="space-y-2">
-                         {(salesModeSearchResult.data?.franchise || []).map((f, idx) => (
-                           <div key={idx} className="flex items-center justify-between p-3 bg-neutral-700 rounded-lg">
-                             <div>
-                               <p className="font-medium text-white">{f.name}</p>
-                               <p className="text-xs text-gray-300">{f.count}개 매장</p>
+                     <FadeInSection delay={0.4}>
+                       <Accordion title="프랜차이즈 경쟁 현황" icon="🏪" defaultOpen={false}>
+                         <div className="space-y-2">
+                           {(salesModeSearchResult.data?.franchise || []).map((f, idx) => (
+                             <div key={idx} className="flex items-center justify-between p-3 bg-neutral-700/50 rounded-lg hover:bg-neutral-700 transition-colors">
+                               <div className="flex items-center gap-3">
+                                 <span className="w-8 h-8 bg-white/10 rounded-lg flex items-center justify-center text-sm font-bold text-white">
+                                   {idx + 1}
+                                 </span>
+                                 <div>
+                                   <p className="font-medium text-white">{f.name}</p>
+                                   <p className="text-xs text-gray-400">{f.count}개 매장</p>
+                                 </div>
+                               </div>
+                               <div className="text-right">
+                                 <p className="font-bold text-white">{f.price?.toLocaleString() || '-'}원</p>
+                                 <p className="text-xs text-gray-400">월 {f.monthly || '-'}</p>
+                               </div>
                              </div>
-                             <div className="text-right">
-                               <p className="font-bold text-white">{f.price?.toLocaleString()}원</p>
-                               <p className="text-xs text-gray-300">월 {f.monthly}</p>
-                             </div>
-                           </div>
-                         ))}
-                       </div>
-                     </div>
+                           ))}
+                           {(!salesModeSearchResult.data?.franchise || salesModeSearchResult.data.franchise.length === 0) && (
+                             <p className="text-center text-gray-500 py-4">프랜차이즈 데이터 없음</p>
+                           )}
+                         </div>
+                       </Accordion>
+                     </FadeInSection>
 
                      {/* 4.5 SNS 트렌드 분석 */}
                      {salesModeSearchResult.collectedData?.apis?.snsTrend?.data && (
-                       <div className="bg-neutral-800 p-5 rounded-xl border border-neutral-700">
-                         <h3 className="font-bold text-white mb-4 flex items-center gap-2">
-                           <span className="w-6 h-6 rounded border border-neutral-500 text-white flex items-center justify-center text-xs font-bold">SNS</span>
-                           SNS 트렌드 분석
-                         </h3>
+                       <FadeInSection delay={0.45}>
+                         <Accordion title="SNS 트렌드 분석" icon="📱" defaultOpen={false}>
                          
-                         {/* 인기/부정 키워드 */}
-                         <div className="grid grid-cols-2 gap-3 mb-4">
-                           <div className="p-3 rounded-lg bg-neutral-700">
-                             <p className="text-xs text-gray-400 mb-2">인기 키워드</p>
+                           {/* 인기/부정 키워드 */}
+                           <div className="grid grid-cols-2 gap-3 mb-4">
+                             <div className="p-3 rounded-lg bg-neutral-700/50">
+                               <p className="text-xs text-gray-400 mb-2">인기 키워드</p>
                              <div className="flex flex-wrap gap-1">
                                {(salesModeSearchResult.collectedData.apis.snsTrend.data.popularKeywords || []).map((kw, idx) => (
                                  <span key={idx} className="px-2 py-1 bg-neutral-600 text-white text-xs rounded-full">{kw}</span>
@@ -9617,17 +10019,14 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                          </div>
 
                          <p className="text-xs text-gray-500 mt-3">※ AI 분석 기반 추정치입니다. 실제 현황은 직접 확인이 필요합니다.</p>
-                       </div>
+                       </Accordion>
+                     </FadeInSection>
                      )}
 
                      {/* 4.6 확장프로그램 매물 데이터 */}
                      {salesModeSearchResult.collectedData?.apis?.extensionNaverRealEstate?.data && (
-                       <div className="bg-neutral-800 p-5 rounded-xl border border-neutral-700">
-                         <h3 className="font-bold text-white mb-4 flex items-center gap-2">
-                           <span className="w-6 h-6 rounded border border-green-400 text-white flex items-center justify-center text-xs font-bold">EXT</span>
-                           실시간 매물 데이터
-                           <span className="ml-auto text-xs text-white bg-neutral-600 px-2 py-1 rounded">확장프로그램 연동</span>
-                         </h3>
+                       <FadeInSection delay={0.5}>
+                         <Accordion title="실시간 매물 데이터" icon="🏠" badge="확장프로그램" defaultOpen={false}>
                          
                          <div className="grid grid-cols-2 gap-3 mb-4">
                            <div className="p-3 rounded-lg bg-neutral-700">
@@ -9648,7 +10047,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                            </div>
                          </div>
 
-                         <div className="p-3 bg-neutral-700 rounded-lg">
+                         <div className="p-3 bg-neutral-700/50 rounded-lg">
                            <p className="text-xs text-gray-400 mb-2">수집된 매물 수</p>
                            <p className="font-medium text-white">
                              {salesModeSearchResult.collectedData.apis.extensionNaverRealEstate.data.articles?.length || 0}건
@@ -9660,35 +10059,32 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                              ? new Date(salesModeSearchResult.collectedData.apis.extensionNaverRealEstate.data.collectedAt).toLocaleString('ko-KR')
                              : '-'}
                          </p>
-                       </div>
+                       </Accordion>
+                     </FadeInSection>
                      )}
 
                      {/* 4.7 YouTube 리뷰 분석 */}
                      {salesModeSearchResult.collectedData?.apis?.youtube?.data && (
-                       <div className="bg-neutral-800 p-5 rounded-xl border border-neutral-700">
-                         <h3 className="font-bold text-white mb-4 flex items-center gap-2">
-                           <span className="w-6 h-6 rounded border border-red-500 text-red-500 flex items-center justify-center text-xs font-bold">YT</span>
-                           YouTube 리뷰 분석
-                           <span className="ml-auto text-xs text-white bg-neutral-600 px-2 py-1 rounded">실시간 API</span>
-                         </h3>
+                       <FadeInSection delay={0.55}>
+                         <Accordion title="YouTube 리뷰 분석" icon="🎬" badge="실시간 API" defaultOpen={false}>
                          
-                         {/* 감성 분석 결과 */}
-                         <div className="mb-4 p-4 rounded-lg bg-neutral-700">
-                           <div className="flex items-center justify-between mb-3">
-                             <span className="text-sm text-gray-300">댓글 감성 분석</span>
-                             <span className="text-xs text-gray-400">{salesModeSearchResult.collectedData.apis.youtube.data.totalComments}개 댓글 분석</span>
-                           </div>
-                           
-                           {/* 감성 비율 바 */}
-                           <div className="h-4 rounded-full overflow-hidden bg-neutral-600 mb-2">
-                             <div 
-                               className="h-full bg-gradient-to-r from-green-500 to-green-400"
-                               style={{ width: `${salesModeSearchResult.collectedData.apis.youtube.data.sentiment?.ratio || 50}%` }}
-                             />
-                           </div>
-                           <div className="flex justify-between text-xs">
-                             <span className="text-white">
-                               긍정 {salesModeSearchResult.collectedData.apis.youtube.data.sentiment?.positive || 0}회
+                           {/* 감성 분석 결과 */}
+                           <div className="mb-4 p-4 rounded-lg bg-neutral-700/50">
+                             <div className="flex items-center justify-between mb-3">
+                               <span className="text-sm text-gray-300">댓글 감성 분석</span>
+                               <span className="text-xs text-gray-400">{salesModeSearchResult.collectedData.apis.youtube.data.totalComments}개 댓글 분석</span>
+                             </div>
+                             
+                             {/* 감성 비율 바 */}
+                             <div className="h-4 rounded-full overflow-hidden bg-neutral-600 mb-2">
+                               <div 
+                                 className="h-full bg-gradient-to-r from-green-500 to-green-400 transition-all duration-1000"
+                                 style={{ width: `${salesModeSearchResult.collectedData.apis.youtube.data.sentiment?.ratio || 50}%` }}
+                               />
+                             </div>
+                             <div className="flex justify-between text-xs">
+                               <span className="text-green-400">
+                                 긍정 {salesModeSearchResult.collectedData.apis.youtube.data.sentiment?.positive || 0}회
                              </span>
                              <span className="text-white font-bold">
                                {salesModeSearchResult.collectedData.apis.youtube.data.sentiment?.ratio || 50}%
@@ -9745,101 +10141,107 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                          )}
 
                          <p className="text-xs text-gray-500 mt-3">YouTube Data API v3 실시간 분석 결과</p>
-                       </div>
+                       </Accordion>
+                     </FadeInSection>
                      )}
 
                      {/* 4.8 배달현황 */}
                      {salesModeSearchResult.collectedData?.apis?.delivery?.data && (
-                       <div className="bg-neutral-800 p-5 rounded-xl border border-neutral-700">
-                         <h3 className="font-bold text-white mb-4 flex items-center gap-2">
-                           <span className="w-6 h-6 rounded border border-neutral-500 text-white flex items-center justify-center text-xs font-bold">배달</span>
-                           배달현황
-                         </h3>
+                       <FadeInSection delay={0.6}>
+                         <div className="bg-neutral-800 p-5 rounded-xl border border-neutral-700">
+                           <h3 className="font-bold text-white mb-4 flex items-center gap-2">
+                             <span className="w-6 h-6 rounded border border-neutral-500 text-white flex items-center justify-center text-xs font-bold">🛵</span>
+                             배달현황
+                           </h3>
                          
-                         <div className="space-y-3">
-                           {salesModeSearchResult.collectedData.apis.delivery.data.data ? (
-                             <>
-                               <div className="grid grid-cols-2 gap-3">
-                                 <div className="p-3 rounded-lg bg-neutral-700">
-                                   <p className="text-xs text-gray-400 mb-1">배달 매출 비중</p>
-                                   <p className="font-bold text-white text-lg">
-                                     {salesModeSearchResult.collectedData.apis.delivery.data.data.dlvrRt || '-'}%
-                                   </p>
+                           <div className="space-y-3">
+                             {salesModeSearchResult.collectedData.apis.delivery.data.data ? (
+                               <>
+                                 <div className="grid grid-cols-2 gap-3">
+                                   <div className="p-3 rounded-lg bg-neutral-700">
+                                     <p className="text-xs text-gray-400 mb-1">배달 매출 비중</p>
+                                     <p className="font-bold text-white text-lg">
+                                       {salesModeSearchResult.collectedData.apis.delivery.data.data.dlvrRt || '-'}%
+                                     </p>
+                                   </div>
+                                   <div className="p-3 rounded-lg bg-neutral-700">
+                                     <p className="text-xs text-gray-400 mb-1">배달 주문수</p>
+                                     <p className="font-bold text-white text-lg">
+                                       {salesModeSearchResult.collectedData.apis.delivery.data.data.dlvrCnt?.toLocaleString() || '-'}건
+                                     </p>
+                                   </div>
                                  </div>
                                  <div className="p-3 rounded-lg bg-neutral-700">
-                                   <p className="text-xs text-gray-400 mb-1">배달 주문수</p>
-                                   <p className="font-bold text-white text-lg">
-                                     {salesModeSearchResult.collectedData.apis.delivery.data.data.dlvrCnt?.toLocaleString() || '-'}건
+                                   <p className="text-xs text-gray-400 mb-1">배달 트렌드</p>
+                                   <p className="text-sm text-white">
+                                     {salesModeSearchResult.collectedData.apis.delivery.data.data.dlvrTrend || '데이터 확인 중'}
                                    </p>
                                  </div>
-                               </div>
-                               <div className="p-3 rounded-lg bg-neutral-700">
-                                 <p className="text-xs text-gray-400 mb-1">배달 트렌드</p>
-                                 <p className="text-sm text-white">
-                                   {salesModeSearchResult.collectedData.apis.delivery.data.data.dlvrTrend || '데이터 확인 중'}
-                                 </p>
-                               </div>
-                             </>
-                           ) : (
-                             <p className="text-sm text-gray-400">배달 데이터를 불러오는 중이거나 해당 지역 데이터가 없습니다.</p>
+                               </>
+                             ) : (
+                               <p className="text-sm text-gray-400">배달 데이터를 불러오는 중이거나 해당 지역 데이터가 없습니다.</p>
                            )}
                          </div>
                          
                          <p className="text-xs text-gray-500 mt-3">출처: 소상공인365 배달현황 API</p>
                        </div>
+                     </FadeInSection>
                      )}
 
                      {/* 4.9 관광/축제 정보 */}
                      {salesModeSearchResult.collectedData?.apis?.tour?.data && (
-                       <div className="bg-neutral-800 p-5 rounded-xl border border-neutral-700">
-                         <h3 className="font-bold text-white mb-4 flex items-center gap-2">
-                           <span className="w-6 h-6 rounded border border-neutral-500 text-white flex items-center justify-center text-xs font-bold">관광</span>
-                           관광/축제 정보
-                         </h3>
+                       <FadeInSection delay={0.65}>
+                         <div className="bg-neutral-800 p-5 rounded-xl border border-neutral-700">
+                           <h3 className="font-bold text-white mb-4 flex items-center gap-2">
+                             <span className="w-6 h-6 rounded border border-neutral-500 text-white flex items-center justify-center text-xs font-bold">🎉</span>
+                             관광/축제 정보
+                           </h3>
                          
-                         <div className="space-y-3">
-                           {salesModeSearchResult.collectedData.apis.tour.data.data?.list?.length > 0 ? (
-                             salesModeSearchResult.collectedData.apis.tour.data.data.list.slice(0, 5).map((item, idx) => (
-                               <div key={idx} className="p-3 rounded-lg bg-neutral-700">
-                                 <p className="font-medium text-white text-sm">{item.tourNm || item.festNm || '행사명'}</p>
-                                 <p className="text-xs text-gray-400 mt-1">{item.tourAddr || item.festAddr || ''}</p>
-                                 {item.tourPrd && <p className="text-xs text-white mt-1">{item.tourPrd}</p>}
-                               </div>
-                             ))
-                           ) : salesModeSearchResult.collectedData.apis.tour.data.data ? (
-                             <div className="p-3 rounded-lg bg-neutral-700">
-                               <p className="text-sm text-gray-300">
-                                 관광객 수: {salesModeSearchResult.collectedData.apis.tour.data.data.tourCnt?.toLocaleString() || '-'}명
-                               </p>
-                               {salesModeSearchResult.collectedData.apis.tour.data.data.tourTrend && (
-                                 <p className="text-sm text-gray-300 mt-2">
-                                   트렌드: {salesModeSearchResult.collectedData.apis.tour.data.data.tourTrend}
+                           <div className="space-y-3">
+                             {salesModeSearchResult.collectedData.apis.tour.data.data?.list?.length > 0 ? (
+                               salesModeSearchResult.collectedData.apis.tour.data.data.list.slice(0, 5).map((item, idx) => (
+                                 <div key={idx} className="p-3 rounded-lg bg-neutral-700">
+                                   <p className="font-medium text-white text-sm">{item.tourNm || item.festNm || '행사명'}</p>
+                                   <p className="text-xs text-gray-400 mt-1">{item.tourAddr || item.festAddr || ''}</p>
+                                   {item.tourPrd && <p className="text-xs text-white mt-1">{item.tourPrd}</p>}
+                                 </div>
+                               ))
+                             ) : salesModeSearchResult.collectedData.apis.tour.data.data ? (
+                               <div className="p-3 rounded-lg bg-neutral-700">
+                                 <p className="text-sm text-gray-300">
+                                   관광객 수: {salesModeSearchResult.collectedData.apis.tour.data.data.tourCnt?.toLocaleString() || '-'}명
                                  </p>
-                               )}
-                             </div>
-                           ) : (
-                             <p className="text-sm text-gray-400">해당 지역의 관광/축제 정보가 없습니다.</p>
-                           )}
-                         </div>
+                                 {salesModeSearchResult.collectedData.apis.tour.data.data.tourTrend && (
+                                   <p className="text-sm text-gray-300 mt-2">
+                                     트렌드: {salesModeSearchResult.collectedData.apis.tour.data.data.tourTrend}
+                                   </p>
+                                 )}
+                               </div>
+                             ) : (
+                               <p className="text-sm text-gray-400">해당 지역의 관광/축제 정보가 없습니다.</p>
+                             )}
+                           </div>
                          
-                         <p className="text-xs text-gray-500 mt-3">출처: 소상공인365 관광축제 API</p>
-                       </div>
+                           <p className="text-xs text-gray-500 mt-3">출처: 소상공인365 관광축제 API</p>
+                         </div>
+                       </FadeInSection>
                      )}
 
                      {/* 4.10 매출추이 */}
                      {salesModeSearchResult.collectedData?.apis?.salesIndex?.data && (
-                       <div className="bg-neutral-800 p-5 rounded-xl border border-neutral-700">
-                         <h3 className="font-bold text-white mb-4 flex items-center gap-2">
-                           <span className="w-6 h-6 rounded border border-neutral-500 text-white flex items-center justify-center text-xs font-bold">매출</span>
-                           매출추이
-                         </h3>
+                       <FadeInSection delay={0.7}>
+                         <div className="bg-neutral-800 p-5 rounded-xl border border-neutral-700">
+                           <h3 className="font-bold text-white mb-4 flex items-center gap-2">
+                             <span className="w-6 h-6 rounded border border-neutral-500 text-white flex items-center justify-center text-xs font-bold">📈</span>
+                             매출추이
+                           </h3>
                          
-                         <div className="space-y-3">
-                           {salesModeSearchResult.collectedData.apis.salesIndex.data.data ? (
-                             <>
-                               <div className="grid grid-cols-3 gap-2">
-                                 <div className="p-3 rounded-lg bg-neutral-700 text-center">
-                                   <p className="text-xs text-gray-400 mb-1">전년 대비</p>
+                           <div className="space-y-3">
+                             {salesModeSearchResult.collectedData.apis.salesIndex.data.data ? (
+                               <>
+                                 <div className="grid grid-cols-3 gap-2">
+                                   <div className="p-3 rounded-lg bg-neutral-700 text-center">
+                                     <p className="text-xs text-gray-400 mb-1">전년 대비</p>
                                    <p className={`font-bold text-lg ${
                                      (salesModeSearchResult.collectedData.apis.salesIndex.data.data.yoyRate || 0) >= 0 
                                        ? 'text-white' : 'text-white'
@@ -9879,121 +10281,127 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                          
                          <p className="text-xs text-gray-500 mt-3">출처: 소상공인365 매출추이 API</p>
                        </div>
+                     </FadeInSection>
                      )}
 
                      {/* 4.11 창업기상도 */}
                      {salesModeSearchResult.collectedData?.apis?.startupWeather?.data && (
-                       <div className="bg-neutral-800 p-5 rounded-xl border border-neutral-700">
-                         <h3 className="font-bold text-white mb-4 flex items-center gap-2">
-                           <span className="w-6 h-6 rounded border border-neutral-500 text-white flex items-center justify-center text-xs font-bold">기상</span>
-                           창업기상도
-                         </h3>
+                       <FadeInSection delay={0.75}>
+                         <div className="bg-neutral-800 p-5 rounded-xl border border-neutral-700">
+                           <h3 className="font-bold text-white mb-4 flex items-center gap-2">
+                             <span className="w-6 h-6 rounded border border-neutral-500 text-white flex items-center justify-center text-xs font-bold">🌤️</span>
+                             창업기상도
+                           </h3>
                          
-                         <div className="space-y-3">
-                           {salesModeSearchResult.collectedData.apis.startupWeather.data.data ? (
-                             <>
-                               {/* 기상도 아이콘 */}
-                               <div className="flex items-center justify-center p-4">
-                                 <div className={`w-24 h-24 rounded-full flex items-center justify-center text-4xl ${
-                                   salesModeSearchResult.collectedData.apis.startupWeather.data.data.wthGrd === '맑음' ? 'bg-neutral-600' :
-                                   salesModeSearchResult.collectedData.apis.startupWeather.data.data.wthGrd === '구름조금' ? 'bg-neutral-600' :
-                                   salesModeSearchResult.collectedData.apis.startupWeather.data.data.wthGrd === '흐림' ? 'bg-neutral-700' :
-                                   'bg-neutral-600'
-                                 }`}>
-                                   {salesModeSearchResult.collectedData.apis.startupWeather.data.data.wthGrd === '맑음' ? '☀️' :
-                                    salesModeSearchResult.collectedData.apis.startupWeather.data.data.wthGrd === '구름조금' ? '⛅' :
-                                    salesModeSearchResult.collectedData.apis.startupWeather.data.data.wthGrd === '흐림' ? '☁️' : '🌧️'}
+                           <div className="space-y-3">
+                             {salesModeSearchResult.collectedData.apis.startupWeather.data.data ? (
+                               <>
+                                 {/* 기상도 아이콘 */}
+                                 <div className="flex items-center justify-center p-4">
+                                   <div className={`w-24 h-24 rounded-full flex items-center justify-center text-4xl ${
+                                     salesModeSearchResult.collectedData.apis.startupWeather.data.data.wthGrd === '맑음' ? 'bg-neutral-600' :
+                                     salesModeSearchResult.collectedData.apis.startupWeather.data.data.wthGrd === '구름조금' ? 'bg-neutral-600' :
+                                     salesModeSearchResult.collectedData.apis.startupWeather.data.data.wthGrd === '흐림' ? 'bg-neutral-700' :
+                                     'bg-neutral-600'
+                                   }`}>
+                                     {salesModeSearchResult.collectedData.apis.startupWeather.data.data.wthGrd === '맑음' ? '☀️' :
+                                      salesModeSearchResult.collectedData.apis.startupWeather.data.data.wthGrd === '구름조금' ? '⛅' :
+                                      salesModeSearchResult.collectedData.apis.startupWeather.data.data.wthGrd === '흐림' ? '☁️' : '🌧️'}
+                                   </div>
                                  </div>
-                               </div>
                                
-                               <div className="text-center">
-                                 <p className="text-2xl font-bold text-white">
-                                   {salesModeSearchResult.collectedData.apis.startupWeather.data.data.wthGrd || '분석중'}
-                                 </p>
-                                 <p className="text-sm text-gray-400 mt-1">
-                                   창업 적합도 점수: {salesModeSearchResult.collectedData.apis.startupWeather.data.data.wthScore || '-'}점
-                                 </p>
-                               </div>
+                                 <div className="text-center">
+                                   <p className="text-2xl font-bold text-white">
+                                     {salesModeSearchResult.collectedData.apis.startupWeather.data.data.wthGrd || '분석중'}
+                                   </p>
+                                   <p className="text-sm text-gray-400 mt-1">
+                                     창업 적합도 점수: {salesModeSearchResult.collectedData.apis.startupWeather.data.data.wthScore || '-'}점
+                                   </p>
+                                 </div>
 
-                               <div className="grid grid-cols-2 gap-3">
-                                 <div className="p-3 rounded-lg bg-neutral-700">
-                                   <p className="text-xs text-gray-400 mb-1">성장성</p>
-                                   <p className="font-medium text-white">{salesModeSearchResult.collectedData.apis.startupWeather.data.data.grwScore || '-'}점</p>
+                                 <div className="grid grid-cols-2 gap-3">
+                                   <div className="p-3 rounded-lg bg-neutral-700">
+                                     <p className="text-xs text-gray-400 mb-1">성장성</p>
+                                     <p className="font-medium text-white">{salesModeSearchResult.collectedData.apis.startupWeather.data.data.grwScore || '-'}점</p>
+                                   </div>
+                                   <div className="p-3 rounded-lg bg-neutral-700">
+                                     <p className="text-xs text-gray-400 mb-1">안정성</p>
+                                     <p className="font-medium text-white">{salesModeSearchResult.collectedData.apis.startupWeather.data.data.stbScore || '-'}점</p>
+                                   </div>
+                                   <div className="p-3 rounded-lg bg-neutral-700">
+                                     <p className="text-xs text-gray-400 mb-1">경쟁강도</p>
+                                     <p className="font-medium text-white">{salesModeSearchResult.collectedData.apis.startupWeather.data.data.cmpScore || '-'}점</p>
+                                   </div>
+                                   <div className="p-3 rounded-lg bg-neutral-700">
+                                     <p className="text-xs text-gray-400 mb-1">집객력</p>
+                                     <p className="font-medium text-white">{salesModeSearchResult.collectedData.apis.startupWeather.data.data.popScore || '-'}점</p>
+                                   </div>
                                  </div>
-                                 <div className="p-3 rounded-lg bg-neutral-700">
-                                   <p className="text-xs text-gray-400 mb-1">안정성</p>
-                                   <p className="font-medium text-white">{salesModeSearchResult.collectedData.apis.startupWeather.data.data.stbScore || '-'}점</p>
-                                 </div>
-                                 <div className="p-3 rounded-lg bg-neutral-700">
-                                   <p className="text-xs text-gray-400 mb-1">경쟁강도</p>
-                                   <p className="font-medium text-white">{salesModeSearchResult.collectedData.apis.startupWeather.data.data.cmpScore || '-'}점</p>
-                                 </div>
-                                 <div className="p-3 rounded-lg bg-neutral-700">
-                                   <p className="text-xs text-gray-400 mb-1">집객력</p>
-                                   <p className="font-medium text-white">{salesModeSearchResult.collectedData.apis.startupWeather.data.data.popScore || '-'}점</p>
-                                 </div>
-                               </div>
-                             </>
-                           ) : (
-                             <p className="text-sm text-gray-400">창업기상도 데이터를 불러오는 중입니다.</p>
+                               </>
+                             ) : (
+                               <p className="text-sm text-gray-400">창업기상도 데이터를 불러오는 중입니다.</p>
                            )}
                          </div>
                          
                          <p className="text-xs text-gray-500 mt-3">출처: 소상공인365 창업기상도 API</p>
                        </div>
+                     </FadeInSection>
                      )}
 
                      {/* 4.12 핫플레이스 Top10 */}
                      {salesModeSearchResult.collectedData?.apis?.hotplace?.data && (
-                       <div className="bg-neutral-800 p-5 rounded-xl border border-neutral-700">
-                         <h3 className="font-bold text-white mb-4 flex items-center gap-2">
-                           <span className="w-6 h-6 rounded border border-neutral-500 text-white flex items-center justify-center text-xs font-bold">HOT</span>
-                           핫플레이스 Top10
-                         </h3>
+                       <FadeInSection delay={0.8}>
+                         <div className="bg-neutral-800 p-5 rounded-xl border border-neutral-700">
+                           <h3 className="font-bold text-white mb-4 flex items-center gap-2">
+                             <span className="w-6 h-6 rounded border border-neutral-500 text-white flex items-center justify-center text-xs font-bold">🔥</span>
+                             핫플레이스 Top10
+                           </h3>
                          
-                         <div className="space-y-2">
-                           {(salesModeSearchResult.collectedData.apis.hotplace.data.rads || 
-                             salesModeSearchResult.collectedData.apis.hotplace.data.list ||
-                             salesModeSearchResult.collectedData.apis.hotplace.data)?.slice?.(0, 10)?.map?.((item, idx) => (
-                             <div key={idx} className="flex items-center gap-3 p-3 rounded-lg bg-neutral-700">
-                               <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                                 idx < 3 ? 'bg-rose-500 text-white' : 'bg-neutral-600 text-gray-300'
-                               }`}>
-                                 {idx + 1}
-                               </span>
-                               <div className="flex-1">
-                                 <p className="font-medium text-white text-sm">{item.bizonNm || item.areaNm || item.name || `상권 ${idx + 1}`}</p>
-                                 <p className="text-xs text-gray-400">{item.addrNm || item.addr || ''}</p>
-                               </div>
-                               {(item.score || item.rnkScore) && (
-                                 <span className="text-xs text-white font-medium">
-                                   {item.score || item.rnkScore}점
+                           <div className="space-y-2">
+                             {(salesModeSearchResult.collectedData.apis.hotplace.data.rads || 
+                               salesModeSearchResult.collectedData.apis.hotplace.data.list ||
+                               salesModeSearchResult.collectedData.apis.hotplace.data)?.slice?.(0, 10)?.map?.((item, idx) => (
+                               <div key={idx} className="flex items-center gap-3 p-3 rounded-lg bg-neutral-700">
+                                 <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                                   idx < 3 ? 'bg-rose-500 text-white' : 'bg-neutral-600 text-gray-300'
+                                 }`}>
+                                   {idx + 1}
                                  </span>
-                               )}
-                             </div>
-                           )) || <p className="text-sm text-gray-400">핫플레이스 데이터가 없습니다.</p>}
-                         </div>
+                                 <div className="flex-1">
+                                   <p className="font-medium text-white text-sm">{item.bizonNm || item.areaNm || item.name || `상권 ${idx + 1}`}</p>
+                                   <p className="text-xs text-gray-400">{item.addrNm || item.addr || ''}</p>
+                                 </div>
+                                 {(item.score || item.rnkScore) && (
+                                   <span className="text-xs text-white font-medium">
+                                     {item.score || item.rnkScore}점
+                                   </span>
+                                 )}
+                               </div>
+                             )) || <p className="text-sm text-gray-400">핫플레이스 데이터가 없습니다.</p>}
+                           </div>
                          
-                         <p className="text-xs text-gray-500 mt-3">출처: 소상공인365 핫플레이스 API</p>
-                       </div>
+                           <p className="text-xs text-gray-500 mt-3">출처: 소상공인365 핫플레이스 API</p>
+                         </div>
+                       </FadeInSection>
                      )}
 
                      {/* 5. 임대료/권리금 */}
-                     <div className="bg-neutral-800 p-5 rounded-xl border border-neutral-700">
-                       <h3 className="font-bold text-white mb-4 flex items-center gap-2">
-                         <span className="w-6 h-6 rounded border border-white text-white flex items-center justify-center text-xs font-bold">5</span>
-                         임대료/권리금
-                       </h3>
-                       <div className="space-y-3">
-                         <div className="grid grid-cols-2 gap-3">
-                           <div className="p-3 rounded-lg bg-neutral-700">
-                             <p className="text-xs text-gray-300 mb-1">월 임대료</p>
-                             <p className="font-medium text-white text-sm">{cleanJsonText(salesModeSearchResult.data?.rent?.monthly) || '-'}</p>
-                           </div>
-                           <div className="p-3 rounded-lg bg-neutral-700">
-                             <p className="text-xs text-gray-300 mb-1">보증금</p>
-                             <p className="font-medium text-white text-sm">{cleanJsonText(salesModeSearchResult.data?.rent?.deposit) || '-'}</p>
-                           </div>
+                     <FadeInSection delay={0.85}>
+                       <div className="bg-neutral-800 p-5 rounded-xl border border-neutral-700">
+                         <h3 className="font-bold text-white mb-4 flex items-center gap-2">
+                           <span className="w-6 h-6 rounded bg-white/10 text-white flex items-center justify-center text-xs font-bold">5</span>
+                           임대료/권리금
+                         </h3>
+                         <div className="space-y-3">
+                           <div className="grid grid-cols-2 gap-3">
+                             <div className="p-3 rounded-lg bg-neutral-700">
+                               <p className="text-xs text-gray-300 mb-1">월 임대료</p>
+                               <p className="font-medium text-white text-sm">{cleanJsonText(salesModeSearchResult.data?.rent?.monthly) || '-'}</p>
+                             </div>
+                             <div className="p-3 rounded-lg bg-neutral-700">
+                               <p className="text-xs text-gray-300 mb-1">보증금</p>
+                               <p className="font-medium text-white text-sm">{cleanJsonText(salesModeSearchResult.data?.rent?.deposit) || '-'}</p>
+                             </div>
                          </div>
                          <div className="grid grid-cols-2 gap-3">
                            <div className="p-3 rounded-lg bg-neutral-700">
@@ -10012,6 +10420,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                          <p className="text-xs text-gray-300 mt-3">출처: {cleanJsonText(salesModeSearchResult.data.rent.source)}</p>
                        )}
                      </div>
+                   </FadeInSection>
 
                      {/* 6. 개발 호재 */}
                      {salesModeSearchResult.data?.opportunities?.length > 0 && (
