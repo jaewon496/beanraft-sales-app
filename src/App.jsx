@@ -1,10 +1,25 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { firebase, database } from './firebase';
+import { db, auth } from './firebase';
+import { 
+  collection, 
+  doc, 
+  getDocs, 
+  getDoc, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  query, 
+  where, 
+  orderBy,
+  onSnapshot,
+  serverTimestamp,
+  Timestamp
+} from 'firebase/firestore';
 
 // ═══════════════════════════════════════════════════════════════
 // 앱 버전 관리 - 캐시 무효화용
 // ═══════════════════════════════════════════════════════════════
-const APP_VERSION = '2026.01.28.v1-proxy-ui';
+const APP_VERSION = '2026.01.28.v2-glassmorphism';
 
 // 앱 시작 시 버전 출력 및 캐시 체크
 (() => {
@@ -119,6 +134,300 @@ const safeLocalStorage = {
     }
   }
 }; 
+
+// ═══════════════════════════════════════════════════════════════
+// 영업모드 Glassmorphism 테마 시스템
+// ═══════════════════════════════════════════════════════════════
+const SALES_MODE_THEMES = {
+  dark: {
+    bgGradient: 'linear-gradient(135deg, #0a0a0a 0%, #171717 50%, #0f172a 100%)',
+    bgOverlay: 'radial-gradient(ellipse at top right, rgba(16, 185, 129, 0.08) 0%, transparent 50%), radial-gradient(ellipse at bottom left, rgba(59, 130, 246, 0.06) 0%, transparent 50%)',
+    glassMain: 'rgba(255, 255, 255, 0.03)',
+    glassBorder: 'rgba(255, 255, 255, 0.08)',
+    glassCard: 'rgba(255, 255, 255, 0.05)',
+    glassCardBorder: 'rgba(255, 255, 255, 0.1)',
+    glassCardHover: 'rgba(255, 255, 255, 0.08)',
+    textPrimary: '#ffffff',
+    textSecondary: 'rgba(255, 255, 255, 0.7)',
+    textMuted: 'rgba(255, 255, 255, 0.4)',
+    accent: '#10b981',
+    accentGlow: 'rgba(16, 185, 129, 0.3)',
+    accentSecondary: '#3b82f6',
+    success: '#10b981',
+    warning: '#f59e0b',
+    danger: '#ef4444',
+    info: '#3b82f6',
+    shadowColor: 'rgba(0, 0, 0, 0.5)',
+    glowColor: 'rgba(16, 185, 129, 0.15)',
+  },
+  light: {
+    bgGradient: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #e2e8f0 100%)',
+    bgOverlay: 'radial-gradient(ellipse at top right, rgba(16, 185, 129, 0.06) 0%, transparent 50%), radial-gradient(ellipse at bottom left, rgba(59, 130, 246, 0.04) 0%, transparent 50%)',
+    glassMain: 'rgba(255, 255, 255, 0.7)',
+    glassBorder: 'rgba(0, 0, 0, 0.06)',
+    glassCard: 'rgba(255, 255, 255, 0.8)',
+    glassCardBorder: 'rgba(0, 0, 0, 0.08)',
+    glassCardHover: 'rgba(255, 255, 255, 0.95)',
+    textPrimary: '#0f172a',
+    textSecondary: 'rgba(15, 23, 42, 0.7)',
+    textMuted: 'rgba(15, 23, 42, 0.4)',
+    accent: '#059669',
+    accentGlow: 'rgba(5, 150, 105, 0.2)',
+    accentSecondary: '#2563eb',
+    success: '#059669',
+    warning: '#d97706',
+    danger: '#dc2626',
+    info: '#2563eb',
+    shadowColor: 'rgba(0, 0, 0, 0.08)',
+    glowColor: 'rgba(5, 150, 105, 0.1)',
+  }
+};
+
+// 영업모드 글래스 컨테이너 컴포넌트
+const SalesModeGlassContainer = ({ theme = 'dark', className = '', children, ...props }) => {
+  const t = SALES_MODE_THEMES[theme];
+  return (
+    <div
+      className={`rounded-3xl ${className}`}
+      style={{
+        background: t.glassMain,
+        backdropFilter: 'blur(40px)',
+        WebkitBackdropFilter: 'blur(40px)',
+        border: `1px solid ${t.glassBorder}`,
+        boxShadow: `0 8px 32px ${t.shadowColor}`,
+      }}
+      {...props}
+    >
+      {children}
+    </div>
+  );
+};
+
+// 영업모드 글래스 카드 컴포넌트
+const SalesModeGlassCard = ({ theme = 'dark', className = '', glow = false, children, ...props }) => {
+  const t = SALES_MODE_THEMES[theme];
+  return (
+    <div
+      className={`rounded-2xl transition-all duration-300 hover:translate-y-[-2px] ${className}`}
+      style={{
+        background: t.glassCard,
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        border: `1px solid ${t.glassCardBorder}`,
+        boxShadow: glow 
+          ? `0 4px 24px ${t.glowColor}, 0 0 0 1px ${t.glassBorder}`
+          : `0 4px 16px ${t.shadowColor}`,
+      }}
+      {...props}
+    >
+      {children}
+    </div>
+  );
+};
+
+// 영업모드 테마 토글 버튼
+const SalesModeThemeToggle = ({ theme, onToggle }) => {
+  const isDark = theme === 'dark';
+  return (
+    <button
+      onClick={onToggle}
+      className="w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-300 hover:scale-105 active:scale-95"
+      style={{
+        background: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+        border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.1)'}`,
+      }}
+      title={isDark ? '라이트 모드로 전환' : '다크 모드로 전환'}
+    >
+      {isDark ? '☀️' : '🌙'}
+    </button>
+  );
+};
+
+// 영업모드 KPI 카드 컴포넌트
+const SalesModeKPICard = ({ theme = 'dark', icon, label, value, unit = '', delay = 0 }) => {
+  const t = SALES_MODE_THEMES[theme];
+  const [visible, setVisible] = useState(false);
+  
+  const numericValue = typeof value === 'string' 
+    ? parseFloat(String(value).replace(/[^0-9.-]/g, '')) 
+    : (typeof value === 'number' ? value : 0);
+  const displayValue = useCountUp(visible ? (numericValue || 0) : 0, 1500);
+  
+  useEffect(() => {
+    const timer = setTimeout(() => setVisible(true), delay * 1000);
+    return () => clearTimeout(timer);
+  }, [delay]);
+  
+  return (
+    <div
+      className={`transform transition-all duration-500 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}
+    >
+      <SalesModeGlassCard theme={theme} className="p-4" glow>
+        <span className="text-xl mb-2 block">{icon}</span>
+        <div 
+          className="text-2xl font-bold mb-1 tabular-nums"
+          style={{ color: t.textPrimary }}
+        >
+          {displayValue.toLocaleString()}
+          <span className="text-sm font-normal ml-1" style={{ color: t.textSecondary }}>
+            {unit}
+          </span>
+        </div>
+        <p className="text-xs" style={{ color: t.textMuted }}>{label}</p>
+      </SalesModeGlassCard>
+    </div>
+  );
+};
+
+// 영업모드 아코디언 컴포넌트
+const SalesModeAccordion = ({ theme = 'dark', title, icon, badge, defaultOpen = false, children }) => {
+  const t = SALES_MODE_THEMES[theme];
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+  
+  return (
+    <SalesModeGlassCard theme={theme} className="overflow-hidden">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full p-4 flex items-center justify-between text-left"
+      >
+        <div className="flex items-center gap-3">
+          {icon && <span className="text-xl">{icon}</span>}
+          <span className="font-semibold" style={{ color: t.textPrimary }}>{title}</span>
+          {badge && (
+            <span 
+              className="px-2 py-0.5 rounded-full text-xs font-medium"
+              style={{ background: `${t.accent}20`, color: t.accent }}
+            >
+              {badge}
+            </span>
+          )}
+        </div>
+        <svg 
+          className={`w-5 h-5 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}
+          style={{ color: t.textMuted }}
+          fill="none" viewBox="0 0 24 24" stroke="currentColor"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}>
+        <div className="px-4 pb-4" style={{ borderTop: `1px solid ${t.glassBorder}` }}>
+          <div className="pt-4">{children}</div>
+        </div>
+      </div>
+    </SalesModeGlassCard>
+  );
+};
+
+// 영업모드 가로 막대 차트
+const SalesModeHorizontalBar = ({ theme = 'dark', label, value, maxValue = 100, color }) => {
+  const t = SALES_MODE_THEMES[theme];
+  const [width, setWidth] = useState(0);
+  const percentage = (value / maxValue) * 100;
+  
+  useEffect(() => {
+    const timer = setTimeout(() => setWidth(percentage), 100);
+    return () => clearTimeout(timer);
+  }, [percentage]);
+  
+  return (
+    <div className="space-y-1">
+      <div className="flex justify-between text-sm">
+        <span style={{ color: t.textSecondary }}>{label}</span>
+        <span className="font-medium" style={{ color: t.textPrimary }}>{value}%</span>
+      </div>
+      <div className="h-2 rounded-full overflow-hidden" style={{ background: t.glassCard }}>
+        <div 
+          className="h-full rounded-full transition-all duration-1000 ease-out"
+          style={{ 
+            width: `${width}%`,
+            background: color || t.accent,
+            boxShadow: `0 0 8px ${color || t.accent}40`,
+          }}
+        />
+      </div>
+    </div>
+  );
+};
+
+// 영업모드 API 상태 배지
+const SalesModeApiStatusBadge = ({ theme = 'dark', hasData }) => {
+  const t = SALES_MODE_THEMES[theme];
+  return (
+    <div 
+      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
+      style={{
+        background: hasData ? `${t.success}15` : `${t.warning}15`,
+        color: hasData ? t.success : t.warning,
+        border: `1px solid ${hasData ? `${t.success}30` : `${t.warning}30`}`,
+      }}
+    >
+      <span 
+        className="w-1.5 h-1.5 rounded-full animate-pulse"
+        style={{ background: hasData ? t.success : t.warning }}
+      />
+      {hasData ? 'API 연동' : 'AI 추정'}
+    </div>
+  );
+};
+
+// 영업모드 페이드인 래퍼
+const SalesModeFadeIn = ({ children, delay = 0 }) => {
+  const [visible, setVisible] = useState(false);
+  
+  useEffect(() => {
+    const timer = setTimeout(() => setVisible(true), delay * 1000);
+    return () => clearTimeout(timer);
+  }, [delay]);
+  
+  return (
+    <div
+      style={{
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'translateY(0)' : 'translateY(20px)',
+        transition: 'all 0.5s ease-out',
+      }}
+    >
+      {children}
+    </div>
+  );
+};
+
+// 영업모드 검색 입력창
+const SalesModeSearchInput = ({ theme = 'dark', value, onChange, onSearch, placeholder, loading }) => {
+  const t = SALES_MODE_THEMES[theme];
+  return (
+    <div className="relative">
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && onSearch?.()}
+        placeholder={placeholder}
+        className="w-full px-5 py-4 pr-24 rounded-2xl text-base outline-none transition-all duration-300"
+        style={{
+          background: t.glassCard,
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          border: `1px solid ${t.glassCardBorder}`,
+          color: t.textPrimary,
+        }}
+      />
+      <button
+        onClick={onSearch}
+        disabled={loading}
+        className="absolute right-2 top-1/2 -translate-y-1/2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 disabled:opacity-50"
+        style={{
+          background: t.accent,
+          color: '#fff',
+          boxShadow: `0 4px 12px ${t.accentGlow}`,
+        }}
+      >
+        {loading ? '분석중...' : '검색'}
+      </button>
+    </div>
+  );
+};
 
 // ═══════════════════════════════════════════════════════════════
 // UI 유틸리티 컴포넌트 - 2026 트렌드 적용
@@ -454,12 +763,10 @@ const DataCard = ({
 
 // API 상태 표시 컴포넌트
 const ApiStatusIndicator = ({ hasData, apiName = '소상공인365' }) => (
-  <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${
-    hasData 
-      ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
-      : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+  <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs ${
+    hasData ? 'bg-green-500/20 text-green-400' : 'bg-amber-500/20 text-amber-400'
   }`}>
-    <span className={`w-2 h-2 rounded-full ${hasData ? 'bg-green-400' : 'bg-amber-400'} animate-pulse`} />
+    <span className={`w-1.5 h-1.5 rounded-full ${hasData ? 'bg-green-400' : 'bg-amber-400'} animate-pulse`} />
     {hasData ? `${apiName} 연동` : 'AI 추정치'}
   </div>
 );
@@ -9602,146 +9909,199 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  ];
 
  // ═══════════════════════════════════════════════════════════════
- // 영업모드 UI 렌더링
+ // 영업모드 UI 렌더링 - Glassmorphism 스타일
  // ═══════════════════════════════════════════════════════════════
  if (salesModeActive) {
+   // 현재 테마 (설정과 연동)
+   const salesTheme = effectiveTheme || 'dark';
+   const t = SALES_MODE_THEMES[salesTheme];
+   
    return (
      <div 
-       className="min-h-screen bg-neutral-900 text-white select-none"
+       className="min-h-screen select-none relative overflow-hidden"
        onClick={updateSalesModeActivity}
        onTouchStart={updateSalesModeActivity}
-       style={{ WebkitUserSelect: 'none', userSelect: 'none' }}
+       style={{ 
+         background: t.bgGradient,
+         WebkitUserSelect: 'none', 
+         userSelect: 'none' 
+       }}
      >
+       {/* 글로우 오버레이 */}
+       <div className="absolute inset-0 pointer-events-none" style={{ background: t.bgOverlay }} />
+       {/* 노이즈 텍스처 */}
+       <div 
+         className="absolute inset-0 pointer-events-none opacity-[0.015]"
+         style={{
+           backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
+         }}
+       />
+       
+       {/* 메인 콘텐츠 */}
+       <div className="relative z-10">
        {/* 대상 선택 화면 */}
        {salesModeScreen === 'select' && (
          <div className="min-h-screen flex flex-col items-center justify-center p-6">
-           <img src="/logo.png" alt="BEANCRAFT" className="w-48 h-48 object-contain mb-8" onError={(e) => { e.target.style.display = 'none'; }} />
-           <h2 className="text-2xl font-bold text-white mb-2">영업모드</h2>
-           <p className="text-gray-400 mb-8">대상을 선택해주세요</p>
-           <div className="w-full max-w-sm space-y-2">
-             <button
-               onClick={() => { setSalesModeTarget('broker'); setSalesModeScreen('main'); }}
-               className="w-full py-6 rounded-2xl border-2 border-neutral-700 hover:border-white hover:bg-neutral-800 transition-all"
-             >
-               <span className="text-xl font-bold text-white">중개사</span>
-               <p className="text-gray-400 text-sm mt-1">부동산 중개사 미팅용</p>
+           <SalesModeGlassContainer theme={salesTheme} className="p-8 max-w-md w-full text-center">
+             <img src="/logo.png" alt="BEANCRAFT" className="w-32 h-32 object-contain mx-auto mb-6" style={{ filter: salesTheme === 'light' ? 'invert(1)' : 'none' }} onError={(e) => { e.target.style.display = 'none'; }} />
+             <h2 className="text-2xl font-bold mb-2" style={{ color: t.textPrimary }}>영업모드</h2>
+             <p className="mb-8" style={{ color: t.textMuted }}>대상을 선택해주세요</p>
+             <div className="space-y-3">
+               <button
+                 onClick={() => { setSalesModeTarget('broker'); setSalesModeScreen('main'); }}
+                 className="w-full py-5 rounded-2xl transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
+                 style={{ background: t.glassCard, border: `1px solid ${t.glassCardBorder}` }}
+               >
+                 <span className="text-xl font-bold" style={{ color: t.textPrimary }}>🏠 중개사</span>
+                 <p className="text-sm mt-1" style={{ color: t.textMuted }}>부동산 중개사 미팅용</p>
+               </button>
+               <button
+                 onClick={() => { setSalesModeTarget('client'); setSalesModeScreen('main'); }}
+                 className="w-full py-5 rounded-2xl transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
+                 style={{ background: t.glassCard, border: `1px solid ${t.glassCardBorder}` }}
+               >
+                 <span className="text-xl font-bold" style={{ color: t.textPrimary }}>☕ 의뢰인</span>
+                 <p className="text-sm mt-1" style={{ color: t.textMuted }}>카페 창업 의뢰인용</p>
+               </button>
+             </div>
+             <button onClick={exitSalesMode} className="mt-6 text-sm transition-colors" style={{ color: t.textMuted }}>
+               영업모드 종료
              </button>
-             <button
-               onClick={() => { setSalesModeTarget('client'); setSalesModeScreen('main'); }}
-               className="w-full py-6 rounded-2xl border-2 border-neutral-700 hover:border-white hover:bg-neutral-800 transition-all"
-             >
-               <span className="text-xl font-bold text-white">의뢰인</span>
-               <p className="text-gray-400 text-sm mt-1">카페 창업 의뢰인용</p>
-             </button>
-           </div>
-           <button
-             onClick={exitSalesMode}
-             className="mt-8 text-gray-300 hover:text-gray-300 text-sm"
-           >
-             영업모드 종료
-           </button>
+           </SalesModeGlassContainer>
          </div>
        )}
 
        {/* 잠금 화면 */}
        {salesModeScreen === 'locked' && (
-         <div 
-           className="min-h-screen flex flex-col items-center justify-center p-6 bg-neutral-900"
-           onClick={() => setSalesModeScreen('pin')}
-         >
-           <img src="/logo.png" alt="BEANCRAFT" className="w-40 h-40 object-contain mb-8 opacity-80" onError={(e) => { e.target.style.display = 'none'; }} />
-           <p className="text-white/60 text-sm mb-4">화면을 터치하여 잠금 해제</p>
-           <div className="w-48 h-1 bg-white/20 rounded-full overflow-hidden">
-             <div className="h-full bg-white/60 w-1/3 animate-pulse"></div>
-           </div>
+         <div className="min-h-screen flex flex-col items-center justify-center p-6" onClick={() => setSalesModeScreen('pin')}>
+           <SalesModeGlassContainer theme={salesTheme} className="p-8 text-center">
+             <img src="/logo.png" alt="BEANCRAFT" className="w-32 h-32 object-contain mx-auto mb-6 opacity-80" style={{ filter: salesTheme === 'light' ? 'invert(1)' : 'none' }} onError={(e) => { e.target.style.display = 'none'; }} />
+             <p className="text-sm mb-4" style={{ color: t.textMuted }}>화면을 터치하여 잠금 해제</p>
+             <div className="w-48 h-1 rounded-full overflow-hidden mx-auto" style={{ background: t.glassCard }}>
+               <div className="h-full w-1/3 animate-pulse rounded-full" style={{ background: t.accent }} />
+             </div>
+           </SalesModeGlassContainer>
          </div>
        )}
 
        {/* PIN 입력 화면 */}
        {salesModeScreen === 'pin' && (
          <div className="min-h-screen flex flex-col items-center justify-center p-6">
-           <h2 className="text-xl font-bold text-white mb-2">PIN 입력</h2>
-           <p className="text-gray-300 text-sm mb-8">4자리 비밀번호를 입력해주세요</p>
-           <div className="flex gap-3 mb-8">
-             {[0, 1, 2, 3].map(i => (
-               <div
-                 key={i}
-                 className={`w-4 h-4 rounded-full ${salesModePinInput.length > i ? 'bg-white' : 'bg-neutral-700'} transition-all`}
-               />
-             ))}
-           </div>
-           <div className="grid grid-cols-3 gap-4 w-64">
-             {[1, 2, 3, 4, 5, 6, 7, 8, 9, '', 0, 'del'].map((digit, idx) => (
-               <button
-                 key={idx}
-                 onClick={() => {
-                   if (digit === 'del') handlePinDelete();
-                   else if (digit !== '') handlePinInput(String(digit));
-                 }}
-                 disabled={digit === ''}
-                 className={`w-16 h-16 rounded-full text-2xl font-bold transition-all ${
-                   digit === '' ? 'invisible' :
-                   digit === 'del' ? 'text-gray-300 hover:bg-neutral-800' :
-                   'bg-neutral-800 hover:bg-neutral-700 text-white'
-                 }`}
-               >
-                 {digit === 'del' ? '⌫' : digit}
-               </button>
-             ))}
-           </div>
-           <button
-             onClick={() => setSalesModeScreen('locked')}
-             className="mt-8 text-gray-300 hover:text-gray-300 text-sm"
-           >
-             취소
-           </button>
+           <SalesModeGlassContainer theme={salesTheme} className="p-8 text-center">
+             <h2 className="text-xl font-bold mb-2" style={{ color: t.textPrimary }}>PIN 입력</h2>
+             <p className="text-sm mb-8" style={{ color: t.textMuted }}>4자리 비밀번호를 입력해주세요</p>
+             <div className="flex gap-3 mb-8 justify-center">
+               {[0, 1, 2, 3].map(i => (
+                 <div
+                   key={i}
+                   className="w-4 h-4 rounded-full transition-all"
+                   style={{ 
+                     background: salesModePinInput.length > i ? t.accent : t.glassCard,
+                     boxShadow: salesModePinInput.length > i ? `0 0 8px ${t.accentGlow}` : 'none',
+                   }}
+                 />
+               ))}
+             </div>
+             <div className="grid grid-cols-3 gap-4 w-64 mx-auto">
+               {[1, 2, 3, 4, 5, 6, 7, 8, 9, '', 0, 'del'].map((digit, idx) => (
+                 <button
+                   key={idx}
+                   onClick={() => {
+                     if (digit === 'del') handlePinDelete();
+                     else if (digit !== '') handlePinInput(String(digit));
+                   }}
+                   disabled={digit === ''}
+                   className="w-16 h-16 rounded-2xl text-2xl font-bold transition-all duration-200 hover:scale-105 active:scale-95"
+                   style={{
+                     visibility: digit === '' ? 'hidden' : 'visible',
+                     background: digit === 'del' ? 'transparent' : t.glassCard,
+                     border: digit === 'del' ? 'none' : `1px solid ${t.glassCardBorder}`,
+                     color: t.textPrimary,
+                   }}
+                 >
+                   {digit === 'del' ? '⌫' : digit}
+                 </button>
+               ))}
+             </div>
+             <button onClick={() => setSalesModeScreen('locked')} className="mt-8 text-sm" style={{ color: t.textMuted }}>
+               취소
+             </button>
+           </SalesModeGlassContainer>
          </div>
        )}
 
        {/* 메인 영업모드 화면 */}
        {salesModeScreen === 'main' && (
          <div className="min-h-screen flex flex-col">
-           {/* 상단 헤더 - 로고 + 타겟 배지 */}
-           <div className="bg-neutral-900 border-b border-neutral-800 px-4 py-3 flex justify-between items-center sticky top-0 z-50">
+           {/* 상단 헤더 - 글래스 스타일 + 테마 토글 */}
+           <div 
+             className="sticky top-0 z-50 px-4 py-3 flex justify-between items-center"
+             style={{
+               background: t.glassMain,
+               backdropFilter: 'blur(20px)',
+               WebkitBackdropFilter: 'blur(20px)',
+               borderBottom: `1px solid ${t.glassBorder}`,
+             }}
+           >
              <button
                onClick={exitSalesMode}
-               className="px-3 py-1.5 text-sm font-medium text-gray-300 hover:text-white border border-neutral-700 rounded-lg hover:bg-neutral-800 transition-all"
+               className="px-3 py-1.5 text-sm font-medium rounded-xl transition-all duration-200 hover:scale-105"
+               style={{ background: t.glassCard, border: `1px solid ${t.glassCardBorder}`, color: t.textSecondary }}
              >
                관리자
              </button>
-             <img src="/logo.png" alt="BEANCRAFT" className="h-8 object-contain" onError={(e) => { e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 30"><text y="22" font-size="18" font-weight="bold" fill="white">BEANCRAFT</text></svg>'; }} />
-             <div className="w-20 flex justify-end">
-               <span className={`px-3 py-1.5 rounded-lg text-xs font-bold ${
-                 salesModeTarget === 'broker' 
-                   ? 'bg-blue-600 text-white' 
-                   : 'bg-emerald-600 text-white'
-               }`}>
-                 {salesModeTarget === 'broker' ? '중개사' : '의뢰인'}
+             <img 
+               src="/logo.png" 
+               alt="BEANCRAFT" 
+               className="h-8 object-contain" 
+               style={{ filter: salesTheme === 'light' ? 'invert(1)' : 'none' }}
+               onError={(e) => { e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 30"><text y="22" font-size="18" font-weight="bold" fill="' + (salesTheme === 'dark' ? 'white' : '%230f172a') + '">BEANCRAFT</text></svg>'; }} 
+             />
+             <div className="flex items-center gap-2">
+               {/* 테마 토글 버튼 */}
+               <SalesModeThemeToggle 
+                 theme={salesTheme}
+                 onToggle={() => setThemeMode(salesTheme === 'dark' ? 'light' : 'dark')}
+               />
+               {/* 대상 배지 */}
+               <span 
+                 className="px-2.5 py-1 rounded-full text-xs font-medium"
+                 style={{ background: `${t.accent}20`, color: t.accent, border: `1px solid ${t.accent}30` }}
+               >
+                 {salesModeTarget === 'broker' ? '🏠 중개사' : '☕ 의뢰인'}
                </span>
              </div>
            </div>
 
-           {/* 탭 네비게이션 */}
-           <div className="bg-neutral-900 border-b border-neutral-700 flex">
+           {/* 탭 네비게이션 - 글래스 스타일 */}
+           <div 
+             className="flex"
+             style={{
+               background: t.glassMain,
+               backdropFilter: 'blur(10px)',
+               WebkitBackdropFilter: 'blur(10px)',
+               borderBottom: `1px solid ${t.glassBorder}`,
+             }}
+           >
              <button
                onClick={() => { setSalesModeTab('analysis'); updateSalesModeActivity(); }}
-               className={`flex-1 py-4 text-center font-bold transition-all ${
-                 salesModeTab === 'analysis' 
-                   ? 'text-white border-b-2 border-white bg-neutral-800' 
-                   : 'text-gray-400 hover:text-white hover:bg-neutral-800/50'
-               }`}
+               className="flex-1 py-3.5 text-center font-medium transition-all duration-300 relative"
+               style={{ color: salesModeTab === 'analysis' ? t.textPrimary : t.textMuted }}
              >
                분석
+               {salesModeTab === 'analysis' && (
+                 <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-0.5 rounded-full" style={{ background: t.accent, boxShadow: `0 0 8px ${t.accentGlow}` }} />
+               )}
              </button>
              <button
                onClick={() => { setSalesModeTab('homepage'); updateSalesModeActivity(); }}
-               className={`flex-1 py-4 text-center font-bold transition-all ${
-                 salesModeTab === 'homepage' 
-                   ? 'text-white border-b-2 border-white bg-neutral-800' 
-                   : 'text-gray-400 hover:text-white hover:bg-neutral-800/50'
-               }`}
+               className="flex-1 py-3.5 text-center font-medium transition-all duration-300 relative"
+               style={{ color: salesModeTab === 'homepage' ? t.textPrimary : t.textMuted }}
              >
                홈페이지
+               {salesModeTab === 'homepage' && (
+                 <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-0.5 rounded-full" style={{ background: t.accent, boxShadow: `0 0 8px ${t.accentGlow}` }} />
+               )}
              </button>
            </div>
 
@@ -9763,7 +10123,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                    <button
                      onClick={() => searchSalesModeRegion(salesModeSearchQuery)}
                      disabled={salesModeSearchLoading}
-                     className="absolute right-2 top-1/2 -translate-y-1/2 px-5 py-2.5 bg-white text-black rounded-xl text-sm font-bold disabled:opacity-50 hover:bg-gray-100 transition-all"
+                     className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-2 bg-white text-black rounded-lg text-sm font-medium disabled:opacity-50"
                    >
                      {salesModeSearchLoading ? '분석중...' : '검색'}
                    </button>
@@ -10887,14 +11247,18 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
        {/* 지역 선택 로딩 오버레이 */}
        {locationAnalysisLoading && (
-         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-           <div className="bg-white rounded-2xl p-8 flex flex-col items-center">
-             <div className="w-12 h-12 border-4 border-neutral-200 border-t-neutral-800 rounded-full animate-spin mb-4"></div>
-             <p className="text-neutral-800 font-medium">반경 500m 분석 중</p>
-             <p className="text-neutral-500 text-sm mt-1">데이터를 수집하고 있습니다</p>
-           </div>
+         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+           <SalesModeGlassContainer theme={salesTheme} className="p-8 flex flex-col items-center">
+             <div 
+               className="w-12 h-12 border-4 rounded-full animate-spin mb-4"
+               style={{ borderColor: t.glassCardBorder, borderTopColor: t.accent }}
+             />
+             <p className="font-medium" style={{ color: t.textPrimary }}>반경 500m 분석 중</p>
+             <p className="text-sm mt-1" style={{ color: t.textMuted }}>데이터를 수집하고 있습니다</p>
+           </SalesModeGlassContainer>
          </div>
        )}
+       </div>
      </div>
    );
  }
