@@ -454,10 +454,12 @@ const DataCard = ({
 
 // API 상태 표시 컴포넌트
 const ApiStatusIndicator = ({ hasData, apiName = '소상공인365' }) => (
-  <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs ${
-    hasData ? 'bg-green-500/20 text-green-400' : 'bg-amber-500/20 text-amber-400'
+  <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${
+    hasData 
+      ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
+      : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
   }`}>
-    <span className={`w-1.5 h-1.5 rounded-full ${hasData ? 'bg-green-400' : 'bg-amber-400'} animate-pulse`} />
+    <span className={`w-2 h-2 rounded-full ${hasData ? 'bg-green-400' : 'bg-amber-400'} animate-pulse`} />
     {hasData ? `${apiName} 연동` : 'AI 추정치'}
   </div>
 );
@@ -9708,9 +9710,11 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                관리자
              </button>
              <img src="/logo.png" alt="BEANCRAFT" className="h-8 object-contain" onError={(e) => { e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 30"><text y="22" font-size="18" font-weight="bold" fill="white">BEANCRAFT</text></svg>'; }} />
-             <div className="w-16 flex justify-end">
-               <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                 salesModeTarget === 'broker' ? 'bg-neutral-800 text-white' : 'bg-neutral-800 text-white'
+             <div className="w-20 flex justify-end">
+               <span className={`px-3 py-1.5 rounded-lg text-xs font-bold ${
+                 salesModeTarget === 'broker' 
+                   ? 'bg-blue-600 text-white' 
+                   : 'bg-emerald-600 text-white'
                }`}>
                  {salesModeTarget === 'broker' ? '중개사' : '의뢰인'}
                </span>
@@ -9718,19 +9722,23 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
            </div>
 
            {/* 탭 네비게이션 */}
-           <div className="bg-neutral-900 border-b border-neutral-800 flex">
+           <div className="bg-neutral-900 border-b border-neutral-700 flex">
              <button
                onClick={() => { setSalesModeTab('analysis'); updateSalesModeActivity(); }}
-               className={`flex-1 py-3 text-center font-medium transition-all ${
-                 salesModeTab === 'analysis' ? 'text-white border-b-2 border-white' : 'text-gray-300'
+               className={`flex-1 py-4 text-center font-bold transition-all ${
+                 salesModeTab === 'analysis' 
+                   ? 'text-white border-b-2 border-white bg-neutral-800' 
+                   : 'text-gray-400 hover:text-white hover:bg-neutral-800/50'
                }`}
              >
                분석
              </button>
              <button
                onClick={() => { setSalesModeTab('homepage'); updateSalesModeActivity(); }}
-               className={`flex-1 py-3 text-center font-medium transition-all ${
-                 salesModeTab === 'homepage' ? 'text-white border-b-2 border-white' : 'text-gray-300'
+               className={`flex-1 py-4 text-center font-bold transition-all ${
+                 salesModeTab === 'homepage' 
+                   ? 'text-white border-b-2 border-white bg-neutral-800' 
+                   : 'text-gray-400 hover:text-white hover:bg-neutral-800/50'
                }`}
              >
                홈페이지
@@ -9755,7 +9763,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                    <button
                      onClick={() => searchSalesModeRegion(salesModeSearchQuery)}
                      disabled={salesModeSearchLoading}
-                     className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-2 bg-white text-black rounded-lg text-sm font-medium disabled:opacity-50"
+                     className="absolute right-2 top-1/2 -translate-y-1/2 px-5 py-2.5 bg-white text-black rounded-xl text-sm font-bold disabled:opacity-50 hover:bg-gray-100 transition-all"
                    >
                      {salesModeSearchLoading ? '분석중...' : '검색'}
                    </button>
