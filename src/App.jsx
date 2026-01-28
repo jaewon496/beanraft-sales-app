@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import { firebase, database } from './firebase';
 
 // ═══════════════════════════════════════════════════════════════
@@ -121,6 +122,46 @@ const safeLocalStorage = {
 }; 
 
 // ═══════════════════════════════════════════════════════════════
+// 테마 시스템 - 라이트/다크 모드
+// ═══════════════════════════════════════════════════════════════
+
+const LIGHT_MODE_BACKGROUNDS = [];
+const DARK_MODE_BACKGROUNDS = [];
+
+const THEME_COLORS = {
+  light: {
+    bg: 'bg-neutral-100',
+    bgGradient: 'bg-gradient-to-br from-neutral-50 via-neutral-100 to-neutral-200',
+    card: 'bg-white/70 backdrop-blur-xl border-white/50',
+    cardSolid: 'bg-white border-neutral-200',
+    text: 'text-neutral-900',
+    textSecondary: 'text-neutral-600',
+    textMuted: 'text-neutral-400',
+    border: 'border-neutral-200',
+    input: 'bg-white border-neutral-300 text-neutral-900 placeholder-neutral-400',
+    button: 'bg-neutral-900 text-white hover:bg-neutral-800',
+    buttonSecondary: 'bg-neutral-200 text-neutral-800 hover:bg-neutral-300',
+    hover: 'hover:bg-neutral-100',
+    glass: 'bg-white/60 backdrop-blur-xl border border-white/40 shadow-lg',
+  },
+  dark: {
+    bg: 'bg-neutral-900',
+    bgGradient: 'bg-gradient-to-br from-neutral-900 via-neutral-800 to-neutral-900',
+    card: 'bg-white/5 backdrop-blur-xl border-white/10',
+    cardSolid: 'bg-neutral-800 border-neutral-700',
+    text: 'text-white',
+    textSecondary: 'text-neutral-300',
+    textMuted: 'text-neutral-500',
+    border: 'border-neutral-700',
+    input: 'bg-neutral-800 border-neutral-600 text-white placeholder-neutral-500',
+    button: 'bg-white text-neutral-900 hover:bg-neutral-100',
+    buttonSecondary: 'bg-neutral-700 text-white hover:bg-neutral-600',
+    hover: 'hover:bg-neutral-800',
+    glass: 'bg-white/5 backdrop-blur-xl border border-white/10 shadow-lg',
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════
 // UI 유틸리티 컴포넌트 - 2026 트렌드 적용
 // ═══════════════════════════════════════════════════════════════
 
@@ -177,28 +218,29 @@ const CountUpNumber = ({ value, suffix = '', prefix = '', className = '', format
   );
 };
 
-// 아코디언 컴포넌트
-const Accordion = ({ title, children, defaultOpen = false, icon = null, badge = null }) => {
+// 아코디언 컴포넌트 (테마 대응)
+const Accordion = ({ title, children, defaultOpen = false, icon = null, badge = null, theme = 'dark' }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const contentRef = useRef(null);
+  const colors = THEME_COLORS[theme];
   
   return (
-    <div className="bg-neutral-800 rounded-xl border border-neutral-700 overflow-hidden transition-all duration-300">
+    <div className={`rounded-xl border overflow-hidden transition-all duration-300 ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-neutral-200 shadow-sm'}`}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full p-4 flex items-center justify-between text-left hover:bg-neutral-750 transition-colors"
+        className={`w-full p-4 flex items-center justify-between text-left transition-colors ${theme === 'dark' ? 'hover:bg-neutral-700/50' : 'hover:bg-neutral-50'}`}
       >
         <div className="flex items-center gap-3">
           {icon && <span className="text-lg">{icon}</span>}
-          <span className="font-bold text-white">{title}</span>
+          <span className={`font-bold ${colors.text}`}>{title}</span>
           {badge && (
-            <span className="px-2 py-0.5 bg-white/10 text-white text-xs rounded-full">
+            <span className={`px-2 py-0.5 text-xs rounded-full ${theme === 'dark' ? 'bg-white/10 text-white' : 'bg-neutral-100 text-neutral-700'}`}>
               {badge}
             </span>
           )}
         </div>
         <svg 
-          className={`w-5 h-5 text-gray-400 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}
+          className={`w-5 h-5 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''} ${theme === 'dark' ? 'text-gray-400' : 'text-neutral-500'}`}
           fill="none" 
           viewBox="0 0 24 24" 
           stroke="currentColor"
@@ -209,7 +251,7 @@ const Accordion = ({ title, children, defaultOpen = false, icon = null, badge = 
       <div 
         className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}
       >
-        <div className="p-4 pt-0 border-t border-neutral-700">
+        <div className={`p-4 pt-0 border-t ${theme === 'dark' ? 'border-neutral-700' : 'border-neutral-200'}`}>
           {children}
         </div>
       </div>
@@ -225,8 +267,8 @@ const ProgressBar = ({ value, max = 100, color = 'bg-white', label = '', showPer
     <div className="space-y-1">
       {(label || showPercent) && (
         <div className="flex justify-between text-xs">
-          <span className="text-gray-400">{label}</span>
-          {showPercent && <span className="text-gray-300">{Math.round(percentage)}%</span>}
+          <span className={`${t.textSecondary}`}>{label}</span>
+          {showPercent && <span className={`${t.textSecondary}`}>{Math.round(percentage)}%</span>}
         </div>
       )}
       <div className="h-2 bg-neutral-700 rounded-full overflow-hidden">
@@ -333,8 +375,8 @@ const MiniBarChart = ({ data = [], maxValue = null, height = 120 }) => {
         return (
           <div key={index} className="space-y-1">
             <div className="flex justify-between text-xs">
-              <span className="text-gray-400">{item.label}</span>
-              <span className="text-gray-300">{(item.value || 0).toLocaleString()}{item.suffix || ''}</span>
+              <span className={`${t.textSecondary}`}>{item.label}</span>
+              <span className={`${t.textSecondary}`}>{(item.value || 0).toLocaleString()}{item.suffix || ''}</span>
             </div>
             <div className="h-2 bg-neutral-700 rounded-full overflow-hidden">
               <div 
@@ -412,7 +454,7 @@ const GlassCard = ({ children, className = '', hover = false }) => (
   </div>
 );
 
-// 데이터 카드 (영업모드용 통계 표시)
+// 데이터 카드 (테마 대응)
 const DataCard = ({ 
   title, 
   value, 
@@ -420,21 +462,27 @@ const DataCard = ({
   icon = null, 
   trend = null, 
   color = 'white',
-  animate = true 
+  animate = true,
+  theme = 'dark'
 }) => {
   const numericValue = typeof value === 'string' 
     ? parseFloat(value.replace(/[^0-9.-]/g, ''))
     : value;
   const isNumeric = !isNaN(numericValue);
+  const colors = THEME_COLORS[theme];
   
   return (
-    <div className="bg-neutral-700 p-4 rounded-lg border border-neutral-600 hover:border-neutral-500 transition-colors">
+    <div className={`p-4 rounded-xl border transition-all duration-300 ${
+      theme === 'dark' 
+        ? 'bg-white/5 backdrop-blur-xl border-white/10 hover:bg-white/10' 
+        : 'bg-white/70 backdrop-blur-xl border-white/50 shadow-md hover:shadow-lg'
+    }`}>
       <div className="flex items-start justify-between mb-2">
-        <p className="text-xs text-gray-400">{title}</p>
+        <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-neutral-500'}`}>{title}</p>
         {icon && <span className="text-lg opacity-60">{icon}</span>}
       </div>
       <div className="flex items-baseline gap-2">
-        <p className={`text-xl font-bold text-${color}`}>
+        <p className={`text-xl font-bold ${colors.text}`}>
           {animate && isNumeric ? (
             <CountUpNumber value={numericValue} />
           ) : (
@@ -442,12 +490,12 @@ const DataCard = ({
           )}
         </p>
         {trend && (
-          <span className={`text-xs ${trend > 0 ? 'text-green-400' : 'text-red-400'}`}>
+          <span className={`text-xs ${trend > 0 ? 'text-green-500' : 'text-red-500'}`}>
             {trend > 0 ? '↑' : '↓'} {Math.abs(trend)}%
           </span>
         )}
       </div>
-      {subtitle && <p className="text-xs text-gray-500 mt-1">{subtitle}</p>}
+      {subtitle && <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-gray-500' : 'text-neutral-400'}`}>{subtitle}</p>}
     </div>
   );
 };
@@ -1841,16 +1889,16 @@ const UI = {
     }
   },
   text: {
-    primary: 'text-[#171717]',
+    primary: '${t.text}',
     secondary: 'text-neutral-500',
     muted: 'text-neutral-400'
   },
   btn: {
     black: 'px-4 py-2 bg-neutral-900 text-white rounded-lg font-medium hover:bg-neutral-800 transition-all',
-    white: 'px-4 py-2 bg-white text-[#171717] border border-neutral-200 rounded-lg font-medium hover:bg-neutral-50 transition-all',
+    white: 'px-4 py-2 bg-white ${t.text} border border-neutral-200 rounded-lg font-medium hover:bg-neutral-50 transition-all',
     outline: 'px-4 py-2 bg-transparent text-neutral-700 border border-neutral-200 rounded-lg font-medium hover:bg-neutral-50 transition-all'
   },
-  input: 'w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all',
+  input: 'w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all',
   card: 'bg-white border border-neutral-200 rounded-2xl',
   sidebar: {
     bg: 'bg-neutral-900',
@@ -1917,15 +1965,15 @@ const LocationAnalysisModal = ({ data, onClose, onDetailAnalysis, generateAIFeed
     .sort((a, b) => b[1] - a[1]) : [];
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-neutral-900 rounded-2xl max-w-lg w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* 헤더 */}
         <div className="p-4 border-b border-neutral-700 flex items-center justify-between bg-neutral-900">
           <div>
             <h2 className="text-lg font-bold text-white">선택 지역 분석</h2>
-            <p className="text-sm text-gray-400">{location?.address || '주소 없음'} (반경 500m)</p>
+            <p className={`text-sm ${t.textMuted}`}>{location?.address || '주소 없음'} (반경 500m)</p>
           </div>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-300">
+          <button onClick={onClose} className={`w-8 h-8 flex items-center justify-center ${theme === 'dark' ? 'text-gray-400 hover:text-gray-300' : 'text-neutral-500 hover:text-neutral-700'}`}>
             <span className="text-xl">×</span>
           </button>
         </div>
@@ -1962,7 +2010,7 @@ const LocationAnalysisModal = ({ data, onClose, onDetailAnalysis, generateAIFeed
                 const category = BUSINESS_CATEGORY_CODES[key];
                 return (
                   <div key={key} className="flex items-center justify-between text-sm">
-                    <span className="text-gray-300">{category?.displayName || key}</span>
+                    <span className={`${t.textSecondary}`}>{category?.displayName || key}</span>
                     <span className="font-medium text-white">{count}개</span>
                   </div>
                 );
@@ -1970,7 +2018,7 @@ const LocationAnalysisModal = ({ data, onClose, onDetailAnalysis, generateAIFeed
             </div>
             
             {businessCounts?._isEstimate && (
-              <p className="text-xs text-gray-400 mt-3">* 일부 데이터는 추정값입니다</p>
+              <p className={`text-xs mt-3 ${t.textMuted}`}>* 일부 데이터는 추정값입니다</p>
             )}
           </div>
           
@@ -1980,31 +2028,31 @@ const LocationAnalysisModal = ({ data, onClose, onDetailAnalysis, generateAIFeed
             <div className="grid grid-cols-2 gap-3">
               {commercialMetrics?.avgMonthlySales && (
                 <div className="p-3 bg-neutral-800 rounded-lg">
-                  <p className="text-xs text-gray-400 mb-1">월 평균 매출 (카페)</p>
+                  <p className={`text-xs mb-1 ${t.textMuted}`}>월 평균 매출 (카페)</p>
                   <p className="text-lg font-bold text-white">{Math.round(commercialMetrics.avgMonthlySales / 10000).toLocaleString()}만원</p>
                 </div>
               )}
               {commercialMetrics?.floatingPop && (
                 <div className="p-3 bg-neutral-800 rounded-lg">
-                  <p className="text-xs text-gray-400 mb-1">일 평균 유동인구</p>
+                  <p className={`text-xs mb-1 ${t.textMuted}`}>일 평균 유동인구</p>
                   <p className="text-lg font-bold text-white">{commercialMetrics.floatingPop.toLocaleString()}명</p>
                 </div>
               )}
               {commercialMetrics?.workerPop && (
                 <div className="p-3 bg-neutral-800 rounded-lg">
-                  <p className="text-xs text-gray-400 mb-1">직장인구</p>
+                  <p className={`text-xs mb-1 ${t.textMuted}`}>직장인구</p>
                   <p className="text-lg font-bold text-white">{commercialMetrics.workerPop.toLocaleString()}명</p>
                   {commercialMetrics.workerRatio && (
-                    <p className="text-xs text-gray-400">({commercialMetrics.workerRatio}%)</p>
+                    <p className={`text-xs ${t.textMuted}`}>({commercialMetrics.workerRatio}%)</p>
                   )}
                 </div>
               )}
               {commercialMetrics?.residentPop && (
                 <div className="p-3 bg-neutral-800 rounded-lg">
-                  <p className="text-xs text-gray-400 mb-1">주거인구</p>
+                  <p className={`text-xs mb-1 ${t.textMuted}`}>주거인구</p>
                   <p className="text-lg font-bold text-white">{commercialMetrics.residentPop.toLocaleString()}명</p>
                   {commercialMetrics.residentRatio && (
-                    <p className="text-xs text-gray-400">({commercialMetrics.residentRatio}%)</p>
+                    <p className={`text-xs ${t.textMuted}`}>({commercialMetrics.residentRatio}%)</p>
                   )}
                 </div>
               )}
@@ -2026,7 +2074,7 @@ const LocationAnalysisModal = ({ data, onClose, onDetailAnalysis, generateAIFeed
                 const value = customerData?.[age] || 0;
                 return (
                   <div key={age} className="flex items-center gap-2">
-                    <span className="text-sm text-gray-300 w-16">{age}</span>
+                    <span className={`text-sm w-16 ${t.textSecondary}`}>{age}</span>
                     <div className="flex-1 h-4 bg-neutral-700 rounded-full overflow-hidden">
                       <div className="h-full bg-neutral-800" style={{ width: `${value}%` }}></div>
                     </div>
@@ -2037,15 +2085,15 @@ const LocationAnalysisModal = ({ data, onClose, onDetailAnalysis, generateAIFeed
             </div>
             
             <div className="flex items-center gap-4 text-sm">
-              <span className="text-gray-300">성별: 남성 {customerData?.male || 0}% | 여성 {customerData?.female || 0}%</span>
+              <span className={`${t.textSecondary}`}>성별: 남성 {customerData?.male || 0}% | 여성 {customerData?.female || 0}%</span>
             </div>
             
-            <p className="text-xs text-gray-400 mt-2">출처: {customerData?.source}</p>
+            <p className={`text-xs mt-2 ${t.textMuted}`}>출처: {customerData?.source}</p>
           </div>
           ) : (
           <div className="bg-neutral-900 border border-neutral-700 rounded-xl p-4">
             <h3 className="text-sm font-bold text-white mb-2">고객층 분석</h3>
-            <p className="text-sm text-gray-400">해당 지역의 고객층 데이터를 수집하지 못했습니다.</p>
+            <p className={`text-sm ${t.textMuted}`}>해당 지역의 고객층 데이터를 수집하지 못했습니다.</p>
           </div>
           )}
           
@@ -2054,15 +2102,15 @@ const LocationAnalysisModal = ({ data, onClose, onDetailAnalysis, generateAIFeed
             <h3 className="text-sm font-bold text-white mb-3">개폐업 동향 ({openCloseData?.period || '최근 1년'})</h3>
             <div className="flex items-center justify-around">
               <div className="text-center">
-                <p className="text-xs text-gray-400 mb-1">신규 개업</p>
+                <p className={`text-xs mb-1 ${t.textMuted}`}>신규 개업</p>
                 <p className="text-xl font-bold text-white">{openCloseData?.newOpen || 0}개</p>
               </div>
               <div className="text-center">
-                <p className="text-xs text-gray-400 mb-1">폐업</p>
+                <p className={`text-xs mb-1 ${t.textMuted}`}>폐업</p>
                 <p className="text-xl font-bold text-white">{openCloseData?.closed || 0}개</p>
               </div>
               <div className="text-center">
-                <p className="text-xs text-gray-400 mb-1">순증감</p>
+                <p className={`text-xs mb-1 ${t.textMuted}`}>순증감</p>
                 <p className={`text-xl font-bold ${openCloseStatus.color}`}>
                   {netChange >= 0 ? '+' : ''}{netChange}개
                 </p>
@@ -2077,21 +2125,21 @@ const LocationAnalysisModal = ({ data, onClose, onDetailAnalysis, generateAIFeed
               <h3 className="text-sm font-bold text-white mb-3">임대료 시세 ({rentData.regionName})</h3>
               <div className="grid grid-cols-3 gap-3">
                 <div className="text-center p-2 bg-neutral-800 rounded-lg">
-                  <p className="text-xs text-gray-400 mb-1">평균 임대료</p>
+                  <p className={`text-xs mb-1 ${t.textMuted}`}>평균 임대료</p>
                   <p className="text-lg font-bold text-white">{rentData.avgRent}만/m2</p>
                 </div>
                 <div className="text-center p-2 bg-neutral-800 rounded-lg">
-                  <p className="text-xs text-gray-400 mb-1">공실률</p>
+                  <p className={`text-xs mb-1 ${t.textMuted}`}>공실률</p>
                   <p className="text-lg font-bold text-white">{rentData.vacancyRate}%</p>
                 </div>
                 <div className="text-center p-2 bg-neutral-800 rounded-lg">
-                  <p className="text-xs text-gray-400 mb-1">전년대비</p>
+                  <p className={`text-xs mb-1 ${t.textMuted}`}>전년대비</p>
                   <p className={`text-lg font-bold ${rentData.yoyChange >= 0 ? 'text-white' : 'text-white'}`}>
                     {rentData.yoyChange >= 0 ? '+' : ''}{rentData.yoyChange}%
                   </p>
                 </div>
               </div>
-              <p className="text-xs text-gray-400 mt-2">출처: {rentData.source} ({rentData.dataDate})</p>
+              <p className={`text-xs mt-2 ${t.textMuted}`}>출처: {rentData.source} ({rentData.dataDate})</p>
             </div>
           )}
           
@@ -2102,7 +2150,7 @@ const LocationAnalysisModal = ({ data, onClose, onDetailAnalysis, generateAIFeed
             {aiFeedbackLoading ? (
               <div className="flex items-center justify-center py-8">
                 <div className="w-8 h-8 border-3 border-neutral-700 border-t-neutral-800 rounded-full animate-spin"></div>
-                <span className="ml-3 text-gray-400">분석 중...</span>
+                <span className={`ml-3 ${t.textMuted}`}>분석 중...</span>
               </div>
             ) : aiFeedback ? (
               <div className="space-y-4">
@@ -2132,7 +2180,7 @@ const LocationAnalysisModal = ({ data, onClose, onDetailAnalysis, generateAIFeed
                 {/* 추천 컨셉 */}
                 {aiFeedback.recommendedConcept && (
                   <div>
-                    <p className="text-xs text-gray-400 mb-1">추천 포지셔닝</p>
+                    <p className={`text-xs mb-1 ${t.textMuted}`}>추천 포지셔닝</p>
                     <p className="text-sm font-medium text-white">"{aiFeedback.recommendedConcept}"</p>
                   </div>
                 )}
@@ -2140,7 +2188,7 @@ const LocationAnalysisModal = ({ data, onClose, onDetailAnalysis, generateAIFeed
                 {/* 타깃 고객 */}
                 {aiFeedback.targetCustomer && (
                   <div>
-                    <p className="text-xs text-gray-400 mb-1">주 타깃 고객층</p>
+                    <p className={`text-xs mb-1 ${t.textMuted}`}>주 타깃 고객층</p>
                     <p className="text-sm text-white">{aiFeedback.targetCustomer}</p>
                   </div>
                 )}
@@ -2148,7 +2196,7 @@ const LocationAnalysisModal = ({ data, onClose, onDetailAnalysis, generateAIFeed
                 {/* 핵심 메뉴 */}
                 {aiFeedback.coreMenu?.length > 0 && (
                   <div>
-                    <p className="text-xs text-gray-400 mb-1">핵심 메뉴 구성</p>
+                    <p className={`text-xs mb-1 ${t.textMuted}`}>핵심 메뉴 구성</p>
                     <div className="flex flex-wrap gap-1">
                       {aiFeedback.coreMenu.map((menu, i) => (
                         <span key={i} className="text-xs px-2 py-1 bg-neutral-700 text-white rounded-full">{menu}</span>
@@ -2160,7 +2208,7 @@ const LocationAnalysisModal = ({ data, onClose, onDetailAnalysis, generateAIFeed
                 {/* 운영 전략 */}
                 {aiFeedback.operationStrategy?.length > 0 && (
                   <div>
-                    <p className="text-xs text-gray-400 mb-1">운영 전략</p>
+                    <p className={`text-xs mb-1 ${t.textMuted}`}>운영 전략</p>
                     <ul className="text-sm text-white space-y-1">
                       {aiFeedback.operationStrategy.map((strategy, i) => (
                         <li key={i}>- {strategy}</li>
@@ -2172,7 +2220,7 @@ const LocationAnalysisModal = ({ data, onClose, onDetailAnalysis, generateAIFeed
                 {/* 리스크 요인 */}
                 {aiFeedback.riskFactors?.length > 0 && (
                   <div>
-                    <p className="text-xs text-gray-400 mb-1">리스크 요인</p>
+                    <p className={`text-xs mb-1 ${t.textMuted}`}>리스크 요인</p>
                     <ul className="text-sm text-white space-y-1">
                       {aiFeedback.riskFactors.map((risk, i) => (
                         <li key={i}>- {risk}</li>
@@ -2184,16 +2232,16 @@ const LocationAnalysisModal = ({ data, onClose, onDetailAnalysis, generateAIFeed
                 {/* 업종별 전략 */}
                 {aiFeedback.topBusinessAnalysis?.length > 0 && (
                   <div>
-                    <p className="text-xs text-gray-400 mb-2">주변 업종 기반 추천 전략</p>
+                    <p className={`text-xs mb-2 ${t.textMuted}`}>주변 업종 기반 추천 전략</p>
                     <div className="space-y-2">
                       {aiFeedback.topBusinessAnalysis.map((item, i) => (
                         <div key={i} className="p-3 bg-neutral-800 rounded-lg">
                           <div className="flex items-center justify-between mb-1">
                             <span className="text-sm font-medium text-white">{item.business} {item.count}개</span>
                           </div>
-                          <p className="text-sm text-gray-300 mb-1">{item.strategy}</p>
+                          <p className={`text-sm mb-1 ${t.textSecondary}`}>{item.strategy}</p>
                           {item.details?.length > 0 && (
-                            <ul className="text-xs text-gray-400">
+                            <ul className={`text-xs ${t.textMuted}`}>
                               {item.details.map((d, j) => (
                                 <li key={j}>- {d}</li>
                               ))}
@@ -2223,7 +2271,7 @@ const LocationAnalysisModal = ({ data, onClose, onDetailAnalysis, generateAIFeed
         </div>
         
         {/* 하단 버튼 */}
-        <div className="p-4 border-t border-neutral-200 bg-white">
+        <div className={`p-4 border-t ${theme === 'dark' ? 'border-neutral-700 bg-neutral-800' : 'border-neutral-200 bg-white'}`}>
           <button
             onClick={() => onDetailAnalysis(location)}
             className="w-full py-3 bg-neutral-900 hover:bg-neutral-800 text-white rounded-xl font-medium transition-all"
@@ -5002,6 +5050,26 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  };
  const [themeMode, setThemeMode] = useState(getInitialTheme);
  const [effectiveTheme, setEffectiveTheme] = useState(getInitialEffectiveTheme);
+ 
+ // 테마 단축 참조
+ const theme = effectiveTheme;
+ const t = THEME_COLORS[theme];
+ 
+ // 배경 이미지 (앱 시작 시 한 번만 선택)
+ const [appBackground] = useState(() => {
+   const backgrounds = effectiveTheme === 'dark' ? DARK_MODE_BACKGROUNDS : LIGHT_MODE_BACKGROUNDS;
+   if (backgrounds.length === 0) return null;
+   return backgrounds[Math.floor(Math.random() * backgrounds.length)];
+ });
+ 
+ // 테마 토글 함수
+ const toggleTheme = useCallback(() => {
+   const newTheme = effectiveTheme === 'dark' ? 'light' : 'dark';
+   setEffectiveTheme(newTheme);
+   setThemeMode(newTheme);
+   localStorage.setItem('bc_theme_mode', newTheme);
+ }, [effectiveTheme]);
+ 
  const [tabHistory, setTabHistory] = useState([]);
  const [showHistory, setShowHistory] = useState(false);
  const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -9524,7 +9592,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
    };
    
    return (
-     <div className="min-h-screen flex items-center justify-center p-4 bg-neutral-900 overflow-hidden">
+     <div className={`min-h-screen flex items-center justify-center p-4 overflow-hidden ${theme === 'dark' ? 'bg-neutral-900' : 'bg-gradient-to-br from-neutral-50 via-neutral-100 to-neutral-200'}`}>
        <div className="w-full max-w-md relative" style={{minHeight: '500px'}}>
          
          {/* 명언 - quote일 때만 보임 */}
@@ -9537,7 +9605,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
              pointerEvents: loginPhase === 'quote' ? 'auto' : 'none'
            }}
          >
-           <p className="text-neutral-300 text-sm sm:text-base font-normal leading-relaxed max-w-xs sm:max-w-sm mx-auto text-center" style={{wordBreak: 'keep-all'}}>"{loginQuote}"</p>
+           <p className={`text-sm sm:text-base font-normal leading-relaxed max-w-xs sm:max-w-sm mx-auto text-center ${theme === 'dark' ? 'text-neutral-300' : 'text-neutral-700'}`} style={{wordBreak: 'keep-all'}}>"{loginQuote}"</p>
          </div>
          
          {/* 로고만 - logo일 때 보임 */}
@@ -9552,7 +9620,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
          >
            <div className="text-center">
              <img src="/logo.png" alt="BEANCRAFT" className="w-72 h-72 sm:w-96 sm:h-96 mx-auto mb-4 object-contain" />
-             <p className="text-white text-lg sm:text-xl tracking-widest font-semibold">빈크래프트 영업관리</p>
+             <p className={`text-lg sm:text-xl tracking-widest font-semibold ${theme === 'dark' ? 'text-white' : 'text-neutral-900'}`}>빈크래프트 영업관리</p>
            </div>
          </div>
          
@@ -9568,19 +9636,19 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
          >
            <div className="text-center mb-6">
              <img src="/logo.png" alt="BEANCRAFT" className="w-56 h-56 sm:w-72 sm:h-72 mx-auto mb-3 object-contain" />
-             <p className="text-white text-base sm:text-lg tracking-widest font-semibold">빈크래프트 영업관리</p>
+             <p className={`text-base sm:text-lg tracking-widest font-semibold ${theme === 'dark' ? 'text-white' : 'text-neutral-900'}`}>빈크래프트 영업관리</p>
            </div>
            <div className="text-center mb-5 px-4">
-             <p className="text-neutral-400 text-xs sm:text-sm font-normal leading-relaxed max-w-xs sm:max-w-sm mx-auto" style={{wordBreak: 'keep-all'}}>"{loginQuote}"</p>
+             <p className={`text-xs sm:text-sm font-normal leading-relaxed max-w-xs sm:max-w-sm mx-auto ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-600'}`} style={{wordBreak: 'keep-all'}}>"{loginQuote}"</p>
            </div>
-           <div className="bg-white rounded-xl p-4 sm:p-6 shadow-lg border border-neutral-200">
-             <input type="text" placeholder="아이디" value={id} onChange={e => setId(e.target.value)} className="w-full p-2.5 sm:p-3 rounded-lg mb-2 sm:mb-3 bg-neutral-50 text-[#171717] placeholder-neutral-400 outline-none focus:ring-2 focus:ring-neutral-300 border border-neutral-200 text-sm font-medium" />
-             <input type="password" placeholder="비밀번호" value={pw} onChange={e => setPw(e.target.value)} onKeyPress={e => e.key === 'Enter' && login()} className="w-full p-2.5 sm:p-3 rounded-lg mb-2 sm:mb-3 bg-neutral-50 text-[#171717] placeholder-neutral-400 outline-none focus:ring-2 focus:ring-neutral-300 border border-neutral-200 text-sm font-medium" />
-             <label className="flex items-center gap-2 text-neutral-700 text-sm mb-4 cursor-pointer">
+           <div className={`rounded-2xl p-4 sm:p-6 shadow-xl backdrop-blur-xl ${theme === 'dark' ? 'bg-white/10 border border-white/20' : 'bg-white/80 border border-white/50'}`}>
+             <input type="text" placeholder="아이디" value={id} onChange={e => setId(e.target.value)} className={`w-full p-2.5 sm:p-3 rounded-xl mb-2 sm:mb-3 outline-none focus:ring-2 text-sm font-medium transition-all ${theme === 'dark' ? 'bg-white/10 text-white placeholder-neutral-400 focus:ring-white/30 border border-white/10' : 'bg-white text-neutral-900 placeholder-neutral-400 focus:ring-neutral-300 border border-neutral-200'}`} />
+             <input type="password" placeholder="비밀번호" value={pw} onChange={e => setPw(e.target.value)} onKeyPress={e => e.key === 'Enter' && login()} className={`w-full p-2.5 sm:p-3 rounded-xl mb-2 sm:mb-3 outline-none focus:ring-2 text-sm font-medium transition-all ${theme === 'dark' ? 'bg-white/10 text-white placeholder-neutral-400 focus:ring-white/30 border border-white/10' : 'bg-white text-neutral-900 placeholder-neutral-400 focus:ring-neutral-300 border border-neutral-200'}`} />
+             <label className={`flex items-center gap-2 text-sm mb-4 cursor-pointer ${theme === 'dark' ? 'text-neutral-300' : 'text-neutral-700'}`}>
                <input type="checkbox" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)} className="w-4 h-4 rounded accent-neutral-700" />
                로그인 상태 유지
              </label>
-             <button type="button" onClick={login} className="w-full p-3 bg-neutral-900 hover:bg-neutral-800 text-white rounded-lg font-semibold transition-all text-sm">로그인</button>
+             <button type="button" onClick={login} className={`w-full p-3 rounded-xl font-semibold transition-all text-sm ${theme === 'dark' ? 'bg-white text-neutral-900 hover:bg-neutral-100' : 'bg-neutral-900 text-white hover:bg-neutral-800'}`}>로그인</button>
            </div>
          </div>
          
@@ -9607,7 +9675,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  if (salesModeActive) {
    return (
      <div 
-       className="min-h-screen bg-neutral-900 text-white select-none"
+       className={`min-h-screen select-none ${t.bgGradient} ${t.text}`}
        onClick={updateSalesModeActivity}
        onTouchStart={updateSalesModeActivity}
        style={{ WebkitUserSelect: 'none', userSelect: 'none' }}
@@ -9616,27 +9684,27 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        {salesModeScreen === 'select' && (
          <div className="min-h-screen flex flex-col items-center justify-center p-6">
            <img src="/logo.png" alt="BEANCRAFT" className="w-48 h-48 object-contain mb-8" onError={(e) => { e.target.style.display = 'none'; }} />
-           <h2 className="text-2xl font-bold text-white mb-2">영업모드</h2>
-           <p className="text-gray-400 mb-8">대상을 선택해주세요</p>
+           <h2 className={`text-2xl font-bold mb-2 ${t.text}`}>영업모드</h2>
+           <p className={`mb-8 ${t.textSecondary}`}>대상을 선택해주세요</p>
            <div className="w-full max-w-sm space-y-2">
              <button
                onClick={() => { setSalesModeTarget('broker'); setSalesModeScreen('main'); }}
-               className="w-full py-6 rounded-2xl border-2 border-neutral-700 hover:border-white hover:bg-neutral-800 transition-all"
+               className={`w-full py-6 rounded-2xl border-2 transition-all ${theme === 'dark' ? 'border-neutral-700 hover:border-white hover:bg-neutral-800' : 'border-neutral-200 hover:border-neutral-400 hover:bg-neutral-50'}`}
              >
-               <span className="text-xl font-bold text-white">중개사</span>
-               <p className="text-gray-400 text-sm mt-1">부동산 중개사 미팅용</p>
+               <span className={`text-xl font-bold ${t.text}`}>중개사</span>
+               <p className={`text-sm mt-1 ${t.textSecondary}`}>부동산 중개사 미팅용</p>
              </button>
              <button
                onClick={() => { setSalesModeTarget('client'); setSalesModeScreen('main'); }}
-               className="w-full py-6 rounded-2xl border-2 border-neutral-700 hover:border-white hover:bg-neutral-800 transition-all"
+               className={`w-full py-6 rounded-2xl border-2 transition-all ${theme === 'dark' ? 'border-neutral-700 hover:border-white hover:bg-neutral-800' : 'border-neutral-200 hover:border-neutral-400 hover:bg-neutral-50'}`}
              >
-               <span className="text-xl font-bold text-white">의뢰인</span>
-               <p className="text-gray-400 text-sm mt-1">카페 창업 의뢰인용</p>
+               <span className={`text-xl font-bold ${t.text}`}>의뢰인</span>
+               <p className={`text-sm mt-1 ${t.textSecondary}`}>카페 창업 의뢰인용</p>
              </button>
            </div>
            <button
              onClick={exitSalesMode}
-             className="mt-8 text-gray-300 hover:text-gray-300 text-sm"
+             className={`mt-8 text-sm ${t.textSecondary}`}
            >
              영업모드 종료
            </button>
@@ -9646,13 +9714,13 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        {/* 잠금 화면 */}
        {salesModeScreen === 'locked' && (
          <div 
-           className="min-h-screen flex flex-col items-center justify-center p-6 bg-neutral-900"
+           className={`min-h-screen flex flex-col items-center justify-center p-6 ${t.bgGradient}`}
            onClick={() => setSalesModeScreen('pin')}
          >
            <img src="/logo.png" alt="BEANCRAFT" className="w-40 h-40 object-contain mb-8 opacity-80" onError={(e) => { e.target.style.display = 'none'; }} />
-           <p className="text-white/60 text-sm mb-4">화면을 터치하여 잠금 해제</p>
-           <div className="w-48 h-1 bg-white/20 rounded-full overflow-hidden">
-             <div className="h-full bg-white/60 w-1/3 animate-pulse"></div>
+           <p className={`text-sm mb-4 ${t.textMuted}`}>화면을 터치하여 잠금 해제</p>
+           <div className={`w-48 h-1 rounded-full overflow-hidden ${theme === 'dark' ? 'bg-white/20' : 'bg-neutral-300'}`}>
+             <div className={`h-full w-1/3 animate-pulse ${theme === 'dark' ? 'bg-white/60' : 'bg-neutral-600'}`}></div>
            </div>
          </div>
        )}
@@ -9660,13 +9728,13 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        {/* PIN 입력 화면 */}
        {salesModeScreen === 'pin' && (
          <div className="min-h-screen flex flex-col items-center justify-center p-6">
-           <h2 className="text-xl font-bold text-white mb-2">PIN 입력</h2>
-           <p className="text-gray-300 text-sm mb-8">4자리 비밀번호를 입력해주세요</p>
+           <h2 className={`text-xl font-bold mb-2 ${t.text}`}>PIN 입력</h2>
+           <p className={`text-sm mb-8 ${t.textSecondary}`}>4자리 비밀번호를 입력해주세요</p>
            <div className="flex gap-3 mb-8">
              {[0, 1, 2, 3].map(i => (
                <div
                  key={i}
-                 className={`w-4 h-4 rounded-full ${salesModePinInput.length > i ? 'bg-white' : 'bg-neutral-700'} transition-all`}
+                 className={`w-4 h-4 rounded-full transition-all ${salesModePinInput.length > i ? (theme === 'dark' ? 'bg-white' : 'bg-neutral-900') : (theme === 'dark' ? 'bg-neutral-700' : 'bg-neutral-300')}`}
                />
              ))}
            </div>
@@ -9691,7 +9759,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
            </div>
            <button
              onClick={() => setSalesModeScreen('locked')}
-             className="mt-8 text-gray-300 hover:text-gray-300 text-sm"
+             className={`mt-8 text-sm ${t.textSecondary}`}
            >
              취소
            </button>
@@ -9702,10 +9770,10 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        {salesModeScreen === 'main' && (
          <div className="min-h-screen flex flex-col">
            {/* 상단 헤더 - 로고 + 타겟 배지 */}
-           <div className="bg-neutral-900 border-b border-neutral-800 px-4 py-3 flex justify-between items-center sticky top-0 z-50">
+           <div className={`px-4 py-3 flex justify-between items-center sticky top-0 z-50 backdrop-blur-xl border-b ${theme === 'dark' ? 'bg-neutral-900/95 border-neutral-800' : 'bg-white/95 border-neutral-200'}`}>
              <button
                onClick={exitSalesMode}
-               className="px-3 py-1.5 text-sm font-medium text-gray-300 hover:text-white border border-neutral-700 rounded-lg hover:bg-neutral-800 transition-all"
+               className={`px-3 py-1.5 text-sm font-medium rounded-lg border transition-all ${theme === 'dark' ? 'text-gray-300 hover:text-white border-neutral-700 hover:bg-neutral-800' : 'text-neutral-600 hover:text-neutral-900 border-neutral-300 hover:bg-neutral-100'}`}
              >
                관리자
              </button>
@@ -9722,7 +9790,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
            </div>
 
            {/* 탭 네비게이션 */}
-           <div className="bg-neutral-900 border-b border-neutral-700 flex">
+           <div className={`flex border-b ${theme === 'dark' ? 'bg-neutral-900 border-neutral-700' : 'bg-white border-neutral-200'}`}>
              <button
                onClick={() => { setSalesModeTab('analysis'); updateSalesModeActivity(); }}
                className={`flex-1 py-4 text-center font-bold transition-all ${
@@ -9746,7 +9814,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
            </div>
 
            {/* 탭 콘텐츠 */}
-           <div className="flex-1 overflow-y-auto bg-neutral-900">
+           <div className={`flex-1 overflow-y-auto ${theme === 'dark' ? 'bg-neutral-900' : 'bg-neutral-50'}`}>
              {/* 분석 탭 */}
              {salesModeTab === 'analysis' && (
                <div className="p-4 space-y-2">
@@ -9758,12 +9826,12 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                      onChange={(e) => setSalesModeSearchQuery(e.target.value)}
                      onKeyDown={(e) => e.key === 'Enter' && searchSalesModeRegion(salesModeSearchQuery)}
                      placeholder="지역을 검색하세요 (예: 강남역, 판교)"
-                     className="w-full px-4 py-3 rounded-xl border border-neutral-700 bg-neutral-800 focus:border-white focus:outline-none text-white placeholder-gray-500"
+                     className={`w-full px-4 py-3 rounded-xl border focus:outline-none transition-all ${theme === 'dark' ? 'border-neutral-700 bg-neutral-800 focus:border-white text-white placeholder-gray-500' : 'border-neutral-200 bg-white focus:border-neutral-400 text-neutral-900 placeholder-neutral-400'}`}
                    />
                    <button
                      onClick={() => searchSalesModeRegion(salesModeSearchQuery)}
                      disabled={salesModeSearchLoading}
-                     className="absolute right-2 top-1/2 -translate-y-1/2 px-5 py-2.5 bg-white text-black rounded-xl text-sm font-bold disabled:opacity-50 hover:bg-gray-100 transition-all"
+                     className={`absolute right-2 top-1/2 -translate-y-1/2 px-5 py-2.5 rounded-xl text-sm font-bold disabled:opacity-50 transition-all ${theme === 'dark' ? 'bg-white text-black hover:bg-gray-100' : 'bg-neutral-900 text-white hover:bg-neutral-800'}`}
                    >
                      {salesModeSearchLoading ? '분석중...' : '검색'}
                    </button>
@@ -9785,10 +9853,10 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                  {locationSelectMode && (
                    <div className="space-y-3">
                      <div className="p-3 bg-neutral-800 rounded-xl">
-                       <p className="text-sm text-gray-300 text-center">지도를 탭하면 해당 위치의 반경 500m 업종 분석을 시작합니다</p>
+                       <p className={`text-sm text-center ${t.textSecondary}`}>지도를 탭하면 해당 위치의 반경 500m 업종 분석을 시작합니다</p>
                        <button
                          onClick={exitLocationSelectMode}
-                         className="w-full mt-2 py-2 text-sm text-gray-300 hover:text-gray-300"
+                         className={`w-full mt-2 py-2 text-sm ${t.textSecondary}`}
                        >
                          취소
                        </button>
@@ -9814,7 +9882,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                            </p>
                            <ApiStatusIndicator hasData={salesModeSearchResult.data?.hasApiData} />
                          </div>
-                         <div className="flex items-center gap-4 text-xs text-gray-400">
+                         <div className={`flex items-center gap-4 text-xs ${t.textMuted}`}>
                            {salesModeSearchResult.data?.reliability && (
                              <span>신뢰도: {salesModeSearchResult.data.reliability}</span>
                            )}
@@ -9830,7 +9898,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                        <FadeInSection delay={0.1}>
                          <div className="bg-neutral-800 p-4 rounded-xl border border-neutral-700">
                            <h3 className="font-bold text-white mb-3 flex items-center gap-2">
-                             <span className="w-6 h-6 rounded bg-white/10 text-white flex items-center justify-center text-xs font-bold">1</span>
+                             <span className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold ${theme === 'dark' ? 'bg-white/10 text-white' : 'bg-neutral-200 text-neutral-700'}`}>1</span>
                              위치 (반경 500m)
                            </h3>
                            <div 
@@ -9839,7 +9907,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                              style={{ minHeight: '192px' }}
                            />
                            {salesModeMapCenter.roadAddress && (
-                             <p className="text-xs text-gray-400 mt-2">{salesModeMapCenter.roadAddress}</p>
+                             <p className={`text-xs mt-2 ${t.textMuted}`}>{salesModeMapCenter.roadAddress}</p>
                            )}
                          </div>
                        </FadeInSection>
@@ -9847,19 +9915,19 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
                      {/* 2. 상권 개요 - 카운트업 애니메이션 적용 */}
                      <FadeInSection delay={0.2}>
-                       <Accordion title="상권 개요" icon="📊" defaultOpen={true}>
+                       <Accordion title="상권 개요" icon="📊" defaultOpen={true} theme={theme}>
                          <div className="space-y-3">
                            {/* 핵심 지표 그리드 */}
                            <div className="grid grid-cols-2 gap-3">
                              <DataCard 
                                title="카페 수" 
                                value={cleanJsonText(salesModeSearchResult.data?.overview?.cafeCount) || '-'}
-                               icon="☕"
+                               icon="☕" theme={theme}
                              />
                              <DataCard 
                                title="일 유동인구" 
                                value={cleanJsonText(salesModeSearchResult.data?.overview?.floatingPop) || '-'}
-                               icon="👥"
+                               icon="👥" theme={theme}
                              />
                            </div>
                            
@@ -9880,7 +9948,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                            </div>
                            
                            {salesModeSearchResult.data?.overview?.source && (
-                             <p className="text-xs text-gray-500">출처: {salesModeSearchResult.data.overview.source}</p>
+                             <p className={`text-xs ${t.textMuted}`}>출처: {salesModeSearchResult.data.overview.source}</p>
                            )}
                          </div>
                        </Accordion>
@@ -9888,7 +9956,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
                      {/* 3. 주요 소비층 */}
                      <FadeInSection delay={0.3}>
-                       <Accordion title="주요 소비층" icon="👤" defaultOpen={true}>
+                       <Accordion title="주요 소비층" icon="👤" defaultOpen={true} theme={theme}>
                          <div className="space-y-3">
                            <div className="grid grid-cols-2 gap-3">
                              <div className="p-4 rounded-lg bg-gradient-to-br from-blue-500/20 to-blue-600/10 border border-blue-500/20">
@@ -9897,26 +9965,26 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                                <p className="text-sm text-blue-300 mt-1">{cleanJsonText(salesModeSearchResult.data?.consumers?.mainRatio) || '-'}</p>
                              </div>
                              <div className="p-4 rounded-lg bg-neutral-700/50 border border-neutral-600">
-                               <p className="text-xs text-gray-400 mb-1">2순위</p>
+                               <p className={`text-xs mb-1 ${t.textMuted}`}>2순위</p>
                                <p className="font-medium text-white">{cleanJsonText(salesModeSearchResult.data?.consumers?.secondTarget) || '-'}</p>
-                               <p className="text-sm text-gray-400 mt-1">{cleanJsonText(salesModeSearchResult.data?.consumers?.secondRatio) || '-'}</p>
+                               <p className={`text-sm mt-1 ${t.textMuted}`}>{cleanJsonText(salesModeSearchResult.data?.consumers?.secondRatio) || '-'}</p>
                              </div>
                            </div>
                            
                            {/* 소비 패턴 - 프로그레스 바 시각화 */}
                            <div className="p-4 rounded-lg bg-neutral-700/50">
-                             <p className="text-xs text-gray-400 mb-3">소비 패턴</p>
+                             <p className={`text-xs mb-3 ${t.textMuted}`}>소비 패턴</p>
                              <div className="grid grid-cols-3 gap-4 text-center">
                                <div className="space-y-1">
-                                 <p className="text-xs text-gray-500">피크타임</p>
+                                 <p className={`text-xs ${t.textMuted}`}>피크타임</p>
                                  <p className="text-sm font-bold text-white">{cleanJsonText(salesModeSearchResult.data?.consumers?.peakTime) || '-'}</p>
                                </div>
                                <div className="space-y-1">
-                                 <p className="text-xs text-gray-500">테이크아웃</p>
+                                 <p className={`text-xs ${t.textMuted}`}>테이크아웃</p>
                                  <p className="text-sm font-bold text-white">{cleanJsonText(salesModeSearchResult.data?.consumers?.takeoutRatio) || '-'}</p>
                                </div>
                                <div className="space-y-1">
-                                 <p className="text-xs text-gray-500">체류시간</p>
+                                 <p className={`text-xs ${t.textMuted}`}>체류시간</p>
                                  <p className="text-sm font-bold text-white">{cleanJsonText(salesModeSearchResult.data?.consumers?.avgStay) || '-'}</p>
                                </div>
                              </div>
@@ -9927,27 +9995,27 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
                      {/* 4. 프랜차이즈 현황 */}
                      <FadeInSection delay={0.4}>
-                       <Accordion title="프랜차이즈 경쟁 현황" icon="🏪" defaultOpen={false}>
+                       <Accordion title="프랜차이즈 경쟁 현황" icon="🏪" defaultOpen={false} theme={theme}>
                          <div className="space-y-2">
                            {(salesModeSearchResult.data?.franchise || []).map((f, idx) => (
                              <div key={idx} className="flex items-center justify-between p-3 bg-neutral-700/50 rounded-lg hover:bg-neutral-700 transition-colors">
                                <div className="flex items-center gap-3">
-                                 <span className="w-8 h-8 bg-white/10 rounded-lg flex items-center justify-center text-sm font-bold text-white">
+                                 <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold ${theme === 'dark' ? 'bg-white/10 text-white' : 'bg-neutral-200 text-neutral-700'}`}>
                                    {idx + 1}
                                  </span>
                                  <div>
                                    <p className="font-medium text-white">{f.name}</p>
-                                   <p className="text-xs text-gray-400">{f.count}개 매장</p>
+                                   <p className={`text-xs ${t.textMuted}`}>{f.count}개 매장</p>
                                  </div>
                                </div>
                                <div className="text-right">
                                  <p className="font-bold text-white">{f.price?.toLocaleString() || '-'}원</p>
-                                 <p className="text-xs text-gray-400">월 {f.monthly || '-'}</p>
+                                 <p className={`text-xs ${t.textMuted}`}>월 {f.monthly || '-'}</p>
                                </div>
                              </div>
                            ))}
                            {(!salesModeSearchResult.data?.franchise || salesModeSearchResult.data.franchise.length === 0) && (
-                             <p className="text-center text-gray-500 py-4">프랜차이즈 데이터 없음</p>
+                             <p className={`text-center py-4 ${t.textMuted}`}>프랜차이즈 데이터 없음</p>
                            )}
                          </div>
                        </Accordion>
@@ -9956,12 +10024,12 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                      {/* 4.5 SNS 트렌드 분석 */}
                      {salesModeSearchResult.collectedData?.apis?.snsTrend?.data && (
                        <FadeInSection delay={0.45}>
-                         <Accordion title="SNS 트렌드 분석" icon="📱" defaultOpen={false}>
+                         <Accordion title="SNS 트렌드 분석" icon="📱" defaultOpen={false} theme={theme}>
                          
                            {/* 인기/부정 키워드 */}
                            <div className="grid grid-cols-2 gap-3 mb-4">
                              <div className="p-3 rounded-lg bg-neutral-700/50">
-                               <p className="text-xs text-gray-400 mb-2">인기 키워드</p>
+                               <p className={`text-xs mb-2 ${t.textMuted}`}>인기 키워드</p>
                              <div className="flex flex-wrap gap-1">
                                {(salesModeSearchResult.collectedData.apis.snsTrend.data.popularKeywords || []).map((kw, idx) => (
                                  <span key={idx} className="px-2 py-1 bg-neutral-600 text-white text-xs rounded-full">{kw}</span>
@@ -9969,7 +10037,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                              </div>
                            </div>
                            <div className="p-3 rounded-lg bg-neutral-700">
-                             <p className="text-xs text-gray-400 mb-2">부정 키워드</p>
+                             <p className={`text-xs mb-2 ${t.textMuted}`}>부정 키워드</p>
                              <div className="flex flex-wrap gap-1">
                                {(salesModeSearchResult.collectedData.apis.snsTrend.data.negativeKeywords || []).map((kw, idx) => (
                                  <span key={idx} className="px-2 py-1 bg-neutral-600 text-white text-xs rounded-full">{kw}</span>
@@ -9981,14 +10049,14 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                          {/* 경쟁 카페 분석 */}
                          {salesModeSearchResult.collectedData.apis.snsTrend.data.competitors?.length > 0 && (
                            <div className="mb-4">
-                             <p className="text-xs text-gray-400 mb-2">이 지역 주요 경쟁 카페</p>
+                             <p className={`text-xs mb-2 ${t.textMuted}`}>이 지역 주요 경쟁 카페</p>
                              <div className="space-y-2">
                                {salesModeSearchResult.collectedData.apis.snsTrend.data.competitors.map((comp, idx) => (
                                  <div key={idx} className="p-3 rounded-lg bg-neutral-700 border border-neutral-600">
                                    <div className="flex justify-between items-start">
                                      <div>
                                        <p className="font-medium text-white text-sm">{comp.name}</p>
-                                       <p className="text-xs text-gray-400 mt-1">{comp.feature}</p>
+                                       <p className={`text-xs mt-1 ${t.textMuted}`}>{comp.feature}</p>
                                      </div>
                                      <span className="text-xs text-white bg-neutral-600 px-2 py-1 rounded">
                                        {comp.priceRange}
@@ -10003,11 +10071,11 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                          {/* 객단가 & 메뉴 트렌드 */}
                          <div className="grid grid-cols-2 gap-3">
                            <div className="p-3 rounded-lg bg-neutral-700">
-                             <p className="text-xs text-gray-400 mb-1">추정 평균 객단가</p>
+                             <p className={`text-xs mb-1 ${t.textMuted}`}>추정 평균 객단가</p>
                              <p className="font-bold text-white">{salesModeSearchResult.collectedData.apis.snsTrend.data.avgPrice || '-'}</p>
                            </div>
                            <div className="p-3 rounded-lg bg-neutral-700">
-                             <p className="text-xs text-gray-400 mb-1">인기 메뉴 유형</p>
+                             <p className={`text-xs mb-1 ${t.textMuted}`}>인기 메뉴 유형</p>
                              <p className="font-medium text-white text-sm">{salesModeSearchResult.collectedData.apis.snsTrend.data.popularMenuType || '-'}</p>
                            </div>
                          </div>
@@ -10016,17 +10084,17 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                          <div className="mt-4 p-3 bg-neutral-700 rounded-lg">
                            <div className="grid grid-cols-2 gap-3 text-center">
                              <div>
-                               <p className="text-xs text-gray-400">인스타그램</p>
+                               <p className={`text-xs ${t.textMuted}`}>인스타그램</p>
                                <p className="text-sm font-medium text-white mt-1">{salesModeSearchResult.collectedData.apis.snsTrend.data.instagramPosts || '-'}</p>
                              </div>
                              <div>
-                               <p className="text-xs text-gray-400">유튜브</p>
+                               <p className={`text-xs ${t.textMuted}`}>유튜브</p>
                                <p className="text-sm font-medium text-white mt-1">{salesModeSearchResult.collectedData.apis.snsTrend.data.youtubeContent || '-'}</p>
                              </div>
                            </div>
                          </div>
 
-                         <p className="text-xs text-gray-500 mt-3">※ AI 분석 기반 추정치입니다. 실제 현황은 직접 확인이 필요합니다.</p>
+                         <p className={`text-xs mt-3 ${t.textMuted}`}>※ AI 분석 기반 추정치입니다. 실제 현황은 직접 확인이 필요합니다.</p>
                        </Accordion>
                      </FadeInSection>
                      )}
@@ -10034,11 +10102,11 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                      {/* 4.6 확장프로그램 매물 데이터 */}
                      {salesModeSearchResult.collectedData?.apis?.extensionNaverRealEstate?.data && (
                        <FadeInSection delay={0.5}>
-                         <Accordion title="실시간 매물 데이터" icon="🏠" badge="확장프로그램" defaultOpen={false}>
+                         <Accordion title="실시간 매물 데이터" icon="🏠" badge="확장프로그램" defaultOpen={false} theme={theme}>
                          
                          <div className="grid grid-cols-2 gap-3 mb-4">
                            <div className="p-3 rounded-lg bg-neutral-700">
-                             <p className="text-xs text-gray-400 mb-1">평균 보증금</p>
+                             <p className={`text-xs mb-1 ${t.textMuted}`}>평균 보증금</p>
                              <p className="font-bold text-white">
                                {salesModeSearchResult.collectedData.apis.extensionNaverRealEstate.data.avgDeposit 
                                  ? `${(salesModeSearchResult.collectedData.apis.extensionNaverRealEstate.data.avgDeposit / 10000).toFixed(0)}만원` 
@@ -10046,7 +10114,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                              </p>
                            </div>
                            <div className="p-3 rounded-lg bg-neutral-700">
-                             <p className="text-xs text-gray-400 mb-1">평균 월세</p>
+                             <p className={`text-xs mb-1 ${t.textMuted}`}>평균 월세</p>
                              <p className="font-bold text-white">
                                {salesModeSearchResult.collectedData.apis.extensionNaverRealEstate.data.avgRent 
                                  ? `${salesModeSearchResult.collectedData.apis.extensionNaverRealEstate.data.avgRent}만원` 
@@ -10056,13 +10124,13 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                          </div>
 
                          <div className="p-3 bg-neutral-700/50 rounded-lg">
-                           <p className="text-xs text-gray-400 mb-2">수집된 매물 수</p>
+                           <p className={`text-xs mb-2 ${t.textMuted}`}>수집된 매물 수</p>
                            <p className="font-medium text-white">
                              {salesModeSearchResult.collectedData.apis.extensionNaverRealEstate.data.articles?.length || 0}건
                            </p>
                          </div>
 
-                         <p className="text-xs text-gray-500 mt-3">
+                         <p className={`text-xs mt-3 ${t.textMuted}`}>
                            수집일시: {salesModeSearchResult.collectedData.apis.extensionNaverRealEstate.data.collectedAt 
                              ? new Date(salesModeSearchResult.collectedData.apis.extensionNaverRealEstate.data.collectedAt).toLocaleString('ko-KR')
                              : '-'}
@@ -10074,13 +10142,13 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                      {/* 4.7 YouTube 리뷰 분석 */}
                      {salesModeSearchResult.collectedData?.apis?.youtube?.data && (
                        <FadeInSection delay={0.55}>
-                         <Accordion title="YouTube 리뷰 분석" icon="🎬" badge="실시간 API" defaultOpen={false}>
+                         <Accordion title="YouTube 리뷰 분석" icon="🎬" badge="실시간 API" defaultOpen={false} theme={theme}>
                          
                            {/* 감성 분석 결과 */}
                            <div className="mb-4 p-4 rounded-lg bg-neutral-700/50">
                              <div className="flex items-center justify-between mb-3">
-                               <span className="text-sm text-gray-300">댓글 감성 분석</span>
-                               <span className="text-xs text-gray-400">{salesModeSearchResult.collectedData.apis.youtube.data.totalComments}개 댓글 분석</span>
+                               <span className={`text-sm ${t.textSecondary}`}>댓글 감성 분석</span>
+                               <span className={`text-xs ${t.textMuted}`}>{salesModeSearchResult.collectedData.apis.youtube.data.totalComments}개 댓글 분석</span>
                              </div>
                              
                              {/* 감성 비율 바 */}
@@ -10126,7 +10194,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                          {/* 분석된 영상 목록 */}
                          {salesModeSearchResult.collectedData.apis.youtube.data.videos?.length > 0 && (
                            <div>
-                             <p className="text-xs text-gray-400 mb-2">분석된 리뷰 영상</p>
+                             <p className={`text-xs mb-2 ${t.textMuted}`}>분석된 리뷰 영상</p>
                              <div className="space-y-2">
                                {salesModeSearchResult.collectedData.apis.youtube.data.videos.slice(0, 3).map((video, idx) => (
                                  <a 
@@ -10137,7 +10205,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                                    className="block p-3 rounded-lg bg-neutral-600 hover:bg-neutral-500 transition-colors"
                                  >
                                    <p className="text-sm text-white font-medium line-clamp-1">{video.title}</p>
-                                   <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
+                                   <div className={`flex items-center gap-3 mt-1 text-xs ${t.textMuted}`}>
                                      <span>{video.channelTitle}</span>
                                      <span>조회 {(video.viewCount || 0).toLocaleString()}</span>
                                      <span>좋아요 {(video.likeCount || 0).toLocaleString()}</span>
@@ -10148,7 +10216,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                            </div>
                          )}
 
-                         <p className="text-xs text-gray-500 mt-3">YouTube Data API v3 실시간 분석 결과</p>
+                         <p className={`text-xs mt-3 ${t.textMuted}`}>YouTube Data API v3 실시간 분석 결과</p>
                        </Accordion>
                      </FadeInSection>
                      )}
@@ -10167,31 +10235,31 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                                <>
                                  <div className="grid grid-cols-2 gap-3">
                                    <div className="p-3 rounded-lg bg-neutral-700">
-                                     <p className="text-xs text-gray-400 mb-1">배달 매출 비중</p>
+                                     <p className={`text-xs mb-1 ${t.textMuted}`}>배달 매출 비중</p>
                                      <p className="font-bold text-white text-lg">
                                        {salesModeSearchResult.collectedData.apis.delivery.data.data.dlvrRt || '-'}%
                                      </p>
                                    </div>
                                    <div className="p-3 rounded-lg bg-neutral-700">
-                                     <p className="text-xs text-gray-400 mb-1">배달 주문수</p>
+                                     <p className={`text-xs mb-1 ${t.textMuted}`}>배달 주문수</p>
                                      <p className="font-bold text-white text-lg">
                                        {salesModeSearchResult.collectedData.apis.delivery.data.data.dlvrCnt?.toLocaleString() || '-'}건
                                      </p>
                                    </div>
                                  </div>
                                  <div className="p-3 rounded-lg bg-neutral-700">
-                                   <p className="text-xs text-gray-400 mb-1">배달 트렌드</p>
+                                   <p className={`text-xs mb-1 ${t.textMuted}`}>배달 트렌드</p>
                                    <p className="text-sm text-white">
                                      {salesModeSearchResult.collectedData.apis.delivery.data.data.dlvrTrend || '데이터 확인 중'}
                                    </p>
                                  </div>
                                </>
                              ) : (
-                               <p className="text-sm text-gray-400">배달 데이터를 불러오는 중이거나 해당 지역 데이터가 없습니다.</p>
+                               <p className={`text-sm ${t.textMuted}`}>배달 데이터를 불러오는 중이거나 해당 지역 데이터가 없습니다.</p>
                            )}
                          </div>
                          
-                         <p className="text-xs text-gray-500 mt-3">출처: 소상공인365 배달현황 API</p>
+                         <p className={`text-xs mt-3 ${t.textMuted}`}>출처: 소상공인365 배달현황 API</p>
                        </div>
                      </FadeInSection>
                      )}
@@ -10210,27 +10278,27 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                                salesModeSearchResult.collectedData.apis.tour.data.data.list.slice(0, 5).map((item, idx) => (
                                  <div key={idx} className="p-3 rounded-lg bg-neutral-700">
                                    <p className="font-medium text-white text-sm">{item.tourNm || item.festNm || '행사명'}</p>
-                                   <p className="text-xs text-gray-400 mt-1">{item.tourAddr || item.festAddr || ''}</p>
+                                   <p className={`text-xs mt-1 ${t.textMuted}`}>{item.tourAddr || item.festAddr || ''}</p>
                                    {item.tourPrd && <p className="text-xs text-white mt-1">{item.tourPrd}</p>}
                                  </div>
                                ))
                              ) : salesModeSearchResult.collectedData.apis.tour.data.data ? (
                                <div className="p-3 rounded-lg bg-neutral-700">
-                                 <p className="text-sm text-gray-300">
+                                 <p className={`text-sm ${t.textSecondary}`}>
                                    관광객 수: {salesModeSearchResult.collectedData.apis.tour.data.data.tourCnt?.toLocaleString() || '-'}명
                                  </p>
                                  {salesModeSearchResult.collectedData.apis.tour.data.data.tourTrend && (
-                                   <p className="text-sm text-gray-300 mt-2">
+                                   <p className={`text-sm mt-2 ${t.textSecondary}`}>
                                      트렌드: {salesModeSearchResult.collectedData.apis.tour.data.data.tourTrend}
                                    </p>
                                  )}
                                </div>
                              ) : (
-                               <p className="text-sm text-gray-400">해당 지역의 관광/축제 정보가 없습니다.</p>
+                               <p className={`text-sm ${t.textMuted}`}>해당 지역의 관광/축제 정보가 없습니다.</p>
                              )}
                            </div>
                          
-                           <p className="text-xs text-gray-500 mt-3">출처: 소상공인365 관광축제 API</p>
+                           <p className={`text-xs mt-3 ${t.textMuted}`}>출처: 소상공인365 관광축제 API</p>
                          </div>
                        </FadeInSection>
                      )}
@@ -10249,7 +10317,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                                <>
                                  <div className="grid grid-cols-3 gap-2">
                                    <div className="p-3 rounded-lg bg-neutral-700 text-center">
-                                     <p className="text-xs text-gray-400 mb-1">전년 대비</p>
+                                     <p className={`text-xs mb-1 ${t.textMuted}`}>전년 대비</p>
                                    <p className={`font-bold text-lg ${
                                      (salesModeSearchResult.collectedData.apis.salesIndex.data.data.yoyRate || 0) >= 0 
                                        ? 'text-white' : 'text-white'
@@ -10259,7 +10327,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                                    </p>
                                  </div>
                                  <div className="p-3 rounded-lg bg-neutral-700 text-center">
-                                   <p className="text-xs text-gray-400 mb-1">전월 대비</p>
+                                   <p className={`text-xs mb-1 ${t.textMuted}`}>전월 대비</p>
                                    <p className={`font-bold text-lg ${
                                      (salesModeSearchResult.collectedData.apis.salesIndex.data.data.momRate || 0) >= 0 
                                        ? 'text-white' : 'text-white'
@@ -10269,7 +10337,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                                    </p>
                                  </div>
                                  <div className="p-3 rounded-lg bg-neutral-700 text-center">
-                                   <p className="text-xs text-gray-400 mb-1">매출지수</p>
+                                   <p className={`text-xs mb-1 ${t.textMuted}`}>매출지수</p>
                                    <p className="font-bold text-white text-lg">
                                      {salesModeSearchResult.collectedData.apis.salesIndex.data.data.slsIdx || '-'}
                                    </p>
@@ -10277,17 +10345,17 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                                </div>
                                {salesModeSearchResult.collectedData.apis.salesIndex.data.data.slsTrend && (
                                  <div className="p-3 rounded-lg bg-neutral-700">
-                                   <p className="text-xs text-gray-400 mb-1">매출 트렌드</p>
+                                   <p className={`text-xs mb-1 ${t.textMuted}`}>매출 트렌드</p>
                                    <p className="text-sm text-white">{salesModeSearchResult.collectedData.apis.salesIndex.data.data.slsTrend}</p>
                                  </div>
                                )}
                              </>
                            ) : (
-                             <p className="text-sm text-gray-400">매출추이 데이터를 불러오는 중입니다.</p>
+                             <p className={`text-sm ${t.textMuted}`}>매출추이 데이터를 불러오는 중입니다.</p>
                            )}
                          </div>
                          
-                         <p className="text-xs text-gray-500 mt-3">출처: 소상공인365 매출추이 API</p>
+                         <p className={`text-xs mt-3 ${t.textMuted}`}>출처: 소상공인365 매출추이 API</p>
                        </div>
                      </FadeInSection>
                      )}
@@ -10322,36 +10390,36 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                                    <p className="text-2xl font-bold text-white">
                                      {salesModeSearchResult.collectedData.apis.startupWeather.data.data.wthGrd || '분석중'}
                                    </p>
-                                   <p className="text-sm text-gray-400 mt-1">
+                                   <p className={`text-sm mt-1 ${t.textMuted}`}>
                                      창업 적합도 점수: {salesModeSearchResult.collectedData.apis.startupWeather.data.data.wthScore || '-'}점
                                    </p>
                                  </div>
 
                                  <div className="grid grid-cols-2 gap-3">
                                    <div className="p-3 rounded-lg bg-neutral-700">
-                                     <p className="text-xs text-gray-400 mb-1">성장성</p>
+                                     <p className={`text-xs mb-1 ${t.textMuted}`}>성장성</p>
                                      <p className="font-medium text-white">{salesModeSearchResult.collectedData.apis.startupWeather.data.data.grwScore || '-'}점</p>
                                    </div>
                                    <div className="p-3 rounded-lg bg-neutral-700">
-                                     <p className="text-xs text-gray-400 mb-1">안정성</p>
+                                     <p className={`text-xs mb-1 ${t.textMuted}`}>안정성</p>
                                      <p className="font-medium text-white">{salesModeSearchResult.collectedData.apis.startupWeather.data.data.stbScore || '-'}점</p>
                                    </div>
                                    <div className="p-3 rounded-lg bg-neutral-700">
-                                     <p className="text-xs text-gray-400 mb-1">경쟁강도</p>
+                                     <p className={`text-xs mb-1 ${t.textMuted}`}>경쟁강도</p>
                                      <p className="font-medium text-white">{salesModeSearchResult.collectedData.apis.startupWeather.data.data.cmpScore || '-'}점</p>
                                    </div>
                                    <div className="p-3 rounded-lg bg-neutral-700">
-                                     <p className="text-xs text-gray-400 mb-1">집객력</p>
+                                     <p className={`text-xs mb-1 ${t.textMuted}`}>집객력</p>
                                      <p className="font-medium text-white">{salesModeSearchResult.collectedData.apis.startupWeather.data.data.popScore || '-'}점</p>
                                    </div>
                                  </div>
                                </>
                              ) : (
-                               <p className="text-sm text-gray-400">창업기상도 데이터를 불러오는 중입니다.</p>
+                               <p className={`text-sm ${t.textMuted}`}>창업기상도 데이터를 불러오는 중입니다.</p>
                            )}
                          </div>
                          
-                         <p className="text-xs text-gray-500 mt-3">출처: 소상공인365 창업기상도 API</p>
+                         <p className={`text-xs mt-3 ${t.textMuted}`}>출처: 소상공인365 창업기상도 API</p>
                        </div>
                      </FadeInSection>
                      )}
@@ -10377,7 +10445,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                                  </span>
                                  <div className="flex-1">
                                    <p className="font-medium text-white text-sm">{item.bizonNm || item.areaNm || item.name || `상권 ${idx + 1}`}</p>
-                                   <p className="text-xs text-gray-400">{item.addrNm || item.addr || ''}</p>
+                                   <p className={`text-xs ${t.textMuted}`}>{item.addrNm || item.addr || ''}</p>
                                  </div>
                                  {(item.score || item.rnkScore) && (
                                    <span className="text-xs text-white font-medium">
@@ -10385,10 +10453,10 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                                    </span>
                                  )}
                                </div>
-                             )) || <p className="text-sm text-gray-400">핫플레이스 데이터가 없습니다.</p>}
+                             )) || <p className={`text-sm ${t.textMuted}`}>핫플레이스 데이터가 없습니다.</p>}
                            </div>
                          
-                           <p className="text-xs text-gray-500 mt-3">출처: 소상공인365 핫플레이스 API</p>
+                           <p className={`text-xs mt-3 ${t.textMuted}`}>출처: 소상공인365 핫플레이스 API</p>
                          </div>
                        </FadeInSection>
                      )}
@@ -10397,27 +10465,27 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                      <FadeInSection delay={0.85}>
                        <div className="bg-neutral-800 p-5 rounded-xl border border-neutral-700">
                          <h3 className="font-bold text-white mb-4 flex items-center gap-2">
-                           <span className="w-6 h-6 rounded bg-white/10 text-white flex items-center justify-center text-xs font-bold">5</span>
+                           <span className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold ${theme === 'dark' ? 'bg-white/10 text-white' : 'bg-neutral-200 text-neutral-700'}`}>5</span>
                            임대료/권리금
                          </h3>
                          <div className="space-y-3">
                            <div className="grid grid-cols-2 gap-3">
                              <div className="p-3 rounded-lg bg-neutral-700">
-                               <p className="text-xs text-gray-300 mb-1">월 임대료</p>
+                               <p className={`text-xs mb-1 ${t.textSecondary}`}>월 임대료</p>
                                <p className="font-medium text-white text-sm">{cleanJsonText(salesModeSearchResult.data?.rent?.monthly) || '-'}</p>
                              </div>
                              <div className="p-3 rounded-lg bg-neutral-700">
-                               <p className="text-xs text-gray-300 mb-1">보증금</p>
+                               <p className={`text-xs mb-1 ${t.textSecondary}`}>보증금</p>
                                <p className="font-medium text-white text-sm">{cleanJsonText(salesModeSearchResult.data?.rent?.deposit) || '-'}</p>
                              </div>
                          </div>
                          <div className="grid grid-cols-2 gap-3">
                            <div className="p-3 rounded-lg bg-neutral-700">
-                             <p className="text-xs text-gray-300 mb-1">권리금</p>
+                             <p className={`text-xs mb-1 ${t.textSecondary}`}>권리금</p>
                              <p className="font-medium text-white text-sm">{cleanJsonText(salesModeSearchResult.data?.rent?.premium) || '-'}</p>
                            </div>
                            <div className="p-3 rounded-lg bg-neutral-700">
-                             <p className="text-xs text-gray-300 mb-1">전년 대비</p>
+                             <p className={`text-xs mb-1 ${t.textSecondary}`}>전년 대비</p>
                              <p className={`font-medium text-sm ${(salesModeSearchResult.data?.rent?.yoyChange || '').includes('+') ? 'text-white' : 'text-white'}`}>
                                {cleanJsonText(salesModeSearchResult.data?.rent?.yoyChange) || '-'}
                              </p>
@@ -10425,7 +10493,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                          </div>
                        </div>
                        {salesModeSearchResult.data?.rent?.source && (
-                         <p className="text-xs text-gray-300 mt-3">출처: {cleanJsonText(salesModeSearchResult.data.rent.source)}</p>
+                         <p className={`text-xs mt-3 ${t.textSecondary}`}>출처: {cleanJsonText(salesModeSearchResult.data.rent.source)}</p>
                        )}
                      </div>
                    </FadeInSection>
@@ -10446,7 +10514,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                                  }`}>{opp.impact}</span>
                                  <p className="font-medium text-white">{cleanJsonText(opp.title)}</p>
                                </div>
-                               <p className="text-sm text-gray-300">{cleanJsonText(opp.detail)}</p>
+                               <p className={`text-sm ${t.textSecondary}`}>{cleanJsonText(opp.detail)}</p>
                              </div>
                            ))}
                          </div>
@@ -10469,7 +10537,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                                  }`}>{risk.impact || risk.level}</span>
                                  <p className="font-medium text-white">{cleanJsonText(risk.title)}</p>
                                </div>
-                               <p className="text-sm text-gray-300">{cleanJsonText(risk.detail)}</p>
+                               <p className={`text-sm ${t.textSecondary}`}>{cleanJsonText(risk.detail)}</p>
                              </div>
                            ))}
                          </div>
@@ -10493,50 +10561,50 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                            {/* 상권 유형 */}
                            <div className="mb-4 p-3 rounded-lg bg-neutral-700 border border-neutral-600">
                              <div className="flex items-center justify-between mb-2">
-                               <span className="text-sm font-medium text-gray-300">추정 상권 유형</span>
+                               <span className={`text-sm font-medium ${t.textSecondary}`}>추정 상권 유형</span>
                                <span className="px-2 py-1 rounded bg-neutral-100 text-neutral-900 text-xs font-bold">{regionType}</span>
                              </div>
-                             <p className="text-xs text-gray-300">{weatherData.설명}</p>
+                             <p className={`text-xs ${t.textSecondary}`}>{weatherData.설명}</p>
                            </div>
                            
                            {/* 날씨별 영향 그리드 */}
                            <div className="grid grid-cols-3 gap-2 mb-4">
                              <div className="p-3 rounded-lg bg-gray-100 text-center">
                                <p className="text-lg mb-1">️</p>
-                               <p className="text-xs text-gray-300">비 오는 날</p>
+                               <p className={`text-xs ${t.textSecondary}`}>비 오는 날</p>
                                <p className={`text-lg font-bold ${weatherData.비 < 0 ? 'text-white' : 'text-white'}`}>
                                  {weatherData.비 > 0 ? '+' : ''}{weatherData.비}%
                                </p>
-                               <p className="text-xs text-gray-300">(평균 {baseData.비}%)</p>
+                               <p className={`text-xs ${t.textSecondary}`}>(평균 {baseData.비}%)</p>
                              </div>
                              <div className="p-3 rounded-lg bg-neutral-700 border border-neutral-600 text-center">
                                <p className="text-lg mb-1">️</p>
-                               <p className="text-xs text-gray-300">맑은 날</p>
+                               <p className={`text-xs ${t.textSecondary}`}>맑은 날</p>
                                <p className={`text-lg font-bold ${weatherData.맑음 > 0 ? 'text-white' : 'text-white'}`}>
                                  {weatherData.맑음 > 0 ? '+' : ''}{weatherData.맑음}%
                                </p>
-                               <p className="text-xs text-gray-300">(평균 +{baseData.맑음}%)</p>
+                               <p className={`text-xs ${t.textSecondary}`}>(평균 +{baseData.맑음}%)</p>
                              </div>
                              <div className="p-3 rounded-lg bg-neutral-700 border border-neutral-600 text-center">
                                <p className="text-lg mb-1">️</p>
-                               <p className="text-xs text-gray-300">눈 오는 날</p>
+                               <p className={`text-xs ${t.textSecondary}`}>눈 오는 날</p>
                                <p className={`text-lg font-bold ${weatherData.눈 < 0 ? 'text-white' : 'text-white'}`}>
                                  {weatherData.눈 > 0 ? '+' : ''}{weatherData.눈}%
                                </p>
-                               <p className="text-xs text-gray-300">(평균 {baseData.눈}%)</p>
+                               <p className={`text-xs ${t.textSecondary}`}>(평균 {baseData.눈}%)</p>
                              </div>
                            </div>
                            
                            {/* 극한 날씨 */}
                            <div className="grid grid-cols-2 gap-2 mb-4">
                              <div className="p-2 rounded-lg bg-neutral-700 border border-neutral-600 flex items-center justify-between">
-                               <span className="text-sm text-gray-600">폭염</span>
+                               <span className={`text-sm ${t.textSecondary}`}>폭염</span>
                                <span className={`font-bold ${weatherData.폭염 >= 0 ? 'text-white' : 'text-white'}`}>
                                  {weatherData.폭염 > 0 ? '+' : ''}{weatherData.폭염}%
                                </span>
                              </div>
                              <div className="p-2 rounded-lg bg-neutral-700 border border-neutral-600 flex items-center justify-between">
-                               <span className="text-sm text-gray-600"> 한파</span>
+                               <span className={`text-sm ${t.textSecondary}`}> 한파</span>
                                <span className={`font-bold ${weatherData.한파 >= 0 ? 'text-white' : 'text-white'}`}>
                                  {weatherData.한파 > 0 ? '+' : ''}{weatherData.한파}%
                                </span>
@@ -10545,8 +10613,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                            
                            {/* 운영 팁 */}
                            <div className="p-3 rounded-lg border border-gray-200 bg-neutral-700">
-                             <p className="text-xs font-medium text-gray-300 mb-2">날씨 대응 운영 팁</p>
-                             <ul className="text-xs text-gray-600 space-y-1">
+                             <p className={`text-xs font-medium mb-2 ${t.textSecondary}`}>날씨 대응 운영 팁</p>
+                             <ul className={`text-xs space-y-1 ${t.textSecondary}`}>
                                {weatherData.비 < -20 && <li>• 비 오는 날 배달 서비스 강화 권장</li>}
                                {weatherData.맑음 > 10 && <li>• 맑은 날 테라스/야외 좌석 활용 권장</li>}
                                {weatherData.폭염 > 5 && <li>• 여름철 아이스 음료/빙수 메뉴 강화</li>}
@@ -10555,7 +10623,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                              </ul>
                            </div>
                            
-                           <p className="text-xs text-gray-300 mt-3">※ 상권 유형별 평균 데이터 기반 추정치입니다. 실제 매출은 점포 특성에 따라 다를 수 있습니다.</p>
+                           <p className={`text-xs mt-3 ${t.textSecondary}`}>※ 상권 유형별 평균 데이터 기반 추정치입니다. 실제 매출은 점포 특성에 따라 다를 수 있습니다.</p>
                          </div>
                        );
                      })()}
@@ -10568,19 +10636,19 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                        </h3>
                        <div className="space-y-2">
                          <div className="flex justify-between py-2 border-b border-neutral-600">
-                           <span className="text-gray-300">보증금</span>
+                           <span className={`${t.textSecondary}`}>보증금</span>
                            <span className="font-medium text-white">{cleanJsonText(salesModeSearchResult.data?.startupCost?.deposit) || '-'}</span>
                          </div>
                          <div className="flex justify-between py-2 border-b border-neutral-600">
-                           <span className="text-gray-300">권리금</span>
+                           <span className={`${t.textSecondary}`}>권리금</span>
                            <span className="font-medium text-white">{cleanJsonText(salesModeSearchResult.data?.startupCost?.premium) || '-'}</span>
                          </div>
                          <div className="flex justify-between py-2 border-b border-neutral-600">
-                           <span className="text-gray-300">인테리어</span>
+                           <span className={`${t.textSecondary}`}>인테리어</span>
                            <span className="font-medium text-white">{cleanJsonText(salesModeSearchResult.data?.startupCost?.interior) || '-'}</span>
                          </div>
                          <div className="flex justify-between py-2 border-b border-neutral-600">
-                           <span className="text-gray-300">설비/장비</span>
+                           <span className={`${t.textSecondary}`}>설비/장비</span>
                            <span className="font-medium text-white">{cleanJsonText(salesModeSearchResult.data?.startupCost?.equipment) || '-'}</span>
                          </div>
                          <div className="flex justify-between py-3 bg-neutral-700 rounded-lg border border-neutral-600 px-3 mt-3">
@@ -10596,7 +10664,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                          <span className="w-6 h-6 rounded border border-white text-white flex items-center justify-center text-xs font-bold">9</span>
                          AI피드백 요약
                        </h3>
-                       <p className="text-gray-300 leading-relaxed">{cleanJsonText(salesModeSearchResult.data?.insight) || '-'}</p>
+                       <p className={`leading-relaxed ${t.textSecondary}`}>{cleanJsonText(salesModeSearchResult.data?.insight) || '-'}</p>
                        <div className="mt-4 p-3 bg-neutral-700 rounded-lg">
                          <p className="text-sm font-medium text-white mb-2">빈크래프트 컨설팅 장점</p>
                          <div className="grid grid-cols-2 gap-2 text-xs">
@@ -10619,7 +10687,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                          {/* 우선순위 표시 */}
                          {salesModeSearchResult.data.beancraftFeedback.priority && (
                            <div className="mb-4 p-3 bg-neutral-700 rounded-lg">
-                             <p className="text-xs text-gray-400 mb-2">이 상권 컨설팅 우선순위</p>
+                             <p className={`text-xs mb-2 ${t.textMuted}`}>이 상권 컨설팅 우선순위</p>
                              <div className="flex flex-wrap gap-2">
                                {salesModeSearchResult.data.beancraftFeedback.priority.map((item, idx) => (
                                  <span key={idx} className="px-3 py-1 bg-neutral-600 text-white text-xs rounded-full">
@@ -10637,10 +10705,10 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                              <div className="p-4 bg-neutral-700 rounded-lg">
                                <p className="font-bold text-white mb-2">인테리어</p>
                                <p className="text-sm text-white mb-2">{cleanJsonText(salesModeSearchResult.data.beancraftFeedback.interior.summary)}</p>
-                               <p className="text-xs text-gray-300 mb-3">{cleanJsonText(salesModeSearchResult.data.beancraftFeedback.interior.detail)}</p>
+                               <p className={`text-xs mb-3 ${t.textSecondary}`}>{cleanJsonText(salesModeSearchResult.data.beancraftFeedback.interior.detail)}</p>
                                <div className="p-2 bg-neutral-600 rounded">
                                  <p className="text-xs font-bold text-white">창업 전 생각할 것</p>
-                                 <p className="text-xs text-gray-300 mt-1">{cleanJsonText(salesModeSearchResult.data.beancraftFeedback.interior.thinkAbout)}</p>
+                                 <p className={`text-xs mt-1 ${t.textSecondary}`}>{cleanJsonText(salesModeSearchResult.data.beancraftFeedback.interior.thinkAbout)}</p>
                                </div>
                              </div>
                            )}
@@ -10650,10 +10718,10 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                              <div className="p-4 bg-neutral-700 rounded-lg">
                                <p className="font-bold text-white mb-2">기기설치</p>
                                <p className="text-sm text-white mb-2">{cleanJsonText(salesModeSearchResult.data.beancraftFeedback.equipment.summary)}</p>
-                               <p className="text-xs text-gray-300 mb-3">{cleanJsonText(salesModeSearchResult.data.beancraftFeedback.equipment.detail)}</p>
+                               <p className={`text-xs mb-3 ${t.textSecondary}`}>{cleanJsonText(salesModeSearchResult.data.beancraftFeedback.equipment.detail)}</p>
                                <div className="p-2 bg-neutral-600 rounded">
                                  <p className="text-xs font-bold text-white">창업 전 생각할 것</p>
-                                 <p className="text-xs text-gray-300 mt-1">{cleanJsonText(salesModeSearchResult.data.beancraftFeedback.equipment.thinkAbout)}</p>
+                                 <p className={`text-xs mt-1 ${t.textSecondary}`}>{cleanJsonText(salesModeSearchResult.data.beancraftFeedback.equipment.thinkAbout)}</p>
                                </div>
                              </div>
                            )}
@@ -10663,10 +10731,10 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                              <div className="p-4 bg-neutral-700 rounded-lg">
                                <p className="font-bold text-white mb-2">메뉴개발</p>
                                <p className="text-sm text-white mb-2">{cleanJsonText(salesModeSearchResult.data.beancraftFeedback.menu.summary)}</p>
-                               <p className="text-xs text-gray-300 mb-3">{cleanJsonText(salesModeSearchResult.data.beancraftFeedback.menu.detail)}</p>
+                               <p className={`text-xs mb-3 ${t.textSecondary}`}>{cleanJsonText(salesModeSearchResult.data.beancraftFeedback.menu.detail)}</p>
                                <div className="p-2 bg-neutral-600 rounded">
                                  <p className="text-xs font-bold text-white">창업 전 생각할 것</p>
-                                 <p className="text-xs text-gray-300 mt-1">{cleanJsonText(salesModeSearchResult.data.beancraftFeedback.menu.thinkAbout)}</p>
+                                 <p className={`text-xs mt-1 ${t.textSecondary}`}>{cleanJsonText(salesModeSearchResult.data.beancraftFeedback.menu.thinkAbout)}</p>
                                </div>
                              </div>
                            )}
@@ -10676,10 +10744,10 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                              <div className="p-4 bg-neutral-700 rounded-lg">
                                <p className="font-bold text-white mb-2">원두</p>
                                <p className="text-sm text-white mb-2">{cleanJsonText(salesModeSearchResult.data.beancraftFeedback.beans.summary)}</p>
-                               <p className="text-xs text-gray-300 mb-3">{cleanJsonText(salesModeSearchResult.data.beancraftFeedback.beans.detail)}</p>
+                               <p className={`text-xs mb-3 ${t.textSecondary}`}>{cleanJsonText(salesModeSearchResult.data.beancraftFeedback.beans.detail)}</p>
                                <div className="p-2 bg-neutral-600 rounded">
                                  <p className="text-xs font-bold text-white">창업 전 생각할 것</p>
-                                 <p className="text-xs text-gray-300 mt-1">{cleanJsonText(salesModeSearchResult.data.beancraftFeedback.beans.thinkAbout)}</p>
+                                 <p className={`text-xs mt-1 ${t.textSecondary}`}>{cleanJsonText(salesModeSearchResult.data.beancraftFeedback.beans.thinkAbout)}</p>
                                </div>
                              </div>
                            )}
@@ -10689,10 +10757,10 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                              <div className="p-4 bg-neutral-700 rounded-lg">
                                <p className="font-bold text-white mb-2">운영교육</p>
                                <p className="text-sm text-white mb-2">{cleanJsonText(salesModeSearchResult.data.beancraftFeedback.education.summary)}</p>
-                               <p className="text-xs text-gray-300 mb-3">{cleanJsonText(salesModeSearchResult.data.beancraftFeedback.education.detail)}</p>
+                               <p className={`text-xs mb-3 ${t.textSecondary}`}>{cleanJsonText(salesModeSearchResult.data.beancraftFeedback.education.detail)}</p>
                                <div className="p-2 bg-neutral-600 rounded">
                                  <p className="text-xs font-bold text-white">창업 전 생각할 것</p>
-                                 <p className="text-xs text-gray-300 mt-1">{cleanJsonText(salesModeSearchResult.data.beancraftFeedback.education.thinkAbout)}</p>
+                                 <p className={`text-xs mt-1 ${t.textSecondary}`}>{cleanJsonText(salesModeSearchResult.data.beancraftFeedback.education.thinkAbout)}</p>
                                </div>
                              </div>
                            )}
@@ -10702,10 +10770,10 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                              <div className="p-4 bg-neutral-700 rounded-lg">
                                <p className="font-bold text-white mb-2">디자인</p>
                                <p className="text-sm text-white mb-2">{cleanJsonText(salesModeSearchResult.data.beancraftFeedback.design.summary)}</p>
-                               <p className="text-xs text-gray-300 mb-3">{cleanJsonText(salesModeSearchResult.data.beancraftFeedback.design.detail)}</p>
+                               <p className={`text-xs mb-3 ${t.textSecondary}`}>{cleanJsonText(salesModeSearchResult.data.beancraftFeedback.design.detail)}</p>
                                <div className="p-2 bg-neutral-600 rounded">
                                  <p className="text-xs font-bold text-white">창업 전 생각할 것</p>
-                                 <p className="text-xs text-gray-300 mt-1">{cleanJsonText(salesModeSearchResult.data.beancraftFeedback.design.thinkAbout)}</p>
+                                 <p className={`text-xs mt-1 ${t.textSecondary}`}>{cleanJsonText(salesModeSearchResult.data.beancraftFeedback.design.thinkAbout)}</p>
                                </div>
                              </div>
                            )}
@@ -10716,13 +10784,13 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                      {/* 출처 버튼 */}
                      <button
                        onClick={() => setSalesModeShowSources(!salesModeShowSources)}
-                       className="w-full py-3 text-center text-gray-300 text-sm border border-gray-200 rounded-xl hover:bg-neutral-700"
+                       className={`w-full py-3 text-center text-sm rounded-xl border transition-all ${theme === 'dark' ? 'text-gray-300 border-neutral-700 hover:bg-neutral-700' : 'text-neutral-600 border-neutral-200 hover:bg-neutral-100'}`}
                      >
                        출처 {salesModeShowSources ? '숨기기' : '보기'}
                      </button>
 
                      {salesModeShowSources && (
-                       <div className="p-4 bg-neutral-700 rounded-xl text-xs text-gray-300 space-y-2">
+                       <div className={`p-4 rounded-xl text-xs space-y-2 ${theme === 'dark' ? 'bg-neutral-700 text-gray-300' : 'bg-neutral-100 text-neutral-600'}`}>
                          <div className={`p-2 rounded-lg ${salesModeSearchResult?.hasApiData ? 'bg-neutral-100 text-neutral-900' : 'bg-yellow-100 text-yellow-700'}`}>
                            <p className="font-medium">
                              {salesModeSearchResult?.hasApiData 
@@ -10773,18 +10841,18 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                      </p>
                      
                      {/* 수집 멘트 - 상세 상태 */}
-                     <p className="text-sm text-gray-300 mb-2 text-center max-w-sm">
+                     <p className={`text-sm mb-2 text-center max-w-sm ${t.textSecondary}`}>
                        {salesModeCollectingText || salesModeAnalysisStep}
                      </p>
-                     <p className="text-xs text-gray-300">잠시만 기다려주세요</p>
+                     <p className={`text-xs ${t.textSecondary}`}>잠시만 기다려주세요</p>
                    </div>
                  )}
 
                  {/* 검색 전 안내 */}
                  {!salesModeSearchResult && !salesModeSearchLoading && (
                    <div className="text-center py-20">
-                     <p className="text-gray-300 mb-2">지역을 검색하면</p>
-                     <p className="text-gray-300">AI 상권 분석 결과를 확인할 수 있습니다</p>
+                     <p className={`mb-2 ${t.textSecondary}`}>지역을 검색하면</p>
+                     <p className={`${t.textSecondary}`}>AI 상권 분석 결과를 확인할 수 있습니다</p>
                    </div>
                  )}
 
@@ -10792,7 +10860,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                  {salesModeSearchResult?.success === false && (
                    <div className="text-center py-10">
                      <p className="text-red-500 mb-2">분석 중 오류가 발생했습니다</p>
-                     <p className="text-gray-300 text-sm">{salesModeSearchResult.error}</p>
+                     <p className={`text-sm ${t.textSecondary}`}>{salesModeSearchResult.error}</p>
                    </div>
                  )}
                </div>
@@ -10802,7 +10870,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
              {salesModeTab === 'homepage' && (
                <div className="h-[calc(100vh-120px)] flex flex-col">
                  {/* 카테고리 메뉴 */}
-                 <div className="bg-white border-b border-gray-100 p-3">
+                 <div className={`p-3 border-b ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-gray-100'}`}>
                    <div className="flex gap-2 overflow-x-auto">
                      <button 
                        onClick={() => setSalesModeHomepageUrl('https://www.beancraft.co.kr')}
@@ -10844,7 +10912,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                  </div>
                  
                  {/* iframe으로 홈페이지 직접 표시 */}
-                 <div className="flex-1 relative bg-white">
+                 <div className={`flex-1 relative ${theme === 'dark' ? 'bg-neutral-900' : 'bg-white'}`}>
                    <iframe
                      src={salesModeHomepageUrl || 'https://www.beancraft.co.kr'}
                      className="w-full h-full border-0"
@@ -10860,7 +10928,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
            <div className="bg-neutral-900 border-t border-neutral-800 p-4 sticky bottom-0">
              <button
                onClick={() => setSalesModeScreen('locked')}
-               className="w-full py-3 bg-neutral-800 text-gray-300 rounded-xl font-medium hover:bg-neutral-700 transition-all"
+               className={`w-full py-3 rounded-xl font-medium transition-all ${theme === 'dark' ? 'bg-neutral-800 text-gray-300 hover:bg-neutral-700' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'}`}
              >
                화면 잠금
              </button>
@@ -10887,10 +10955,10 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
        {/* 지역 선택 로딩 오버레이 */}
        {locationAnalysisLoading && (
-         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-           <div className="bg-white rounded-2xl p-8 flex flex-col items-center">
+         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+           <div className={`rounded-2xl p-8 flex flex-col items-center ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur' : 'bg-white'}`}>
              <div className="w-12 h-12 border-4 border-neutral-200 border-t-neutral-800 rounded-full animate-spin mb-4"></div>
-             <p className="text-neutral-800 font-medium">반경 500m 분석 중</p>
+             <p className={`font-medium ${t.text}`}>반경 500m 분석 중</p>
              <p className="text-neutral-500 text-sm mt-1">데이터를 수집하고 있습니다</p>
            </div>
          </div>
@@ -10903,32 +10971,41 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  // 일반 모드 UI 렌더링
  // ═══════════════════════════════════════════════════════════════
  return (
- <div className={`flex h-screen ${effectiveTheme === 'dark' ? 'bg-neutral-900' : 'bg-neutral-50'}`}>
+ <div className={`flex h-screen ${t.bgGradient}`}>
  {/* 좌측 사이드바 (PC 전용) - Store OS 스타일 */}
- <aside className="hidden md:flex w-56 flex-col bg-neutral-900">
- <div className="p-5 border-b border-neutral-800">
+ <aside className={`hidden md:flex w-56 flex-col relative z-10 ${theme === 'dark' ? 'bg-neutral-900/95 backdrop-blur-xl' : 'bg-white/90 backdrop-blur-xl border-r border-neutral-200'}`}>
+ <div className={`p-5 border-b ${theme === 'dark' ? 'border-neutral-800' : 'border-neutral-200'}`}>
  <img src="/logo.png" alt="BEANCRAFT" className="h-12 w-auto object-contain" onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'block'; }} />
- <h1 className="text-lg font-bold text-white" style={{display: 'none'}}>BEANCRAFT</h1>
- <p className="text-xs text-neutral-500 mt-0.5">영업관리</p>
+ <h1 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-neutral-900'}`} style={{display: 'none'}}>BEANCRAFT</h1>
+ <p className={`text-xs mt-0.5 ${theme === 'dark' ? 'text-neutral-500' : 'text-neutral-400'}`}>영업관리</p>
  </div>
  <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
- {tabs.map(t => (
+ {tabs.map(tabItem => (
  <button 
- key={t.key} 
- onClick={() => navigateToTab(t.key)} 
- className={`w-full flex items-center justify-between px-3 py-2.5 text-left text-sm font-medium rounded-lg transition-all ${tab === t.key ? 'bg-white/12 text-white' : 'text-neutral-400 hover:bg-white/8 hover:text-neutral-200'}`}
+ key={tabItem.key} 
+ onClick={() => navigateToTab(tabItem.key)} 
+ className={`w-full flex items-center justify-between px-3 py-2.5 text-left text-sm font-medium rounded-lg transition-all ${tab === tabItem.key ? (theme === 'dark' ? 'bg-white/12 text-white' : 'bg-neutral-900 text-white') : (theme === 'dark' ? 'text-neutral-400 hover:bg-white/8 hover:text-neutral-200' : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900')}`}
  >
- <span>{t.label}</span>
+ <span>{tabItem.label}</span>
  </button>
  ))}
  </nav>
- <div className="p-4 border-t border-neutral-800">
+ <div className={`p-4 border-t ${theme === 'dark' ? 'border-neutral-800' : 'border-neutral-200'}`}>
  <div className="flex items-center justify-between">
  <div>
- <p className="text-sm font-medium text-white">{managers.find(m => m.id === user?.managerId)?.name || user?.name}</p>
- <p className="text-xs text-neutral-500">{user?.role === 'super' ? '관리자' : '영업담당'}</p>
+ <p className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-neutral-900'}`}>{managers.find(m => m.id === user?.managerId)?.name || user?.name}</p>
+ <p className={`text-xs ${theme === 'dark' ? 'text-neutral-500' : 'text-neutral-400'}`}>{user?.role === 'super' ? '관리자' : '영업담당'}</p>
  </div>
- <button type="button" onClick={logout} className="text-neutral-500 hover:text-white text-xs font-medium transition-colors">로그아웃</button>
+ <div className="flex items-center gap-2">
+ <button
+   onClick={toggleTheme}
+   className={`p-1.5 rounded-lg transition-all ${theme === 'dark' ? 'hover:bg-white/10 text-neutral-400 hover:text-white' : 'hover:bg-neutral-100 text-neutral-500 hover:text-neutral-900'}`}
+   title={theme === 'dark' ? '라이트 모드' : '다크 모드'}
+ >
+   {theme === 'dark' ? '☀️' : '🌙'}
+ </button>
+ <button type="button" onClick={logout} className={`text-xs font-medium transition-colors ${theme === 'dark' ? 'text-neutral-500 hover:text-white' : 'text-neutral-500 hover:text-neutral-900'}`}>로그아웃</button>
+ </div>
  </div>
  </div>
  </aside>
@@ -10936,21 +11013,27 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* 우측 메인 영역 */}
  <div className="flex-1 flex flex-col min-h-screen overflow-hidden">
  {/* 모바일 상단 헤더 */}
- <div className="md:hidden bg-white border-b border-neutral-200 px-4 py-3 flex justify-between items-center sticky top-0 z-50 shadow-sm">
+ <div className={`md:hidden px-4 py-3 flex justify-between items-center sticky top-0 z-50 backdrop-blur-xl ${theme === 'dark' ? 'bg-neutral-900/90 border-b border-neutral-800' : 'bg-white/90 border-b border-neutral-200 shadow-sm'}`}>
  <div className="flex items-center gap-2">
  <img src="/logo.png" alt="BEANCRAFT" className="w-8 h-8 object-contain" />
- <span className="font-semibold text-[#171717] text-sm">BEANCRAFT</span>
+ <span className={`font-semibold text-sm ${theme === 'dark' ? 'text-white' : 'text-neutral-900'}`}>BEANCRAFT</span>
  </div>
  <div className="flex items-center gap-2">
  {isAdmin && pendingRequests.length > 0 && <span className="bg-rose-500 text-white text-xs px-2 py-1 rounded-full font-bold">{pendingRequests.length}</span>}
- <span className="text-sm text-neutral-700 bg-neutral-100 px-2 py-1 rounded-lg font-medium">{managers.find(m => m.id === user?.managerId)?.name || user?.name}</span>
- <button type="button" onClick={logout} className="text-neutral-500 hover:text-white text-sm font-medium transition-colors">나가기</button>
+ <span className={`text-sm px-2 py-1 rounded-lg font-medium ${theme === 'dark' ? 'text-neutral-300 bg-neutral-800' : 'text-neutral-700 bg-neutral-100'}`}>{managers.find(m => m.id === user?.managerId)?.name || user?.name}</span>
+ <button
+   onClick={toggleTheme}
+   className={`p-1.5 rounded-lg transition-all ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}
+ >
+   {theme === 'dark' ? '☀️' : '🌙'}
+ </button>
+ <button type="button" onClick={logout} className={`text-sm font-medium transition-colors ${theme === 'dark' ? 'text-neutral-400 hover:text-white' : 'text-neutral-500 hover:text-neutral-900'}`}>나가기</button>
  </div>
  </div>
  {/* 모바일 탭 (모바일 전용) */}
- <div className="md:hidden bg-neutral-100 border-b border-neutral-200 tabs-container scrollbar-hide">
+ <div className={`md:hidden border-b tabs-container scrollbar-hide ${theme === 'dark' ? 'bg-neutral-800/50 border-neutral-700' : 'bg-neutral-100 border-neutral-200'}`}>
  <div className="flex justify-start min-w-max px-2 gap-2 py-2">
- {tabs.map(t => (<button key={t.key} onClick={() => navigateToTab(t.key)} className={`px-4 py-2 text-sm font-medium rounded-lg transition-all whitespace-nowrap ${tab === t.key ? 'bg-white text-[#171717] shadow-sm border border-neutral-200' : 'text-neutral-500 hover:text-[#171717] hover:bg-white/50'}`}>{t.label}</button>))}
+ {tabs.map(tabItem => (<button key={tabItem.key} onClick={() => navigateToTab(tabItem.key)} className={`px-4 py-2 text-sm font-medium rounded-lg transition-all whitespace-nowrap ${tab === tabItem.key ? (theme === 'dark' ? 'bg-white/10 text-white' : 'bg-white text-neutral-900 shadow-sm border border-neutral-200') : (theme === 'dark' ? 'text-neutral-400 hover:text-white hover:bg-white/5' : 'text-neutral-500 hover:text-neutral-900 hover:bg-white/50')}`}>{tabItem.label}</button>))}
  </div>
  </div>
  
@@ -10958,14 +11041,14 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <main className="flex-1 overflow-auto pb-6">
  {/* 오늘 연락할 곳 알림 배너 */}
  {todayContactAlert && (
- <div className="bg-white border-b border-neutral-200 px-4 py-3 flex items-center justify-between">
+ <div className={`px-4 py-3 flex items-center justify-between border-b ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-neutral-200'}`}>
    <div className="flex items-center gap-3">
      <div className="w-8 h-8 bg-neutral-100 rounded-full flex items-center justify-center">
-       <span className="text-neutral-600 text-lg"></span>
+       <span className={`text-lg ${t.textSecondary}`}></span>
      </div>
      <div>
-       <p className="text-[#171717] font-bold text-sm">오늘 연락할 곳 {todayContactAlert.count}곳</p>
-       <p className="text-neutral-500 text-xs">{todayContactAlert.preview}</p>
+       <p className={`${t.text} font-bold text-sm`}>오늘 연락할 곳 {todayContactAlert.count}곳</p>
+       <p className={`text-xs ${t.textMuted}`}>{todayContactAlert.preview}</p>
      </div>
    </div>
    <div className="flex items-center gap-2">
@@ -10977,7 +11060,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
      </button>
      <button 
        onClick={() => setTodayContactAlert(null)}
-       className="w-6 h-6 flex items-center justify-center text-neutral-400 hover:text-neutral-600 transition-colors"
+       className={`w-6 h-6 flex items-center justify-center transition-colors ${theme === 'dark' ? 'text-neutral-500 hover:text-white' : 'text-neutral-400 hover:text-neutral-600'}`}
      >
        
      </button>
@@ -10986,14 +11069,14 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  )}
  {/* 미완료 동선 알림 배너 */}
  {incompleteRouteAlert && (
- <div className="bg-white border-b border-neutral-200 px-4 py-3 flex items-center justify-between">
+ <div className={`px-4 py-3 flex items-center justify-between border-b ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-neutral-200'}`}>
    <div className="flex items-center gap-3">
      <div className="w-8 h-8 bg-neutral-100 rounded-full flex items-center justify-center">
-       <span className="text-neutral-600 text-lg"></span>
+       <span className={`text-lg ${t.textSecondary}`}></span>
      </div>
      <div>
-       <p className="text-[#171717] font-bold text-sm">미완료 동선 {incompleteRouteAlert.count}개</p>
-       <p className="text-neutral-500 text-xs">방문 체크가 완료되지 않은 동선이 있습니다</p>
+       <p className={`${t.text} font-bold text-sm`}>미완료 동선 {incompleteRouteAlert.count}개</p>
+       <p className={`text-xs ${t.textMuted}`}>방문 체크가 완료되지 않은 동선이 있습니다</p>
      </div>
    </div>
    <div className="flex items-center gap-2">
@@ -11005,7 +11088,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
      </button>
      <button 
        onClick={() => setIncompleteRouteAlert(null)}
-       className="w-6 h-6 flex items-center justify-center text-neutral-400 hover:text-neutral-600 transition-colors"
+       className={`w-6 h-6 flex items-center justify-center transition-colors ${theme === 'dark' ? 'text-neutral-500 hover:text-white' : 'text-neutral-400 hover:text-neutral-600'}`}
      >
        
      </button>
@@ -11014,14 +11097,14 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  )}
  {/* 주소 오류 알림 배너 (담당자 본인만) */}
  {addressIssueAlert && (
- <div className="bg-white border-b border-neutral-200 px-4 py-3 flex items-center justify-between">
+ <div className={`px-4 py-3 flex items-center justify-between border-b ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-neutral-200'}`}>
    <div className="flex items-center gap-3">
      <div className="w-8 h-8 bg-neutral-100 rounded-full flex items-center justify-center">
-       <span className="text-neutral-600 text-lg"></span>
+       <span className={`text-lg ${t.textSecondary}`}></span>
      </div>
      <div>
-       <p className="text-[#171717] font-bold text-sm">주소 확인 필요 {addressIssueAlert.count}개</p>
-       <p className="text-neutral-500 text-xs">등록 업체 중 주소 오류가 있습니다</p>
+       <p className={`${t.text} font-bold text-sm`}>주소 확인 필요 {addressIssueAlert.count}개</p>
+       <p className={`text-xs ${t.textMuted}`}>등록 업체 중 주소 오류가 있습니다</p>
      </div>
    </div>
    <div className="flex items-center gap-2">
@@ -11036,7 +11119,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
      </button>
      <button 
        onClick={() => setAddressIssueAlert(null)}
-       className="w-6 h-6 flex items-center justify-center text-neutral-400 hover:text-neutral-600 transition-colors"
+       className={`w-6 h-6 flex items-center justify-center transition-colors ${theme === 'dark' ? 'text-neutral-500 hover:text-white' : 'text-neutral-400 hover:text-neutral-600'}`}
      >
        
      </button>
@@ -11049,11 +11132,11 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* 보고서 헤더 */}
  <div className="flex flex-col gap-3">
  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
- <h2 className="font-bold text-[#171717] text-xl">영업 보고서</h2>
+ <h2 className={`font-bold ${t.text} text-xl`}>영업 보고서</h2>
  <div className="flex gap-2">
  {isAdmin ? (
  <select 
- className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] focus:outline-none focus:border-neutral-400 transition-all text-sm py-2"
+ className={`w-full px-3 py-2 rounded-lg focus:outline-none transition-all text-sm ${theme === 'dark' ? 'bg-neutral-700 border-neutral-600 text-white focus:border-neutral-500' : 'bg-white border-neutral-200 text-neutral-900 focus:border-neutral-400'}`}
  value={reportViewManager || 'all'}
  onChange={(e) => {
    const newValue = e.target.value === 'all' ? null : e.target.value;
@@ -11105,7 +11188,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  </div>
  {/* 기본/AI 모드 전환 */}
- <div className="flex gap-2 p-1 bg-white rounded-xl w-fit">
+ <div className={`flex gap-2 p-1 rounded-xl w-fit ${theme === 'dark' ? 'bg-neutral-800' : 'bg-white'}`}>
  <button 
  onClick={() => setReportMode('basic')}
  className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ${reportMode === 'basic' ? 'bg-neutral-800 text-white' : 'text-neutral-500 hover:text-neutral-800'}`}
@@ -11279,30 +11362,30 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="lg:col-span-2 space-y-2">
  {/* 통계 카드 */}
  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
- <div className="bg-white border border-neutral-200 rounded-2xl p-4 rounded-2xl border border-neutral-200">
- <div className="text-neutral-500 text-xs mb-1">방문</div>
- <div className="text-2xl font-bold text-[#171717]">{thisVisits}<span className="text-sm text-neutral-500 ml-1">건</span></div>
+ <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`text-xs mb-1 ${t.textMuted}`}>방문</div>
+ <div className={`text-2xl font-bold ${t.text}`}>{thisVisits}<span className={`text-sm ml-1 ${t.textMuted}`}>건</span></div>
  <div className={`text-xs mt-1 ${visitChange >= 0 ? 'text-neutral-700' : 'text-white'}`}>
  {visitChange >= 0 ? '▲' : '▼'} {Math.abs(visitChange)}%
  </div>
  </div>
- <div className="bg-white border border-neutral-200 rounded-2xl p-4 rounded-2xl border border-neutral-200">
- <div className="text-neutral-500 text-xs mb-1">신규 업체</div>
- <div className="text-2xl font-bold text-[#171717]">{thisNewCompanies}<span className="text-sm text-neutral-500 ml-1">개</span></div>
+ <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`text-xs mb-1 ${t.textMuted}`}>신규 업체</div>
+ <div className={`text-2xl font-bold ${t.text}`}>{thisNewCompanies}<span className={`text-sm ml-1 ${t.textMuted}`}>개</span></div>
  <div className={`text-xs mt-1 ${companyChange >= 0 ? 'text-neutral-700' : 'text-white'}`}>
  {companyChange >= 0 ? '▲' : '▼'} {Math.abs(companyChange)}%
  </div>
  </div>
- <div className="bg-white border border-neutral-200 rounded-2xl p-4 rounded-2xl border border-neutral-200">
- <div className="text-neutral-500 text-xs mb-1">완료 상담</div>
- <div className="text-2xl font-bold text-[#171717]">{thisConsults}<span className="text-sm text-neutral-500 ml-1">건</span></div>
+ <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`text-xs mb-1 ${t.textMuted}`}>완료 상담</div>
+ <div className={`text-2xl font-bold ${t.text}`}>{thisConsults}<span className={`text-sm ml-1 ${t.textMuted}`}>건</span></div>
  <div className={`text-xs mt-1 ${consultChange >= 0 ? 'text-neutral-700' : 'text-white'}`}>
  {consultChange >= 0 ? '▲' : '▼'} {Math.abs(consultChange)}%
  </div>
  </div>
- <div className="bg-white border border-neutral-200 rounded-2xl p-4 rounded-2xl border border-neutral-200">
- <div className="text-neutral-500 text-xs mb-1">긍정 반응</div>
- <div className="text-2xl font-bold text-[#171717]">{positiveRate}<span className="text-sm text-neutral-500 ml-1">%</span></div>
+ <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`text-xs mb-1 ${t.textMuted}`}>긍정 반응</div>
+ <div className={`text-2xl font-bold ${t.text}`}>{positiveRate}<span className={`text-sm ml-1 ${t.textMuted}`}>%</span></div>
  <div className={`text-xs mt-1 ${positiveChange >= 0 ? 'text-neutral-700' : 'text-white'}`}>
  {positiveChange >= 0 ? '▲' : '▼'} {Math.abs(positiveChange)}%p
  </div>
@@ -11310,12 +11393,12 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
 
  {/* 월별 추이 그래프 */}
- <div className="bg-white border border-neutral-200 rounded-2xl p-4 rounded-2xl border border-neutral-200">
- <h3 className="font-bold text-neutral-800 mb-4">월별 방문 추이</h3>
+ <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <h3 className={`font-bold mb-4 ${t.text}`}>월별 방문 추이</h3>
  <div className="flex items-end gap-4 h-32">
  {chartData.map((d, i) => (
  <div key={i} className="flex-1 flex flex-col items-center">
- <div className="text-xs text-neutral-500 mb-1">{d.visits}건</div>
+ <div className={`text-xs mb-1 ${t.textMuted}`}>{d.visits}건</div>
  <div 
  className="w-full rounded-t transition-all duration-500 bg-neutral-200"
  style={{ 
@@ -11323,15 +11406,15 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  background: i === chartData.length - 1 ? '#475569' : '#334155'
  }}
  ></div>
- <div className="text-xs text-neutral-500 mt-2">{d.month}</div>
+ <div className={`text-xs mt-2 ${t.textMuted}`}>{d.month}</div>
  </div>
  ))}
  </div>
  </div>
 
  {/* 반응 분포 */}
- <div className="bg-white border border-neutral-200 rounded-2xl p-4 rounded-2xl border border-neutral-200">
- <h3 className="font-bold text-neutral-800 mb-4">업체 반응 분포</h3>
+ <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <h3 className={`font-bold mb-4 ${t.text}`}>업체 반응 분포</h3>
  <div className="grid grid-cols-4 gap-3">
  {[
  { key: 'positive', label: '긍정', count: targetCompanies.filter(c => c.reaction === 'positive').length },
@@ -11340,8 +11423,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  { key: 'missed', label: '부재', count: targetCompanies.filter(c => c.reaction === 'missed').length }
  ].map(item => (
  <div key={item.key} className="text-center p-3 rounded-xl border border-neutral-200">
- <div className="text-xl font-bold text-[#171717]">{item.count}</div>
- <div className="text-xs text-neutral-500">{item.label}</div>
+ <div className={`text-xl font-bold ${t.text}`}>{item.count}</div>
+ <div className={`text-xs ${t.textMuted}`}>{item.label}</div>
  </div>
  ))}
  </div>
@@ -11351,9 +11434,9 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* 오른쪽: 사이드바 */}
  <div className="space-y-2">
  {/* AI 분석 리포트 */}
- <div className="bg-white border border-neutral-200 rounded-2xl p-4 rounded-2xl border border-neutral-200">
+ <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
  <div className="flex items-center justify-between mb-3">
- <h3 className="font-bold text-[#171717]">AI 분석</h3>
+ <h3 className={`font-bold ${t.text}`}>AI 분석</h3>
  <button
  onClick={() => {
  setAiReportResult(null);
@@ -11386,7 +11469,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {aiReportLoading ? (
  <div className="flex flex-col items-center justify-center py-8 gap-2">
  <div className="animate-spin w-6 h-6 border-2 border-neutral-300 border-t-transparent rounded-full"></div>
- <span className="text-neutral-500 text-sm">AI 분석 중...</span>
+ <span className={`text-sm ${t.textMuted}`}>AI 분석 중...</span>
  {aiErrorMessage && <span className="text-neutral-700 text-xs">{aiErrorMessage}</span>}
  </div>
  ) : aiErrorMessage && !aiReportResult ? (
@@ -11400,10 +11483,10 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  ) : aiReportResult ? (
  <div className="space-y-3 text-sm">
- <p className="text-neutral-700">{cleanJsonText(aiReportResult.comment)}</p>
- {aiReportResult.analysis && <p className="text-neutral-500 text-xs">{cleanJsonText(aiReportResult.analysis)}</p>}
+ <p className={`${t.text}`}>{cleanJsonText(aiReportResult.comment)}</p>
+ {aiReportResult.analysis && <p className={`text-xs ${t.textMuted}`}>{cleanJsonText(aiReportResult.analysis)}</p>}
  <div className="pt-2 border-t border-neutral-200">
- <p className="text-neutral-500 text-xs">{cleanJsonText(aiReportResult.suggestion)}</p>
+ <p className={`text-xs ${t.textMuted}`}>{cleanJsonText(aiReportResult.suggestion)}</p>
  </div>
  {aiReportResult.encouragement && (
    <div className="pt-2 border-t border-neutral-200">
@@ -11417,17 +11500,17 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
    </div>
  )}
  {aiLastUpdateTime && (
-   <p className="text-xs text-neutral-500 pt-2 border-t border-neutral-200">
+   <p className={`text-xs pt-2 border-t ${theme === 'dark' ? 'border-neutral-700' : 'border-neutral-200'} ${t.textMuted}`}>
      마지막 분석: {aiLastUpdateTime.toLocaleString('ko-KR')}
    </p>
  )}
  </div>
  ) : (
  <div className="space-y-3 text-sm">
- <p className="text-neutral-700">{aiComment.comment}</p>
- {aiComment.analysis && <p className="text-neutral-500 text-xs">{aiComment.analysis}</p>}
+ <p className={`${t.text}`}>{aiComment.comment}</p>
+ {aiComment.analysis && <p className={`text-xs ${t.textMuted}`}>{aiComment.analysis}</p>}
  <div className="pt-2 border-t border-neutral-200">
- <p className="text-neutral-500 text-xs">{aiComment.suggestion}</p>
+ <p className={`text-xs ${t.textMuted}`}>{aiComment.suggestion}</p>
  </div>
  </div>
  )}
@@ -11435,8 +11518,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
  {/* 팀원별 분석 */}
  {isAdmin && (!reportViewManager || reportViewManager === 'all') && teamStats.length > 0 && (
- <div className="bg-white border border-neutral-200 rounded-2xl p-4 rounded-2xl border border-neutral-200">
- <h3 className="font-bold text-neutral-800 mb-3">팀 분석</h3>
+ <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <h3 className={`font-bold mb-3 ${t.text}`}>팀 분석</h3>
  <div className="space-y-2">
  {teamStats.slice(0, 5).map((m, idx) => {
    const mCompanies = companies.filter(c => c.managerId === m.id);
@@ -11452,9 +11535,9 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
    <div className="flex items-center justify-between mb-2">
      <div className="flex items-center gap-2">
        <span className="text-sm">{idx < 3 ? ['', '', ''][idx] : `${idx + 1}`}</span>
-       <span className="text-neutral-800 font-medium">{m.name}</span>
+       <span className={`font-medium ${t.text}`}>{m.name}</span>
      </div>
-     <span className="text-neutral-500 text-sm">{m.visits}건 방문</span>
+     <span className={`text-sm ${t.textMuted}`}>{m.visits}건 방문</span>
    </div>
    <div className="flex items-center gap-4 text-xs">
      <span className="text-white">긍정 {mPositive + mSpecial}개</span>
@@ -11468,7 +11551,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
    );
  })}
  </div>
- <p className="text-xs text-neutral-400 mt-3">클릭하면 해당 영업자의 상세 분석을 볼 수 있습니다</p>
+ <p className={`text-xs mt-3 ${t.textMuted}`}>클릭하면 해당 영업자의 상세 분석을 볼 수 있습니다</p>
  </div>
  )}
  </div>
@@ -11481,8 +11564,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="columns-1 md:columns-2 lg:columns-3 gap-4 space-y-2">
  
  {/* AI 지역 검색 섹션 - 중개사 영업용 */}
- <div className="bg-white border border-neutral-200 rounded-2xl p-4 break-inside-avoid mb-4">
-   <h3 className="font-bold text-neutral-800 mb-3">지역 검색</h3>
+ <div className={`rounded-2xl p-4 break-inside-avoid mb-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+   <h3 className={`font-bold mb-3 ${t.text}`}>지역 검색</h3>
    <p className="text-xs text-neutral-500 mb-3">지역명을 입력하면 중개사 영업에 필요한 정보를 정리해드립니다.</p>
    <div className="flex gap-2 mb-3">
      <input
@@ -11523,7 +11606,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
    {aiKeywordLoading && (
      <div className="flex flex-col items-center justify-center py-6 gap-2">
        <div className="animate-spin w-5 h-5 border-2 border-neutral-300 border-t-neutral-600 rounded-full"></div>
-       <span className="text-neutral-500 text-sm">{aiKeywordSearch} 지역 분석 중...</span>
+       <span className={`text-sm ${t.textMuted}`}>{aiKeywordSearch} 지역 분석 중...</span>
      </div>
    )}
    
@@ -11538,8 +11621,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
    {aiKeywordResult && !aiKeywordLoading && (
      <div className="space-y-4 mt-4 pt-4 border-t border-neutral-200">
        <div className="flex items-center justify-between">
-         <h4 className="font-bold text-neutral-800">{aiKeywordResult.keyword} 지역 브리핑</h4>
-         <span className="text-xs text-neutral-400">
+         <h4 className={`font-bold ${t.text}`}>{aiKeywordResult.keyword} 지역 브리핑</h4>
+         <span className={`text-xs ${t.textMuted}`}>
            {aiKeywordResult.searchedAt?.toLocaleString('ko-KR')}
          </span>
        </div>
@@ -11547,23 +11630,23 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        {/* 지역 브리핑 */}
        {aiKeywordResult.regionBrief && (
          <div className="p-4 rounded-lg bg-neutral-50 border border-neutral-200">
-           <p className="text-sm text-neutral-700 leading-relaxed">{cleanJsonText(aiKeywordResult.regionBrief)}</p>
+           <p className={`text-sm leading-relaxed ${t.text}`}>{cleanJsonText(aiKeywordResult.regionBrief)}</p>
          </div>
        )}
        
        {/* 중개사 공감 */}
        {aiKeywordResult.brokerEmpathy && (
          <div className="p-4 rounded-lg bg-neutral-50 border border-neutral-200">
-           <p className="text-xs text-neutral-500 font-medium mb-2">중개사님, 이런 경험 있으시죠?</p>
-           <p className="text-sm text-neutral-700 leading-relaxed">{cleanJsonText(aiKeywordResult.brokerEmpathy)}</p>
+           <p className={`text-xs font-medium mb-2 ${t.textMuted}`}>중개사님, 이런 경험 있으시죠?</p>
+           <p className={`text-sm leading-relaxed ${t.text}`}>{cleanJsonText(aiKeywordResult.brokerEmpathy)}</p>
          </div>
        )}
        
        {/* 제휴 가치 */}
        {aiKeywordResult.partnershipValue && (
          <div className="p-4 rounded-lg bg-neutral-50 border border-neutral-200">
-           <p className="text-xs text-neutral-500 font-medium mb-2">저희랑 제휴하시면요</p>
-           <p className="text-sm text-neutral-700 leading-relaxed">{cleanJsonText(aiKeywordResult.partnershipValue)}</p>
+           <p className={`text-xs font-medium mb-2 ${t.textMuted}`}>저희랑 제휴하시면요</p>
+           <p className={`text-sm leading-relaxed ${t.text}`}>{cleanJsonText(aiKeywordResult.partnershipValue)}</p>
          </div>
        )}
        
@@ -11578,7 +11661,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        {/* 연관 지역 */}
        {aiKeywordResult.relatedRegions?.length > 0 && (
          <div className="pt-3 border-t border-neutral-200">
-           <p className="text-xs text-neutral-500 mb-2">함께 영업하면 좋을 인근 지역</p>
+           <p className={`text-xs mb-2 ${t.textMuted}`}>함께 영업하면 좋을 인근 지역</p>
            <div className="flex flex-wrap gap-2">
              {aiKeywordResult.relatedRegions.map(region => (
                <button
@@ -11865,8 +11948,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  return (
  <div className="space-y-2">
  {/* 반응 기반 AI 분석 - 그래프 포함 */}
- <div className="bg-white border border-neutral-200 rounded-2xl p-4 border border-neutral-200/30">
- <h3 className="font-bold text-[#171717] mb-4 flex items-center gap-2 text-lg">
+ <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <h3 className={`font-bold ${t.text} mb-4 flex items-center gap-2 text-lg`}>
  <span className="text-xl"></span> 업체 반응 현황 분석 리포트
  </h3>
  
@@ -11898,26 +11981,26 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </svg>
  <div className="absolute inset-0 flex flex-col items-center justify-center">
  <div className="text-xl sm:text-2xl font-bold text-white">{targetCompanies.length}</div>
- <div className="text-xs text-neutral-500">전체</div>
+ <div className={`text-xs ${t.textMuted}`}>전체</div>
  </div>
  </div>
  {/* 범례 */}
  <div className="space-y-2">
  <div className="flex items-center gap-2">
  <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
- <span className="text-xs text-neutral-700">긍정 {positiveCompanies.length}개 ({Math.round((positiveCompanies.length / Math.max(targetCompanies.length, 1)) * 100)}%)</span>
+ <span className={`text-xs ${t.text}`}>긍정 {positiveCompanies.length}개 ({Math.round((positiveCompanies.length / Math.max(targetCompanies.length, 1)) * 100)}%)</span>
  </div>
  <div className="flex items-center gap-2">
  <div className="w-3 h-3 rounded-full bg-rose-500"></div>
- <span className="text-xs text-neutral-700">특별관리 {specialCompanies.length}개 ({Math.round((specialCompanies.length / Math.max(targetCompanies.length, 1)) * 100)}%)</span>
+ <span className={`text-xs ${t.text}`}>특별관리 {specialCompanies.length}개 ({Math.round((specialCompanies.length / Math.max(targetCompanies.length, 1)) * 100)}%)</span>
  </div>
  <div className="flex items-center gap-2">
  <div className="w-3 h-3 rounded-full bg-orange-500"></div>
- <span className="text-xs text-neutral-700">보통 {neutralCompanies.length}개 ({Math.round((neutralCompanies.length / Math.max(targetCompanies.length, 1)) * 100)}%)</span>
+ <span className={`text-xs ${t.text}`}>보통 {neutralCompanies.length}개 ({Math.round((neutralCompanies.length / Math.max(targetCompanies.length, 1)) * 100)}%)</span>
  </div>
  <div className="flex items-center gap-2">
  <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
- <span className="text-xs text-neutral-700">부재 {missedCompanies.length}개 ({Math.round((missedCompanies.length / Math.max(targetCompanies.length, 1)) * 100)}%)</span>
+ <span className={`text-xs ${t.text}`}>부재 {missedCompanies.length}개 ({Math.round((missedCompanies.length / Math.max(targetCompanies.length, 1)) * 100)}%)</span>
  </div>
  </div>
  </div>
@@ -11927,22 +12010,22 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
  <div className="text-center p-3 rounded-lg border border-neutral-300 bg-emerald-500/5">
  <div className="text-xl sm:text-2xl font-bold text-neutral-700">{positiveCompanies.length}</div>
- <div className="text-xs text-neutral-500">긍정 반응</div>
+ <div className={`text-xs ${t.textMuted}`}>긍정 반응</div>
  
  </div>
  <div className="text-center p-3 rounded-lg border border-neutral-300 bg-rose-500/5">
  <div className="text-xl sm:text-2xl font-bold text-white">{specialCompanies.length}</div>
- <div className="text-xs text-neutral-500">특별관리</div>
+ <div className={`text-xs ${t.textMuted}`}>특별관리</div>
  
  </div>
  <div className="text-center p-3 rounded-lg border border-neutral-500/30 bg-orange-500/5">
  <div className="text-xl sm:text-2xl font-bold text-white">{neutralCompanies.length}</div>
- <div className="text-xs text-neutral-500">보통</div>
+ <div className={`text-xs ${t.textMuted}`}>보통</div>
  
  </div>
  <div className="text-center p-3 rounded-lg border border-neutral-300 bg-yellow-500/5">
  <div className="text-xl sm:text-2xl font-bold text-neutral-700">{missedCompanies.length}</div>
- <div className="text-xs text-neutral-500">부재</div>
+ <div className={`text-xs ${t.textMuted}`}>부재</div>
  
  </div>
  </div>
@@ -11952,7 +12035,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {aiReportLoading ? (
  <div className="flex flex-col items-center justify-center py-6 gap-2">
  <div className="animate-spin w-6 h-6 border-2 border-neutral-300 border-t-transparent rounded-full"></div>
- <span className="text-neutral-500 text-sm">AI 분석 중...</span>
+ <span className={`text-sm ${t.textMuted}`}>AI 분석 중...</span>
  {aiErrorMessage && <span className="text-neutral-700 text-xs">{aiErrorMessage}</span>}
  </div>
  ) : aiErrorMessage && !aiReportResult ? (
@@ -11966,22 +12049,22 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  ) : aiReportResult ? (
  <>
- <div className="p-3 rounded-lg border border-neutral-200/30 bg-white/30">
- <p className="text-sm text-neutral-800 leading-relaxed">{cleanJsonText(aiReportResult.comment)}</p>
+ <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'border-neutral-700/30 bg-white/5' : 'border-neutral-200/30 bg-white/30'}`}>
+ <p className={`text-sm leading-relaxed ${t.text}`}>{cleanJsonText(aiReportResult.comment)}</p>
  </div>
  {aiReportResult.analysis && (
  <div className="p-3 rounded-lg border border-neutral-300 bg-blue-500/5">
- <p className="text-xs text-neutral-700 mb-1 font-semibold">AI피드백</p>
- <p className="text-sm text-neutral-700">{cleanJsonText(aiReportResult.analysis)}</p>
+ <p className={`text-xs mb-1 font-semibold ${t.text}`}>AI피드백</p>
+ <p className={`text-sm ${t.text}`}>{cleanJsonText(aiReportResult.analysis)}</p>
  </div>
  )}
  <div className="p-3 rounded-lg border border-neutral-200/30 bg-neutral-800/5">
- <p className="text-xs text-neutral-700 mb-1 font-semibold">AI 전략 제안</p>
- <p className="text-sm text-neutral-700">{cleanJsonText(aiReportResult.suggestion)}</p>
+ <p className={`text-xs mb-1 font-semibold ${t.text}`}>AI 전략 제안</p>
+ <p className={`text-sm ${t.text}`}>{cleanJsonText(aiReportResult.suggestion)}</p>
  </div>
  {aiReportResult.encouragement && (
  <div className="p-3 rounded-lg border border-neutral-300 bg-emerald-500/5">
- <p className="text-sm text-neutral-700 font-medium">{cleanJsonText(aiReportResult.encouragement)}</p>
+ <p className={`text-sm font-medium ${t.text}`}>{cleanJsonText(aiReportResult.encouragement)}</p>
  </div>
  )}
  {aiReportResult.focus && (
@@ -11991,28 +12074,28 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  )}
  {aiLastUpdateTime && (
-   <p className="text-xs text-neutral-500 pt-2 border-t border-neutral-200">
+   <p className={`text-xs pt-2 border-t ${theme === 'dark' ? 'border-neutral-700' : 'border-neutral-200'} ${t.textMuted}`}>
      마지막 분석: {aiLastUpdateTime.toLocaleString('ko-KR')}
    </p>
  )}
  </>
  ) : (
  <>
- <div className="p-3 rounded-lg border border-neutral-200/30 bg-white/30">
- <p className="text-sm text-neutral-800 leading-relaxed">{aiComment.main}</p>
+ <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'border-neutral-700/30 bg-white/5' : 'border-neutral-200/30 bg-white/30'}`}>
+ <p className={`text-sm leading-relaxed ${t.text}`}>{aiComment.main}</p>
  </div>
  {aiComment.analysis && (
  <div className="p-3 rounded-lg border border-neutral-300 bg-blue-500/5">
- <p className="text-xs text-neutral-700 mb-1 font-semibold">데이터 기반 분석</p>
- <p className="text-sm text-neutral-700">{aiComment.analysis}</p>
+ <p className={`text-xs mb-1 font-semibold ${t.text}`}>데이터 기반 분석</p>
+ <p className={`text-sm ${t.text}`}>{aiComment.analysis}</p>
  </div>
  )}
  <div className="p-3 rounded-lg border border-neutral-200/30 bg-neutral-800/5">
- <p className="text-xs text-neutral-700 mb-1 font-semibold">제안</p>
- <p className="text-sm text-neutral-700">{aiComment.suggestion}</p>
+ <p className={`text-xs mb-1 font-semibold ${t.text}`}>제안</p>
+ <p className={`text-sm ${t.text}`}>{aiComment.suggestion}</p>
  </div>
  <div className="p-3 rounded-lg border border-neutral-300 bg-emerald-500/5">
- <p className="text-sm text-neutral-700 font-medium">{aiComment.encouragement}</p>
+ <p className={`text-sm font-medium ${t.text}`}>{aiComment.encouragement}</p>
  </div>
  </>
  )}
@@ -12021,26 +12104,26 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
  {/* 메모 분석 */}
  {allMemos.length > 0 && (
- <div className="bg-white border border-neutral-200 rounded-2xl p-4 border-l-4 border-neutral-500">
- <h3 className="font-bold text-[#171717] mb-3 flex items-center gap-2">
+ <div className={`rounded-2xl p-4 border border-l-4 ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700 border-l-neutral-400' : 'bg-white border-neutral-200 border-l-neutral-500'}`}>
+ <h3 className={`font-bold ${t.text} mb-3 flex items-center gap-2`}>
  <span className="text-xl"></span> 메모 분석 ({allMemos.length}건)
  </h3>
  <div className="grid grid-cols-2 gap-3">
- <div className="text-center p-3 rounded-lg bg-white">
- <div className="text-lg sm:text-xl font-bold text-neutral-700">{positiveMemoCount}</div>
- <div className="text-xs text-neutral-500">긍정 키워드</div>
+ <div className={`text-center p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-800' : 'bg-white'}`}>
+ <div className={`text-lg sm:text-xl font-bold ${t.text}`}>{positiveMemoCount}</div>
+ <div className={`text-xs ${t.textMuted}`}>긍정 키워드</div>
  </div>
  <div className="text-center p-3 rounded-lg bg-neutral-50">
  <div className="text-lg sm:text-xl font-bold text-neutral-500">{negativeMemoCount}</div>
- <div className="text-xs text-neutral-500">부정 키워드</div>
+ <div className={`text-xs ${t.textMuted}`}>부정 키워드</div>
  </div>
  </div>
  
  {/* AI 영업 피드백 */}
  <div className="mt-4 space-y-3">
  {/* 반응별 업체 현황 */}
- <div className="p-3 rounded-lg bg-white border border-neutral-200">
- <p className="text-xs text-neutral-700 font-semibold mb-2">반응별 업체 현황</p>
+ <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <p className={`text-xs font-semibold mb-2 ${t.text}`}>반응별 업체 현황</p>
  <div className="space-y-2">
  {(() => {
  const positiveCompanies = targetCompanies.filter(c => c.reaction === 'positive');
@@ -12049,16 +12132,16 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  return (
  <>
  <div className="flex items-center justify-between text-sm">
- <span className="text-neutral-700">긍정 반응</span>
- <span className="text-neutral-700">{positiveCompanies.length}개 업체</span>
+ <span className={`${t.text}`}>긍정 반응</span>
+ <span className={`${t.text}`}>{positiveCompanies.length}개 업체</span>
  </div>
  <div className="flex items-center justify-between text-sm">
  <span className="text-white">부정 반응</span>
- <span className="text-neutral-700">{negativeCompanies.length}개 업체</span>
+ <span className={`${t.text}`}>{negativeCompanies.length}개 업체</span>
  </div>
  <div className="flex items-center justify-between text-sm">
- <span className="text-neutral-500">미분류</span>
- <span className="text-neutral-700">{neutralCompanies.length}개 업체</span>
+ <span className={`${t.textMuted}`}>미분류</span>
+ <span className={`${t.text}`}>{neutralCompanies.length}개 업체</span>
  </div>
  </>
  );
@@ -12067,30 +12150,30 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  
  {/* 팔로업 주기 안내 */}
- <div className="p-3 rounded-lg bg-white border border-neutral-300">
- <p className="text-xs text-neutral-700 font-semibold mb-2">팔로업 주기 가이드</p>
+ <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-600' : 'bg-white border-neutral-300'}`}>
+ <p className={`text-xs font-semibold mb-2 ${t.text}`}>팔로업 주기 가이드</p>
  <div className="space-y-2 text-sm">
  <div className="flex items-start gap-2">
- <span className="text-neutral-700 font-bold min-w-[60px]">당일</span>
- <span className="text-neutral-700">간단한 인사 문자 발송 ("오늘 방문 감사합니다. 빈크래프트 OOO입니다.")</span>
+ <span className={`font-bold min-w-[60px] ${t.text}`}>당일</span>
+ <span className={`${t.text}`}>간단한 인사 문자 발송 ("오늘 방문 감사합니다. 빈크래프트 OOO입니다.")</span>
  </div>
  <div className="flex items-start gap-2">
- <span className="text-neutral-700 font-bold min-w-[60px]">1주일</span>
- <span className="text-neutral-700">지역 이슈 정리해서 공유 (카페 창업 관련 뉴스, 상권 변화 등)</span>
+ <span className={`font-bold min-w-[60px] ${t.text}`}>1주일</span>
+ <span className={`${t.text}`}>지역 이슈 정리해서 공유 (카페 창업 관련 뉴스, 상권 변화 등)</span>
  </div>
  <div className="flex items-start gap-2">
- <span className="text-neutral-700 font-bold min-w-[60px]">1개월</span>
- <span className="text-neutral-700">방문 후 고객 현황 여쭤보기 ("혹시 카페 창업 문의 들어온 거 있으셨나요?")</span>
+ <span className={`font-bold min-w-[60px] ${t.text}`}>1개월</span>
+ <span className={`${t.text}`}>방문 후 고객 현황 여쭤보기 ("혹시 카페 창업 문의 들어온 거 있으셨나요?")</span>
  </div>
  </div>
  </div>
  
  {/* 긍정 반응 업체 팔로업 */}
  {positiveMemoCount > 0 && (
- <div className="p-3 rounded-lg bg-white border border-neutral-300">
- <p className="text-xs text-neutral-700 font-semibold mb-2">긍정 반응 업체 관리 방법</p>
+ <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-600' : 'bg-white border-neutral-300'}`}>
+ <p className={`text-xs font-semibold mb-2 ${t.text}`}>긍정 반응 업체 관리 방법</p>
  <p className="text-sm text-neutral-700 mb-2">긍정 반응 업체는 재방문 우선순위가 높습니다. 다음 액션을 권장합니다:</p>
- <ul className="text-sm text-neutral-700 space-y-1">
+ <ul className={`text-sm space-y-1 ${t.text}`}>
  <li>• 1주일 내 지역 카페 시장 이슈 공유 문자 발송</li>
  <li>• 2주 후 재방문하여 관계 강화</li>
  <li>• 명함 받았다면 카카오톡 친구 추가</li>
@@ -12100,10 +12183,10 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  
  {/* 지역 이슈 활용 팁 */}
  {regionRec && (
- <div className="p-3 rounded-lg bg-white border border-neutral-300">
- <p className="text-xs text-neutral-700 font-semibold mb-2">팔로업 시 활용할 지역 이슈</p>
- <p className="text-sm text-neutral-700">{regionRec.issue || '지역 이슈 정보가 없습니다.'}</p>
- <p className="text-xs text-neutral-500 mt-2">→ 이 내용을 1주일 후 팔로업 문자에 활용하세요.</p>
+ <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-600' : 'bg-white border-neutral-300'}`}>
+ <p className={`text-xs font-semibold mb-2 ${t.text}`}>팔로업 시 활용할 지역 이슈</p>
+ <p className={`text-sm ${t.text}`}>{regionRec.issue || '지역 이슈 정보가 없습니다.'}</p>
+ <p className={`text-xs mt-2 ${t.textMuted}`}>→ 이 내용을 1주일 후 팔로업 문자에 활용하세요.</p>
  </div>
  )}
  </div>
@@ -12111,14 +12194,14 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  )}
 
  {/* 지역 추천 - 영업자 조력 시스템 */}
- <div className="bg-white border border-neutral-200 rounded-2xl p-4 border border-neutral-200 bg-transparent">
+ <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/50 backdrop-blur border-neutral-700' : 'bg-white/80 border-neutral-200'}`}>
  <div className="flex justify-between items-center mb-4">
- <h3 className="font-bold text-[#171717] flex items-center gap-2 text-lg">
+ <h3 className={`font-bold ${t.text} flex items-center gap-2 text-lg`}>
  <span className="text-xl"></span> AI 지역 추천
  <span className="px-2 py-0.5 rounded-full bg-neutral-600 text-neutral-700 text-xs font-medium ml-2">영업 조력</span>
  <span className="px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-500 text-xs font-normal ml-1">2024년 기준</span>
  </h3>
- <div className="flex gap-1 p-1 bg-white rounded-lg">
+ <div className={`flex gap-1 p-1 rounded-lg ${theme === 'dark' ? 'bg-neutral-800' : 'bg-white'}`}>
  <button 
  onClick={() => setAiRegionViewMode('single')}
  className={`px-3 py-1 rounded text-xs font-medium transition-all ${aiRegionViewMode === 'single' ? 'bg-neutral-800 text-white' : 'text-neutral-500 hover:text-white'}`}
@@ -12138,7 +12221,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                     placeholder="지역 검색 (예: 강남구, 분당, 해운대)"
                     value={aiRegionSearch}
                     onChange={e => setAiRegionSearch(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all flex-1 text-sm"
+                    className={`w-full px-3 py-2 rounded-lg placeholder-neutral-400 focus:outline-none transition-all flex-1 text-sm ${theme === 'dark' ? 'bg-neutral-700 border-neutral-600 text-white focus:border-neutral-500' : 'bg-white border-neutral-200 text-neutral-900 focus:border-neutral-400'}`}
                   />
                   <button
                     onClick={() => {
@@ -12167,12 +12250,12 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <span className="px-2 py-1 rounded text-xs font-bold bg-neutral-800/20 text-neutral-700">{regionRec.category}</span>
  <span className="text-lg sm:text-xl font-bold text-white">{regionRec.region}</span>
  </div>
- <span className="text-xs text-neutral-500">{regionRec.currentIndex}/{regionRec.totalCount}</span>
+ <span className={`text-xs ${t.textMuted}`}>{regionRec.currentIndex}/{regionRec.totalCount}</span>
  </div>
  
  {/* AI 추천 근거 */}
  <div className="p-3 rounded-lg bg-neutral-800/10 border border-neutral-200/30 mb-3">
- <p className="text-xs text-neutral-700 font-semibold mb-2">AI가 이 지역을 추천하는 이유</p>
+ <p className={`text-xs font-semibold mb-2 ${t.text}`}>AI가 이 지역을 추천하는 이유</p>
  <div className="flex flex-wrap gap-2">
  {regionRec.aiReason && regionRec.aiReason.map((reason, idx) => (
  <span key={idx} className="px-2 py-1 rounded-full bg-neutral-800/20 text-neutral-700 text-xs">{reason}</span>
@@ -12183,43 +12266,43 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* 핵심 데이터 그리드 */}
  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
  <div className="text-center p-3 rounded-lg bg-transparent border border-neutral-200/30">
- <div className="text-lg font-bold text-neutral-700">{regionRec.cafeCount || '-'}개</div>
- <div className="text-xs text-neutral-500">카페 점포 수</div>
+ <div className={`text-lg font-bold ${t.text}`}>{regionRec.cafeCount || '-'}개</div>
+ <div className={`text-xs ${t.textMuted}`}>카페 점포 수</div>
  </div>
  <div className="text-center p-3 rounded-lg bg-transparent border border-neutral-200/30">
- <div className="text-lg font-bold text-neutral-700">{regionRec.startupTrend || '-'}</div>
- <div className="text-xs text-neutral-500">창업 증가율</div>
+ <div className={`text-lg font-bold ${t.text}`}>{regionRec.startupTrend || '-'}</div>
+ <div className={`text-xs ${t.textMuted}`}>창업 증가율</div>
  </div>
  <div className="text-center p-3 rounded-lg bg-transparent border border-neutral-200/30">
- <div className="text-lg font-bold text-neutral-700">{regionRec.avgRent || '-'}</div>
- <div className="text-xs text-neutral-500">평균 임대료</div>
+ <div className={`text-lg font-bold ${t.text}`}>{regionRec.avgRent || '-'}</div>
+ <div className={`text-xs ${t.textMuted}`}>평균 임대료</div>
  </div>
  <div className="text-center p-3 rounded-lg bg-transparent border border-neutral-200/30">
  <div className="text-lg font-bold text-white">{regionRec.competition || '-'}</div>
- <div className="text-xs text-neutral-500">프랜차이즈 경쟁</div>
+ <div className={`text-xs ${t.textMuted}`}>프랜차이즈 경쟁</div>
  </div>
  </div>
  
  {/* 팀 데이터 */}
  {(regionRec.teamTotal > 0 || regionRec.teamPositive > 0) && (
  <div 
-                className="p-3 rounded-lg bg-white border border-neutral-300 mb-3 cursor-pointer hover:bg-neutral-600 transition-all"
+                className={`p-3 rounded-lg mb-3 cursor-pointer transition-all border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-600 hover:bg-neutral-700' : 'bg-white border-neutral-300 hover:bg-neutral-50'}`}
                 onClick={() => setShowManagerCompaniesModal(regionRec.region)}
               >
-                <p className="text-xs text-neutral-700 font-semibold mb-2">우리 팀 데이터 <span className="text-neutral-500">(클릭하여 업체 보기)</span></p>
+                <p className={`text-xs font-semibold mb-2 ${t.text}`}>우리 팀 데이터 <span className={`${t.textMuted}`}>(클릭하여 업체 보기)</span></p>
  <div className="flex items-center gap-3 sm:gap-4">
  <div className="text-center">
- <span className="text-lg sm:text-xl font-bold text-neutral-700">{regionRec.teamTotal || 0}</span>
- <span className="text-xs text-neutral-500 block">방문 업체</span>
+ <span className={`text-lg sm:text-xl font-bold ${t.text}`}>{regionRec.teamTotal || 0}</span>
+ <span className={`text-xs block ${t.textMuted}`}>방문 업체</span>
  </div>
  <div className="text-center">
- <span className="text-lg sm:text-xl font-bold text-neutral-700">{regionRec.teamPositive || 0}</span>
- <span className="text-xs text-neutral-500 block">긍정 반응</span>
+ <span className={`text-lg sm:text-xl font-bold ${t.text}`}>{regionRec.teamPositive || 0}</span>
+ <span className={`text-xs block ${t.textMuted}`}>긍정 반응</span>
  </div>
  {regionRec.teamTotal > 0 && (
  <div className="text-center">
- <span className="text-lg sm:text-xl font-bold text-neutral-700">{Math.round((regionRec.teamPositive / regionRec.teamTotal) * 100) || 0}%</span>
- <span className="text-xs text-neutral-500 block">긍정률</span>
+ <span className={`text-lg sm:text-xl font-bold ${t.text}`}>{Math.round((regionRec.teamPositive / regionRec.teamTotal) * 100) || 0}%</span>
+ <span className={`text-xs block ${t.textMuted}`}>긍정률</span>
  </div>
  )}
  </div>
@@ -12230,16 +12313,16 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* 지역 이슈 */}
  {regionRec.issue && (
  <div className="p-4 rounded-xl border border-neutral-300 bg-yellow-500/5">
- <p className="text-xs text-neutral-700 font-semibold mb-2">지역 이슈 (영업 시 언급)</p>
- <p className="text-sm text-neutral-800">{regionRec.issue}</p>
+ <p className={`text-xs font-semibold mb-2 ${t.text}`}>지역 이슈 (영업 시 언급)</p>
+ <p className={`text-sm ${t.text}`}>{regionRec.issue}</p>
  </div>
  )}
 
  {/* 타겟 고객층 */}
  {regionRec.targetCustomer && (
  <div className="p-4 rounded-xl border border-neutral-300 bg-blue-500/5">
- <p className="text-xs text-neutral-700 font-semibold mb-2">주요 창업자 타겟</p>
- <p className="text-sm text-neutral-800">{regionRec.targetCustomer}</p>
+ <p className={`text-xs font-semibold mb-2 ${t.text}`}>주요 창업자 타겟</p>
+ <p className={`text-sm ${t.text}`}>{regionRec.targetCustomer}</p>
  </div>
  )}
 
@@ -12247,7 +12330,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {regionRec.brokerMent && (
  <div className="p-4 rounded-xl border border-neutral-300 bg-emerald-500/5">
  <div className="flex items-center justify-between mb-2">
- <p className="text-xs text-neutral-700 font-semibold">중개사 대화 예시</p>
+ <p className={`text-xs font-semibold ${t.text}`}>중개사 대화 예시</p>
  <button 
  onClick={(e) => {
  const btn = e.currentTarget;
@@ -12256,11 +12339,11 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  btn.classList.add('text-neutral-700');
  setTimeout(() => { btn.innerText = '복사'; btn.classList.remove('text-neutral-700'); }, 1500);
  }}
- className="px-2 py-1 rounded bg-neutral-100 text-xs text-neutral-700 hover:bg-neutral-200"
+ className={`px-2 py-1 rounded text-xs ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 hover:bg-neutral-600' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}
  >복사</button>
  </div>
- <p className="text-sm text-neutral-800 leading-relaxed">"{aiRegionResult?.brokerMent || regionRec.brokerMent}"</p>
- <p className="text-xs text-neutral-500 mt-2">매물 달라고 직접 요청하지 마세요. 관계 형성이 먼저입니다.</p>
+ <p className={`text-sm leading-relaxed ${t.text}`}>"{aiRegionResult?.brokerMent || regionRec.brokerMent}"</p>
+ <p className={`text-xs mt-2 ${t.textMuted}`}>매물 달라고 직접 요청하지 마세요. 관계 형성이 먼저입니다.</p>
  </div>
  )}
 
@@ -12275,10 +12358,10 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  className="flex items-center justify-between p-3 rounded-xl border border-neutral-200/30 hover:bg-neutral-800/10 transition-all"
  >
  <div className="flex items-center gap-2">
- <span className="text-neutral-700"></span>
- <span className="text-sm text-neutral-700 font-medium">출처: {regionRec.sourceName || '상권분석'}</span>
+ <span className={`${t.text}`}></span>
+ <span className={`text-sm font-medium ${t.text}`}>출처: {regionRec.sourceName || '상권분석'}</span>
  </div>
- <span className="text-neutral-500">→</span>
+ <span className={`${t.textMuted}`}>→</span>
  </a>
  )}
 
@@ -12305,7 +12388,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <span className="px-2 py-0.5 rounded text-xs bg-neutral-800/20 text-neutral-700">{category}</span>
  <span className="text-sm font-medium text-neutral-800">{region}</span>
  </div>
- <span className="text-neutral-500">→</span>
+ <span className={`${t.textMuted}`}>→</span>
  </div>
  </div>
  );
@@ -12315,8 +12398,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
 
  {/* 시장 이슈 */}
- <div className="bg-white border border-neutral-200 rounded-2xl p-4">
- <h3 className="font-bold text-[#171717] mb-3 flex items-center gap-2">
+ <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <h3 className={`font-bold ${t.text} mb-3 flex items-center gap-2`}>
  <span className="text-xl"></span> 시장 이슈 ({marketIssues.length}건)
  </h3>
  {marketIssues.length === 0 ? (
@@ -12333,7 +12416,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <span className="px-2 py-0.5 rounded text-xs bg-neutral-200 text-neutral-700">{issue.유형 || issue.type || '일반'}</span>
  </div>
  <p className="text-sm text-neutral-800 font-medium">{issue.제목 || issue.title}</p>
- <p className="text-xs text-neutral-500 mt-1">{issue.출처 || issue.source} · {issue.수집일 || issue.date}</p>
+ <p className={`text-xs mt-1 ${t.textMuted}`}>{issue.출처 || issue.source} · {issue.수집일 || issue.date}</p>
  </div>
  ))}
  </div>
@@ -12341,8 +12424,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
 
  {/* 트렌드 분석 - 영업팀 관점 */}
- <div className="bg-white border border-neutral-200 rounded-2xl p-4 rounded-2xl border border-neutral-200">
- <h3 className="font-bold text-[#171717] mb-4 text-lg">
+ <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <h3 className={`font-bold ${t.text} mb-4 text-lg`}>
  트렌드 분석
  <span className="text-xs text-neutral-500 ml-2 font-normal">영업 시 활용 포인트</span>
  </h3>
@@ -12351,12 +12434,12 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="p-4 rounded-2xl border border-neutral-200 hover:border-slate-500">
  <div className="flex items-center justify-between mb-2">
  <p className="text-sm font-medium text-white">카페 폐업률 14.1% (치킨집보다 높음)</p>
- <a href="https://www.sisajournal.com/news/articleView.html?idxno=195110" target="_blank" rel="noopener" className="text-xs text-neutral-700 hover:underline">출처 →</a>
+ <a href="https://www.sisajournal.com/news/articleView.html?idxno=195110" target="_blank" rel="noopener" className={`text-xs hover:underline ${t.text}`}>출처 →</a>
  </div>
- <p className="text-xs text-neutral-500">폐업 매장 52.6%가 3년 미만 운영</p>
- <div className="mt-3 p-3 rounded-lg bg-white border border-neutral-300">
- <p className="text-xs text-neutral-700 font-semibold mb-1">영업 활용 포인트</p>
- <p className="text-sm text-neutral-700">"폐업률이 높다"만 말하면 안 됩니다. "그래서 저희처럼 전문가와 함께 시작하시는 분들이 늘고 있습니다"로 연결하세요.</p>
+ <p className={`text-xs ${t.textMuted}`}>폐업 매장 52.6%가 3년 미만 운영</p>
+ <div className={`mt-3 p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-600' : 'bg-white border-neutral-300'}`}>
+ <p className={`text-xs font-semibold mb-1 ${t.text}`}>영업 활용 포인트</p>
+ <p className={`text-sm ${t.text}`}>"폐업률이 높다"만 말하면 안 됩니다. "그래서 저희처럼 전문가와 함께 시작하시는 분들이 늘고 있습니다"로 연결하세요.</p>
  </div>
  </div>
  
@@ -12364,12 +12447,12 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="p-4 rounded-2xl border border-neutral-200 hover:border-slate-500">
  <div className="flex items-center justify-between mb-2">
  <p className="text-sm font-medium text-white">저가 프랜차이즈 가맹점 2만개 돌파</p>
- <a href="https://franchise.ftc.go.kr" target="_blank" rel="noopener" className="text-xs text-neutral-700 hover:underline">출처 →</a>
+ <a href="https://franchise.ftc.go.kr" target="_blank" rel="noopener" className={`text-xs hover:underline ${t.text}`}>출처 →</a>
  </div>
- <p className="text-xs text-neutral-500">메가커피 3,200개+, 컴포즈 2,500개+ 등 경쟁 치열</p>
- <div className="mt-3 p-3 rounded-lg bg-white border border-neutral-300">
- <p className="text-xs text-neutral-700 font-semibold mb-1">영업 활용 포인트</p>
- <p className="text-sm text-neutral-700">"프랜차이즈 생각하시는 분들 많은데, 로열티 월 15~50만원이면 5년에 최소 900만원입니다. 저희는 로열티 0원이에요."</p>
+ <p className={`text-xs ${t.textMuted}`}>메가커피 3,200개+, 컴포즈 2,500개+ 등 경쟁 치열</p>
+ <div className={`mt-3 p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-600' : 'bg-white border-neutral-300'}`}>
+ <p className={`text-xs font-semibold mb-1 ${t.text}`}>영업 활용 포인트</p>
+ <p className={`text-sm ${t.text}`}>"프랜차이즈 생각하시는 분들 많은데, 로열티 월 15~50만원이면 5년에 최소 900만원입니다. 저희는 로열티 0원이에요."</p>
  </div>
  </div>
  
@@ -12377,12 +12460,12 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="p-4 rounded-2xl border border-neutral-200 hover:border-slate-500">
  <div className="flex items-center justify-between mb-2">
  <p className="text-sm font-medium text-neutral-700">차별화된 개인카페 생존율 높음</p>
- <a href="https://www.kbfg.com/kbresearch/report/reportView.do?reportId=1003869" target="_blank" rel="noopener" className="text-xs text-neutral-700 hover:underline">출처 →</a>
+ <a href="https://www.kbfg.com/kbresearch/report/reportView.do?reportId=1003869" target="_blank" rel="noopener" className={`text-xs hover:underline ${t.text}`}>출처 →</a>
  </div>
- <p className="text-xs text-neutral-500">KB경영연구소: 콘셉트 차별화 + 상권 맞춤 전략 필수</p>
- <div className="mt-3 p-3 rounded-lg bg-white border border-neutral-300">
- <p className="text-xs text-neutral-700 font-semibold mb-1">영업 활용 포인트</p>
- <p className="text-sm text-neutral-700">"저희가 상권에 맞는 콘셉트, 메뉴 구성, 인테리어 방향까지 잡아드립니다. 프랜차이즈처럼 정해진 틀이 없어서 자유롭게 운영 가능하세요."</p>
+ <p className={`text-xs ${t.textMuted}`}>KB경영연구소: 콘셉트 차별화 + 상권 맞춤 전략 필수</p>
+ <div className={`mt-3 p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-600' : 'bg-white border-neutral-300'}`}>
+ <p className={`text-xs font-semibold mb-1 ${t.text}`}>영업 활용 포인트</p>
+ <p className={`text-sm ${t.text}`}>"저희가 상권에 맞는 콘셉트, 메뉴 구성, 인테리어 방향까지 잡아드립니다. 프랜차이즈처럼 정해진 틀이 없어서 자유롭게 운영 가능하세요."</p>
  </div>
  </div>
  
@@ -12390,20 +12473,20 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="p-4 rounded-2xl border border-neutral-200 hover:border-slate-500">
  <div className="flex items-center justify-between mb-2">
  <p className="text-sm font-medium text-neutral-700">카페 창업 비용 평균 1억원 돌파</p>
- <a href="https://www.sisain.co.kr/news/articleView.html?idxno=52312" target="_blank" rel="noopener" className="text-xs text-neutral-700 hover:underline">출처 →</a>
+ <a href="https://www.sisain.co.kr/news/articleView.html?idxno=52312" target="_blank" rel="noopener" className={`text-xs hover:underline ${t.text}`}>출처 →</a>
  </div>
- <p className="text-xs text-neutral-500">인테리어, 기기, 인건비 상승으로 초기 자금 부담 증가</p>
- <div className="mt-3 p-3 rounded-lg bg-white border border-neutral-300">
- <p className="text-xs text-neutral-700 font-semibold mb-1">영업 활용 포인트</p>
- <p className="text-sm text-neutral-700">"비용 걱정하시는 분들 많으신데, 저희 컨설팅 받으시면 불필요한 비용 줄이고 꼭 필요한 곳에만 투자하실 수 있습니다."</p>
+ <p className={`text-xs ${t.textMuted}`}>인테리어, 기기, 인건비 상승으로 초기 자금 부담 증가</p>
+ <div className={`mt-3 p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-600' : 'bg-white border-neutral-300'}`}>
+ <p className={`text-xs font-semibold mb-1 ${t.text}`}>영업 활용 포인트</p>
+ <p className={`text-sm ${t.text}`}>"비용 걱정하시는 분들 많으신데, 저희 컨설팅 받으시면 불필요한 비용 줄이고 꼭 필요한 곳에만 투자하실 수 있습니다."</p>
  </div>
  </div>
  </div>
  
  {/* AI 피드백 */}
- <div className="mt-4 p-3 rounded-lg bg-white border border-neutral-300">
- <p className="text-xs text-neutral-700 font-semibold mb-2">AI 영업 피드백</p>
- <p className="text-sm text-neutral-700">이 트렌드들을 "문제 제기"로만 사용하면 효과 없습니다. 반드시 "그래서 저희가 해결해드립니다"로 연결하세요. 숫자와 출처를 함께 말하면 신뢰도가 올라갑니다.</p>
+ <div className={`mt-4 p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-600' : 'bg-white border-neutral-300'}`}>
+ <p className={`text-xs font-semibold mb-2 ${t.text}`}>AI 영업 피드백</p>
+ <p className={`text-sm ${t.text}`}>이 트렌드들을 "문제 제기"로만 사용하면 효과 없습니다. 반드시 "그래서 저희가 해결해드립니다"로 연결하세요. 숫자와 출처를 함께 말하면 신뢰도가 올라갑니다.</p>
  </div>
  </div>
  
@@ -12423,7 +12506,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                   <div className="modal-overlay" onClick={() => { setShowManagerCompaniesModal(null); setManagerCompanySearch(''); }}>
                     <div className="modal-content max-w-lg" onClick={e => e.stopPropagation()}>
                       <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-bold text-[#171717]">{regionKeyword} 지역 업체 ({regionCompanies.length}개)</h3>
+                        <h3 className={`text-lg font-bold ${t.text}`}>{regionKeyword} 지역 업체 ({regionCompanies.length}개)</h3>
                         <button type="button" onClick={() => { setShowManagerCompaniesModal(null); setManagerCompanySearch(''); }} className="text-neutral-500 hover:text-white text-xl">×</button>
                       </div>
                       <input
@@ -12431,7 +12514,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                         placeholder="업체명/주소 검색"
                         value={managerCompanySearch}
                         onChange={e => setManagerCompanySearch(e.target.value)}
-                        className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all w-full mb-4"
+                        className={`w-full px-3 py-2 rounded-lg placeholder-neutral-400 focus:outline-none transition-all mb-4 ${theme === 'dark' ? 'bg-neutral-700 border-neutral-600 text-white focus:border-neutral-500' : 'bg-white border-neutral-200 text-neutral-900 focus:border-neutral-400'}`}
                       />
                       <div className="max-h-80 overflow-y-auto space-y-2">
                         {searchFiltered.length === 0 ? (
@@ -12439,11 +12522,11 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                         ) : searchFiltered.map(c => {
                           const reaction = REACTION_COLORS[c.reaction] || REACTION_COLORS.neutral;
                           return (
-                            <div key={c.id} className="p-3 rounded-lg border border-neutral-200 bg-white">
+                            <div key={c.id} className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-neutral-200'}`}>
                               <div className="flex justify-between items-start">
                                 <div>
-                                  <p className="font-medium text-neutral-800">{c.name}</p>
-                                  <p className="text-xs text-neutral-500">{c.address}</p>
+                                  <p className={`font-medium ${t.text}`}>{c.name}</p>
+                                  <p className={`text-xs ${t.textMuted}`}>{c.address}</p>
                                 </div>
                                 <span className="px-2 py-1 rounded text-xs" style={{ backgroundColor: reaction.bg + '30', color: reaction.bg }}>{reaction.label}</span>
                               </div>
@@ -12459,8 +12542,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
 {showTrendModal && (
  <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setShowTrendModal(null)}>
- <div className="bg-white rounded-2xl max-w-[95vw] sm:max-w-2xl w-full max-h-[80vh] overflow-y-auto border border-neutral-200" onClick={e => e.stopPropagation()}>
- <div className="sticky top-0 bg-white p-4 border-b border-neutral-200 flex justify-between items-center">
+ <div className={`rounded-2xl max-w-[95vw] sm:max-w-2xl w-full max-h-[80vh] overflow-y-auto border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-neutral-200'}`} onClick={e => e.stopPropagation()}>
+ <div className={`sticky top-0 p-4 border-b flex justify-between items-center ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-neutral-200'}`}>
  <h3 className="font-bold text-lg text-white">
  {showTrendModal === 'specialty' && '스페셜티 커피 시장 분석'}
  {showTrendModal === 'lowcost' && '저가 프랜차이즈 시장 분석'}
@@ -12474,24 +12557,24 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="space-y-2">
  <div className="p-4 rounded-lg border border-neutral-200/30 bg-transparent">
  <h4 className="text-white font-semibold mb-2">스페셜티 커피란?</h4>
- <ul className="text-sm text-neutral-700 space-y-2">
+ <ul className={`text-sm space-y-2 ${t.text}`}>
  <li>• SCA(스페셜티커피협회) 기준 80점 이상 등급의 고품질 원두</li>
  <li>• 산지, 품종, 가공방식을 명시한 트레이서빌리티 커피</li>
  <li>• 일반 커피 대비 높은 가격대 (아메리카노 기준 5,000~8,000원)</li>
  </ul>
  </div>
  <div className="p-4 rounded-lg border border-neutral-200/30 bg-transparent">
- <h4 className="text-neutral-700 font-semibold mb-2">특징</h4>
- <ul className="text-sm text-neutral-700 space-y-2">
+ <h4 className={`font-semibold mb-2 ${t.text}`}>특징</h4>
+ <ul className={`text-sm space-y-2 ${t.text}`}>
  <li>• 로스터리 카페 형태로 직접 로스팅하는 경우 많음</li>
  <li>• 커피 애호가, 직장인 등 특정 고객층 타겟</li>
  <li>• 원두 판매, 커핑 클래스 등 부가 수익 가능</li>
  </ul>
  </div>
  <div className="p-4 rounded-lg border border-neutral-300 bg-yellow-500/5">
- <h4 className="text-neutral-700 font-semibold mb-2">참고 자료</h4>
- <p className="text-xs text-neutral-500">구체적인 시장 규모, 성장률 등은 아래 자료를 참고하세요:</p>
- <ul className="text-xs text-neutral-500 mt-2 space-y-1">
+ <h4 className={`font-semibold mb-2 ${t.text}`}>참고 자료</h4>
+ <p className={`text-xs ${t.textMuted}`}>구체적인 시장 규모, 성장률 등은 아래 자료를 참고하세요:</p>
+ <ul className={`text-xs mt-2 space-y-1 ${t.textMuted}`}>
  <li>• 한국농수산식품유통공사(aT) 커피 시장 동향</li>
  <li>• 통계청 서비스업 동향조사</li>
  <li>• 각 프랜차이즈 공정거래위원회 정보공개서</li>
@@ -12503,7 +12586,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="space-y-2">
  <div className="p-4 rounded-lg border border-neutral-200/30 bg-transparent">
  <h4 className="text-white font-semibold mb-2">저가 커피 프랜차이즈</h4>
- <ul className="text-sm text-neutral-700 space-y-2">
+ <ul className={`text-sm space-y-2 ${t.text}`}>
  <li>• 아메리카노 1,500~2,000원대 가격 경쟁력</li>
  <li>• 테이크아웃 중심 운영으로 회전율 극대화</li>
  <li>• 대표 브랜드: 메가커피, 컴포즈커피, 빽다방 등</li>
@@ -12511,16 +12594,16 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  <div className="p-4 rounded-lg border border-neutral-200/30 bg-transparent">
  <h4 className="text-white font-semibold mb-2">고려사항</h4>
- <ul className="text-sm text-neutral-700 space-y-2">
+ <ul className={`text-sm space-y-2 ${t.text}`}>
  <li>• 동일 브랜드 근접 출점 여부 확인 필요</li>
  <li>• 인건비, 임대료 대비 수익성 검토</li>
  <li>• 가맹본부 정보공개서 반드시 확인</li>
  </ul>
  </div>
  <div className="p-4 rounded-lg border border-neutral-300 bg-yellow-500/5">
- <h4 className="text-neutral-700 font-semibold mb-2">참고 자료</h4>
- <p className="text-xs text-neutral-500">가맹점 수, 평균 매출 등 정확한 정보:</p>
- <ul className="text-xs text-neutral-500 mt-2 space-y-1">
+ <h4 className={`font-semibold mb-2 ${t.text}`}>참고 자료</h4>
+ <p className={`text-xs ${t.textMuted}`}>가맹점 수, 평균 매출 등 정확한 정보:</p>
+ <ul className={`text-xs mt-2 space-y-1 ${t.textMuted}`}>
  <li>• 공정거래위원회 가맹사업정보제공시스템 (franchise.ftc.go.kr)</li>
  <li>• 각 브랜드 공식 홈페이지</li>
  </ul>
@@ -12530,16 +12613,16 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {showTrendModal === 'differentiation' && (
  <div className="space-y-2">
  <div className="p-4 rounded-lg border border-neutral-200/30 bg-transparent">
- <h4 className="text-neutral-700 font-semibold mb-2">차별화 요소</h4>
- <ul className="text-sm text-neutral-700 space-y-2">
+ <h4 className={`font-semibold mb-2 ${t.text}`}>차별화 요소</h4>
+ <ul className={`text-sm space-y-2 ${t.text}`}>
  <li>• 시그니처 메뉴 개발 (음료, 디저트)</li>
  <li>• 공간 컨셉 (인테리어, 포토존)</li>
  <li>• 지역 커뮤니티 연계</li>
  </ul>
  </div>
  <div className="p-4 rounded-lg border border-neutral-200/30 bg-transparent">
- <h4 className="text-neutral-700 font-semibold mb-2">운영 전략</h4>
- <ul className="text-sm text-neutral-700 space-y-2">
+ <h4 className={`font-semibold mb-2 ${t.text}`}>운영 전략</h4>
+ <ul className={`text-sm space-y-2 ${t.text}`}>
  <li>• SNS 마케팅 (인스타그램, 네이버 플레이스)</li>
  <li>• 단골 프로그램 (스탬프, 멤버십)</li>
  <li>• 시간대별 프로모션</li>
@@ -12551,15 +12634,15 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="space-y-2">
  <div className="p-4 rounded-lg border border-neutral-200/30 bg-transparent">
  <h4 className="text-white font-semibold mb-2">배달/테이크아웃</h4>
- <ul className="text-sm text-neutral-700 space-y-2">
+ <ul className={`text-sm space-y-2 ${t.text}`}>
  <li>• 배달앱: 배달의민족, 쿠팡이츠, 요기요 등</li>
  <li>• 플랫폼 수수료 및 배달비 고려 필요</li>
  <li>• 테이크아웃 전용 창구 운영 고려</li>
  </ul>
  </div>
  <div className="p-4 rounded-lg border border-neutral-200/30 bg-transparent">
- <h4 className="text-neutral-700 font-semibold mb-2">운영 고려사항</h4>
- <ul className="text-sm text-neutral-700 space-y-2">
+ <h4 className={`font-semibold mb-2 ${t.text}`}>운영 고려사항</h4>
+ <ul className={`text-sm space-y-2 ${t.text}`}>
  <li>• 배달 적합 메뉴 선정 (아이스 음료 품질 관리)</li>
  <li>• 패키징 비용 계산</li>
  <li>• 자체 배달 vs 플랫폼 배달 비교</li>
@@ -12578,8 +12661,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* ═══════════════════════════════════════════════════════════════════════════════
  카페 창업 핵심 통계 (영업 데이터) - 출처 URL 포함
  ═══════════════════════════════════════════════════════════════════════════════ */}
- <div className="bg-white border border-neutral-200 rounded-2xl p-4 border-2 border-neutral-300">
- <h3 className="font-bold text-[#171717] mb-4 flex items-center gap-2 text-lg">
+ <div className={`rounded-2xl p-4 border-2 ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-600' : 'bg-white border-neutral-300'}`}>
+ <h3 className={`font-bold ${t.text} mb-4 flex items-center gap-2 text-lg`}>
  <span className="text-xl"></span> 영업 필수 데이터 (클릭하여 멘트 확인)
  </h3>
  
@@ -12594,26 +12677,26 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <span className="text-white font-bold">카페 연간 폐업률</span>
  <span className="text-2xl font-black text-white ml-3">14.1%</span>
  </div>
- <span className="text-neutral-500 text-lg">{aiExpandedData === 'closure' ? '▲' : '▼'}</span>
+ <span className={`text-lg ${t.textMuted}`}>{aiExpandedData === 'closure' ? '▲' : '▼'}</span>
  </div>
- <p className="text-xs text-neutral-500 mt-1">출처: KB경영연구소 (2018년 기준, 치킨집 10.0%보다 높음)</p>
- <p className="text-xs text-neutral-700 mt-2">"폐업 매장 절반이 3년 미만 운영 후 문 닫습니다"</p>
+ <p className={`text-xs mt-1 ${t.textMuted}`}>출처: KB경영연구소 (2018년 기준, 치킨집 10.0%보다 높음)</p>
+ <p className={`text-xs mt-2 ${t.text}`}>"폐업 매장 절반이 3년 미만 운영 후 문 닫습니다"</p>
  </div>
  {aiExpandedData === 'closure' && (
  <div className="p-4 rounded-xl border border-neutral-200/30 bg-transparent space-y-3 animate-fadeIn">
- <div className="p-3 rounded-lg bg-white border border-neutral-300">
+ <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-600' : 'bg-white border-neutral-300'}`}>
  <div className="flex items-center justify-between mb-1">
- <p className="text-xs text-neutral-700 font-semibold">중개사 영업 멘트</p>
- <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('선생님, 카페 창업 문의 많이 받으시죠? 저희 빈크래프트는 개인카페 창업 컨설팅 업체입니다. 고객분께서 카페 창업 관심 있으시면 저희 연결해주세요. 중개 수수료 외에 소개비도 따로 드립니다.'); btn.innerText = ''; btn.classList.add('text-neutral-700'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-neutral-700'); }, 1500); }} className="px-2 py-1 rounded bg-neutral-100 text-xs text-neutral-700 hover:bg-neutral-200"></button>
+ <p className={`text-xs font-semibold ${t.text}`}>중개사 영업 멘트</p>
+ <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('선생님, 카페 창업 문의 많이 받으시죠? 저희 빈크래프트는 개인카페 창업 컨설팅 업체입니다. 고객분께서 카페 창업 관심 있으시면 저희 연결해주세요. 중개 수수료 외에 소개비도 따로 드립니다.'); btn.innerText = ''; btn.classList.add('text-neutral-700'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-neutral-700'); }, 1500); }} className={`px-2 py-1 rounded text-xs ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 hover:bg-neutral-600' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}></button>
  </div>
- <p className="text-sm text-neutral-800">"선생님, 카페 창업 문의 많이 받으시죠? 저희 <span className="text-neutral-700 font-semibold">빈크래프트</span>는 개인카페 창업 컨설팅 업체입니다. 고객분께서 카페 창업 관심 있으시면 저희 연결해주세요. <span className="text-neutral-700 font-semibold">중개 수수료 외에 소개비</span>도 따로 드립니다."</p>
+ <p className={`text-sm ${t.text}`}>"선생님, 카페 창업 문의 많이 받으시죠? 저희 <span className={`font-semibold ${t.text}`}>빈크래프트</span>는 개인카페 창업 컨설팅 업체입니다. 고객분께서 카페 창업 관심 있으시면 저희 연결해주세요. <span className={`font-semibold ${t.text}`}>중개 수수료 외에 소개비</span>도 따로 드립니다."</p>
  </div>
- <div className="p-3 rounded-lg bg-white border border-neutral-300">
+ <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-600' : 'bg-white border-neutral-300'}`}>
  <div className="flex items-center justify-between mb-1">
- <p className="text-xs text-neutral-700 font-semibold">빈크래프트 차별점</p>
- <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('가맹비/로열티 0원으로 프랜차이즈 대비 초기 비용 절감, 메뉴/인테리어 자유롭게 결정 가능, 입지 선정부터 운영까지 전문 컨설팅 지원'); btn.innerText = ''; btn.classList.add('text-neutral-700'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-neutral-700'); }, 1500); }} className="px-2 py-1 rounded bg-neutral-100 text-xs text-neutral-700 hover:bg-neutral-200"></button>
+ <p className={`text-xs font-semibold ${t.text}`}>빈크래프트 차별점</p>
+ <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('가맹비/로열티 0원으로 프랜차이즈 대비 초기 비용 절감, 메뉴/인테리어 자유롭게 결정 가능, 입지 선정부터 운영까지 전문 컨설팅 지원'); btn.innerText = ''; btn.classList.add('text-neutral-700'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-neutral-700'); }, 1500); }} className={`px-2 py-1 rounded text-xs ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 hover:bg-neutral-600' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}></button>
  </div>
- <p className="text-sm text-neutral-800"><span className="text-neutral-700 font-semibold">가맹비/로열티 0원</span>으로 프랜차이즈 대비 초기 비용 절감, 메뉴/인테리어 자유롭게 결정 가능, 입지 선정부터 운영까지 전문 컨설팅 지원</p>
+ <p className={`text-sm ${t.text}`}><span className={`font-semibold ${t.text}`}>가맹비/로열티 0원</span>으로 프랜차이즈 대비 초기 비용 절감, 메뉴/인테리어 자유롭게 결정 가능, 입지 선정부터 운영까지 전문 컨설팅 지원</p>
  </div>
  <div className="p-3 rounded-lg bg-purple-500/10 border border-neutral-500/30">
  <p className="text-xs text-white font-semibold mb-2">카페 창업 주요 리스크 (통계 기반)</p>
@@ -12622,7 +12705,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <span className="px-2 py-1 rounded-full bg-neutral-600 text-white text-xs">폐업률: 14.1%</span>
  <span className="px-2 py-1 rounded-full bg-neutral-600 text-white text-xs">경쟁: 전국 9.3만개</span>
  </div>
- <p className="text-xs text-neutral-500 mt-2">출처: 통계청 기업생멸행정통계, 시사저널</p>
+ <p className={`text-xs mt-2 ${t.textMuted}`}>출처: 통계청 기업생멸행정통계, 시사저널</p>
  </div>
  <a href="https://www.sisajournal.com/news/articleView.html?idxno=195110" target="_blank" rel="noopener" className="flex items-center gap-2 px-3 py-2 rounded-lg border border-neutral-200 hover:bg-neutral-800/10 text-neutral-700 text-sm transition-all">
  시사저널: 카페 폐업률 14%, 치킨집보다 높아 →
@@ -12637,33 +12720,33 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  >
  <div className="flex items-center justify-between">
  <div>
- <span className="text-neutral-700 font-bold">카페 평균 영업이익</span>
+ <span className={`font-bold ${t.text}`}>카페 평균 영업이익</span>
  <span className="text-lg font-bold text-neutral-700 ml-2">연 1,050만원</span>
  <span className="text-neutral-500 mx-2">(10곳 중 1곳 적자)</span>
  </div>
- <span className="text-neutral-500 text-lg">{aiExpandedData === 'survival' ? '▲' : '▼'}</span>
+ <span className={`text-lg ${t.textMuted}`}>{aiExpandedData === 'survival' ? '▲' : '▼'}</span>
  </div>
- <p className="text-xs text-neutral-500 mt-1">출처: KB경영연구소 (직장인 평균 연봉 3,475만원의 1/3)</p>
- <p className="text-xs text-neutral-700 mt-2">"상권분석 없이 뛰어들면 적자 각오해야 합니다"</p>
+ <p className={`text-xs mt-1 ${t.textMuted}`}>출처: KB경영연구소 (직장인 평균 연봉 3,475만원의 1/3)</p>
+ <p className={`text-xs mt-2 ${t.text}`}>"상권분석 없이 뛰어들면 적자 각오해야 합니다"</p>
  </div>
  {aiExpandedData === 'survival' && (
  <div className="p-4 rounded-xl border border-neutral-200/30 bg-transparent space-y-3 animate-fadeIn">
- <div className="p-3 rounded-lg bg-white border border-neutral-300">
+ <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-600' : 'bg-white border-neutral-300'}`}>
  <div className="flex items-center justify-between mb-1">
- <p className="text-xs text-neutral-700 font-semibold">중개사 영업 멘트</p>
- <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('선생님, 카페 평균 영업이익이 연 1,050만원입니다. 월 87만원이에요. 이게 현실입니다. 저희 고객분들은 상권분석부터 받고 오시는데, 이 서비스 있다고만 말씀하셔도 관심 가지실 겁니다.'); btn.innerText = ''; btn.classList.add('text-neutral-700'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-neutral-700'); }, 1500); }} className="px-2 py-1 rounded bg-neutral-100 text-xs text-neutral-700 hover:bg-neutral-200"></button>
+ <p className={`text-xs font-semibold ${t.text}`}>중개사 영업 멘트</p>
+ <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('선생님, 카페 평균 영업이익이 연 1,050만원입니다. 월 87만원이에요. 이게 현실입니다. 저희 고객분들은 상권분석부터 받고 오시는데, 이 서비스 있다고만 말씀하셔도 관심 가지실 겁니다.'); btn.innerText = ''; btn.classList.add('text-neutral-700'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-neutral-700'); }, 1500); }} className={`px-2 py-1 rounded text-xs ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 hover:bg-neutral-600' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}></button>
  </div>
- <p className="text-sm text-neutral-800">"선생님, 카페 평균 영업이익이 <span className="text-neutral-700 font-semibold">연 1,050만원</span>입니다. 월 87만원이에요. 이게 현실입니다. 저희 고객분들은 <span className="text-neutral-700 font-semibold">상권분석부터</span> 받고 오시는데, 이 서비스 있다고만 말씀하셔도 관심 가지실 겁니다."</p>
+ <p className={`text-sm ${t.text}`}>"선생님, 카페 평균 영업이익이 <span className={`font-semibold ${t.text}`}>연 1,050만원</span>입니다. 월 87만원이에요. 이게 현실입니다. 저희 고객분들은 <span className={`font-semibold ${t.text}`}>상권분석부터</span> 받고 오시는데, 이 서비스 있다고만 말씀하셔도 관심 가지실 겁니다."</p>
  </div>
- <div className="p-3 rounded-lg bg-white border border-neutral-300">
+ <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-600' : 'bg-white border-neutral-300'}`}>
  <div className="flex items-center justify-between mb-1">
- <p className="text-xs text-neutral-700 font-semibold">창업자 영업 멘트</p>
- <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('사장님, 카페 평균 영업이익이 연 1,050만원입니다. 직장인 연봉 3,475만원의 1/3이에요. 수익 구조 모르고 시작하면 적자입니다. 저희가 해당 상권 경쟁 현황, 유동인구 분석해드립니다.'); btn.innerText = ''; btn.classList.add('text-neutral-700'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-neutral-700'); }, 1500); }} className="px-2 py-1 rounded bg-neutral-100 text-xs text-neutral-700 hover:bg-neutral-200"></button>
+ <p className={`text-xs font-semibold ${t.text}`}>창업자 영업 멘트</p>
+ <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('사장님, 카페 평균 영업이익이 연 1,050만원입니다. 직장인 연봉 3,475만원의 1/3이에요. 수익 구조 모르고 시작하면 적자입니다. 저희가 해당 상권 경쟁 현황, 유동인구 분석해드립니다.'); btn.innerText = ''; btn.classList.add('text-neutral-700'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-neutral-700'); }, 1500); }} className={`px-2 py-1 rounded text-xs ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 hover:bg-neutral-600' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}></button>
  </div>
- <p className="text-sm text-neutral-800">"사장님, 카페 평균 영업이익이 <span className="text-neutral-700 font-semibold">연 1,050만원</span>입니다. 직장인 연봉 3,475만원의 1/3이에요. 수익 구조 모르고 시작하면 적자입니다. 저희가 해당 상권 <span className="text-neutral-700 font-semibold">경쟁 현황, 유동인구</span> 분석해드립니다."</p>
+ <p className={`text-sm ${t.text}`}>"사장님, 카페 평균 영업이익이 <span className={`font-semibold ${t.text}`}>연 1,050만원</span>입니다. 직장인 연봉 3,475만원의 1/3이에요. 수익 구조 모르고 시작하면 적자입니다. 저희가 해당 상권 <span className={`font-semibold ${t.text}`}>경쟁 현황, 유동인구</span> 분석해드립니다."</p>
  </div>
- <div className="p-3 rounded-lg bg-white border border-neutral-300">
- <p className="text-xs text-neutral-700 font-semibold mb-2">빈크래프트 상권분석 제공 항목</p>
+ <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-600' : 'bg-white border-neutral-300'}`}>
+ <p className={`text-xs font-semibold mb-2 ${t.text}`}>빈크래프트 상권분석 제공 항목</p>
  <div className="grid grid-cols-2 gap-2 text-xs text-neutral-700">
  <span>• 반경 500m 카페 점포 수</span>
  <span>• 유동인구 데이터</span>
@@ -12684,39 +12767,39 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  >
  <div className="flex items-center justify-between">
  <div>
- <span className="text-neutral-700 font-bold">프랜차이즈 초기 비용</span>
+ <span className={`font-bold ${t.text}`}>프랜차이즈 초기 비용</span>
  <span className="text-2xl font-black text-neutral-700 ml-3">6,900만~1.3억원</span>
  </div>
- <span className="text-neutral-500 text-lg">{aiExpandedData === 'royalty' ? '▲' : '▼'}</span>
+ <span className={`text-lg ${t.textMuted}`}>{aiExpandedData === 'royalty' ? '▲' : '▼'}</span>
  </div>
- <p className="text-xs text-neutral-500 mt-1">공정위 정보공개서 기준 가맹비 (인테리어/로열티 별도)</p>
- <p className="text-xs text-neutral-700 mt-2">"저희는 매물 조건 제한이 없습니다"</p>
+ <p className={`text-xs mt-1 ${t.textMuted}`}>공정위 정보공개서 기준 가맹비 (인테리어/로열티 별도)</p>
+ <p className={`text-xs mt-2 ${t.text}`}>"저희는 매물 조건 제한이 없습니다"</p>
  </div>
  {aiExpandedData === 'royalty' && (
  <div className="p-4 rounded-xl border border-neutral-200/30 bg-transparent space-y-3 animate-fadeIn">
- <div className="p-3 rounded-lg bg-white border border-neutral-300">
+ <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-600' : 'bg-white border-neutral-300'}`}>
  <div className="flex items-center justify-between mb-1">
- <p className="text-xs text-neutral-700 font-semibold">중개사 영업 멘트</p>
- <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('선생님, 프랜차이즈는 매물 조건이 까다롭습니다. 1층 15평 이상, 유동인구 기준 있어요. 저희는 선생님 매물 조건 그대로 됩니다. 창업자분들이 프랜차이즈 조건 안 맞아서 저희 찾는 경우 많습니다.'); btn.innerText = ''; btn.classList.add('text-neutral-700'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-neutral-700'); }, 1500); }} className="px-2 py-1 rounded bg-neutral-100 text-xs text-neutral-700 hover:bg-neutral-200"></button>
+ <p className={`text-xs font-semibold ${t.text}`}>중개사 영업 멘트</p>
+ <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('선생님, 프랜차이즈는 매물 조건이 까다롭습니다. 1층 15평 이상, 유동인구 기준 있어요. 저희는 선생님 매물 조건 그대로 됩니다. 창업자분들이 프랜차이즈 조건 안 맞아서 저희 찾는 경우 많습니다.'); btn.innerText = ''; btn.classList.add('text-neutral-700'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-neutral-700'); }, 1500); }} className={`px-2 py-1 rounded text-xs ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 hover:bg-neutral-600' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}></button>
  </div>
- <p className="text-sm text-neutral-800">"선생님, 프랜차이즈는 매물 조건이 까다롭습니다. <span className="text-neutral-700 font-semibold">1층 15평 이상, 유동인구 기준</span> 있어요. 저희는 선생님 매물 조건 그대로 됩니다. 창업자분들이 프랜차이즈 조건 안 맞아서 저희 찾는 경우 많습니다."</p>
+ <p className={`text-sm ${t.text}`}>"선생님, 프랜차이즈는 매물 조건이 까다롭습니다. <span className={`font-semibold ${t.text}`}>1층 15평 이상, 유동인구 기준</span> 있어요. 저희는 선생님 매물 조건 그대로 됩니다. 창업자분들이 프랜차이즈 조건 안 맞아서 저희 찾는 경우 많습니다."</p>
  </div>
- <div className="p-3 rounded-lg bg-white border border-neutral-300">
+ <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-600' : 'bg-white border-neutral-300'}`}>
  <div className="flex items-center justify-between mb-1">
- <p className="text-xs text-neutral-700 font-semibold">창업자 영업 멘트</p>
- <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('사장님, 프랜차이즈 가맹비만 6,900만~1.3억원입니다. 공정위 정보공개서에 다 나와있어요. 저희는 매물 조건 제한 없이 상권분석부터 운영까지 도와드립니다.'); btn.innerText = ''; btn.classList.add('text-neutral-700'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-neutral-700'); }, 1500); }} className="px-2 py-1 rounded bg-neutral-100 text-xs text-neutral-700 hover:bg-neutral-200"></button>
+ <p className={`text-xs font-semibold ${t.text}`}>창업자 영업 멘트</p>
+ <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('사장님, 프랜차이즈 가맹비만 6,900만~1.3억원입니다. 공정위 정보공개서에 다 나와있어요. 저희는 매물 조건 제한 없이 상권분석부터 운영까지 도와드립니다.'); btn.innerText = ''; btn.classList.add('text-neutral-700'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-neutral-700'); }, 1500); }} className={`px-2 py-1 rounded text-xs ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 hover:bg-neutral-600' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}></button>
  </div>
- <p className="text-sm text-neutral-800">"사장님, 프랜차이즈 가맹비만 <span className="text-neutral-700 font-semibold">6,900만~1.3억원</span>입니다. 공정위 정보공개서에 다 나와있어요. 저희는 매물 조건 제한 없이 상권분석부터 운영까지 도와드립니다."</p>
+ <p className={`text-sm ${t.text}`}>"사장님, 프랜차이즈 가맹비만 <span className={`font-semibold ${t.text}`}>6,900만~1.3억원</span>입니다. 공정위 정보공개서에 다 나와있어요. 저희는 매물 조건 제한 없이 상권분석부터 운영까지 도와드립니다."</p>
  </div>
- <div className="p-3 rounded-lg bg-white border border-neutral-300">
- <p className="text-xs text-neutral-700 font-semibold mb-2">프랜차이즈 비용 (공정위 정보공개서 기준)</p>
+ <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-600' : 'bg-white border-neutral-300'}`}>
+ <p className={`text-xs font-semibold mb-2 ${t.text}`}>프랜차이즈 비용 (공정위 정보공개서 기준)</p>
  <div className="grid grid-cols-2 gap-2 text-xs text-neutral-700">
  <span>• 메가커피 가맹비: 6,900만원</span>
  <span>• 메가커피 로열티: 월 15만원</span>
  <span>• 이디야 가맹비: 1.3억원</span>
  <span>• 이디야 로열티: 월 25만원</span>
  </div>
- <p className="text-xs text-neutral-500 mt-2">※ 인테리어, 장비, 교육비 별도 / 출처: 공정위 가맹사업 정보공개서</p>
+ <p className={`text-xs mt-2 ${t.textMuted}`}>※ 인테리어, 장비, 교육비 별도 / 출처: 공정위 가맹사업 정보공개서</p>
  </div>
  </div>
  )}
@@ -12726,8 +12809,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* ═══════════════════════════════════════════════════════════════════════════════
  프랜차이즈 vs 빈크래프트 비용 비교표 (상세페이지 스타일)
  ═══════════════════════════════════════════════════════════════════════════════ */}
- <div className="bg-white border border-neutral-200 rounded-2xl p-4 break-inside-avoid mb-4">
- <h3 className="font-bold text-[#171717] mb-4 text-lg">
+ <div className={`rounded-2xl p-4 break-inside-avoid mb-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <h3 className={`font-bold ${t.text} mb-4 text-lg`}>
  프랜차이즈 vs 빈크래프트 비용 비교
  </h3>
  
@@ -12741,7 +12824,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
      className="w-full px-4 py-3 rounded-lg bg-neutral-50 border border-neutral-200 text-neutral-800 placeholder-neutral-400 focus:outline-none focus:border-neutral-400 text-sm"
    />
    {franchiseSearch && (
-     <div className="mt-2 max-h-48 overflow-y-auto border border-neutral-200 rounded-lg bg-white">
+     <div className={`mt-2 max-h-48 overflow-y-auto rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-neutral-200'}`}>
        {Object.keys(FRANCHISE_DATA)
          .filter(name => name.toLowerCase().includes(franchiseSearch.toLowerCase()))
          .slice(0, 10)
@@ -12751,7 +12834,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
              onClick={() => { setSelectedFranchise(name); setFranchiseSearch(''); }}
              className="w-full text-left px-4 py-2 hover:bg-neutral-50 text-sm text-neutral-800 border-b border-neutral-100 last:border-b-0"
            >
-             {name} <span className="text-neutral-400 text-xs">({FRANCHISE_DATA[name].카테고리})</span>
+             {name} <span className={`text-xs ${t.textMuted}`}>({FRANCHISE_DATA[name].카테고리})</span>
            </button>
          ))}
        {Object.keys(FRANCHISE_DATA).filter(name => name.toLowerCase().includes(franchiseSearch.toLowerCase())).length === 0 && (
@@ -12765,7 +12848,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {selectedFranchise && FRANCHISE_DATA[selectedFranchise] && (
    <div className="mb-4 p-4 border border-neutral-300 rounded-xl bg-neutral-50">
      <div className="flex items-center justify-between mb-3">
-       <h4 className="font-bold text-neutral-800">{selectedFranchise} vs 빈크래프트</h4>
+       <h4 className={`font-bold ${t.text}`}>{selectedFranchise} vs 빈크래프트</h4>
        <button onClick={() => setSelectedFranchise(null)} className="text-neutral-400 hover:text-neutral-600 text-sm">닫기</button>
      </div>
      
@@ -12787,32 +12870,32 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        <tbody>
          <tr className="border-b border-neutral-100">
            <td className="py-2 px-2">가맹비</td>
-           <td className="py-2 px-2 text-center">{FRANCHISE_DATA[selectedFranchise].가맹비 !== null ? `${FRANCHISE_DATA[selectedFranchise].가맹비}만원` : <span className="text-neutral-400">미확인</span>}</td>
+           <td className="py-2 px-2 text-center">{FRANCHISE_DATA[selectedFranchise].가맹비 !== null ? `${FRANCHISE_DATA[selectedFranchise].가맹비}만원` : <span className={`${t.textMuted}`}>미확인</span>}</td>
            <td className="py-2 px-2 text-center font-bold text-[#1e3a5f]">0원</td>
          </tr>
          <tr className="border-b border-neutral-100">
            <td className="py-2 px-2">교육비</td>
-           <td className="py-2 px-2 text-center">{FRANCHISE_DATA[selectedFranchise].교육비 !== null ? `${FRANCHISE_DATA[selectedFranchise].교육비}만원` : <span className="text-neutral-400">미확인</span>}</td>
+           <td className="py-2 px-2 text-center">{FRANCHISE_DATA[selectedFranchise].교육비 !== null ? `${FRANCHISE_DATA[selectedFranchise].교육비}만원` : <span className={`${t.textMuted}`}>미확인</span>}</td>
            <td className="py-2 px-2 text-center text-[#1e3a5f]">컨설팅 포함</td>
          </tr>
          <tr className="border-b border-neutral-100">
            <td className="py-2 px-2">보증금</td>
-           <td className="py-2 px-2 text-center">{FRANCHISE_DATA[selectedFranchise].보증금 !== null ? `${FRANCHISE_DATA[selectedFranchise].보증금}만원` : <span className="text-neutral-400">미확인</span>}</td>
+           <td className="py-2 px-2 text-center">{FRANCHISE_DATA[selectedFranchise].보증금 !== null ? `${FRANCHISE_DATA[selectedFranchise].보증금}만원` : <span className={`${t.textMuted}`}>미확인</span>}</td>
            <td className="py-2 px-2 text-center text-[#1e3a5f]">없음</td>
          </tr>
          <tr className="border-b border-neutral-100">
            <td className="py-2 px-2">로열티 (월)</td>
-           <td className="py-2 px-2 text-center">{FRANCHISE_DATA[selectedFranchise].로열티월 !== null ? `${FRANCHISE_DATA[selectedFranchise].로열티월}만원` : <span className="text-neutral-400">미확인</span>}</td>
+           <td className="py-2 px-2 text-center">{FRANCHISE_DATA[selectedFranchise].로열티월 !== null ? `${FRANCHISE_DATA[selectedFranchise].로열티월}만원` : <span className={`${t.textMuted}`}>미확인</span>}</td>
            <td className="py-2 px-2 text-center font-bold text-[#1e3a5f]">0원</td>
          </tr>
          <tr className="border-b border-neutral-100">
            <td className="py-2 px-2">광고분담금 (월)</td>
-           <td className="py-2 px-2 text-center">{FRANCHISE_DATA[selectedFranchise].광고비월 !== null ? `${FRANCHISE_DATA[selectedFranchise].광고비월}만원` : <span className="text-neutral-400">미확인</span>}</td>
+           <td className="py-2 px-2 text-center">{FRANCHISE_DATA[selectedFranchise].광고비월 !== null ? `${FRANCHISE_DATA[selectedFranchise].광고비월}만원` : <span className={`${t.textMuted}`}>미확인</span>}</td>
            <td className="py-2 px-2 text-center font-bold text-[#1e3a5f]">자율 선택</td>
          </tr>
          <tr className="border-b border-neutral-100">
            <td className="py-2 px-2">인테리어 (10평)</td>
-           <td className="py-2 px-2 text-center">{FRANCHISE_DATA[selectedFranchise].인테리어 !== null ? `${FRANCHISE_DATA[selectedFranchise].인테리어}만원` : <span className="text-neutral-400">미확인</span>}</td>
+           <td className="py-2 px-2 text-center">{FRANCHISE_DATA[selectedFranchise].인테리어 !== null ? `${FRANCHISE_DATA[selectedFranchise].인테리어}만원` : <span className={`${t.textMuted}`}>미확인</span>}</td>
            <td className="py-2 px-2 text-center text-[#1e3a5f]">400만원+별도</td>
          </tr>
          <tr>
@@ -12825,12 +12908,12 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
      
      {/* 추가 검증 데이터 표시 */}
      {(FRANCHISE_DATA[selectedFranchise].폐업률 !== null || FRANCHISE_DATA[selectedFranchise].연평균매출) && (
-       <div className="mt-3 p-3 bg-white rounded-lg border border-neutral-200">
+       <div className={`mt-3 p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-neutral-200'}`}>
          <h5 className="font-medium text-sm text-neutral-700 mb-2">검증된 실적 데이터</h5>
          <div className="grid grid-cols-2 gap-2 text-sm">
            {FRANCHISE_DATA[selectedFranchise].폐업률 !== null && (
              <div>
-               <span className="text-neutral-500">폐업률: </span>
+               <span className={`${t.textMuted}`}>폐업률: </span>
                <span className={FRANCHISE_DATA[selectedFranchise].폐업률 < 1 ? 'text-white font-medium' : 'text-white font-medium'}>
                  {FRANCHISE_DATA[selectedFranchise].폐업률}%
                </span>
@@ -12838,19 +12921,19 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
            )}
            {FRANCHISE_DATA[selectedFranchise].연평균매출 && (
              <div>
-               <span className="text-neutral-500">연평균 매출: </span>
+               <span className={`${t.textMuted}`}>연평균 매출: </span>
                <span className="font-medium">{(FRANCHISE_DATA[selectedFranchise].연평균매출 / 10000).toFixed(1)}억원</span>
              </div>
            )}
            {FRANCHISE_DATA[selectedFranchise].평균영업기간 && (
              <div>
-               <span className="text-neutral-500">평균 영업기간: </span>
+               <span className={`${t.textMuted}`}>평균 영업기간: </span>
                <span className="font-medium">{FRANCHISE_DATA[selectedFranchise].평균영업기간}</span>
              </div>
            )}
            {FRANCHISE_DATA[selectedFranchise].영업이익률 && (
              <div>
-               <span className="text-neutral-500">영업이익률: </span>
+               <span className={`${t.textMuted}`}>영업이익률: </span>
                <span className="font-medium">{FRANCHISE_DATA[selectedFranchise].영업이익률}%</span>
              </div>
            )}
@@ -12860,13 +12943,13 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
      
      {/* 이슈 정보 */}
      {FRANCHISE_DATA[selectedFranchise].이슈 && (
-       <div className="mt-3 p-3 bg-white rounded-lg border border-neutral-200">
+       <div className={`mt-3 p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-neutral-200'}`}>
          <button 
            onClick={() => setFranchiseIssueExpanded(prev => ({...prev, [selectedFranchise]: !prev[selectedFranchise]}))}
            className="w-full flex items-center justify-between text-sm"
          >
            <span className="font-medium text-neutral-700">검토 필요 사항</span>
-           <span className="text-neutral-400">{franchiseIssueExpanded[selectedFranchise] ? '접기' : '펼치기'}</span>
+           <span className={`${t.textMuted}`}>{franchiseIssueExpanded[selectedFranchise] ? '접기' : '펼치기'}</span>
          </button>
          {franchiseIssueExpanded[selectedFranchise] && (
            <ul className="mt-2 space-y-1">
@@ -12878,7 +12961,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        </div>
      )}
      
-     <p className="text-xs text-neutral-400 mt-3">
+     <p className={`text-xs mt-3 ${t.textMuted}`}>
        매장수: {FRANCHISE_DATA[selectedFranchise].매장수 ? `약 ${FRANCHISE_DATA[selectedFranchise].매장수.toLocaleString()}개` : '미확인'} / 
        검증일: {FRANCHISE_DATA[selectedFranchise].검증일자 || '미상'} / 
        출처: 공정위 정보공개서
@@ -12897,60 +12980,60 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <th className="py-3 px-2 text-center text-[#1e3a5f] font-medium">빈크래프트</th>
  </tr>
  </thead>
- <tbody className="text-neutral-700">
+ <tbody className={`${t.text}`}>
  <tr className="border-b border-neutral-200">
  <td className="py-3 px-2 font-medium">가맹비</td>
- <td className="py-3 px-2 text-center text-neutral-700">500~1,500만원</td>
+ <td className={`py-3 px-2 text-center ${t.text}`}>500~1,500만원</td>
  <td className="py-3 px-2 text-center text-[#1e3a5f] font-bold">0원</td>
  </tr>
  <tr className="border-b border-neutral-200">
  <td className="py-3 px-2 font-medium">교육비</td>
- <td className="py-3 px-2 text-center text-neutral-700">100~300만원</td>
+ <td className={`py-3 px-2 text-center ${t.text}`}>100~300만원</td>
  <td className="py-3 px-2 text-center text-[#1e3a5f]">컨설팅 포함</td>
  </tr>
  <tr className="border-b border-neutral-200">
  <td className="py-3 px-2 font-medium">컨설팅</td>
- <td className="py-3 px-2 text-center text-neutral-700">-</td>
+ <td className={`py-3 px-2 text-center ${t.text}`}>-</td>
  <td className="py-3 px-2 text-center text-[#1e3a5f]">1,000만원</td>
  </tr>
  <tr className="border-b border-neutral-200">
  <td className="py-3 px-2 font-medium">로열티 (월)</td>
- <td className="py-3 px-2 text-center text-neutral-700">15~50만원</td>
+ <td className={`py-3 px-2 text-center ${t.text}`}>15~50만원</td>
  <td className="py-3 px-2 text-center text-[#1e3a5f] font-bold">0원</td>
  </tr>
  <tr className="border-b border-neutral-200">
  <td className="py-3 px-2 font-medium">로열티 (5년)</td>
- <td className="py-3 px-2 text-center text-neutral-700">900~3,000만원</td>
+ <td className={`py-3 px-2 text-center ${t.text}`}>900~3,000만원</td>
  <td className="py-3 px-2 text-center text-[#1e3a5f] font-bold">0원</td>
  </tr>
  <tr className="border-b border-neutral-200">
  <td className="py-3 px-2 font-medium">광고분담금 (월)</td>
- <td className="py-3 px-2 text-center text-neutral-700">10~30만원</td>
+ <td className={`py-3 px-2 text-center ${t.text}`}>10~30만원</td>
  <td className="py-3 px-2 text-center text-[#1e3a5f] font-bold">0원</td>
  </tr>
  <tr className="border-b border-neutral-200">
  <td className="py-3 px-2 font-medium">인테리어</td>
- <td className="py-3 px-2 text-center text-neutral-700">본사 지정업체</td>
+ <td className={`py-3 px-2 text-center ${t.text}`}>본사 지정업체</td>
  <td className="py-3 px-2 text-center text-[#1e3a5f]">400만원+견적 별도</td>
  </tr>
  <tr className="border-b border-neutral-200">
  <td className="py-3 px-2 font-medium">기기설비</td>
- <td className="py-3 px-2 text-center text-neutral-700">본사 지정업체</td>
+ <td className={`py-3 px-2 text-center ${t.text}`}>본사 지정업체</td>
  <td className="py-3 px-2 text-center text-[#1e3a5f]">400만원+견적 별도</td>
  </tr>
  <tr className="border-b border-neutral-200">
  <td className="py-3 px-2 font-medium">원두공급</td>
- <td className="py-3 px-2 text-center text-neutral-700">본사 지정 (강제)</td>
+ <td className={`py-3 px-2 text-center ${t.text}`}>본사 지정 (강제)</td>
  <td className="py-3 px-2 text-center text-[#1e3a5f]">공급가 납품 (선택)</td>
  </tr>
  <tr className="border-b border-neutral-200">
  <td className="py-3 px-2 font-medium">메뉴개발</td>
- <td className="py-3 px-2 text-center text-neutral-700">본사 고정메뉴</td>
+ <td className={`py-3 px-2 text-center ${t.text}`}>본사 고정메뉴</td>
  <td className="py-3 px-2 text-center text-[#1e3a5f]">400만원 (15가지)</td>
  </tr>
  <tr>
  <td className="py-3 px-2 font-medium">계약기간</td>
- <td className="py-3 px-2 text-center text-neutral-700">2~5년 (갱신시 추가비용)</td>
+ <td className={`py-3 px-2 text-center ${t.text}`}>2~5년 (갱신시 추가비용)</td>
  <td className="py-3 px-2 text-center text-[#1e3a5f]">없음</td>
  </tr>
  </tbody>
@@ -12966,29 +13049,29 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
    .sort((a, b) => (b[1].매장수 || 0) - (a[1].매장수 || 0))
    .slice(0, 10)
    .map(([name, data]) => (
-   <div key={name} className="border border-neutral-200 rounded-lg bg-white">
+   <div key={name} className={`rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-neutral-200'}`}>
      <button
        onClick={() => setFranchiseIssueExpanded(prev => ({...prev, [name]: !prev[name]}))}
        className="w-full flex items-center justify-between p-3 hover:bg-neutral-50"
      >
        <div className="flex items-center gap-3 text-left">
-         <span className="text-neutral-800 font-medium">{name}</span>
-         <span className="text-xs text-neutral-400">가맹비 {data.가맹비}만 + 교육비 {data.교육비}만 + 인테리어/기기</span>
+         <span className={`font-medium ${t.text}`}>{name}</span>
+         <span className={`text-xs ${t.textMuted}`}>가맹비 {data.가맹비}만 + 교육비 {data.교육비}만 + 인테리어/기기</span>
        </div>
        <div className="flex items-center gap-2">
          <span className="text-neutral-700 font-bold text-sm">{data.총비용}</span>
-         <span className="text-neutral-400 text-xs">{franchiseIssueExpanded[name] ? '접기' : '펼치기'}</span>
+         <span className={`text-xs ${t.textMuted}`}>{franchiseIssueExpanded[name] ? '접기' : '펼치기'}</span>
        </div>
      </button>
      {franchiseIssueExpanded[name] && (
        <div className="px-3 pb-3 border-t border-neutral-100">
          <div className="pt-2 space-y-1">
-           <p className="text-xs text-neutral-500">매장수: 약 {data.매장수?.toLocaleString()}개 / 로열티: 월 {data.로열티월}만원 / 광고비: 월 {data.광고비월}만원</p>
+           <p className={`text-xs ${t.textMuted}`}>매장수: 약 {data.매장수?.toLocaleString()}개 / 로열티: 월 {data.로열티월}만원 / 광고비: 월 {data.광고비월}만원</p>
            {data.이슈 && (
              <div className="mt-2">
                <p className="text-xs text-neutral-600 font-medium mb-1">최근 이슈:</p>
                {data.이슈.map((issue, idx) => (
-                 <p key={idx} className="text-xs text-neutral-500">- {issue}</p>
+                 <p key={idx} className={`text-xs ${t.textMuted}`}>- {issue}</p>
                ))}
              </div>
            )}
@@ -13005,7 +13088,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  ))}
  </div>
  <a href="https://franchise.ftc.go.kr/mnu/00013/program/userRqst/list.do" target="_blank" rel="noopener" className="flex items-center justify-center gap-2 mt-3 p-3 rounded-lg border border-neutral-300/50 bg-neutral-800/10 hover:bg-neutral-800/20 transition-all">
- <span className="text-sm text-neutral-700 font-medium">공정위 가맹사업정보제공시스템에서 상세 정보 확인</span>
+ <span className={`text-sm font-medium ${t.text}`}>공정위 가맹사업정보제공시스템에서 상세 정보 확인</span>
  </a>
  <p className="text-xs text-neutral-500 mt-3 text-center">* 최종 창업비용은 점포 크기, 위치, 인테리어 범위에 따라 달라집니다.</p>
  </div>
@@ -13015,9 +13098,9 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
 
  {/* 팀 피드백 자동 학습 시스템 */}
- <div className="bg-white border border-neutral-200 rounded-2xl p-3 sm:p-4">
+ <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
  <div className="flex items-center justify-between mb-4">
- <h3 className="font-bold text-[#171717] flex items-center gap-2">
+ <h3 className={`font-bold ${t.text} flex items-center gap-2`}>
  <span className="text-xl"></span> 팀 피드백 자동 학습
  <span className="text-xs bg-neutral-600 text-neutral-700 px-2 py-0.5 rounded-full">자동</span>
  </h3>
@@ -13089,7 +13172,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {fb.result === 'success' ? '효과 있던 멘트' : '개선 필요 멘트'}
  </p>
  <p className="text-sm text-neutral-800 mt-1">{fb.situation === 'broker' ? '중개사 첫 방문' : fb.situation === 'broker-followup' ? '중개사 재방문' : fb.situation === 'franchise' ? '프랜차이즈 비교 질문 대응' : fb.situation || '상황 미입력'}</p>
- <p className="text-xs text-neutral-500 mt-1">{fb.memo || '메모 없음'}</p>
+ <p className={`text-xs mt-1 ${t.textMuted}`}>{fb.memo || '메모 없음'}</p>
  </div>
  <span className={`text-xs px-2 py-1 rounded ${fb.result === 'success' ? 'bg-neutral-600 text-neutral-700' : 'bg-neutral-600 text-white'}`}>
  {fb.result === 'success' ? '성공' : '실패'}
@@ -13098,18 +13181,18 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  ))
  ) : (
- <div className="p-4 rounded-lg border border-neutral-200 bg-white/30 text-center">
- <p className="text-neutral-500 text-sm">아직 공유된 피드백이 없습니다.</p>
+ <div className={`p-4 rounded-lg border text-center ${theme === 'dark' ? 'bg-white/5 border-neutral-700' : 'bg-white/30 border-neutral-200'}`}>
+ <p className={`text-sm ${t.textMuted}`}>아직 공유된 피드백이 없습니다.</p>
  <p className="text-neutral-500 text-xs mt-1">위에서 멘트 결과를 공유해주세요.</p>
  </div>
  )}
  
  {/* AI 분석 인사이트 - 피드백이 있을 때만 표시 */}
  {teamFeedbacksAll && teamFeedbacksAll.length >= 3 && (
- <div className="p-3 rounded-lg bg-white border border-neutral-300">
- <p className="text-xs text-neutral-700 font-semibold mb-2">AI 분석 인사이트</p>
- <p className="text-sm text-neutral-700">• 피드백 데이터를 분석 중입니다...</p>
- <p className="text-xs text-neutral-500 mt-2">피드백이 5개 이상 쌓이면 AI가 패턴을 분석해드립니다.</p>
+ <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-600' : 'bg-white border-neutral-300'}`}>
+ <p className={`text-xs font-semibold mb-2 ${t.text}`}>AI 분석 인사이트</p>
+ <p className={`text-sm ${t.text}`}>• 피드백 데이터를 분석 중입니다...</p>
+ <p className={`text-xs mt-2 ${t.textMuted}`}>피드백이 5개 이상 쌓이면 AI가 패턴을 분석해드립니다.</p>
  </div>
  )}
  </div>
@@ -13122,19 +13205,19 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  )}
  {tab === 'calendar' && (
  <div className="space-y-2">
- <h2 className="font-bold text-[#171717] text-xl">일정 캘린더</h2>
- <div className="bg-white border border-neutral-200 rounded-2xl p-3 sm:p-4">
+ <h2 className={`font-bold ${t.text} text-xl`}>일정 캘린더</h2>
+ <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
  <div className="flex justify-between items-center mb-4">
  <button
  onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1))}
- className="w-10 h-10 rounded-lg bg-neutral-100 border border-neutral-200 text-neutral-700 font-bold hover:bg-neutral-200"
+ className={`w-10 h-10 rounded-lg font-bold border ${theme === 'dark' ? 'bg-neutral-700 border-neutral-600 text-white hover:bg-neutral-600' : 'bg-neutral-100 border-neutral-200 text-neutral-700 hover:bg-neutral-200'}`}
  >&lt;</button>
- <h3 className="font-bold text-[#171717] text-lg">
+ <h3 className={`font-bold ${t.text} text-lg`}>
  {calendarMonth.getFullYear()}년 {calendarMonth.getMonth() + 1}월
  </h3>
  <button
  onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1))}
- className="w-10 h-10 rounded-lg bg-neutral-100 border border-neutral-200 text-neutral-700 font-bold hover:bg-neutral-200"
+ className={`w-10 h-10 rounded-lg font-bold border ${theme === 'dark' ? 'bg-neutral-700 border-neutral-600 text-white hover:bg-neutral-600' : 'bg-neutral-100 border-neutral-200 text-neutral-700 hover:bg-neutral-200'}`}
  >&gt;</button>
  </div>
  <div className="grid grid-cols-7 gap-0.5 sm:gap-1 mb-2">
@@ -13209,7 +13292,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  }
  })}
  {allItems.length > 3 && (
- <div className="text-xs text-neutral-800">+{allItems.length - 3}개</div>
+ <div className={`text-xs ${t.text}`}>+{allItems.length - 3}개</div>
  )}
  </div>
  </div>
@@ -13219,8 +13302,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  })()}
  </div>
  </div>
- <div className="bg-white border border-neutral-200 rounded-2xl p-3 sm:p-4">
- <p className="font-bold text-neutral-800 mb-3">이번 주 일정</p>
+ <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <p className={`font-bold mb-3 ${t.text}`}>이번 주 일정</p>
  {(() => {
  const today = new Date();
  const startOfWeek = new Date(today);
@@ -13241,7 +13324,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  return dateA - dateB;
  });
  if (allWeekItems.length === 0) {
- return <p className="text-center text-neutral-800 py-4">이번 주 일정이 없습니다</p>;
+ return <p className={`text-center py-4 ${t.text}`}>이번 주 일정이 없습니다</p>;
  }
  return (
  <div className="space-y-2">
@@ -13256,12 +13339,12 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all hover:shadow-md ${isCompleted ? 'bg-emerald-900/30' : 'bg-neutral-100'}`}
  >
  <div className="text-center min-w-[40px]">
- <p className="text-xs text-neutral-800">{new Date(item.date).toLocaleDateString('ko-KR', { weekday: 'short' })}</p>
- <p className="font-bold text-[#171717]">{item.date.slice(8)}</p>
+ <p className={`text-xs ${t.text}`}>{new Date(item.date).toLocaleDateString('ko-KR', { weekday: 'short' })}</p>
+ <p className={`font-bold ${t.text}`}>{item.date.slice(8)}</p>
  </div>
  <div className="flex-1 min-w-0">
- <p className="font-bold text-[#171717] text-sm break-words leading-snug">{item.name}</p>
- <p className="text-xs text-neutral-800">{item.time || ''} · {item.stops?.length || 0}곳</p>
+ <p className={`font-bold ${t.text} text-sm break-words leading-snug`}>{item.name}</p>
+ <p className={`text-xs ${t.text}`}>{item.time || ''} · {item.stops?.length || 0}곳</p>
  </div>
  {manager && (
  <span className="px-2 py-1 rounded text-xs font-bold text-white" style={{ background: manager.color }}>
@@ -13283,12 +13366,12 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  className="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all hover:shadow-md bg-purple-50"
  >
  <div className="text-center min-w-[40px]">
- <p className="text-xs text-neutral-800">{new Date(item.date).toLocaleDateString('ko-KR', { weekday: 'short' })}</p>
- <p className="font-bold text-[#171717]">{item.date.slice(8)}</p>
+ <p className={`text-xs ${t.text}`}>{new Date(item.date).toLocaleDateString('ko-KR', { weekday: 'short' })}</p>
+ <p className={`font-bold ${t.text}`}>{item.date.slice(8)}</p>
  </div>
  <div className="flex-1 min-w-0">
- <p className="font-bold text-[#171717] text-sm break-words leading-snug">{item.title}</p>
- <p className="text-xs text-neutral-800 break-words">{item.time || ''} {item.memo ? `· ${item.memo}` : ''}</p>
+ <p className={`font-bold ${t.text} text-sm break-words leading-snug`}>{item.title}</p>
+ <p className={`text-xs break-words ${t.text}`}>{item.time || ''} {item.memo ? `· ${item.memo}` : ''}</p>
  </div>
  <span className="px-2 py-1 rounded text-xs font-bold text-white bg-purple-500">메모</span>
  </div>
@@ -13304,10 +13387,10 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {tab === 'route' && (
  <div>
  <div className="space-y-2">
- <h2 className="font-bold text-[#171717] text-xl">동선 관리</h2>
- <div className="bg-white border border-neutral-200 rounded-2xl p-3 sm:p-4">
+ <h2 className={`font-bold ${t.text} text-xl`}>동선 관리</h2>
+ <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
  <div className="flex justify-between items-center mb-3">
- <p className="text-sm text-neutral-800 font-bold">
+ <p className={`text-sm font-bold ${t.text}`}>
  {editingRouteId ? '동선 수정' : '일정 정보'}
  </p>
  {editingRouteId && (
@@ -13320,7 +13403,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  placeholder="일정명 (예: 이태원 영업)"
  value={routeName}
  onChange={e => setRouteName(e.target.value)}
- className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm col-span-2"
+ className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm col-span-2`}
  />
  <div className="relative" onClick={() => document.getElementById('routeDateInput').showPicker?.()}>
  <input
@@ -13328,7 +13411,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  type="date"
  value={routeDate}
  onChange={e => setRouteDate(e.target.value)}
- className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm w-full cursor-pointer"
+ className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm w-full cursor-pointer`}
  />
  </div>
  <div className="relative" onClick={() => document.getElementById('routeTimeInput').showPicker?.()}>
@@ -13337,20 +13420,20 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  type="time"
  value={routeTime}
  onChange={e => setRouteTime(e.target.value)}
- className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm w-full cursor-pointer"
+ className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm w-full cursor-pointer`}
  />
  </div>
  </div>
  <div className="grid grid-cols-1 gap-2">
- <select value={routeManager || ''} onChange={e => setRouteManager(Number(e.target.value) || null)} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] focus:outline-none focus:border-neutral-400 transition-all text-sm">
+ <select value={routeManager || ''} onChange={e => setRouteManager(Number(e.target.value) || null)} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} focus:outline-none focus:border-neutral-400 transition-all text-sm`}>
  <option value="">담당자 선택</option>
  {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
  </select>
  </div>
  </div>
- <div className="bg-white border border-neutral-200 rounded-2xl p-3 sm:p-4">
+ <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
  <div className="flex justify-between items-center mb-3">
- <p className="font-bold text-neutral-800">직접 검색</p>
+ <p className={`font-bold ${t.text}`}>직접 검색</p>
  </div>
  <div className="bg-neutral-100 rounded-xl p-3">
  <div className="flex gap-2">
@@ -13361,7 +13444,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  value={placeSearchQuery}
  onChange={e => setPlaceSearchQuery(e.target.value)}
  onKeyPress={e => e.key === 'Enter' && searchAndMoveMap()}
- className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm"
+ className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm`}
  style={{flex: 6}}
  />
  <input
@@ -13370,7 +13453,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  value={placeCustomName}
  onChange={e => setPlaceCustomName(e.target.value)}
  onKeyPress={e => e.key === 'Enter' && searchAndMoveMap()}
- className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm"
+ className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm`}
  style={{flex: 4}}
  />
  </div>
@@ -13416,17 +13499,17 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </button>
  </div>
  )}
- <p className="text-xs text-neutral-800 mt-2">주소 검색 후 업체명을 입력하면 동선에 업체명으로 표시됩니다</p>
+ <p className={`text-xs mt-2 ${t.text}`}>주소 검색 후 업체명을 입력하면 동선에 업체명으로 표시됩니다</p>
  </div>
  </div>
- <div className="bg-white border border-neutral-200 rounded-2xl p-3 sm:p-4">
- <p className="font-bold text-neutral-800 mb-3">중개사 검색</p>
+ <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <p className={`font-bold mb-3 ${t.text}`}>중개사 검색</p>
  <div className="space-y-3">
  <div className="grid grid-cols-2 gap-2">
  <select
  value={routeSearchRegion}
  onChange={e => setRouteSearchRegion(e.target.value)}
- className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] focus:outline-none focus:border-neutral-400 transition-all text-sm"
+ className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} focus:outline-none focus:border-neutral-400 transition-all text-sm`}
  >
  <option value="">지역 선택</option>
  <optgroup label="서울특별시">
@@ -13730,7 +13813,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  placeholder="목표 (예: 10)"
  value={routeSearchTarget}
  onChange={e => setRouteSearchTarget(e.target.value)}
- className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm"
+ className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm`}
  min="1"
  max="50"
  />
@@ -13740,7 +13823,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  placeholder="또는 지역/업체명 직접 입력 (예: 강남구, 신내동, OO부동산)"
  value={routeSearchText}
  onChange={e => { setRouteSearchText(e.target.value); if (e.target.value) setRouteSearchRegion(''); }}
- className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm"
+ className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm`}
  />
  <button
  onClick={() => {
@@ -13796,13 +13879,13 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  >
  동선에 추가
  </button>
- <p className="text-xs text-neutral-500">* 미방문 업체만, 매물 많은 순으로 추가됩니다</p>
+ <p className={`text-xs ${t.textMuted}`}>* 미방문 업체만, 매물 많은 순으로 추가됩니다</p>
  </div>
  </div>
- <div className="bg-white border border-neutral-200 rounded-2xl p-3 sm:p-4">
+ <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
  <div className="flex justify-between items-center mb-3">
  <div>
- <p className="font-bold text-neutral-800">방문 순서 ({routeStops.length}곳)</p>
+ <p className={`font-bold ${t.text}`}>방문 순서 ({routeStops.length}곳)</p>
  {routeInfo && (
  <p className="text-xs text-primary-400 mt-1">{routeInfo.distance}km · {routeInfo.duration}분</p>
  )}
@@ -13810,8 +13893,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="flex gap-2">
  {routeStops.length >= 2 && (
  <>
- <button type="button" onClick={optimizeRouteOrder} className="text-xs bg-neutral-100 text-neutral-900 px-3 py-1.5 rounded-lg font-bold hover:bg-neutral-200 border border-neutral-300">최적화</button>
- <button type="button" onClick={reverseRouteOrder} className="text-xs bg-neutral-100 text-neutral-900 px-3 py-1.5 rounded-lg font-bold hover:bg-neutral-200 border border-neutral-300">반대로</button>
+ <button type="button" onClick={optimizeRouteOrder} className={`text-xs px-3 py-1.5 rounded-lg font-bold border ${theme === 'dark' ? 'bg-neutral-700 text-white hover:bg-neutral-600 border-neutral-600' : 'bg-neutral-100 text-neutral-900 hover:bg-neutral-200 border-neutral-300'}`}>최적화</button>
+ <button type="button" onClick={reverseRouteOrder} className={`text-xs px-3 py-1.5 rounded-lg font-bold border ${theme === 'dark' ? 'bg-neutral-700 text-white hover:bg-neutral-600 border-neutral-600' : 'bg-neutral-100 text-neutral-900 hover:bg-neutral-200 border-neutral-300'}`}>반대로</button>
  </>
  )}
  {routeStops.length > 0 && (
@@ -13842,15 +13925,15 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  <div className="flex-1 min-w-0">
  <div className="flex items-center gap-1.5 flex-wrap">
- <p className="font-bold text-[#171717] text-sm break-words">{stop.name}</p>
+ <p className={`font-bold ${t.text} text-sm break-words`}>{stop.name}</p>
  {stopManager && <span className="px-1.5 py-0.5 text-xs rounded text-white font-bold" style={{backgroundColor: stopManager.color}}>{stopManager.name}</span>}
  </div>
- {stop.address && <p className="text-xs text-neutral-800 break-words">{stop.address}</p>}
- {stop.phone && <p className="text-xs text-neutral-500">{stop.phone}</p>}
+ {stop.address && <p className={`text-xs break-words ${t.text}`}>{stop.address}</p>}
+ {stop.phone && <p className={`text-xs ${t.textMuted}`}>{stop.phone}</p>}
  </div>
  <div className="flex gap-1 flex-shrink-0">
- {idx > 0 && <button type="button" onClick={() => moveRouteStop(idx, -1)} className="w-6 h-6 rounded bg-neutral-200 text-neutral-800 text-xs">↑</button>}
- {idx < routeStops.length - 1 && <button type="button" onClick={() => moveRouteStop(idx, 1)} className="w-6 h-6 rounded bg-neutral-200 text-neutral-800 text-xs">↓</button>}
+ {idx > 0 && <button type="button" onClick={() => moveRouteStop(idx, -1)} className={`w-6 h-6 rounded text-xs ${theme === 'dark' ? 'bg-neutral-700 text-white' : 'bg-neutral-200 text-neutral-800'}`}>↑</button>}
+ {idx < routeStops.length - 1 && <button type="button" onClick={() => moveRouteStop(idx, 1)} className={`w-6 h-6 rounded text-xs ${theme === 'dark' ? 'bg-neutral-700 text-white' : 'bg-neutral-200 text-neutral-800'}`}>↓</button>}
  <button type="button" onClick={() => removeRouteStop(stop.id)} className="w-6 h-6 rounded bg-rose-100 text-white text-xs"></button>
  </div>
  </div>
@@ -13867,7 +13950,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="mt-3 pt-3 border-t border-neutral-200">
  {editingRouteId ? (
  <div className="flex gap-2">
- <button type="button" onClick={cancelEditRoute} className="flex-1 px-4 py-2 bg-white text-neutral-700 border border-neutral-200 rounded-lg font-medium hover:bg-neutral-50 transition-all py-3 font-bold">
+ <button type="button" onClick={cancelEditRoute} className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all py-3 font-bold border ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 border-neutral-600 hover:bg-neutral-600' : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50'}`}>
  취소
  </button>
  <button type="button" onClick={registerSchedule} className="flex-1 px-4 py-2 bg-neutral-900 text-white rounded-lg font-medium hover:bg-neutral-800 transition-all py-3 font-bold">
@@ -13882,14 +13965,14 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  )}
  </div>
- <div className="bg-white border border-neutral-200 rounded-2xl overflow-hidden">
+ <div className={`rounded-2xl overflow-hidden border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
  <div className="p-3 border-b border-neutral-200">
  {routeStops.length > 0 && (
  <div className="flex items-center gap-2">
  <button type="button"
  onClick={() => slideToStop(currentSlideIndex - 1)}
  disabled={currentSlideIndex <= 0}
- className="w-8 h-8 rounded bg-neutral-200 text-neutral-800 disabled:opacity-30"
+ className={`w-8 h-8 rounded disabled:opacity-30 ${theme === 'dark' ? 'bg-neutral-700 text-white' : 'bg-neutral-200 text-neutral-800'}`}
  >←</button>
  <div className="flex-1 overflow-hidden">
  <div className="flex gap-2 transition-transform" style={{ transform: `translateX(-${currentSlideIndex * 100}%)` }}>
@@ -13907,7 +13990,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <button type="button"
  onClick={() => slideToStop(currentSlideIndex + 1)}
  disabled={currentSlideIndex >= routeStops.length - 1}
- className="w-8 h-8 rounded bg-neutral-200 text-neutral-800 disabled:opacity-30"
+ className={`w-8 h-8 rounded disabled:opacity-30 ${theme === 'dark' ? 'bg-neutral-700 text-white' : 'bg-neutral-200 text-neutral-800'}`}
  >→</button>
  </div>
  )}
@@ -13934,9 +14017,9 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  </div>
  </div>
- <div className="bg-white border border-neutral-200 rounded-2xl p-3 sm:p-4">
+ <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
  <div className="flex justify-between items-center mb-3">
- <p className="font-bold text-neutral-800">등록된 동선</p>
+ <p className={`font-bold ${t.text}`}>등록된 동선</p>
  {routes.length > 0 && (
  <div className="flex gap-2">
  {routeDeleteMode ? (
@@ -13956,7 +14039,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </button>
  <button
  onClick={() => { setRouteDeleteMode(false); setSelectedRoutesForDelete([]); }}
- className="px-3 py-1 bg-gray-200 text-gray-300 rounded text-xs font-bold"
+ className={`px-3 py-1 rounded text-xs font-bold ${theme === 'dark' ? 'bg-neutral-700 text-neutral-300' : 'bg-neutral-200 text-neutral-600'}`}
  >
  취소
  </button>
@@ -13999,14 +14082,14 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  className="w-full px-4 py-3 bg-neutral-50 flex items-center justify-between hover:bg-neutral-100 transition-colors"
  >
  <div className="flex items-center gap-3">
- <span className="text-sm font-bold text-[#171717]">{month}</span>
- <span className="text-xs text-neutral-500">{monthRoutes.length}개 동선</span>
+ <span className={`text-sm font-bold ${t.text}`}>{month}</span>
+ <span className={`text-xs ${t.textMuted}`}>{monthRoutes.length}개 동선</span>
  <span className="text-xs text-white">{completedCount}개 완료</span>
  </div>
- <span className="text-neutral-400">{isExpanded ? '▲' : '▼'}</span>
+ <span className={`${t.textMuted}`}>{isExpanded ? '▲' : '▼'}</span>
  </button>
  {isExpanded && (
- <div className="p-2 space-y-2 bg-white">
+ <div className={`p-2 space-y-2 ${theme === 'dark' ? 'bg-neutral-800' : 'bg-white'}`}>
  {monthRoutes.map(route => {
  const manager = managers.find(m => m.id === route.managerId);
  const completedStops = (route.stops || []).filter(s => s.visited).length;
@@ -14034,7 +14117,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {isCompleted ? '' : '○'}
  </div>
  <div className="flex-1 min-w-0">
- <p className="font-bold text-[#171717] text-sm break-words leading-snug">{route.name || route.date}</p>
+ <p className={`font-bold ${t.text} text-sm break-words leading-snug`}>{route.name || route.date}</p>
  <p className="text-xs text-neutral-600">{route.date} {route.time || ''} · {completedStops}/{totalStops}곳</p>
  {manager && (
  <span className="inline-block mt-1 px-2 py-0.5 rounded text-xs font-bold text-white" style={{ background: manager.color }}>
@@ -14045,9 +14128,9 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  {!routeDeleteMode && (
  <div className="flex justify-end gap-2 mt-2 pt-2 border-t border-neutral-200">
- <button type="button" onClick={() => editRoute(route)} className="px-3 py-1 bg-white border border-neutral-200 rounded text-xs text-neutral-700 font-medium">수정</button>
- <button type="button" onClick={() => setSelectedSchedule(route)} className="px-3 py-1 bg-white border border-neutral-200 rounded text-xs text-neutral-700 font-medium">상세</button>
- <button onClick={() => viewRouteOnMapDirect(route)} className="px-3 py-1 bg-white border border-neutral-200 rounded text-xs text-neutral-700 font-medium">동선</button>
+ <button type="button" onClick={() => editRoute(route)} className={`px-3 py-1 rounded text-xs font-medium border ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 border-neutral-600' : 'bg-white text-neutral-700 border-neutral-200'}`}>수정</button>
+ <button type="button" onClick={() => setSelectedSchedule(route)} className={`px-3 py-1 rounded text-xs font-medium border ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 border-neutral-600' : 'bg-white text-neutral-700 border-neutral-200'}`}>상세</button>
+ <button onClick={() => viewRouteOnMapDirect(route)} className={`px-3 py-1 rounded text-xs font-medium border ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 border-neutral-600' : 'bg-white text-neutral-700 border-neutral-200'}`}>동선</button>
  {!isCompleted && (
  <button onClick={() => handleCompleteRoute(route)} className="px-3 py-1 bg-emerald-100 rounded text-xs text-white font-medium">완료</button>
  )}
@@ -14072,11 +14155,11 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {tab === 'map' && (
  <div>
  <div className="space-y-2">
- <div className="bg-white border border-neutral-200 rounded-2xl p-3 sm:p-4">
+ <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
  <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-3 mb-4">
  <p className="text-amber-800 font-bold text-sm mb-2">지도 표시 현황</p>
  <div className="flex flex-wrap gap-3 text-sm">
- <span className="text-neutral-800">전체 업체: <b>{companies.length}</b></span>
+ <span className={`${t.text}`}>전체 업체: <b>{companies.length}</b></span>
  <span className="text-white">지도 표시: <b>{companies.filter(c => c.lat && c.lng).length}</b></span>
  <span
  className="text-neutral-800 cursor-pointer hover:text-primary-600"
@@ -14087,11 +14170,11 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  </div>
  <div className="grid grid-cols-2 gap-2 mb-3">
- <select value={filterManager} onChange={e => setFilterManager(e.target.value)} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] focus:outline-none focus:border-neutral-400 transition-all text-sm">
+ <select value={filterManager} onChange={e => setFilterManager(e.target.value)} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} focus:outline-none focus:border-neutral-400 transition-all text-sm`}>
  <option value="all">전체 영업자</option>
  {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
  </select>
- <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] focus:outline-none focus:border-neutral-400 transition-all text-sm">
+ <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} focus:outline-none focus:border-neutral-400 transition-all text-sm`}>
  <option value="all">전체 반응</option>
  <option value="special">특별</option>
  <option value="positive">긍정</option>
@@ -14101,7 +14184,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </select>
  </div>
  <div className="flex gap-2">
- <input type="text" placeholder="장소/주소 검색 (예: 남영역, 강남구)" value={searchRegion} onChange={e => setSearchRegion(e.target.value)} onKeyPress={e => e.key === 'Enter' && searchOrHighlight()} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all flex-1 text-sm" />
+ <input type="text" placeholder="장소/주소 검색 (예: 남영역, 강남구)" value={searchRegion} onChange={e => setSearchRegion(e.target.value)} onKeyPress={e => e.key === 'Enter' && searchOrHighlight()} className={`w-full px-3 py-2 rounded-lg placeholder-neutral-400 focus:outline-none transition-all flex-1 text-sm ${theme === 'dark' ? 'bg-neutral-700 border-neutral-600 text-white focus:border-neutral-500' : 'bg-white border-neutral-200 text-neutral-900 focus:border-neutral-400'}`} />
  <button type="button" onClick={searchOrHighlight} className="px-4 py-2 bg-neutral-900 text-white rounded-lg font-medium hover:bg-neutral-800 transition-all text-sm"></button>
  </div>
  <div className="border-t border-neutral-200 mt-4 pt-4">
@@ -14113,17 +14196,17 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <span className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-gray-400"></div> 부정</span>
  <span className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-yellow-500"></div> 누락</span>
  </div>
- <p className="text-xs text-neutral-800 mt-2">핀을 클릭하면 업체 정보를 확인할 수 있습니다</p>
+ <p className={`text-xs mt-2 ${t.text}`}>핀을 클릭하면 업체 정보를 확인할 수 있습니다</p>
  </div>
  </div>
- <div className="bg-white border border-neutral-200 rounded-2xl overflow-hidden" style={{height: 'calc(100vh - 200px)', minHeight: '500px'}}><div ref={mapRef} className="map-container" style={{height: '100%', width: '100%'}}></div></div>
+ <div className={`rounded-2xl overflow-hidden border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`} style={{height: 'calc(100vh - 200px)', minHeight: '500px'}}><div ref={mapRef} className="map-container" style={{height: '100%', width: '100%'}}></div></div>
  </div>
  </div>
  )}
  {tab === 'managers' && (
  <div className="space-y-2">
  <div className="flex justify-between items-center">
- <h2 className="font-bold text-[#171717] text-xl">영업팀 현황</h2>
+ <h2 className={`font-bold ${t.text} text-xl`}>영업팀 현황</h2>
  <button type="button" onClick={() => setShowSaleModal(true)} className="px-4 py-2 bg-neutral-900 text-white rounded-lg text-sm font-medium hover:bg-neutral-800">매출 등록</button>
  </div>
  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -14179,12 +14262,12 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  r.date !== todayStr
  );
  return (
- <div key={m.id} className="bg-white border border-neutral-200 rounded-2xl p-5">
+ <div key={m.id} className={`rounded-2xl p-5 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
  <div className="flex items-center gap-3 sm:gap-4 mb-4">
  <div className="px-3 py-2 rounded-lg text-white font-bold text-sm" style={{ background: m.color }}>{m.name}</div>
  <div className="flex-1">
- <h3 className="font-bold text-[#171717] text-lg">{m.name}</h3>
- <p className="text-sm text-neutral-800">업체 {mgrCompanies.length}개</p>
+ <h3 className={`font-bold ${t.text} text-lg`}>{m.name}</h3>
+ <p className={`text-sm ${t.text}`}>업체 {mgrCompanies.length}개</p>
  </div>
  <div className="text-right">
  <div className="flex items-center gap-2">
@@ -14217,7 +14300,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  <div className="bg-neutral-100 rounded-lg p-2 text-center border border-neutral-200">
  <p className="text-lg font-bold text-neutral-800">{negativeCompanies.length}</p>
- <p className="text-xs text-neutral-800">부정</p>
+ <p className={`text-xs ${t.text}`}>부정</p>
  </div>
  </div>
  </div>
@@ -14255,7 +14338,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  >
  <div className="flex items-center gap-2 min-w-0 flex-1">
  <div className={`w-2 h-2 rounded-full flex-shrink-0 ${c.reaction === 'special' ? 'bg-rose-600' : 'bg-emerald-500'}`}></div>
- <span className="font-bold text-[#171717] text-sm truncate">{c.name}</span>
+ <span className={`font-bold ${t.text} text-sm truncate`}>{c.name}</span>
  </div>
  <div className="text-right flex-shrink-0 ml-2">
  <span className="text-xs text-white font-bold">{c.daysPassed}일</span>
@@ -14282,7 +14365,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  >
  <div className="flex items-center gap-2 min-w-0 flex-1">
  <div className="w-2 h-2 rounded-full flex-shrink-0 bg-yellow-500"></div>
- <span className="font-bold text-[#171717] text-sm truncate">{c.name}</span>
+ <span className={`font-bold ${t.text} text-sm truncate`}>{c.name}</span>
  </div>
  <span className="text-xs text-white flex-shrink-0 ml-2">{c.daysPassed}일</span>
  </div>
@@ -14321,10 +14404,10 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="grid grid-cols-4 gap-2">
  {PROMO_ITEMS.map(item => (
  <div key={item} className="text-center">
- <p className="text-xs text-neutral-800 mb-1">{item}</p>
+ <p className={`text-xs mb-1 ${t.text}`}>{item}</p>
  {canEdit ? (
- <input type="number" value={m.promo?.[item] || 0} onChange={e => updateManagerPromo(m.id, item, e.target.value)} className="w-full text-center p-2 border rounded-lg text-sm font-bold bg-white text-slate-900" />
- ) : (<p className="font-bold text-[#171717]">{m.promo?.[item] || 0}</p>)}
+ <input type="number" value={m.promo?.[item] || 0} onChange={e => updateManagerPromo(m.id, item, e.target.value)} className={`w-full text-center p-2 border rounded-lg text-sm font-bold ${theme === 'dark' ? 'bg-neutral-700 text-white border-neutral-600' : 'bg-white text-slate-900 border-neutral-200'}`} />
+ ) : (<p className={`font-bold ${t.text}`}>{m.promo?.[item] || 0}</p>)}
  </div>
  ))}
  </div>
@@ -14356,7 +14439,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        href="https://www.beancraft.co.kr" 
        target="_blank" 
        rel="noopener noreferrer"
-       className="px-4 py-2 bg-white text-white rounded-lg font-bold text-sm hover:bg-blue-50 transition-all flex items-center gap-2"
+       className={`px-4 py-2 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${theme === 'dark' ? 'bg-neutral-700 text-white hover:bg-neutral-600' : 'bg-white text-neutral-700 hover:bg-blue-50'}`}
      >
        홈페이지 방문
      </a>
@@ -14394,8 +14477,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
    return (
      <>
      {/* 지역 검색 */}
-     <div className="bg-white border border-neutral-200 rounded-2xl p-4">
-       <h3 className="font-bold text-[#171717] mb-3 flex items-center gap-2">
+     <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+       <h3 className={`font-bold ${t.text} mb-3 flex items-center gap-2`}>
          지역 검색
        </h3>
        <div className="flex gap-2">
@@ -14404,7 +14487,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
            value={salesSearchQuery}
            onChange={(e) => setSalesSearchQuery(e.target.value)}
            placeholder="지역명 입력 (예: 강남구, 분당, 해운대)"
-           className="flex-1 px-4 py-3 rounded-lg bg-neutral-100 border border-neutral-200 text-[#171717] placeholder-slate-400 focus:outline-none focus:border-neutral-500"
+           className={`flex-1 px-4 py-3 rounded-lg bg-neutral-100 border border-neutral-200 ${t.text} placeholder-slate-400 focus:outline-none focus:border-neutral-500`}
          />
          <button
            onClick={() => {
@@ -14439,9 +14522,9 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
      {/* 선택된 지역 정보 */}
      {showSalesIssue && salesSelectedRegion && (
-       <div className="bg-white border border-neutral-200 rounded-2xl p-4 border-l-4 border-neutral-500">
+       <div className={`rounded-2xl p-4 border border-l-4 ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700 border-l-neutral-400' : 'bg-white border-neutral-200 border-l-neutral-500'}`}>
          <div className="flex items-center justify-between mb-3">
-           <h3 className="font-bold text-[#171717] text-lg flex items-center gap-2">
+           <h3 className={`font-bold ${t.text} text-lg flex items-center gap-2`}>
              {salesSelectedRegion} 지역 정보
            </h3>
            <button
@@ -14458,16 +14541,16 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
            return (
              <div className="grid grid-cols-3 gap-3 mb-4">
                <div className="bg-neutral-50 rounded-lg p-3 text-center">
-                 <p className="text-2xl font-bold text-neutral-700">{stats.realtorCount}</p>
-                 <p className="text-xs text-neutral-500">수집 중개사</p>
+                 <p className={`text-2xl font-bold ${t.text}`}>{stats.realtorCount}</p>
+                 <p className={`text-xs ${t.textMuted}`}>수집 중개사</p>
                </div>
                <div className="bg-neutral-50 rounded-lg p-3 text-center">
-                 <p className="text-2xl font-bold text-neutral-700">{stats.companyCount}</p>
-                 <p className="text-xs text-neutral-500">등록 업체</p>
+                 <p className={`text-2xl font-bold ${t.text}`}>{stats.companyCount}</p>
+                 <p className={`text-xs ${t.textMuted}`}>등록 업체</p>
                </div>
                <div className="bg-neutral-50 rounded-lg p-3 text-center">
-                 <p className="text-2xl font-bold text-neutral-700">{stats.totalListings.toLocaleString()}</p>
-                 <p className="text-xs text-neutral-500">총 매물</p>
+                 <p className={`text-2xl font-bold ${t.text}`}>{stats.totalListings.toLocaleString()}</p>
+                 <p className={`text-xs ${t.textMuted}`}>총 매물</p>
                </div>
              </div>
            );
@@ -14478,11 +14561,11 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
            const issue = findRegionIssue(salesSelectedRegion);
            if (issue) {
              return (
-               <div className="bg-white border border-neutral-300 rounded-lg p-4">
-                 <p className="text-xs text-neutral-700 font-semibold mb-2">지역 이슈</p>
+               <div className={`rounded-lg p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-600' : 'bg-white border-neutral-300'}`}>
+                 <p className={`text-xs font-semibold mb-2 ${t.text}`}>지역 이슈</p>
                  <p className="text-neutral-800 font-medium mb-1">{issue.title}</p>
-                 <p className="text-sm text-neutral-700">{issue.content}</p>
-                 {issue.source && <p className="text-xs text-neutral-500 mt-2">출처: {issue.source}</p>}
+                 <p className={`text-sm ${t.text}`}>{issue.content}</p>
+                 {issue.source && <p className={`text-xs mt-2 ${t.textMuted}`}>출처: {issue.source}</p>}
                </div>
              );
            } else {
@@ -14500,9 +14583,9 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
              const defaultIssue = defaultIssues[salesSelectedRegion] || 
                '해당 지역의 상세 이슈 정보가 준비 중입니다. 직접 상담을 통해 최신 정보를 안내해드립니다.';
              return (
-               <div className="bg-white border border-neutral-300 rounded-lg p-4">
-                 <p className="text-xs text-neutral-700 font-semibold mb-2">지역 특성</p>
-                 <p className="text-sm text-neutral-700">{defaultIssue}</p>
+               <div className={`rounded-lg p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-600' : 'bg-white border-neutral-300'}`}>
+                 <p className={`text-xs font-semibold mb-2 ${t.text}`}>지역 특성</p>
+                 <p className={`text-sm ${t.text}`}>{defaultIssue}</p>
                </div>
              );
            }
@@ -14514,8 +14597,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  })()}
 
  {/* 프랜차이즈 vs 빈크래프트 비교표 */}
- <div className="bg-white border border-neutral-200 rounded-2xl p-4">
-   <h3 className="font-bold text-[#171717] mb-4 flex items-center gap-2 text-lg">
+ <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+   <h3 className={`font-bold ${t.text} mb-4 flex items-center gap-2 text-lg`}>
      프랜차이즈 vs 빈크래프트 비용 비교
    </h3>
    
@@ -14528,60 +14611,60 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
            <th className="py-3 px-2 text-center text-neutral-700 font-medium">빈크래프트</th>
          </tr>
        </thead>
-       <tbody className="text-neutral-700">
+       <tbody className={`${t.text}`}>
          <tr className="border-b border-neutral-200">
            <td className="py-3 px-2 font-medium">가맹비</td>
-           <td className="py-3 px-2 text-center text-neutral-700">500~1,500만원</td>
+           <td className={`py-3 px-2 text-center ${t.text}`}>500~1,500만원</td>
            <td className="py-3 px-2 text-center text-[#1e3a5f] font-bold">0원</td>
          </tr>
          <tr className="border-b border-neutral-200">
            <td className="py-3 px-2 font-medium">교육비</td>
-           <td className="py-3 px-2 text-center text-neutral-700">100~300만원</td>
+           <td className={`py-3 px-2 text-center ${t.text}`}>100~300만원</td>
            <td className="py-3 px-2 text-center text-[#1e3a5f]">컨설팅 포함</td>
          </tr>
          <tr className="border-b border-neutral-200">
            <td className="py-3 px-2 font-medium">컨설팅비</td>
-           <td className="py-3 px-2 text-center text-neutral-700">-</td>
+           <td className={`py-3 px-2 text-center ${t.text}`}>-</td>
            <td className="py-3 px-2 text-center text-[#1e3a5f]">1,000만원</td>
          </tr>
          <tr className="border-b border-neutral-200">
            <td className="py-3 px-2 font-medium">로열티 (월)</td>
-           <td className="py-3 px-2 text-center text-neutral-700">15~50만원</td>
+           <td className={`py-3 px-2 text-center ${t.text}`}>15~50만원</td>
            <td className="py-3 px-2 text-center text-[#1e3a5f] font-bold">0원</td>
          </tr>
          <tr className="border-b border-neutral-200">
            <td className="py-3 px-2 font-medium">로열티 (5년)</td>
-           <td className="py-3 px-2 text-center text-neutral-700">900~3,000만원</td>
+           <td className={`py-3 px-2 text-center ${t.text}`}>900~3,000만원</td>
            <td className="py-3 px-2 text-center text-[#1e3a5f] font-bold">0원</td>
          </tr>
          <tr className="border-b border-neutral-200">
            <td className="py-3 px-2 font-medium">광고분담금 (월)</td>
-           <td className="py-3 px-2 text-center text-neutral-700">10~30만원</td>
+           <td className={`py-3 px-2 text-center ${t.text}`}>10~30만원</td>
            <td className="py-3 px-2 text-center text-[#1e3a5f] font-bold">0원</td>
          </tr>
          <tr className="border-b border-neutral-200">
            <td className="py-3 px-2 font-medium">인테리어</td>
-           <td className="py-3 px-2 text-center text-neutral-700">본사 지정업체</td>
+           <td className={`py-3 px-2 text-center ${t.text}`}>본사 지정업체</td>
            <td className="py-3 px-2 text-center text-[#1e3a5f]">400만원+견적 별도</td>
          </tr>
          <tr className="border-b border-neutral-200">
            <td className="py-3 px-2 font-medium">기기설비</td>
-           <td className="py-3 px-2 text-center text-neutral-700">본사 지정업체</td>
+           <td className={`py-3 px-2 text-center ${t.text}`}>본사 지정업체</td>
            <td className="py-3 px-2 text-center text-[#1e3a5f]">400만원+견적 별도</td>
          </tr>
          <tr className="border-b border-neutral-200">
            <td className="py-3 px-2 font-medium">원두공급</td>
-           <td className="py-3 px-2 text-center text-neutral-700">본사 지정 (강제)</td>
+           <td className={`py-3 px-2 text-center ${t.text}`}>본사 지정 (강제)</td>
            <td className="py-3 px-2 text-center text-[#1e3a5f]">공급가 납품 (선택)</td>
          </tr>
          <tr className="border-b border-neutral-200">
            <td className="py-3 px-2 font-medium">메뉴 구성</td>
-           <td className="py-3 px-2 text-center text-neutral-700">본사 통제</td>
+           <td className={`py-3 px-2 text-center ${t.text}`}>본사 통제</td>
            <td className="py-3 px-2 text-center text-[#1e3a5f]">자유롭게 결정</td>
          </tr>
          <tr className="border-b border-neutral-200">
            <td className="py-3 px-2 font-medium">매물 조건</td>
-           <td className="py-3 px-2 text-center text-neutral-700">1층/15평 이상</td>
+           <td className={`py-3 px-2 text-center ${t.text}`}>1층/15평 이상</td>
            <td className="py-3 px-2 text-center text-[#1e3a5f]">제한 없음</td>
          </tr>
          <tr className="bg-neutral-100/30">
@@ -14593,16 +14676,16 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
      </table>
    </div>
    
-   <div className="mt-4 p-3 bg-white border border-neutral-300 rounded-lg">
+   <div className={`mt-4 p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-600' : 'bg-white border-neutral-300'}`}>
      <p className="text-sm text-neutral-700 font-semibold mb-1">빈크래프트 핵심 장점</p>
-     <p className="text-sm text-neutral-700">로열티/가맹비 0원으로 5년간 <span className="text-neutral-700 font-bold">약 900만원~3,000만원</span> 절감 가능. 메뉴/인테리어/원두 자유롭게 선택 가능.</p>
-     <p className="text-xs text-neutral-500 mt-1">※ 로열티 월 15~50만원 × 60개월 기준 계산</p>
+     <p className={`text-sm ${t.text}`}>로열티/가맹비 0원으로 5년간 <span className={`font-bold ${t.text}`}>약 900만원~3,000만원</span> 절감 가능. 메뉴/인테리어/원두 자유롭게 선택 가능.</p>
+     <p className={`text-xs mt-1 ${t.textMuted}`}>※ 로열티 월 15~50만원 × 60개월 기준 계산</p>
    </div>
  </div>
 
  {/* 빈크래프트 서비스 안내 */}
- <div className="bg-white border border-neutral-200 rounded-2xl p-4">
-   <h3 className="font-bold text-[#171717] mb-4 flex items-center gap-2 text-lg">
+ <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+   <h3 className={`font-bold ${t.text} mb-4 flex items-center gap-2 text-lg`}>
      빈크래프트 서비스 안내
    </h3>
    
@@ -14611,11 +14694,11 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        <div className="flex items-center gap-3 mb-3">
          
          <div>
-           <h4 className="font-bold text-neutral-700">상권 분석</h4>
-           <p className="text-xs text-neutral-500">빅데이터 기반 입지 선정</p>
+           <h4 className={`font-bold ${t.text}`}>상권 분석</h4>
+           <p className={`text-xs ${t.textMuted}`}>빅데이터 기반 입지 선정</p>
          </div>
        </div>
-       <ul className="text-sm text-neutral-700 space-y-1">
+       <ul className={`text-sm space-y-1 ${t.text}`}>
          <li>• 유동인구/매출 데이터 분석</li>
          <li>• 경쟁점 현황 파악</li>
          <li>• 최적 입지 추천</li>
@@ -14626,11 +14709,11 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        <div className="flex items-center gap-3 mb-3">
          <span className="text-3xl"></span>
          <div>
-           <h4 className="font-bold text-neutral-700">인테리어</h4>
-           <p className="text-xs text-neutral-500">맞춤형 매장 디자인</p>
+           <h4 className={`font-bold ${t.text}`}>인테리어</h4>
+           <p className={`text-xs ${t.textMuted}`}>맞춤형 매장 디자인</p>
          </div>
        </div>
-       <ul className="text-sm text-neutral-700 space-y-1">
+       <ul className={`text-sm space-y-1 ${t.text}`}>
          <li>• 콘셉트 기획 및 설계</li>
          <li>• 시공 관리 대행</li>
          <li>• 예산 맞춤 제안</li>
@@ -14641,11 +14724,11 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        <div className="flex items-center gap-3 mb-3">
          <span className="text-3xl"></span>
          <div>
-           <h4 className="font-bold text-neutral-700">교육/레시피</h4>
-           <p className="text-xs text-neutral-500">전문 바리스타 교육</p>
+           <h4 className={`font-bold ${t.text}`}>교육/레시피</h4>
+           <p className={`text-xs ${t.textMuted}`}>전문 바리스타 교육</p>
          </div>
        </div>
-       <ul className="text-sm text-neutral-700 space-y-1">
+       <ul className={`text-sm space-y-1 ${t.text}`}>
          <li>• 커피 추출 기초~심화</li>
          <li>• 시그니처 메뉴 개발</li>
          <li>• 운영 노하우 전수</li>
@@ -14657,10 +14740,10 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
          <span className="text-3xl"></span>
          <div>
            <h4 className="font-bold text-white">원두/부자재</h4>
-           <p className="text-xs text-neutral-500">공급가 직접 납품</p>
+           <p className={`text-xs ${t.textMuted}`}>공급가 직접 납품</p>
          </div>
        </div>
-       <ul className="text-sm text-neutral-700 space-y-1">
+       <ul className={`text-sm space-y-1 ${t.text}`}>
          <li>• 공장 직거래 원두</li>
          <li>• 시럽/소스/컵 등 부자재</li>
          <li>• 재고 관리 지원</li>
@@ -14670,8 +14753,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
 
  {/* 중개사 현황 (간략) */}
- <div className="bg-white border border-neutral-200 rounded-2xl p-4">
-   <h3 className="font-bold text-[#171717] mb-3 flex items-center gap-2 text-lg">
+ <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+   <h3 className={`font-bold ${t.text} mb-3 flex items-center gap-2 text-lg`}>
      전국 중개사 현황
    </h3>
    
@@ -14712,31 +14795,31 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        <div className="space-y-3">
          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
            <div className="bg-neutral-600 rounded-lg p-3 text-center">
-             <p className="text-2xl font-bold text-neutral-700">{collectedRealtors.length.toLocaleString()}</p>
-             <p className="text-xs text-neutral-500">전체 중개사</p>
+             <p className={`text-2xl font-bold ${t.text}`}>{collectedRealtors.length.toLocaleString()}</p>
+             <p className={`text-xs ${t.textMuted}`}>전체 중개사</p>
            </div>
            <div className="bg-neutral-600 rounded-lg p-3 text-center">
-             <p className="text-2xl font-bold text-neutral-700">{companies.length}</p>
-             <p className="text-xs text-neutral-500">등록 업체</p>
+             <p className={`text-2xl font-bold ${t.text}`}>{companies.length}</p>
+             <p className={`text-xs ${t.textMuted}`}>등록 업체</p>
            </div>
            <div className="bg-neutral-600 rounded-lg p-3 text-center">
-             <p className="text-2xl font-bold text-neutral-700">{sortedRegions.length}</p>
-             <p className="text-xs text-neutral-500">활동 지역</p>
+             <p className={`text-2xl font-bold ${t.text}`}>{sortedRegions.length}</p>
+             <p className={`text-xs ${t.textMuted}`}>활동 지역</p>
            </div>
            <div className="bg-neutral-600 rounded-lg p-3 text-center">
              <p className="text-2xl font-bold text-white">
                {collectedRealtors.reduce((sum, r) => sum + (r.listings || 0), 0).toLocaleString()}
              </p>
-             <p className="text-xs text-neutral-500">총 매물</p>
+             <p className={`text-xs ${t.textMuted}`}>총 매물</p>
            </div>
          </div>
          
          <div className="mt-4">
-           <p className="text-xs text-neutral-500 mb-2">지역별 중개사 분포</p>
+           <p className={`text-xs mb-2 ${t.textMuted}`}>지역별 중개사 분포</p>
            <div className="flex flex-wrap gap-2">
              {sortedRegions.slice(0, 10).map(([region, data]) => (
                <div key={region} className="px-3 py-2 bg-neutral-50 rounded-lg">
-                 <span className="text-neutral-800 font-medium">{region}</span>
+                 <span className={`font-medium ${t.text}`}>{region}</span>
                  <span className="text-neutral-500 text-sm ml-2">{data.count}개</span>
                </div>
              ))}
@@ -14773,7 +14856,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
  {tab === 'realtors' && (
  <div className="space-y-2">
- <h2 className="font-bold text-[#171717] text-xl">중개사 관리</h2>
+ <h2 className={`font-bold ${t.text} text-xl`}>중개사 관리</h2>
  
  {(() => {
  // 매물 수 가져오기
@@ -15062,32 +15145,32 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  return (
  <>
  {/* 통계 */}
- <div className="bg-white border border-neutral-200 rounded-2xl p-3 sm:p-4">
+ <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
  <div className="flex flex-wrap items-center gap-4 sm:gap-6">
  <div className="text-center">
  <p className="text-2xl sm:text-3xl font-bold text-teal-600">{realtorsLoading ? '로딩 중...' : validRealtors.length}</p>
- <p className="text-xs text-neutral-500">수집된 중개사</p>
+ <p className={`text-xs ${t.textMuted}`}>수집된 중개사</p>
  </div>
  {latestDate && (
  <div className="text-center">
- <p className="text-lg font-bold text-neutral-700">{latestDate.toLocaleDateString('ko-KR')}</p>
- <p className="text-xs text-neutral-500">최근 수집일</p>
+ <p className={`text-lg font-bold ${t.text}`}>{latestDate.toLocaleDateString('ko-KR')}</p>
+ <p className={`text-xs ${t.textMuted}`}>최근 수집일</p>
  </div>
  )}
  </div>
  </div>
  
  {/* 검색/필터/정렬 */}
- <div className="bg-white border border-neutral-200 rounded-2xl p-3 sm:p-4">
+ <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
  <div className="flex flex-wrap gap-2 mb-3">
  <input
  type="text"
  placeholder="지역(강남구) 또는 업체명 검색..."
  value={realtorSearchQuery}
  onChange={e => setRealtorSearchQuery(e.target.value)}
- className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all flex-1 min-w-[150px]"
+ className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all flex-1 min-w-[150px]`}
  />
- <select value={realtorRegionFilter} onChange={e => setRealtorRegionFilter(e.target.value)} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] focus:outline-none focus:border-neutral-400 transition-all">
+ <select value={realtorRegionFilter} onChange={e => setRealtorRegionFilter(e.target.value)} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} focus:outline-none focus:border-neutral-400 transition-all`}>
  <option value="">전체 지역</option>
  {sortedCitiesForFilter.map(city => (
  <optgroup key={city} label={`${CITY_SHORT[city] || city}`}>
@@ -15097,7 +15180,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </optgroup>
  ))}
  </select>
- <select value={realtorSortMode} onChange={e => setRealtorSortMode(e.target.value)} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] focus:outline-none focus:border-neutral-400 transition-all">
+ <select value={realtorSortMode} onChange={e => setRealtorSortMode(e.target.value)} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} focus:outline-none focus:border-neutral-400 transition-all`}>
  <option value="listings">매물 많은 순</option>
  <option value="recent">최근 수집 순</option>
  <option value="name">이름 순</option>
@@ -15108,7 +15191,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  
  {/* 중개사 목록 */}
  {validRealtors.length === 0 ? (
- <div className="bg-white border border-neutral-200 rounded-2xl p-8 text-center text-neutral-500">
+ <div className={`rounded-2xl p-8 text-center border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700 text-neutral-400' : 'bg-white border-neutral-200 text-neutral-500'}`}>
  <p className="text-4xl mb-2"></p>
  <p>수집된 중개사가 없습니다</p>
  <p className="text-xs mt-2">Chrome 확장프로그램으로 네이버부동산에서 수집하세요</p>
@@ -15175,7 +15258,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  const displayCities = CITY_ORDER.filter(city => byCityDistrict[city]);
  
  if (displayCities.length === 0) {
- return <div className="bg-white border border-neutral-200 rounded-2xl p-4 text-center text-neutral-500">검색 결과가 없습니다</div>;
+ return <div className={`rounded-2xl p-4 text-center border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700 text-neutral-400' : 'bg-white border-neutral-200 text-neutral-500'}`}>검색 결과가 없습니다</div>;
  }
  
  return displayCities.map(city => {
@@ -15184,10 +15267,10 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  const sortedDistricts = Object.keys(districts).sort();
  
  return (
- <details key={city} className="bg-white border border-neutral-200 rounded-2xl overflow-hidden" open={displayCities.length === 1}>
- <summary className="p-4 cursor-pointer hover:bg-neutral-100 flex justify-between items-center font-bold text-neutral-800 bg-white">
+ <details key={city} className={`rounded-2xl overflow-hidden border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`} open={displayCities.length === 1}>
+ <summary className={`p-4 cursor-pointer flex justify-between items-center font-bold ${theme === 'dark' ? 'bg-neutral-800 text-white hover:bg-neutral-700' : 'bg-white text-neutral-800 hover:bg-neutral-100'}`}>
  <span>{CITY_SHORT[city] || city} ({cityTotal}개)</span>
- <span className="text-xs text-neutral-500">{sortedDistricts.length}개 구/군</span>
+ <span className={`text-xs ${t.textMuted}`}>{sortedDistricts.length}개 구/군</span>
  </summary>
  <div className="border-t border-neutral-200">
  {sortedDistricts.map(district => {
@@ -15229,7 +15312,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  >
  <div className="flex justify-between items-center">
  <div className="flex items-center gap-2 flex-wrap">
- <span className="font-bold text-[#171717] text-sm">{officeName}</span>
+ <span className={`font-bold ${t.text} text-sm`}>{officeName}</span>
  <span className="px-2 py-0.5 text-xs rounded-full bg-teal-900 text-teal-300 font-bold">{listingCount}건</span>
  {isInRoute && <span className="px-2 py-0.5 text-xs rounded-full bg-purple-900 text-white">동선</span>}
  {isRegistered && <span className="px-2 py-0.5 text-xs rounded-full bg-green-900 text-green-300">방문</span>}
@@ -15239,9 +15322,9 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
    <span className="px-1.5 py-0.5 text-xs rounded-full bg-neutral-200 text-neutral-700 font-bold">미배정</span>
  )}
  </div>
- <span className="text-neutral-500 text-sm">›</span>
+ <span className={`text-sm ${t.textMuted}`}>›</span>
  </div>
- <p className="text-xs text-neutral-500 mt-1">{realtor.address || '주소 없음'}</p>
+ <p className={`text-xs mt-1 ${t.textMuted}`}>{realtor.address || '주소 없음'}</p>
  </div>
  );
  })}
@@ -15268,9 +15351,9 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
  {/* 오른쪽: 업체 등록 */}
  <div className="lg:col-span-1 lg:order-2">
- <div className="bg-white border border-neutral-200 rounded-2xl p-4 rounded-2xl border border-neutral-200 sticky top-20">
+ <div className={`rounded-2xl p-4 sticky top-20 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
  <div className="flex justify-between items-center mb-3">
- <h3 className="font-bold text-[#171717]">업체 등록</h3>
+ <h3 className={`font-bold ${t.text}`}>업체 등록</h3>
  <div className="relative">
  <input
  type="file"
@@ -15295,16 +15378,16 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  + 등록 방법
  </button>
  {showRegisterMenu && (
- <div className="absolute right-0 top-full mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg z-50 min-w-[120px]">
+ <div className={`absolute right-0 top-full mt-1 rounded-lg shadow-lg z-50 min-w-[120px] border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-neutral-200'}`}>
  <button
  onClick={() => { setShowRegisterMenu(false); setTimeout(() => ocrFileInputRef.current?.click(), 100); }}
- className="w-full px-3 py-2 text-left text-xs text-neutral-700 hover:bg-neutral-100 border-b border-neutral-200"
+ className={`w-full px-3 py-2 text-left text-xs border-b ${theme === 'dark' ? 'text-neutral-300 hover:bg-neutral-700 border-neutral-700' : 'text-neutral-700 hover:bg-neutral-100 border-neutral-200'}`}
  >
  명함 촬영
  </button>
  <button
  onClick={() => { setShowRegisterMenu(false); setTimeout(() => bulkOcrFileInputRef.current?.click(), 100); }}
- className="w-full px-3 py-2 text-left text-xs text-neutral-700 hover:bg-neutral-100 border-b border-neutral-200"
+ className={`w-full px-3 py-2 text-left text-xs border-b ${theme === 'dark' ? 'text-neutral-300 hover:bg-neutral-700 border-neutral-700' : 'text-neutral-700 hover:bg-neutral-100 border-neutral-200'}`}
  >
  명함 일괄
  </button>
@@ -15319,21 +15402,21 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  </div>
  <div className="space-y-2">
- <input type="text" placeholder="업체명" value={companyForm.name} onChange={e => setCompanyForm({ ...companyForm, name: e.target.value })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm w-full" />
- <input type="text" placeholder="담당자" value={companyForm.contact} onChange={e => setCompanyForm({ ...companyForm, contact: e.target.value })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm w-full" />
- <input type="text" placeholder="연락처" value={companyForm.phone} onChange={e => setCompanyForm({ ...companyForm, phone: e.target.value })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm w-full" />
- <input type="text" placeholder="주소" value={companyForm.address} onChange={e => setCompanyForm({ ...companyForm, address: e.target.value })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm w-full" />
+ <input type="text" placeholder="업체명" value={companyForm.name} onChange={e => setCompanyForm({ ...companyForm, name: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm w-full`} />
+ <input type="text" placeholder="담당자" value={companyForm.contact} onChange={e => setCompanyForm({ ...companyForm, contact: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm w-full`} />
+ <input type="text" placeholder="연락처" value={companyForm.phone} onChange={e => setCompanyForm({ ...companyForm, phone: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm w-full`} />
+ <input type="text" placeholder="주소" value={companyForm.address} onChange={e => setCompanyForm({ ...companyForm, address: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm w-full`} />
  {isAdmin ? (
- <select value={companyForm.managerId || ''} onChange={e => setCompanyForm({ ...companyForm, managerId: Number(e.target.value) || null })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] focus:outline-none focus:border-neutral-400 transition-all text-sm w-full">
+ <select value={companyForm.managerId || ''} onChange={e => setCompanyForm({ ...companyForm, managerId: Number(e.target.value) || null })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} focus:outline-none focus:border-neutral-400 transition-all text-sm w-full`}>
  <option value="">영업자 선택</option>
  {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
  </select>
  ) : (
- <div className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm flex items-center text-neutral-500">
+ <div className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm flex items-center text-neutral-500`}>
  {user?.name || '나'} (자동)
  </div>
  )}
- <input type="text" placeholder="메모" value={companyForm.memo} onChange={e => setCompanyForm({ ...companyForm, memo: e.target.value })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm w-full" />
+ <input type="text" placeholder="메모" value={companyForm.memo} onChange={e => setCompanyForm({ ...companyForm, memo: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm w-full`} />
  </div>
  <div className="flex flex-wrap gap-1 mt-3">
  {Object.entries(REACTION_COLORS).map(([key, val]) => (
@@ -15355,9 +15438,9 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  
  {/* 왼쪽: 업체 목록 */}
  <div className="lg:col-span-2 lg:order-1">
- <div className="bg-white border border-neutral-200 rounded-2xl p-4 rounded-2xl border border-neutral-200">
+ <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
  <div className="flex justify-between items-center mb-3">
- <h3 className="font-bold text-[#171717]">업체 목록 ({filteredCompanies.length})</h3>
+ <h3 className={`font-bold ${t.text}`}>업체 목록 ({filteredCompanies.length})</h3>
  </div>
  {/* 통계 */}
  {(() => {
@@ -15371,31 +15454,31 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="grid grid-cols-4 gap-2 mb-4">
  <div className="text-center p-2 rounded-xl border border-neutral-200">
  <p className="text-lg font-bold text-white">{stats.special}</p>
- <p className="text-xs text-neutral-500">특별</p>
+ <p className={`text-xs ${t.textMuted}`}>특별</p>
  </div>
  <div className="text-center p-2 rounded-xl border border-neutral-200">
- <p className="text-lg font-bold text-neutral-700">{stats.positive}</p>
- <p className="text-xs text-neutral-500">긍정</p>
+ <p className={`text-lg font-bold ${t.text}`}>{stats.positive}</p>
+ <p className={`text-xs ${t.textMuted}`}>긍정</p>
  </div>
  <div className="text-center p-2 rounded-xl border border-neutral-200">
  <p className="text-lg font-bold text-white">{stats.neutral}</p>
- <p className="text-xs text-neutral-500">양호</p>
+ <p className={`text-xs ${t.textMuted}`}>양호</p>
  </div>
  <div className="text-center p-2 rounded-xl border border-neutral-200">
  <p className="text-lg font-bold text-neutral-500">{stats.negative}</p>
- <p className="text-xs text-neutral-500">부정</p>
+ <p className={`text-xs ${t.textMuted}`}>부정</p>
  </div>
  </div>
  );
  })()}
  {/* 검색/필터 */}
  <div className="grid grid-cols-3 gap-2 mb-4">
- <input type="text" placeholder="업체명 검색" value={companySearch} onChange={e => setCompanySearch(e.target.value)} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm" />
- <select value={companyManagerFilter} onChange={e => setCompanyManagerFilter(e.target.value)} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] focus:outline-none focus:border-neutral-400 transition-all text-sm">
+ <input type="text" placeholder="업체명 검색" value={companySearch} onChange={e => setCompanySearch(e.target.value)} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm`} />
+ <select value={companyManagerFilter} onChange={e => setCompanyManagerFilter(e.target.value)} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} focus:outline-none focus:border-neutral-400 transition-all text-sm`}>
  <option value="all">전체 담당자</option>
  {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
  </select>
- <select value={companyReactionFilter} onChange={e => setCompanyReactionFilter(e.target.value)} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] focus:outline-none focus:border-neutral-400 transition-all text-sm">
+ <select value={companyReactionFilter} onChange={e => setCompanyReactionFilter(e.target.value)} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} focus:outline-none focus:border-neutral-400 transition-all text-sm`}>
  <option value="all">전체 반응</option>
  {Object.entries(REACTION_COLORS).map(([key, val]) => (
  <option key={key} value={key}>{val.label}</option>
@@ -15427,7 +15510,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <summary className="flex items-center gap-2 p-3 rounded-xl cursor-pointer" style={{ background: `${m.color}15` }}>
  <div className="w-5 h-5 rounded-full" style={{ background: m.color }}></div>
  <span className="font-bold text-neutral-800 text-lg">{m.name}</span>
- <span className="text-sm text-neutral-800">({mgrCompanies.length}개)</span>
+ <span className={`text-sm ${t.text}`}>({mgrCompanies.length}개)</span>
  </summary>
  <div className="mt-2 ml-2">
  {reactionOrder.map(reactionKey => {
@@ -15445,7 +15528,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <summary className="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer" style={{ background: `${reaction.bg}20` }}>
  <div className="w-3 h-3 rounded-full" style={{ background: reaction.bg }}></div>
  <span className="font-bold text-sm" style={{ color: reaction.bg }}>{reaction.label}</span>
- <span className="text-xs text-neutral-800">({items.length})</span>
+ <span className={`text-xs ${t.text}`}>({items.length})</span>
  </summary>
  <div className="mt-2 ml-3">
  {Object.entries(byRegion).map(([region, regionItems]) => (
@@ -15461,7 +15544,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  onClick={() => setShowCompanyEditModal({ ...c })}
  >
  <div className="flex items-center gap-2 min-w-0 flex-1">
- <span className="font-bold text-[#171717] text-sm truncate">{c.name}</span>
+ <span className={`font-bold ${t.text} text-sm truncate`}>{c.name}</span>
  </div>
  <div className="flex gap-2 flex-shrink-0">
  <button type="button" onClick={(e) => { e.stopPropagation(); setShowCompanyEditModal({ ...c }); }} className="text-neutral-800 font-bold text-xs">수정</button>
@@ -15490,8 +15573,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <details className="mb-4">
  <summary className="flex items-center gap-2 p-3 rounded-xl bg-gray-100 cursor-pointer">
  <div className="w-5 h-5 rounded-full bg-gray-400"></div>
- <span className="font-bold text-neutral-800">미배정</span>
- <span className="text-sm text-neutral-800">({unassigned.length})</span>
+ <span className={`font-bold ${t.text}`}>미배정</span>
+ <span className={`text-sm ${t.text}`}>({unassigned.length})</span>
  </summary>
  <div className="space-y-2 mt-2 ml-2">
  {unassigned.map(c => {
@@ -15504,7 +15587,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  >
  <div className="flex items-center gap-2 min-w-0 flex-1">
  <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: reaction.bg }}></div>
- <span className="font-bold text-[#171717] text-sm truncate">{c.name}</span>
+ <span className={`font-bold ${t.text} text-sm truncate`}>{c.name}</span>
  </div>
  <div className="flex gap-2 flex-shrink-0">
  <span className="px-2 py-0.5 rounded text-xs text-white font-bold" style={{ background: reaction.bg }}>{reaction.label}</span>
@@ -15526,8 +15609,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
  {/* 왼쪽: 고객 목록 */}
  <div className="lg:col-span-2 space-y-2">
- <div className="bg-white border border-neutral-200 rounded-2xl p-4 rounded-2xl border border-neutral-200">
- <h3 className="font-bold text-[#171717] mb-4">고객 목록</h3>
+ <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <h3 className={`font-bold ${t.text} mb-4`}>고객 목록</h3>
  {customers.length === 0 ? (
  <p className="text-neutral-500 text-center py-8">등록된 고객이 없습니다</p>
  ) : (
@@ -15540,7 +15623,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="px-2 py-1 rounded text-white text-xs font-medium" style={{ background: mgr?.color || '#666' }}>{mgr?.name || '?'}</div>
  <div>
  <p className="font-bold text-neutral-800 text-sm">{c.name}</p>
- <p className="text-xs text-neutral-500">{c.phone} · {c.consultDate}</p>
+ <p className={`text-xs ${t.textMuted}`}>{c.phone} · {c.consultDate}</p>
  </div>
  </div>
  <span className={`px-2 py-1 rounded-full text-xs ${c.status === 'completed' ? 'text-neutral-700' : c.status === 'contract' ? 'text-neutral-700' : 'text-neutral-500'}`}>
@@ -15556,26 +15639,26 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  
  {/* 오른쪽: 고객 등록 */}
  <div className="lg:col-span-1">
- <div className="bg-white border border-neutral-200 rounded-2xl p-4 sticky top-20">
- <h3 className="font-bold text-[#171717] mb-4">고객 등록</h3>
+ <div className={`rounded-2xl p-4 sticky top-20 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <h3 className={`font-bold ${t.text} mb-4`}>고객 등록</h3>
  <div className="space-y-3">
- <select value={customerForm.managerId || ''} onChange={e => setCustomerForm({ ...customerForm, managerId: Number(e.target.value) || null })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] focus:outline-none focus:border-neutral-400 transition-all text-sm">
+ <select value={customerForm.managerId || ''} onChange={e => setCustomerForm({ ...customerForm, managerId: Number(e.target.value) || null })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} focus:outline-none focus:border-neutral-400 transition-all text-sm`}>
  <option value="">영업자 선택</option>
  {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
  </select>
- <input type="text" placeholder="고객명 *" value={customerForm.name} onChange={e => setCustomerForm({ ...customerForm, name: e.target.value })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm" />
- <input type="text" placeholder="연락처" value={customerForm.phone} onChange={e => setCustomerForm({ ...customerForm, phone: e.target.value })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm" />
- <input type="text" placeholder="희망 지역" value={customerForm.desiredRegion} onChange={e => setCustomerForm({ ...customerForm, desiredRegion: e.target.value })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm" />
+ <input type="text" placeholder="고객명 *" value={customerForm.name} onChange={e => setCustomerForm({ ...customerForm, name: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm`} />
+ <input type="text" placeholder="연락처" value={customerForm.phone} onChange={e => setCustomerForm({ ...customerForm, phone: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm`} />
+ <input type="text" placeholder="희망 지역" value={customerForm.desiredRegion} onChange={e => setCustomerForm({ ...customerForm, desiredRegion: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm`} />
  <div>
-   <label className="text-xs text-neutral-500 mb-1 block">희망 날짜</label>
-   <input type="date" value={customerForm.desiredDate} onChange={e => setCustomerForm({ ...customerForm, desiredDate: e.target.value })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] focus:outline-none focus:border-neutral-400 transition-all text-sm" />
+   <label className={`text-xs mb-1 block ${t.textMuted}`}>희망 날짜</label>
+   <input type="date" value={customerForm.desiredDate} onChange={e => setCustomerForm({ ...customerForm, desiredDate: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} focus:outline-none focus:border-neutral-400 transition-all text-sm`} />
  </div>
- <input type="text" placeholder="준비 비용 (예: 5000만원)" value={customerForm.budget} onChange={e => setCustomerForm({ ...customerForm, budget: e.target.value })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm" />
- <input type="text" placeholder="희망 평수 (예: 15평)" value={customerForm.desiredSize} onChange={e => setCustomerForm({ ...customerForm, desiredSize: e.target.value })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm" />
+ <input type="text" placeholder="준비 비용 (예: 5000만원)" value={customerForm.budget} onChange={e => setCustomerForm({ ...customerForm, budget: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm`} />
+ <input type="text" placeholder="희망 평수 (예: 15평)" value={customerForm.desiredSize} onChange={e => setCustomerForm({ ...customerForm, desiredSize: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm`} />
  
  {/* 창업 희망 구상 (복수 선택) */}
  <div>
-   <label className="text-xs text-neutral-500 mb-2 block">창업 희망 구상 (복수 선택)</label>
+   <label className={`text-xs mb-2 block ${t.textMuted}`}>창업 희망 구상 (복수 선택)</label>
    <div className="flex flex-wrap gap-1.5">
      {['테이크아웃', '홀 운영', '디저트/브런치', '동네 상권', '오피스 상권', '가성비', '아직 미정', '기타'].map(style => (
        <button 
@@ -15599,7 +15682,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  
  {/* 창업 중요 순서 (클릭 순서대로 번호 부여) */}
  <div>
-   <label className="text-xs text-neutral-500 mb-2 block">창업 중요 순서 (클릭 순서대로 1~6)</label>
+   <label className={`text-xs mb-2 block ${t.textMuted}`}>창업 중요 순서 (클릭 순서대로 1~6)</label>
    <div className="flex flex-wrap gap-1.5">
      {['기계', '인테리어', '레시피/교육', '원두', '디자인', '매물'].map(item => {
        const priorities = customerForm.priorities || [];
@@ -15625,8 +15708,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  
  <div>
-   <label className="text-xs text-neutral-500 mb-1 block">상담일</label>
-   <input type="date" value={customerForm.consultDate} onChange={e => setCustomerForm({ ...customerForm, consultDate: e.target.value })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] focus:outline-none focus:border-neutral-400 transition-all text-sm" />
+   <label className={`text-xs mb-1 block ${t.textMuted}`}>상담일</label>
+   <input type="date" value={customerForm.consultDate} onChange={e => setCustomerForm({ ...customerForm, consultDate: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} focus:outline-none focus:border-neutral-400 transition-all text-sm`} />
  </div>
  <div className="flex gap-2">
  {['consult', 'contract', 'completed'].map(s => (
@@ -15635,7 +15718,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </button>
  ))}
  </div>
- <textarea placeholder="메모" value={customerForm.memo} onChange={e => setCustomerForm({ ...customerForm, memo: e.target.value })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm h-20 resize-none" />
+ <textarea placeholder="메모" value={customerForm.memo} onChange={e => setCustomerForm({ ...customerForm, memo: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm h-20 resize-none`} />
  <button type="button" onClick={handleSaveCustomer} className="w-full py-2 rounded-full border border-neutral-200 text-neutral-700 text-sm hover:border-slate-500">등록</button>
  </div>
  </div>
@@ -15644,14 +15727,14 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  )}
  {tab === 'settings' && (
  <div className="space-y-2">
- <h2 className="font-bold text-[#171717] text-xl">설정</h2>
+ <h2 className={`font-bold ${t.text} text-xl`}>설정</h2>
  
  {/* 설정 서브탭 */}
- <div className="flex gap-2 p-1 rounded-full border border-neutral-200 w-fit flex-wrap bg-white">
- <button type="button" onClick={() => setSettingsTab('alerts')} className={`px-4 py-2 rounded-full text-sm transition-all ${settingsTab === 'alerts' ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:text-[#171717]'}`}>나의 알림</button>
- <button type="button" onClick={() => setSettingsTab('salesmode')} className={`px-4 py-2 rounded-full text-sm transition-all ${settingsTab === 'salesmode' ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:text-[#171717]'}`}>영업모드</button>
- <button type="button" onClick={() => setSettingsTab('account')} className={`px-4 py-2 rounded-full text-sm transition-all ${settingsTab === 'account' ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:text-[#171717]'}`}>계정</button>
- {isAdmin && <button type="button" onClick={() => setSettingsTab('admin')} className={`px-4 py-2 rounded-full text-sm transition-all ${settingsTab === 'admin' ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:text-[#171717]'}`}>관리자</button>}
+ <div className={`flex gap-2 p-1 rounded-full border w-fit flex-wrap ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <button type="button" onClick={() => setSettingsTab('alerts')} className={`px-4 py-2 rounded-full text-sm transition-all ${settingsTab === 'alerts' ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:${t.text}'}`}>나의 알림</button>
+ <button type="button" onClick={() => setSettingsTab('salesmode')} className={`px-4 py-2 rounded-full text-sm transition-all ${settingsTab === 'salesmode' ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:${t.text}'}`}>영업모드</button>
+ <button type="button" onClick={() => setSettingsTab('account')} className={`px-4 py-2 rounded-full text-sm transition-all ${settingsTab === 'account' ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:${t.text}'}`}>계정</button>
+ {isAdmin && <button type="button" onClick={() => setSettingsTab('admin')} className={`px-4 py-2 rounded-full text-sm transition-all ${settingsTab === 'admin' ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:${t.text}'}`}>관리자</button>}
  </div>
  
  {/* 나의 알림 탭 */}
@@ -15666,7 +15749,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        !e.completed
      );
      return myEvents.length > 0 ? (
-       <div className="bg-white border border-neutral-500 rounded-2xl p-4">
+       <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-500' : 'bg-white border-neutral-500'}`}>
          <h3 className="font-bold text-white text-lg mb-3 flex items-center gap-2">
            오늘 예정
            <span className="bg-rose-500 text-white text-xs px-2 py-0.5 rounded-full">{myEvents.length}</span>
@@ -15675,8 +15758,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
            {myEvents.map(event => (
              <div key={event.id} className="flex items-center justify-between p-3 bg-rose-50 rounded-xl">
                <div className="flex-1">
-                 <p className="font-medium text-neutral-800">{event.title}</p>
-                 <p className="text-sm text-neutral-500">{event.time} · {event.memo || '메모 없음'}</p>
+                 <p className={`font-medium ${t.text}`}>{event.title}</p>
+                 <p className={`text-sm ${t.textMuted}`}>{event.time} · {event.memo || '메모 없음'}</p>
                </div>
                <button
                  onClick={() => {
@@ -15691,7 +15774,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
          </div>
        </div>
      ) : (
-       <div className="bg-white border border-neutral-200 rounded-2xl p-4">
+       <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
          <h3 className="font-bold text-neutral-400 text-lg">오늘 예정된 일정 없음</h3>
        </div>
      );
@@ -15720,18 +15803,18 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
      }).sort((a, b) => a.date.localeCompare(b.date));
      
      return myWeekEvents.length > 0 ? (
-       <div className="bg-white border border-neutral-200 rounded-2xl p-4">
+       <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
          <h3 className="font-bold text-neutral-700 text-lg mb-3">이번 주 예정</h3>
          <div className="space-y-2">
            {myWeekEvents.map(event => (
              <div key={event.id} className="flex items-center justify-between p-3 bg-neutral-50 rounded-xl">
                <div className="flex-1">
                  <div className="flex items-center gap-2">
-                   <span className="text-xs text-neutral-400">{event.date.slice(5).replace('-', '/')} ({['일','월','화','수','목','금','토'][new Date(event.date).getDay()]})</span>
+                   <span className={`text-xs ${t.textMuted}`}>{event.date.slice(5).replace('-', '/')} ({['일','월','화','수','목','금','토'][new Date(event.date).getDay()]})</span>
                    {event.autoGenerated && <span className="text-xs bg-blue-100 text-white px-1.5 py-0.5 rounded">자동</span>}
                  </div>
-                 <p className="font-medium text-neutral-800">{event.title}</p>
-                 <p className="text-sm text-neutral-500">{event.time}</p>
+                 <p className={`font-medium ${t.text}`}>{event.title}</p>
+                 <p className={`text-sm ${t.textMuted}`}>{event.time}</p>
                </div>
                <button
                  onClick={() => {
@@ -15756,7 +15839,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        .slice(0, 5);
      
      return completedEvents.length > 0 ? (
-       <div className="bg-white border border-neutral-200 rounded-2xl p-4">
+       <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
          <h3 className="font-bold text-neutral-400 text-lg mb-3">최근 완료</h3>
          <div className="space-y-2">
            {completedEvents.map(event => (
@@ -15784,8 +15867,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  
  {/* 영업모드 설정 */}
  {settingsTab === 'salesmode' && (
- <div className="bg-white border border-neutral-200 rounded-2xl p-4">
-   <h3 className="font-bold text-[#171717] text-lg mb-2">영업모드</h3>
+ <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+   <h3 className={`font-bold ${t.text} text-lg mb-2`}>영업모드</h3>
    <p className="text-sm text-neutral-700 mb-4">고객 미팅 시 상권 분석 자료를 보여줄 수 있습니다. 영업모드에서는 관리 데이터가 노출되지 않습니다.</p>
    <button
      type="button"
@@ -15801,8 +15884,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {settingsTab === 'account' && (
  <div className="space-y-2">
  {/* 테마 설정 */}
- <div className="bg-white border border-neutral-200 rounded-2xl p-4">
-   <h3 className="font-bold text-[#171717] text-lg mb-3">테마 설정</h3>
+ <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+   <h3 className={`font-bold ${t.text} text-lg mb-3`}>테마 설정</h3>
    <div className="flex gap-2">
      {[
        { value: 'light', label: '라이트' },
@@ -15819,15 +15902,15 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        </button>
      ))}
    </div>
-   <p className="text-xs text-neutral-500 mt-2">현재: {themeMode === 'light' ? '라이트 모드' : themeMode === 'dark' ? '다크 모드' : '시스템 설정 따름'}</p>
+   <p className={`text-xs mt-2 ${t.textMuted}`}>현재: {themeMode === 'light' ? '라이트 모드' : themeMode === 'dark' ? '다크 모드' : '시스템 설정 따름'}</p>
  </div>
 
  {/* 비밀번호 변경 */}
- <div className="bg-white border border-neutral-200 rounded-2xl p-3 sm:p-4">
- <h3 className="font-bold text-[#171717] text-lg mb-4">내 비밀번호 변경</h3>
+ <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <h3 className={`font-bold ${t.text} text-lg mb-4`}>내 비밀번호 변경</h3>
  <div className="space-y-3">
- <input type="password" placeholder="새 비밀번호" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all" />
- <input type="password" placeholder="비밀번호 확인" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all" />
+ <input type="password" placeholder="새 비밀번호" value={newPassword} onChange={e => setNewPassword(e.target.value)} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
+ <input type="password" placeholder="비밀번호 확인" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
  <button type="button" onClick={isAdmin ? changeAdminPassword : changePassword} className="px-4 py-2 bg-neutral-900 text-white rounded-lg font-medium hover:bg-neutral-800 transition-all w-full">비밀번호 변경</button>
  </div>
  <p className="text-xs text-neutral-500 mt-3">※ 비밀번호는 4자 이상이어야 합니다. {isAdmin ? '(관리자 계정)' : ''}</p>
@@ -15839,8 +15922,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {settingsTab === 'admin' && isAdmin && (
  <div className="space-y-2">
  {/* 재등록 표시 관리 */}
- <div className="bg-white border border-neutral-200 rounded-2xl p-3 sm:p-4">
- <h3 className="font-bold text-[#171717] text-lg mb-3">재등록 표시 관리</h3>
+ <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <h3 className={`font-bold ${t.text} text-lg mb-3`}>재등록 표시 관리</h3>
  <p className="text-sm text-neutral-500 mb-3">재등록 표시된 업체: {companies.filter(c => c.isReregistered).length}개</p>
  <button 
  onClick={() => {
@@ -15858,24 +15941,24 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  }}
  className="px-4 py-2 bg-rose-600 rounded-lg font-medium hover:bg-rose-700 transition-all hover:bg-rose-700 text-white w-full"
  >재등록 표시 일괄 삭제</button>
- <p className="text-xs text-neutral-500 mt-2">※ 매월 초에 실행하면 지난달 재등록 업체들이 정상 집계됩니다.</p>
+ <p className={`text-xs mt-2 ${t.textMuted}`}>※ 매월 초에 실행하면 지난달 재등록 업체들이 정상 집계됩니다.</p>
  </div>
 
  {pendingRequests.length > 0 && (
- <div className="bg-white border border-neutral-200 rounded-2xl p-4 border-2 border-neutral-500">
+ <div className={`rounded-2xl p-4 border-2 ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-500' : 'bg-white border-neutral-500'}`}>
  <h3 className="font-bold text-white text-lg mb-4">요청 ({pendingRequests.length})</h3>
  <div className="space-y-3">
  {pendingRequests.map(r => (
  <div key={r.id} className="flex items-center justify-between p-4 bg-rose-900/30 rounded-xl">
- <div><p className="font-bold text-neutral-800">{r.managerName}</p><p className="text-sm text-neutral-800">{r.items?.join(', ')}</p></div>
+ <div><p className={`font-bold ${t.text}`}>{r.managerName}</p><p className={`text-sm ${t.text}`}>{r.items?.join(', ')}</p></div>
  <button type="button" onClick={() => confirmRequest(r.id)} className="px-4 py-2 bg-neutral-900 text-white rounded-lg font-medium hover:bg-neutral-800 transition-all text-sm">확인</button>
  </div>
  ))}
  </div>
  </div>
  )}
- <div className="bg-white border border-neutral-200 rounded-2xl p-3 sm:p-4">
- <h3 className="font-bold text-[#171717] text-lg mb-4">영업자 관리</h3>
+ <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <h3 className={`font-bold ${t.text} text-lg mb-4`}>영업자 관리</h3>
  {managers.map(m => {
  const status = userStatus[m.id];
  const isOnline = status?.isOnline && (Date.now() - new Date(status.lastSeen).getTime() < 120000);
@@ -15886,8 +15969,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${isOnline ? 'bg-emerald-500' : 'bg-gray-400'}`}></div>
  </div>
  <div className="flex-1 min-w-0">
- <input type="text" value={m.name} onChange={e => saveManager({...m, name: e.target.value})} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all w-full mb-1" />
- <p className="text-xs text-neutral-800">
+ <input type="text" value={m.name} onChange={e => saveManager({...m, name: e.target.value})} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all w-full mb-1`} />
+ <p className={`text-xs ${t.text}`}>
  {isOnline ? '접속중' : `${formatLastSeen(status?.lastSeen)}`} · {m.username}
  </p>
  </div>
@@ -15906,16 +15989,16 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="modal-overlay" onClick={() => setShowPinModal(null)}>
  <div className="modal-content" onClick={e => e.stopPropagation()}>
  <div className="flex justify-between items-center mb-4">
- <h3 className="font-bold text-[#171717] text-lg">{shortRegion(showPinModal.region)}</h3>
- <button type="button" onClick={() => setShowPinModal(null)} className="text-neutral-800 text-2xl">×</button>
+ <h3 className={`font-bold ${t.text} text-lg`}>{shortRegion(showPinModal.region)}</h3>
+ <button type="button" onClick={() => setShowPinModal(null)} className={`text-2xl ${t.text}`}>×</button>
  </div>
  <p className="text-neutral-800 mb-4">{showPinModal.status === 'confirmed' ? '확정' : '예정'}: {showPinModal.manager?.name}</p>
  <div className="mb-4">
  <label className="text-sm text-neutral-800 mb-2 block">날짜</label>
- <input type="date" value={showPinModal.date || ''} onChange={e => { updatePinDate(showPinModal.id, e.target.value); setShowPinModal({ ...showPinModal, date: e.target.value }); }} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all" />
+ <input type="date" value={showPinModal.date || ''} onChange={e => { updatePinDate(showPinModal.id, e.target.value); setShowPinModal({ ...showPinModal, date: e.target.value }); }} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
  </div>
  <div className="flex gap-2">
- <button type="button" onClick={() => setShowPinModal(null)} className="px-4 py-2 bg-white text-neutral-700 border border-neutral-200 rounded-lg font-medium hover:bg-neutral-50 transition-all flex-1">확인</button>
+ <button type="button" onClick={() => setShowPinModal(null)} className={`px-4 py-2 rounded-lg font-medium transition-all border ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 border-neutral-600 hover:bg-neutral-600' : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50'}` flex-1`}>확인</button>
  {canDeletePin(showPinModal) && <button type="button" onClick={() => deletePin(showPinModal.id)} className="px-4 py-2 bg-rose-500 rounded-lg font-medium hover:bg-rose-600 transition-all text-white flex-1">삭제</button>}
  </div>
  </div>
@@ -15925,13 +16008,13 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="modal-overlay" onClick={() => setShowRealtorDetailModal(null)}>
  <div className="modal-content" onClick={e => e.stopPropagation()}>
  <div className="flex justify-between items-center mb-4">
- <h3 className="font-bold text-[#171717] text-lg">중개사 상세정보</h3>
- <button type="button" onClick={() => setShowRealtorDetailModal(null)} className="text-neutral-800 text-2xl">×</button>
+ <h3 className={`font-bold ${t.text} text-lg`}>중개사 상세정보</h3>
+ <button type="button" onClick={() => setShowRealtorDetailModal(null)} className={`text-2xl ${t.text}`}>×</button>
  </div>
  <div className="space-y-2">
  <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-4">
- <p className="font-bold text-[#171717] text-lg mb-1">{showRealtorDetailModal.officeName}</p>
- <p className="text-sm text-neutral-500">{showRealtorDetailModal.address || '주소 없음'}</p>
+ <p className={`font-bold ${t.text} text-lg mb-1`}>{showRealtorDetailModal.officeName}</p>
+ <p className={`text-sm ${t.textMuted}`}>{showRealtorDetailModal.address || '주소 없음'}</p>
  <div className="flex gap-2 mt-2">
  <span className="px-2 py-0.5 text-xs rounded-full bg-teal-100 text-teal-700 font-bold">{showRealtorDetailModal.listingCount}건</span>
  {showRealtorDetailModal.isInRoute && <span className="px-2 py-0.5 text-xs rounded-full bg-teal-900/300 text-white">동선</span>}
@@ -15939,17 +16022,17 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  </div>
  <div className="grid grid-cols-2 gap-3 text-sm">
- <div className="bg-white border border-neutral-200 rounded-lg p-3">
- <p className="text-neutral-500 text-xs mb-1">사무실</p>
- <p className="font-bold text-neutral-800">{showRealtorDetailModal.phone || '-'}</p>
+ <div className={`rounded-lg p-3 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <p className={`text-xs mb-1 ${t.textMuted}`}>사무실</p>
+ <p className={`font-bold ${t.text}`}>{showRealtorDetailModal.phone || '-'}</p>
  </div>
- <div className="bg-white border border-neutral-200 rounded-lg p-3">
- <p className="text-neutral-500 text-xs mb-1">휴대폰</p>
- <p className="font-bold text-neutral-800">{showRealtorDetailModal.cellPhone || '-'}</p>
+ <div className={`rounded-lg p-3 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <p className={`text-xs mb-1 ${t.textMuted}`}>휴대폰</p>
+ <p className={`font-bold ${t.text}`}>{showRealtorDetailModal.cellPhone || '-'}</p>
  </div>
- <div className="bg-white border border-neutral-200 rounded-lg p-3">
- <p className="text-neutral-500 text-xs mb-1">{showRealtorDetailModal.isFromCompany ? '배정 담당자' : '담당자'}</p>
- <p className="font-bold text-neutral-800">
+ <div className={`rounded-lg p-3 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <p className={`text-xs mb-1 ${t.textMuted}`}>{showRealtorDetailModal.isFromCompany ? '배정 담당자' : '담당자'}</p>
+ <p className={`font-bold ${t.text}`}>
    {showRealtorDetailModal.assignedManager 
      ? <span className="px-2 py-0.5 rounded-full text-white text-xs" style={{backgroundColor: showRealtorDetailModal.assignedManager.color}}>{showRealtorDetailModal.assignedManager.name}</span>
      : (showRealtorDetailModal.agentPosition || showRealtorDetailModal.agentName 
@@ -15957,22 +16040,22 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        : '미정')}
  </p>
  </div>
- <div className="bg-white border border-neutral-200 rounded-lg p-3">
- <p className="text-neutral-500 text-xs mb-1">{showRealtorDetailModal.isFromCompany ? '등록일' : '수집일'}</p>
- <p className="font-bold text-neutral-800">{showRealtorDetailModal.collectedDate || '-'}</p>
+ <div className={`rounded-lg p-3 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <p className={`text-xs mb-1 ${t.textMuted}`}>{showRealtorDetailModal.isFromCompany ? '등록일' : '수집일'}</p>
+ <p className={`font-bold ${t.text}`}>{showRealtorDetailModal.collectedDate || '-'}</p>
  </div>
  {/* 등록 업체인 경우 연락처 담당자 표시 */}
  {showRealtorDetailModal.isFromCompany && showRealtorDetailModal.agentName && (
- <div className="bg-white border border-neutral-200 rounded-lg p-3 col-span-2">
- <p className="text-neutral-500 text-xs mb-1">연락처 담당자</p>
- <p className="font-bold text-neutral-800">{showRealtorDetailModal.agentName}</p>
+ <div className={`rounded-lg p-3 col-span-2 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <p className={`text-xs mb-1 ${t.textMuted}`}>연락처 담당자</p>
+ <p className={`font-bold ${t.text}`}>{showRealtorDetailModal.agentName}</p>
  </div>
  )}
  {/* 등록 업체인 경우 반응 표시 */}
  {showRealtorDetailModal.isFromCompany && showRealtorDetailModal.reaction && (
- <div className="bg-white border border-neutral-200 rounded-lg p-3 col-span-2">
- <p className="text-neutral-500 text-xs mb-1">반응</p>
- <p className="font-bold text-neutral-800">
+ <div className={`rounded-lg p-3 col-span-2 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <p className={`text-xs mb-1 ${t.textMuted}`}>반응</p>
+ <p className={`font-bold ${t.text}`}>
    {showRealtorDetailModal.reaction === 'negative' && <span className="px-2 py-0.5 rounded bg-neutral-200 text-neutral-700">부정</span>}
    {showRealtorDetailModal.reaction === 'positive' && <span className="px-2 py-0.5 rounded bg-amber-600 text-white">양호</span>}
    {showRealtorDetailModal.reaction === 'good' && <span className="px-2 py-0.5 rounded bg-green-600 text-white">긍정</span>}
@@ -15983,9 +16066,9 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  )}
  {/* 등록 업체인 경우 메모 표시 */}
  {showRealtorDetailModal.isFromCompany && showRealtorDetailModal.memo && (
- <div className="bg-white border border-neutral-200 rounded-lg p-3 col-span-2">
- <p className="text-neutral-500 text-xs mb-1">메모</p>
- <p className="text-neutral-800 text-sm">{showRealtorDetailModal.memo}</p>
+ <div className={`rounded-lg p-3 col-span-2 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <p className={`text-xs mb-1 ${t.textMuted}`}>메모</p>
+ <p className={`text-sm ${t.text}`}>{showRealtorDetailModal.memo}</p>
  </div>
  )}
  </div>
@@ -16070,32 +16153,32 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  className={`w-4 h-4 rounded-full ${REACTION_COLORS[showCompanyMapModal.reaction]?.blink ? 'special-blink' : ''}`}
  style={{ background: REACTION_COLORS[showCompanyMapModal.reaction]?.bg || '#f97316' }}
  ></div>
- <h3 className="font-bold text-[#171717] text-lg">{showCompanyMapModal.name}</h3>
+ <h3 className={`font-bold ${t.text} text-lg`}>{showCompanyMapModal.name}</h3>
  </div>
- <button type="button" onClick={() => setShowCompanyMapModal(null)} className="text-neutral-800 text-2xl">×</button>
+ <button type="button" onClick={() => setShowCompanyMapModal(null)} className={`text-2xl ${t.text}`}>×</button>
  </div>
  <div className="space-y-3 mb-4">
  {showCompanyMapModal.contact && (
  <div className="flex items-center gap-2">
- <span className="text-neutral-800 text-sm w-16">담당자</span>
- <span className="font-bold text-neutral-800">{showCompanyMapModal.contact}</span>
+ <span className={`text-sm w-16 ${t.text}`}>담당자</span>
+ <span className={`font-bold ${t.text}`}>{showCompanyMapModal.contact}</span>
  </div>
  )}
  {showCompanyMapModal.phone && (
  <div className="flex items-center gap-2">
- <span className="text-neutral-800 text-sm w-16">연락처</span>
+ <span className={`text-sm w-16 ${t.text}`}>연락처</span>
  <a href={`tel:${showCompanyMapModal.phone}`} className="font-bold text-primary-600 md:pointer-events-none md:text-neutral-800">{showCompanyMapModal.phone}</a>
  </div>
  )}
  {showCompanyMapModal.address && (
  <div className="flex items-center gap-2">
- <span className="text-neutral-800 text-sm w-16">주소</span>
- <span className="text-neutral-800 text-sm">{showCompanyMapModal.address}</span>
+ <span className={`text-sm w-16 ${t.text}`}>주소</span>
+ <span className={`text-sm ${t.text}`}>{showCompanyMapModal.address}</span>
  </div>
  )}
  {showCompanyMapModal.manager && (
  <div className="flex items-center gap-2">
- <span className="text-neutral-800 text-sm w-16">영업자</span>
+ <span className={`text-sm w-16 ${t.text}`}>영업자</span>
  <span className="font-bold" style={{ color: showCompanyMapModal.manager.color }}>{showCompanyMapModal.manager.name}</span>
  </div>
  )}
@@ -16107,7 +16190,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  )}
  </div>
  <div className="flex items-center gap-2 mb-4">
- <span className="text-sm text-neutral-800">반응:</span>
+ <span className={`text-sm ${t.text}`}>반응:</span>
  <span
  className={`px-3 py-1 rounded-full text-xs text-white font-bold ${REACTION_COLORS[showCompanyMapModal.reaction]?.blink ? 'special-blink' : ''}`}
  style={{ background: REACTION_COLORS[showCompanyMapModal.reaction]?.bg || '#f97316' }}
@@ -16125,7 +16208,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  >
  수정
  </button>
- <button type="button" onClick={() => setShowCompanyMapModal(null)} className="px-4 py-2 bg-white text-neutral-700 border border-neutral-200 rounded-lg font-medium hover:bg-neutral-50 transition-all flex-1">닫기</button>
+ <button type="button" onClick={() => setShowCompanyMapModal(null)} className={`px-4 py-2 rounded-lg font-medium transition-all border ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 border-neutral-600 hover:bg-neutral-600' : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50'}` flex-1`}>닫기</button>
  </div>
  </div>
  </div>
@@ -16133,17 +16216,17 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {showPromoRequestModal && (
  <div className="modal-overlay" onClick={() => setShowPromoRequestModal(null)}>
  <div className="modal-content" onClick={e => e.stopPropagation()}>
- <h3 className="font-bold text-[#171717] text-lg mb-4">홍보물 요청</h3>
+ <h3 className={`font-bold ${t.text} text-lg mb-4`}>홍보물 요청</h3>
  <div className="space-y-3 mb-4">
  {PROMO_ITEMS.map(item => (
  <label key={item} className="flex items-center gap-3 p-3 bg-neutral-100 rounded-xl cursor-pointer">
  <input type="checkbox" checked={promoRequest[item]} onChange={e => setPromoRequest({ ...promoRequest, [item]: e.target.checked })} className="w-5 h-5 accent-gold-500" />
- <span className="font-bold text-neutral-800">{item}</span>
+ <span className={`font-bold ${t.text}`}>{item}</span>
  </label>
  ))}
  </div>
  <div className="flex gap-2">
- <button type="button" onClick={() => setShowPromoRequestModal(null)} className="px-4 py-2 bg-white text-neutral-700 border border-neutral-200 rounded-lg font-medium hover:bg-neutral-50 transition-all flex-1">취소</button>
+ <button type="button" onClick={() => setShowPromoRequestModal(null)} className={`px-4 py-2 rounded-lg font-medium transition-all border ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 border-neutral-600 hover:bg-neutral-600' : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50'}` flex-1`}>취소</button>
  <button type="button" onClick={submitPromoRequest} className="px-4 py-2 bg-neutral-900 text-white rounded-lg font-medium hover:bg-neutral-800 transition-all flex-1">요청 보내기</button>
  </div>
  </div>
@@ -16153,28 +16236,28 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="modal-overlay" onClick={() => setShowCompanyEditModal(null)}>
  <div className="modal-content" onClick={e => e.stopPropagation()}>
  <div className="flex justify-between items-center mb-4">
- <h3 className="font-bold text-[#171717] text-lg">업체 수정</h3>
- <button type="button" onClick={() => setShowCompanyEditModal(null)} className="text-neutral-800 text-2xl">×</button>
+ <h3 className={`font-bold ${t.text} text-lg`}>업체 수정</h3>
+ <button type="button" onClick={() => setShowCompanyEditModal(null)} className={`text-2xl ${t.text}`}>×</button>
  </div>
  <div className="space-y-3">
- <input type="text" placeholder="업체명" value={showCompanyEditModal.name} onChange={e => setShowCompanyEditModal({ ...showCompanyEditModal, name: e.target.value })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all" />
- <input type="text" placeholder="담당자" value={showCompanyEditModal.contact || ''} onChange={e => setShowCompanyEditModal({ ...showCompanyEditModal, contact: e.target.value })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all" />
- <input type="text" placeholder="연락처" value={showCompanyEditModal.phone || ''} onChange={e => setShowCompanyEditModal({ ...showCompanyEditModal, phone: e.target.value })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all" />
- <input type="text" placeholder="주소" value={showCompanyEditModal.address || ''} onChange={e => setShowCompanyEditModal({ ...showCompanyEditModal, address: e.target.value })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all" />
- <select value={showCompanyEditModal.managerId || ''} onChange={e => setShowCompanyEditModal({ ...showCompanyEditModal, managerId: Number(e.target.value) || null })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] focus:outline-none focus:border-neutral-400 transition-all">
+ <input type="text" placeholder="업체명" value={showCompanyEditModal.name} onChange={e => setShowCompanyEditModal({ ...showCompanyEditModal, name: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
+ <input type="text" placeholder="담당자" value={showCompanyEditModal.contact || ''} onChange={e => setShowCompanyEditModal({ ...showCompanyEditModal, contact: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
+ <input type="text" placeholder="연락처" value={showCompanyEditModal.phone || ''} onChange={e => setShowCompanyEditModal({ ...showCompanyEditModal, phone: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
+ <input type="text" placeholder="주소" value={showCompanyEditModal.address || ''} onChange={e => setShowCompanyEditModal({ ...showCompanyEditModal, address: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
+ <select value={showCompanyEditModal.managerId || ''} onChange={e => setShowCompanyEditModal({ ...showCompanyEditModal, managerId: Number(e.target.value) || null })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} focus:outline-none focus:border-neutral-400 transition-all`}>
  <option value="">영업자 선택</option>
  {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
  </select>
- <input type="text" placeholder="메모" value={showCompanyEditModal.memo || ''} onChange={e => setShowCompanyEditModal({ ...showCompanyEditModal, memo: e.target.value })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all" />
+ <input type="text" placeholder="메모" value={showCompanyEditModal.memo || ''} onChange={e => setShowCompanyEditModal({ ...showCompanyEditModal, memo: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
  <div className="flex items-center gap-2">
- <span className="text-sm text-neutral-800">반응:</span>
+ <span className={`text-sm ${t.text}`}>반응:</span>
  {Object.entries(REACTION_COLORS).map(([key, val]) => (
  <button key={key} onClick={() => setShowCompanyEditModal({ ...showCompanyEditModal, reaction: key })} className={`px-3 py-1.5 rounded-full text-xs text-white font-bold ${showCompanyEditModal.reaction === key ? 'ring-2 ring-offset-1' : 'opacity-50'}`} style={{ background: val.bg }}>{val.label}</button>
  ))}
  </div>
  </div>
  <div className="flex gap-2 mt-4">
- <button type="button" onClick={() => setShowCompanyEditModal(null)} className="px-4 py-2 bg-white text-neutral-700 border border-neutral-200 rounded-lg font-medium hover:bg-neutral-50 transition-all flex-1">취소</button>
+ <button type="button" onClick={() => setShowCompanyEditModal(null)} className={`px-4 py-2 rounded-lg font-medium transition-all border ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 border-neutral-600 hover:bg-neutral-600' : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50'}` flex-1`}>취소</button>
  <button type="button" onClick={updateCompany} className="px-4 py-2 bg-neutral-900 text-white rounded-lg font-medium hover:bg-neutral-800 transition-all flex-1">완료</button>
  </div>
  </div>
@@ -16184,14 +16267,14 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="modal-overlay" onClick={() => setShowCustomerEditModal(null)}>
  <div className="modal-content" onClick={e => e.stopPropagation()}>
  <div className="flex justify-between items-center mb-4">
- <h3 className="font-bold text-[#171717] text-lg">고객 수정</h3>
- <button type="button" onClick={() => setShowCustomerEditModal(null)} className="text-neutral-800 text-2xl">×</button>
+ <h3 className={`font-bold ${t.text} text-lg`}>고객 수정</h3>
+ <button type="button" onClick={() => setShowCustomerEditModal(null)} className={`text-2xl ${t.text}`}>×</button>
  </div>
  <div className="space-y-3">
- <input type="text" placeholder="고객명" value={showCustomerEditModal.name} onChange={e => setShowCustomerEditModal({ ...showCustomerEditModal, name: e.target.value })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all" />
- <input type="text" placeholder="연락처" value={showCustomerEditModal.phone || ''} onChange={e => setShowCustomerEditModal({ ...showCustomerEditModal, phone: e.target.value })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all" />
- <input type="date" value={showCustomerEditModal.consultDate || ''} onChange={e => setShowCustomerEditModal({ ...showCustomerEditModal, consultDate: e.target.value })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all" />
- <select value={showCustomerEditModal.managerId || ''} onChange={e => setShowCustomerEditModal({ ...showCustomerEditModal, managerId: Number(e.target.value) || null })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] focus:outline-none focus:border-neutral-400 transition-all">
+ <input type="text" placeholder="고객명" value={showCustomerEditModal.name} onChange={e => setShowCustomerEditModal({ ...showCustomerEditModal, name: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
+ <input type="text" placeholder="연락처" value={showCustomerEditModal.phone || ''} onChange={e => setShowCustomerEditModal({ ...showCustomerEditModal, phone: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
+ <input type="date" value={showCustomerEditModal.consultDate || ''} onChange={e => setShowCustomerEditModal({ ...showCustomerEditModal, consultDate: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
+ <select value={showCustomerEditModal.managerId || ''} onChange={e => setShowCustomerEditModal({ ...showCustomerEditModal, managerId: Number(e.target.value) || null })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} focus:outline-none focus:border-neutral-400 transition-all`}>
  <option value="">영업자 선택</option>
  {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
  </select>
@@ -16216,11 +16299,11 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  placeholder="메모"
  value={showCustomerEditModal.memo || ''}
  onChange={e => setShowCustomerEditModal({ ...showCustomerEditModal, memo: e.target.value })}
- className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all h-20"
+ className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all h-20`}
  />
  </div>
  <div className="flex gap-2 mt-4">
- <button type="button" onClick={() => setShowCustomerEditModal(null)} className="px-4 py-2 bg-white text-neutral-700 border border-neutral-200 rounded-lg font-medium hover:bg-neutral-50 transition-all flex-1">취소</button>
+ <button type="button" onClick={() => setShowCustomerEditModal(null)} className={`px-4 py-2 rounded-lg font-medium transition-all border ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 border-neutral-600 hover:bg-neutral-600' : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50'}` flex-1`}>취소</button>
  <button type="button" onClick={updateCustomer} className="px-4 py-2 bg-neutral-900 text-white rounded-lg font-medium hover:bg-neutral-800 transition-all flex-1">완료</button>
  </div>
  </div>
@@ -16230,12 +16313,12 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="modal-overlay" onClick={() => setShowPinEditModal(null)}>
  <div className="modal-content" onClick={e => e.stopPropagation()}>
  <div className="flex justify-between items-center mb-4">
- <h3 className="font-bold text-[#171717] text-lg">{showPinEditModal.status === 'planned' ? '예정' : '확정'} 지역 수정</h3>
- <button type="button" onClick={() => setShowPinEditModal(null)} className="text-neutral-800 text-2xl">×</button>
+ <h3 className={`font-bold ${t.text} text-lg`}>{showPinEditModal.status === 'planned' ? '예정' : '확정'} 지역 수정</h3>
+ <button type="button" onClick={() => setShowPinEditModal(null)} className={`text-2xl ${t.text}`}>×</button>
  </div>
  <div className="flex gap-2 mb-4">
  <button type="button" onClick={() => setSelectedPinsForEdit(showPinEditModal.pins.map(p => p.id))} className="text-sm text-gold-600 font-bold">전체 선택</button>
- <button type="button" onClick={() => setSelectedPinsForEdit([])} className="text-sm text-neutral-800 font-bold">선택 해제</button>
+ <button type="button" onClick={() => setSelectedPinsForEdit([])} className={`text-sm font-bold ${t.text}`}>선택 해제</button>
  </div>
  <div className="space-y-2 max-h-60 overflow-y-auto mb-4">
  {showPinEditModal.pins.map(p => (
@@ -16244,7 +16327,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  if (e.target.checked) setSelectedPinsForEdit([...selectedPinsForEdit, p.id]);
  else setSelectedPinsForEdit(selectedPinsForEdit.filter(id => id !== p.id));
  }} className="w-5 h-5 accent-gold-500" />
- <span className="font-bold text-neutral-800">{shortRegion(p.region)}</span>
+ <span className={`font-bold ${t.text}`}>{shortRegion(p.region)}</span>
  </label>
  ))}
  </div>
@@ -16261,13 +16344,13 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="modal-overlay" onClick={() => setShowCompanySuccessModal(null)}>
  <div className="modal-content max-w-sm p-0 overflow-hidden" onClick={e => e.stopPropagation()}>
  <div className="bg-neutral-100 border border-neutral-200 p-4 sm:p-6 text-center">
- <div className="w-14 h-14 bg-white/10 backdrop-blur rounded-full flex items-center justify-center mx-auto mb-3 border border-white/20">
+ <div className={`w-14 h-14 backdrop-blur rounded-full flex items-center justify-center mx-auto mb-3 border ${theme === 'dark' ? 'bg-white/10 border-white/20' : 'bg-neutral-100 border-neutral-200'}`}>
  <span className="text-2xl text-neutral-700"></span>
  </div>
  <p className="text-neutral-500 text-xs tracking-widest mb-1">REGISTERED</p>
  <h3 className="font-bold text-white text-lg">{showCompanySuccessModal.companyName}</h3>
  </div>
- <div className="p-5 bg-white">
+ <div className={`p-5 ${theme === 'dark' ? 'bg-neutral-800' : 'bg-white'}`}>
  <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-4 mb-4 border-l-4 border-teal-500">
  <p className="text-neutral-700 text-sm leading-relaxed">{showCompanySuccessModal.quote}</p>
  </div>
@@ -16280,12 +16363,12 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="modal-overlay" onClick={() => setShowAdminPwModal(false)}>
  <div className="modal-content" onClick={e => e.stopPropagation()}>
  <div className="flex justify-between items-center mb-4">
- <h3 className="font-bold text-[#171717] text-lg">관리자 비밀번호 변경</h3>
- <button type="button" onClick={() => setShowAdminPwModal(false)} className="text-neutral-800 text-2xl">×</button>
+ <h3 className={`font-bold ${t.text} text-lg`}>관리자 비밀번호 변경</h3>
+ <button type="button" onClick={() => setShowAdminPwModal(false)} className={`text-2xl ${t.text}`}>×</button>
  </div>
  <div className="space-y-3">
- <input type="password" placeholder="새 비밀번호" value={adminNewPw} onChange={e => setAdminNewPw(e.target.value)} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all" />
- <input type="password" placeholder="비밀번호 확인" value={adminConfirmPw} onChange={e => setAdminConfirmPw(e.target.value)} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all" />
+ <input type="password" placeholder="새 비밀번호" value={adminNewPw} onChange={e => setAdminNewPw(e.target.value)} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
+ <input type="password" placeholder="비밀번호 확인" value={adminConfirmPw} onChange={e => setAdminConfirmPw(e.target.value)} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
  <button type="button" onClick={changeAdminPassword} className="px-4 py-2 bg-neutral-900 text-white rounded-lg font-medium hover:bg-neutral-800 transition-all w-full">변경</button>
  </div>
  </div>
@@ -16295,8 +16378,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="modal-overlay" onClick={() => setShowHistory(false)}>
  <div className="modal-content" onClick={e => e.stopPropagation()}>
  <div className="flex justify-between items-center mb-4">
- <h3 className="font-bold text-[#171717] text-lg">클라우드 동기화</h3>
- <button type="button" onClick={() => setShowHistory(false)} className="text-neutral-800 text-2xl">×</button>
+ <h3 className={`font-bold ${t.text} text-lg`}>클라우드 동기화</h3>
+ <button type="button" onClick={() => setShowHistory(false)} className={`text-2xl ${t.text}`}>×</button>
  </div>
  <div className="bg-emerald-900/30 p-4 rounded-xl">
  <p className="text-white font-bold mb-2">실시간 동기화 활성화</p>
@@ -16310,23 +16393,23 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="modal-overlay" onClick={() => setShowSaleEditModal(null)}>
  <div className="modal-content" onClick={e => e.stopPropagation()}>
  <div className="flex justify-between items-center mb-4">
- <h3 className="font-bold text-[#171717] text-lg">매출 수정</h3>
- <button type="button" onClick={() => setShowSaleEditModal(null)} className="text-neutral-800 text-2xl">×</button>
+ <h3 className={`font-bold ${t.text} text-lg`}>매출 수정</h3>
+ <button type="button" onClick={() => setShowSaleEditModal(null)} className={`text-2xl ${t.text}`}>×</button>
  </div>
  <p className="text-sm text-neutral-800 mb-4">{showSaleEditModal.managerName}님의 매출</p>
  <div className="space-y-3">
  {(() => {
  const managerSalesRecords = sales.filter(s => s.managerId === showSaleEditModal.managerId);
  if (managerSalesRecords.length === 0) {
- return <p className="text-center text-neutral-800 py-4">등록된 매출이 없습니다.</p>;
+ return <p className={`text-center py-4 ${t.text}`}>등록된 매출이 없습니다.</p>;
  }
  return (
  <div className="space-y-2 max-h-60 overflow-y-auto">
  {managerSalesRecords.map(sale => (
  <div key={sale.id} className="flex items-center justify-between p-3 bg-neutral-100 rounded-lg">
  <div>
- <p className="font-bold text-[#171717]">{Number(sale.amount).toLocaleString()}원</p>
- <p className="text-xs text-neutral-800">{sale.date}</p>
+ <p className={`font-bold ${t.text}`}>{Number(sale.amount).toLocaleString()}원</p>
+ <p className={`text-xs ${t.text}`}>{sale.date}</p>
  </div>
  <div className="flex gap-2">
  <button
@@ -16355,7 +16438,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  );
  })()}
  </div>
- <button type="button" onClick={() => setShowSaleEditModal(null)} className="px-4 py-2 bg-white text-neutral-700 border border-neutral-200 rounded-lg font-medium hover:bg-neutral-50 transition-all w-full mt-4">닫기</button>
+ <button type="button" onClick={() => setShowSaleEditModal(null)} className={`px-4 py-2 rounded-lg font-medium transition-all border ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 border-neutral-600 hover:bg-neutral-600' : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50'}` w-full mt-4`}>닫기</button>
  </div>
  </div>
  )}
@@ -16363,16 +16446,16 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="modal-overlay" onClick={() => setShowSaleModal(false)}>
  <div className="modal-content" onClick={e => e.stopPropagation()}>
  <div className="flex justify-between items-center mb-4">
- <h3 className="font-bold text-[#171717] text-lg">매출 등록</h3>
- <button type="button" onClick={() => setShowSaleModal(false)} className="text-neutral-800 text-2xl">×</button>
+ <h3 className={`font-bold ${t.text} text-lg`}>매출 등록</h3>
+ <button type="button" onClick={() => setShowSaleModal(false)} className={`text-2xl ${t.text}`}>×</button>
  </div>
  <div className="space-y-3">
- <select value={saleForm.managerId || ''} onChange={e => setSaleForm({ ...saleForm, managerId: Number(e.target.value) || null })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] focus:outline-none focus:border-neutral-400 transition-all">
+ <select value={saleForm.managerId || ''} onChange={e => setSaleForm({ ...saleForm, managerId: Number(e.target.value) || null })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} focus:outline-none focus:border-neutral-400 transition-all`}>
  <option value="">영업자 선택 *</option>
  {getAvailableManagersForSale().map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
  </select>
- <input type="number" placeholder="금액 *" value={saleForm.amount} onChange={e => setSaleForm({ ...saleForm, amount: e.target.value })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all" />
- <input type="date" value={saleForm.date} onChange={e => setSaleForm({ ...saleForm, date: e.target.value })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all" />
+ <input type="number" placeholder="금액 *" value={saleForm.amount} onChange={e => setSaleForm({ ...saleForm, amount: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
+ <input type="date" value={saleForm.date} onChange={e => setSaleForm({ ...saleForm, date: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
  <button type="button" onClick={handleSaveSale} className="px-4 py-2 bg-neutral-900 text-white rounded-lg font-medium hover:bg-neutral-800 transition-all w-full">등록</button>
  </div>
  </div>
@@ -16382,12 +16465,12 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="modal-overlay" onClick={() => setShowPasswordModal(false)}>
  <div className="modal-content" onClick={e => e.stopPropagation()}>
  <div className="flex justify-between items-center mb-4">
- <h3 className="font-bold text-[#171717] text-lg">비밀번호 변경</h3>
- <button type="button" onClick={() => setShowPasswordModal(false)} className="text-neutral-800 text-2xl">×</button>
+ <h3 className={`font-bold ${t.text} text-lg`}>비밀번호 변경</h3>
+ <button type="button" onClick={() => setShowPasswordModal(false)} className={`text-2xl ${t.text}`}>×</button>
  </div>
  <div className="space-y-3">
- <input type="password" placeholder="새 비밀번호" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all" />
- <input type="password" placeholder="비밀번호 확인" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all" />
+ <input type="password" placeholder="새 비밀번호" value={newPassword} onChange={e => setNewPassword(e.target.value)} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
+ <input type="password" placeholder="비밀번호 확인" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
  <button type="button" onClick={changePassword} className="px-4 py-2 bg-neutral-900 text-white rounded-lg font-medium hover:bg-neutral-800 transition-all w-full">변경</button>
  </div>
  </div>
@@ -16397,20 +16480,20 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="modal-overlay" onClick={() => setShowBulkAddModal(false)}>
  <div className="modal-content" onClick={e => e.stopPropagation()}>
  <div className="flex justify-between items-center mb-4">
- <h3 className="font-bold text-[#171717] text-lg">업체 일괄등록</h3>
- <button type="button" onClick={() => setShowBulkAddModal(false)} className="text-neutral-800 text-2xl">×</button>
+ <h3 className={`font-bold ${t.text} text-lg`}>업체 일괄등록</h3>
+ <button type="button" onClick={() => setShowBulkAddModal(false)} className={`text-2xl ${t.text}`}>×</button>
  </div>
  <div className="bg-neutral-100 rounded-xl p-3 mb-4">
  <p className="text-neutral-800 font-bold mb-1">입력 형식</p>
- <p className="text-neutral-800 text-sm">업체명/담당자/연락처/주소/반응</p>
+ <p className={`text-sm ${t.text}`}>업체명/담당자/연락처/주소/반응</p>
  </div>
- <textarea value={bulkAddText} onChange={e => setBulkAddText(e.target.value)} placeholder="업체명/담당자/연락처/주소/반응" className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all h-32 mb-3" />
- <select value={bulkAddSales || ''} onChange={e => setBulkAddSales(Number(e.target.value) || null)} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] focus:outline-none focus:border-neutral-400 transition-all mb-3">
+ <textarea value={bulkAddText} onChange={e => setBulkAddText(e.target.value)} placeholder="업체명/담당자/연락처/주소/반응" className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all h-32 mb-3`} />
+ <select value={bulkAddSales || ''} onChange={e => setBulkAddSales(Number(e.target.value) || null)} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} focus:outline-none focus:border-neutral-400 transition-all mb-3`}>
  <option value="">영업자 선택</option>
  {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
  </select>
  <div className="flex items-center gap-2 mb-4 flex-wrap">
- <span className="text-sm text-neutral-800">기본 반응:</span>
+ <span className={`text-sm ${t.text}`}>기본 반응:</span>
  {Object.entries(REACTION_COLORS).map(([key, val]) => (
  <button key={key} onClick={() => setBulkAddReaction(key)} className={`px-3 py-1.5 rounded-full text-xs text-white font-bold ${bulkAddReaction === key ? 'ring-2 ring-offset-1' : 'opacity-50'}`} style={{ background: val.bg }}>{val.label}</button>
  ))}
@@ -16423,32 +16506,32 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="modal-overlay" onClick={() => setShowOcrModal(false)} style={{ overflow: 'hidden' }}>
  <div className="modal-content" onClick={e => e.stopPropagation()}>
  <div className="flex justify-between items-center mb-4">
- <h3 className="font-bold text-[#171717] text-lg">명함 인식 결과</h3>
- <button type="button" onClick={() => setShowOcrModal(false)} className="text-neutral-800 text-2xl">×</button>
+ <h3 className={`font-bold ${t.text} text-lg`}>명함 인식 결과</h3>
+ <button type="button" onClick={() => setShowOcrModal(false)} className={`text-2xl ${t.text}`}>×</button>
  </div>
  {ocrLoading ? (
  <div className="text-center py-8">
  <div className="w-10 h-10 border-4 border-neutral-500 border-t-transparent rounded-full spin mx-auto mb-3"></div>
- <p className="text-neutral-800">명함을 인식하고 있습니다...</p>
+ <p className={`${t.text}`}>명함을 인식하고 있습니다...</p>
  </div>
  ) : ocrResult ? (
  <div className="space-y-3">
- <p className="text-sm text-neutral-800 font-bold">자동 추출 결과 (수정 가능)</p>
- <input type="text" placeholder="업체명" value={companyForm.name} onChange={e => setCompanyForm({ ...companyForm, name: e.target.value })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all" />
- <input type="text" placeholder="담당자" value={companyForm.contact} onChange={e => setCompanyForm({ ...companyForm, contact: e.target.value })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all" />
- <input type="text" placeholder="연락처" value={companyForm.phone} onChange={e => setCompanyForm({ ...companyForm, phone: e.target.value })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all" />
- <input type="text" placeholder="주소" value={companyForm.address} onChange={e => setCompanyForm({ ...companyForm, address: e.target.value })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all" />
- <select value={companyForm.managerId || ''} onChange={e => setCompanyForm({ ...companyForm, managerId: Number(e.target.value) || null })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] focus:outline-none focus:border-neutral-400 transition-all">
+ <p className={`text-sm font-bold ${t.text}`}>자동 추출 결과 (수정 가능)</p>
+ <input type="text" placeholder="업체명" value={companyForm.name} onChange={e => setCompanyForm({ ...companyForm, name: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
+ <input type="text" placeholder="담당자" value={companyForm.contact} onChange={e => setCompanyForm({ ...companyForm, contact: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
+ <input type="text" placeholder="연락처" value={companyForm.phone} onChange={e => setCompanyForm({ ...companyForm, phone: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
+ <input type="text" placeholder="주소" value={companyForm.address} onChange={e => setCompanyForm({ ...companyForm, address: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
+ <select value={companyForm.managerId || ''} onChange={e => setCompanyForm({ ...companyForm, managerId: Number(e.target.value) || null })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} focus:outline-none focus:border-neutral-400 transition-all`}>
  <option value="">영업자 선택</option>
  {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
  </select>
  <div className="flex items-center gap-2 flex-wrap">
- <span className="text-sm text-neutral-800">반응:</span>
+ <span className={`text-sm ${t.text}`}>반응:</span>
  {Object.entries(REACTION_COLORS).map(([key, val]) => (
  <button key={key} onClick={() => setCompanyForm({ ...companyForm, reaction: key })} className={`px-3 py-1.5 rounded-full text-xs text-white font-bold ${companyForm.reaction === key ? 'ring-2 ring-offset-1' : 'opacity-50'}`} style={{ background: val.bg }}>{val.label}</button>
  ))}
  </div>
- <input type="text" placeholder="메모" value={companyForm.memo} onChange={e => setCompanyForm({ ...companyForm, memo: e.target.value })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all" />
+ <input type="text" placeholder="메모" value={companyForm.memo} onChange={e => setCompanyForm({ ...companyForm, memo: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
  <div className="flex gap-2">
  <button
  onClick={() => {
@@ -16480,13 +16563,13 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="modal-overlay">
  <div className="modal-content max-w-2xl" onClick={e => e.stopPropagation()}>
  <div className="flex justify-between items-center mb-4">
- <h3 className="font-bold text-[#171717] text-lg">명함 일괄 인식 ({bulkOcrResults.length}개)</h3>
- <button type="button" onClick={() => setShowBulkOcrModal(false)} className="text-neutral-800 text-2xl">×</button>
+ <h3 className={`font-bold ${t.text} text-lg`}>명함 일괄 인식 ({bulkOcrResults.length}개)</h3>
+ <button type="button" onClick={() => setShowBulkOcrModal(false)} className={`text-2xl ${t.text}`}>×</button>
  </div>
  {ocrLoading ? (
  <div className="text-center py-8">
  <div className="w-10 h-10 border-4 border-green-500 border-t-transparent rounded-full spin mx-auto mb-3"></div>
- <p className="text-neutral-800">명함을 인식하고 있습니다...</p>
+ <p className={`${t.text}`}>명함을 인식하고 있습니다...</p>
  </div>
  ) : (
  <div className="space-y-3 max-h-[60vh] overflow-y-auto">
@@ -16503,7 +16586,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  updated[idx].name = e.target.value;
  setBulkOcrResults(updated);
  }}
- className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm"
+ className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm`}
  />
  <input
  type="text"
@@ -16514,7 +16597,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  updated[idx].contact = e.target.value;
  setBulkOcrResults(updated);
  }}
- className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm"
+ className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm`}
  />
  <input
  type="text"
@@ -16525,7 +16608,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  updated[idx].phone = e.target.value;
  setBulkOcrResults(updated);
  }}
- className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm"
+ className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm`}
  />
  <input
  type="text"
@@ -16536,7 +16619,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  updated[idx].address = e.target.value;
  setBulkOcrResults(updated);
  }}
- className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm"
+ className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm`}
  />
  </div>
  <div className="flex items-center gap-2 mt-2 flex-wrap">
@@ -16547,7 +16630,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  updated[idx].managerId = Number(e.target.value) || null;
  setBulkOcrResults(updated);
  }}
- className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] focus:outline-none focus:border-neutral-400 transition-all text-sm py-1"
+ className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} focus:outline-none focus:border-neutral-400 transition-all text-sm py-1`}
  >
  <option value="">영업자</option>
  {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
@@ -16576,7 +16659,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  updated[idx].memo = e.target.value;
  setBulkOcrResults(updated);
  }}
- className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm mt-2"
+ className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm mt-2`}
  />
  </div>
  ))}
@@ -16600,8 +16683,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="w-16 h-16 bg-gradient-to-r from-teal-500 to-cyan-600 rounded-full flex items-center justify-center mx-auto mb-3">
  <span className="text-3xl"></span>
  </div>
- <h3 className="font-bold text-[#171717] text-xl">스케줄 작성 안내</h3>
- <p className="text-neutral-800 text-sm mt-2">
+ <h3 className={`font-bold ${t.text} text-xl`}>스케줄 작성 안내</h3>
+ <p className={`text-sm mt-2 ${t.text}`}>
  {new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long' })} 4주차
  </p>
  </div>
@@ -16630,17 +16713,17 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="w-14 h-14 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-3">
    <span className="text-2xl"></span>
  </div>
- <h3 className="font-bold text-[#171717] text-lg">미방문 업체 확인</h3>
- <p className="text-neutral-800 text-sm mt-2">
+ <h3 className={`font-bold ${t.text} text-lg`}>미방문 업체 확인</h3>
+ <p className={`text-sm mt-2 ${t.text}`}>
    아래 <b className="text-white">{showUnvisitedModal.unvisitedStops.length}개</b> 업체가 미방문 상태입니다.
  </p>
  </div>
  
- <div className="bg-white rounded-xl p-3 mb-4 max-h-40 overflow-y-auto">
+ <div className={`rounded-xl p-3 mb-4 max-h-40 overflow-y-auto ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur' : 'bg-white'}`}>
  {showUnvisitedModal.unvisitedStops.map((stop, idx) => (
    <div key={idx} className="flex items-center gap-2 py-2 border-b border-neutral-200 last:border-0">
      <span className="w-6 h-6 bg-neutral-600 text-white rounded-full flex items-center justify-center text-xs font-bold">{idx + 1}</span>
-     <span className="text-neutral-800 text-sm">{stop.name}</span>
+     <span className={`text-sm ${t.text}`}>{stop.name}</span>
    </div>
  ))}
  </div>
@@ -16674,8 +16757,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="w-14 h-14 bg-rose-100 rounded-full flex items-center justify-center mx-auto mb-3">
  <span className="text-2xl"></span>
  </div>
- <h3 className="font-bold text-[#171717] text-lg">삭제 확인</h3>
- <p className="text-neutral-800 text-sm mt-2">
+ <h3 className={`font-bold ${t.text} text-lg`}>삭제 확인</h3>
+ <p className={`text-sm mt-2 ${t.text}`}>
  <b className="text-white">{showDeleteConfirm.name}</b>을(를) 삭제하시겠습니까?
  </p>
  <p className="text-xs text-neutral-800 mt-1">삭제된 데이터는 복구할 수 없습니다.</p>
@@ -16683,7 +16766,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="flex gap-2">
  <button
  onClick={() => setShowDeleteConfirm(null)}
- className="flex-1 px-4 py-2 bg-gray-100 rounded-xl font-bold text-gray-300"
+ className={`flex-1 px-4 py-2 rounded-xl font-bold ${theme === 'dark' ? 'bg-neutral-700 text-neutral-300' : 'bg-neutral-100 text-neutral-600'}`}
  >
  취소
  </button>
@@ -16721,7 +16804,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="w-16 h-16 bg-gradient-to-r from-teal-500 to-cyan-600 rounded-full flex items-center justify-center mx-auto mb-3">
  <span className="text-3xl"></span>
  </div>
- <h3 className="font-bold text-[#171717] text-xl">오늘의 일정 알림</h3>
+ <h3 className={`font-bold ${t.text} text-xl`}>오늘의 일정 알림</h3>
  <p className="text-neutral-800 text-sm mt-1">{new Date().toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}</p>
  </div>
  <div className="bg-neutral-100 border border-neutral-200 rounded-xl p-4 mb-4 max-h-60 overflow-y-auto">
@@ -16734,8 +16817,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="flex items-start gap-2">
  <span className="text-lg">{event.type === 'route' ? '' : ''}</span>
  <div className="flex-1 min-w-0">
- <p className="font-bold text-[#171717] text-sm break-words">{event.title}</p>
- {manager && <p className="text-xs text-neutral-800">담당: {manager.name}</p>}
+ <p className={`font-bold ${t.text} text-sm break-words`}>{event.title}</p>
+ {manager && <p className={`text-xs ${t.text}`}>담당: {manager.name}</p>}
  {event.memo && <p className="text-xs text-neutral-800 mt-1 break-words whitespace-pre-wrap">{event.memo}</p>}
  </div>
  </div>
@@ -16756,7 +16839,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </button>
  <button
  onClick={() => setShowTodayAlert(false)}
- className="flex-1 px-4 py-2 bg-white text-neutral-700 border border-neutral-200 rounded-lg font-medium hover:bg-neutral-50 transition-all"
+ className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all border ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 border-neutral-600 hover:bg-neutral-600' : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50'}`}
  >
  닫기
  </button>
@@ -16765,11 +16848,11 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  )}
  {showUnmappedModal && (
- <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowUnmappedModal(false)}>
+ <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowUnmappedModal(false)}>
  <div className="bg-neutral-100 rounded-2xl p-5 w-full max-w-md max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
  <div className="flex justify-between items-center mb-4">
- <h3 className="font-bold text-[#171717] text-lg">미표시 업체</h3>
- <button type="button" onClick={() => setShowUnmappedModal(false)} className="text-neutral-800 text-2xl">×</button>
+ <h3 className={`font-bold ${t.text} text-lg`}>미표시 업체</h3>
+ <button type="button" onClick={() => setShowUnmappedModal(false)} className={`text-2xl ${t.text}`}>×</button>
  </div>
  <p className="text-sm text-neutral-800 mb-3">주소를 수정하면 지도에 표시됩니다.</p>
  <div className="space-y-2 max-h-96 overflow-y-auto">
@@ -16783,7 +16866,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  >
  <div className="flex items-center justify-between">
  <div className="min-w-0 flex-1">
- <p className="font-bold text-[#171717] truncate">{c.name}</p>
+ <p className={`font-bold ${t.text} truncate`}>{c.name}</p>
  <p className="text-xs text-neutral-800 truncate">{c.address || '주소 없음'}</p>
  </div>
  <div className="flex-shrink-0 ml-2">
@@ -16794,18 +16877,18 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  );
  })}
  {companies.filter(c => !c.lat || !c.lng).length === 0 && (
- <p className="text-center text-neutral-800 py-4">미표시 업체가 없습니다.</p>
+ <p className={`text-center py-4 ${t.text}`}>미표시 업체가 없습니다.</p>
  )}
  </div>
  </div>
  </div>
  )}
  {selectedCalendarEvent && (
- <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setSelectedCalendarEvent(null)}>
+ <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setSelectedCalendarEvent(null)}>
  <div className="bg-neutral-100 rounded-2xl p-5 w-full max-w-md" onClick={e => e.stopPropagation()}>
  <div className="flex justify-between items-center mb-4">
- <h3 className="font-bold text-[#171717] text-lg">일정 상세</h3>
- <button type="button" onClick={() => setSelectedCalendarEvent(null)} className="text-neutral-800 text-2xl">×</button>
+ <h3 className={`font-bold ${t.text} text-lg`}>일정 상세</h3>
+ <button type="button" onClick={() => setSelectedCalendarEvent(null)} className={`text-2xl ${t.text}`}>×</button>
  </div>
  <div className="space-y-3">
  <div className="p-4 bg-purple-50 rounded-xl">
@@ -16816,7 +16899,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  {selectedCalendarEvent.memo && (
  <div className="mt-3 p-3 bg-neutral-100 rounded-lg">
- <p className="text-xs text-neutral-800 mb-1">메모</p>
+ <p className={`text-xs mb-1 ${t.text}`}>메모</p>
  <p className="text-neutral-800 whitespace-pre-wrap">{selectedCalendarEvent.memo}</p>
  </div>
  )}
@@ -16858,13 +16941,13 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  )}
  {showCalendarModal && (
- <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowCalendarModal(false)}>
+ <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowCalendarModal(false)}>
  <div className="bg-neutral-100 rounded-2xl p-5 w-full max-w-md" onClick={e => e.stopPropagation()}>
  <div className="flex justify-between items-center mb-4">
- <h3 className="font-bold text-[#171717] text-lg">
+ <h3 className={`font-bold ${t.text} text-lg`}>
  {selectedCalendarDate} 일정
  </h3>
- <button type="button" onClick={() => setShowCalendarModal(false)} className="text-neutral-800 text-2xl">×</button>
+ <button type="button" onClick={() => setShowCalendarModal(false)} className={`text-2xl ${t.text}`}>×</button>
  </div>
  {(() => {
  const dayRoutes = routes.filter(r => r.date === selectedCalendarDate);
@@ -16878,15 +16961,15 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  return (
  <div key={`r-${r.id}`} className="flex items-center gap-2 mb-1">
  <span className="w-2 h-2 rounded-full" style={{ background: manager?.color || '#888' }}></span>
- <span className="text-sm text-neutral-800">{r.time?.slice(0,5)} {r.name}</span>
- <span className="text-xs text-neutral-800">(동선)</span>
+ <span className={`text-sm ${t.text}`}>{r.time?.slice(0,5)} {r.name}</span>
+ <span className={`text-xs ${t.text}`}>(동선)</span>
  </div>
  );
  })}
  {dayEvents.map(e => (
  <div key={`e-${e.id}`} className="flex items-center gap-2 mb-1">
  <span className="w-2 h-2 rounded-full bg-purple-500"></span>
- <span className="text-sm text-neutral-800">{e.time?.slice(0,5)} {e.title}</span>
+ <span className={`text-sm ${t.text}`}>{e.time?.slice(0,5)} {e.title}</span>
  <button
  onClick={() => {
  setCalendarEventInput({ title: e.title, time: e.time, memo: e.memo || '' });
@@ -16906,13 +16989,13 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  return null;
  })()}
  <div className="space-y-3">
- <p className="text-sm text-neutral-800 font-bold">{editingEventId ? '일정 수정' : '새 일정 추가'}</p>
+ <p className={`text-sm font-bold ${t.text}`}>{editingEventId ? '일정 수정' : '새 일정 추가'}</p>
  <input
  type="text"
  placeholder="일정 제목"
  value={calendarEventInput.title}
  onChange={e => setCalendarEventInput({ ...calendarEventInput, title: e.target.value })}
- className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all"
+ className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`}
  />
  <div className="relative" onClick={() => document.getElementById('calEventTime').showPicker?.()}>
  <input
@@ -16920,14 +17003,14 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  type="time"
  value={calendarEventInput.time}
  onChange={e => setCalendarEventInput({ ...calendarEventInput, time: e.target.value })}
- className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all cursor-pointer"
+ className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all cursor-pointer`}
  />
  </div>
  <textarea
  placeholder="메모 (선택)"
  value={calendarEventInput.memo}
  onChange={e => setCalendarEventInput({ ...calendarEventInput, memo: e.target.value })}
- className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all resize-none h-20"
+ className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all resize-none h-20`}
  />
  </div>
  <div className="flex gap-2 mt-4">
@@ -16937,10 +17020,10 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  setCalendarEventInput({ title: '', time: '09:00', memo: '' });
  setEditingEventId(null);
  }}
- className="px-4 py-2 bg-white text-neutral-700 border border-neutral-200 rounded-lg font-medium hover:bg-neutral-50 transition-all flex-1"
+ className={`px-4 py-2 rounded-lg font-medium transition-all border ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 border-neutral-600 hover:bg-neutral-600' : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50'}` flex-1`}
  >새로 작성</button>
  )}
- <button type="button" onClick={() => setShowCalendarModal(false)} className="px-4 py-2 bg-white text-neutral-700 border border-neutral-200 rounded-lg font-medium hover:bg-neutral-50 transition-all flex-1">취소</button>
+ <button type="button" onClick={() => setShowCalendarModal(false)} className={`px-4 py-2 rounded-lg font-medium transition-all border ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 border-neutral-600 hover:bg-neutral-600' : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50'}` flex-1`}>취소</button>
  <button
  onClick={() => {
  if (!calendarEventInput.title.trim()) return alert('일정 제목을 입력하세요');
@@ -16978,12 +17061,12 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  )}
  {selectedSchedule && (
- <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setSelectedSchedule(null)}>
+ <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setSelectedSchedule(null)}>
  <div className="bg-neutral-100 rounded-2xl p-5 w-full max-w-md max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
  <div className="flex justify-between items-start mb-4">
  <div>
- <h3 className="font-bold text-[#171717] text-lg">{selectedSchedule.name}</h3>
- <p className="text-sm text-neutral-800">{selectedSchedule.date}</p>
+ <h3 className={`font-bold ${t.text} text-lg`}>{selectedSchedule.name}</h3>
+ <p className={`text-sm ${t.text}`}>{selectedSchedule.date}</p>
  </div>
  <button type="button" onClick={() => setSelectedSchedule(null)} className="text-neutral-800 hover:text-neutral-800 text-xl"></button>
  </div>
@@ -16994,7 +17077,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  return (
  <div className="mb-4">
  <div className="flex justify-between items-center mb-2">
- <span className="text-sm text-neutral-800">진행률</span>
+ <span className={`text-sm ${t.text}`}>진행률</span>
  <span className="text-sm font-bold text-neutral-800">{completedCount}/{totalCount} ({percent}%)</span>
  </div>
  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
@@ -17013,8 +17096,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {stop.visited ? '' : idx + 1}
  </button>
  <div className="flex-1 min-w-0">
- <p className={`font-bold text-sm break-words leading-snug ${stop.visited ? 'text-white' : 'text-[#171717]'}`}>{stop.name}</p>
- {stop.address && <p className="text-xs text-neutral-800 break-words">{stop.address}</p>}
+ <p className={`font-bold text-sm break-words leading-snug ${stop.visited ? 'text-white' : '${t.text}'}`}>{stop.name}</p>
+ {stop.address && <p className={`text-xs break-words ${t.text}`}>{stop.address}</p>}
  </div>
  {stop.lat && stop.lng && (
  <button type="button" onClick={() => viewStopOnMap(stop)} className="w-8 h-8 rounded-lg bg-neutral-100 hover:bg-neutral-200 text-primary-600 flex items-center justify-center text-sm flex-shrink-0"></button>
@@ -17023,7 +17106,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  ))}
  </div>
  <div className="space-y-2">
- <button type="button" onClick={() => { setSelectedSchedule(null); viewSavedRouteOnMap(selectedSchedule); }} className="w-full px-4 py-2 bg-white text-neutral-700 border border-neutral-200 rounded-lg font-medium hover:bg-neutral-50 transition-all py-2">
+ <button type="button" onClick={() => { setSelectedSchedule(null); viewSavedRouteOnMap(selectedSchedule); }} className={`w-full px-4 py-2 rounded-lg font-medium transition-all border ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 border-neutral-600 hover:bg-neutral-600' : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50'}`}>
  전체 경로 지도에서 보기
  </button>
  {selectedSchedule.status !== 'completed' && (
@@ -17039,9 +17122,9 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* 멘트 추가/수정 모달 */}
  {showMentModal && (
  <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[1200] p-4" onClick={() => { setShowMentModal(false); setMentForm({ name: '', content: '', type: 'broker', memo: '' }); }}>
- <div className="bg-white rounded-2xl p-5 w-full max-w-md" onClick={e => e.stopPropagation()}>
+ <div className={`rounded-2xl p-5 w-full max-w-md ${theme === 'dark' ? 'bg-neutral-800' : 'bg-white'}`} onClick={e => e.stopPropagation()}>
  <div className="flex justify-between items-center mb-4">
- <h3 className="font-bold text-[#171717] text-lg">{editingMent ? '멘트 수정' : '새 멘트 추가'}</h3>
+ <h3 className={`font-bold ${t.text} text-lg`}>{editingMent ? '멘트 수정' : '새 멘트 추가'}</h3>
  <button type="button" onClick={() => { setShowMentModal(false); setMentForm({ name: '', content: '', type: 'broker', memo: '' }); }} className="text-neutral-500 text-2xl hover:text-white">×</button>
  </div>
  <div className="space-y-3">
@@ -17050,7 +17133,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  placeholder="멘트 이름 (예: 폐업률 충격)" 
  value={mentForm.name}
  onChange={e => setMentForm({ ...mentForm, name: e.target.value })}
- className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all"
+ className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`}
  />
  <div className="flex gap-2">
  <button 
@@ -17067,18 +17150,18 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  value={mentForm.content}
  onChange={e => setMentForm({ ...mentForm, content: e.target.value })}
  rows="4"
- className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all resize-none"
+ className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all resize-none`}
  />
  <input 
  type="text" 
  placeholder="메모 (선택사항)"
  value={mentForm.memo}
  onChange={e => setMentForm({ ...mentForm, memo: e.target.value })}
- className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all"
+ className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`}
  />
  </div>
  <div className="flex gap-2 mt-4">
- <button type="button" onClick={() => { setShowMentModal(false); setMentForm({ name: '', content: '', type: 'broker', memo: '' }); }} className="flex-1 px-4 py-2 bg-white text-neutral-700 border border-neutral-200 rounded-lg font-medium hover:bg-neutral-50 transition-all">취소</button>
+ <button type="button" onClick={() => { setShowMentModal(false); setMentForm({ name: '', content: '', type: 'broker', memo: '' }); }} className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all border ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 border-neutral-600 hover:bg-neutral-600' : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50'}`}>취소</button>
  <button 
  onClick={() => {
  if (!mentForm.name.trim() || !mentForm.content.trim()) return alert('멘트 이름과 내용을 입력하세요');
@@ -17108,9 +17191,9 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* AI 피드백 모달 */}
  {showAiFeedback && feedbackMent && (
  <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[1200] p-4" onClick={() => setShowAiFeedback(false)}>
- <div className="bg-white rounded-2xl p-5 w-full max-w-lg max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+ <div className={`rounded-2xl p-5 w-full max-w-lg max-h-[85vh] overflow-y-auto ${theme === 'dark' ? 'bg-neutral-800' : 'bg-white'}`} onClick={e => e.stopPropagation()}>
  <div className="flex justify-between items-center mb-4">
- <h3 className="font-bold text-[#171717] text-lg">AI 피드백</h3>
+ <h3 className={`font-bold ${t.text} text-lg`}>AI 피드백</h3>
  <button type="button" onClick={() => setShowAiFeedback(false)} className="text-neutral-500 text-2xl hover:text-white">×</button>
  </div>
  
@@ -17122,24 +17205,24 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
 
  <div className="mb-4">
- <p className="text-sm text-neutral-500 mb-2">수정해본 멘트:</p>
+ <p className={`text-sm mb-2 ${t.textMuted}`}>수정해본 멘트:</p>
  <textarea 
  value={feedbackInput}
  onChange={e => setFeedbackInput(e.target.value)}
  placeholder="기존 멘트를 수정해보세요"
  rows="3"
- className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all resize-none w-full"
+ className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all resize-none w-full`}
  />
  </div>
 
  <div className="mb-4">
- <p className="text-sm text-neutral-500 mb-2">질문:</p>
+ <p className={`text-sm mb-2 ${t.textMuted}`}>질문:</p>
  <input 
  type="text"
  value={feedbackQuestion}
  onChange={e => setFeedbackQuestion(e.target.value)}
  placeholder="이렇게 바꿔봤는데 어떻게 생각해?"
- className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-[#171717] placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all w-full"
+ className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all w-full`}
  />
  </div>
 
@@ -17184,11 +17267,11 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* 최근 피드백 히스토리 */}
  {mentFeedbacks.filter(f => f.mentId === feedbackMent.id).length > 0 && (
  <div className="mt-4 pt-4 border-t border-neutral-200">
- <p className="text-sm text-neutral-500 mb-2">이 멘트의 피드백 히스토리</p>
+ <p className={`text-sm mb-2 ${t.textMuted}`}>이 멘트의 피드백 히스토리</p>
  <div className="space-y-2 max-h-40 overflow-y-auto">
  {mentFeedbacks.filter(f => f.mentId === feedbackMent.id).slice(-3).reverse().map(fb => (
  <div key={fb.id} className="p-3 rounded-lg bg-neutral-100/30 border border-neutral-200/30">
- <p className="text-xs text-neutral-500 mb-1">{new Date(fb.createdAt).toLocaleString('ko-KR')}</p>
+ <p className={`text-xs mb-1 ${t.textMuted}`}>{new Date(fb.createdAt).toLocaleString('ko-KR')}</p>
  <p className="text-sm text-neutral-700 line-clamp-2">{fb.question}</p>
  </div>
  ))}
