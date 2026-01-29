@@ -4,7 +4,7 @@ import { firebase, database } from './firebase';
 // ═══════════════════════════════════════════════════════════════
 // 앱 버전 관리 - 캐시 무효화용
 // ═══════════════════════════════════════════════════════════════
-const APP_VERSION = '2026.01.28.v1-proxy-ui';
+const APP_VERSION = '2026.01.30.v1-api-integrated';
 
 // 앱 시작 시 버전 출력 및 캐시 체크
 (() => {
@@ -1032,6 +1032,90 @@ const GOOGLE_VISION_API_KEY = import.meta.env.VITE_GOOGLE_VISION_API_KEY || '';
 
 // 프록시 서버 URL (CORS 우회용) - 환경 변수 또는 기본값
 const PROXY_SERVER_URL = import.meta.env.VITE_PROXY_SERVER_URL || 'https://naver-scraper.onrender.com';
+
+// ═══════════════════════════════════════════════════════════════
+// Render 서버 API 호출 함수 (영업모드용)
+// ═══════════════════════════════════════════════════════════════
+
+// 서울시 열린데이터 API 호출
+const fetchSeoulData = async (service, params = {}) => {
+  try {
+    const url = new URL(`${PROXY_SERVER_URL}/api/seoul/${service}`);
+    Object.entries(params).forEach(([k, v]) => url.searchParams.append(k, v));
+    const res = await fetch(url, { timeout: 15000 });
+    if (res.ok) {
+      const data = await res.json();
+      console.log(`✅ 서울시 ${service} API 성공`);
+      return data;
+    }
+  } catch (e) {
+    console.warn(`서울시 ${service} API 실패:`, e.message);
+  }
+  return null;
+};
+
+// 소상공인 상가정보 API 호출
+const fetchStoreData = async (lat, lng, radius = 500) => {
+  try {
+    const url = `${PROXY_SERVER_URL}/api/store/radius?cx=${lng}&cy=${lat}&radius=${radius}&numOfRows=1000`;
+    const res = await fetch(url, { timeout: 15000 });
+    if (res.ok) {
+      const data = await res.json();
+      console.log(`✅ 소상공인 상가정보 API 성공`);
+      return data;
+    }
+  } catch (e) {
+    console.warn('소상공인 상가정보 API 실패:', e.message);
+  }
+  return null;
+};
+
+// R-ONE 임대료 API 호출
+const fetchRentData = async () => {
+  try {
+    const url = `${PROXY_SERVER_URL}/api/rone/tables?pSize=100&searchKeyword=소규모상가`;
+    const res = await fetch(url, { timeout: 15000 });
+    if (res.ok) {
+      const data = await res.json();
+      console.log(`✅ R-ONE 임대료 API 성공`);
+      return data;
+    }
+  } catch (e) {
+    console.warn('R-ONE 임대료 API 실패:', e.message);
+  }
+  return null;
+};
+
+// 프랜차이즈 API 호출 (XML 파싱)
+const fetchFranchiseData = async (brandName) => {
+  try {
+    const url = `${PROXY_SERVER_URL}/api/franchise?yr=2024&numOfRows=100&frcsCdNm=${encodeURIComponent(brandName || '커피')}`;
+    const res = await fetch(url, { timeout: 15000 });
+    if (res.ok) {
+      const data = await res.json();
+      // XML 응답인 경우 파싱
+      if (data.parseError && data.raw) {
+        const parser = new DOMParser();
+        const xml = parser.parseFromString(data.raw, 'text/xml');
+        const items = xml.querySelectorAll('item');
+        const result = [];
+        items.forEach(item => {
+          result.push({
+            brandNm: item.querySelector('brandNm')?.textContent || '',
+            corpNm: item.querySelector('corpNm')?.textContent || '',
+            viewerUrl: item.querySelector('viwerUrl')?.textContent || ''
+          });
+        });
+        console.log(`✅ 프랜차이즈 API 성공 (${result.length}개)`);
+        return result;
+      }
+      return data;
+    }
+  } catch (e) {
+    console.warn('프랜차이즈 API 실패:', e.message);
+  }
+  return null;
+};
 
 // 허용된 도메인 목록 (postMessage 보안용)
 const ALLOWED_ORIGINS = [
@@ -3213,7 +3297,7 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
 
    try {
      // ═══════════════════════════════════════════════════════════════
-     // 1단계: 네이버 Geocoding으로 좌표 및 행정구역 얻기 (프록시 서버 경유)
+     // 1단계: 네이버 지도 JS API로 좌표 및 행정구역 얻기
      // ═══════════════════════════════════════════════════════════════
      animateProgressTo(5);
      setSalesModeAnalysisStep('위치 정보 확인 중');
@@ -3221,39 +3305,49 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
      let coordinates = null;
      let addressInfo = null;
      try {
-       // 15초 타임아웃 설정
-       const geoController = new AbortController();
-       const geoTimeoutId = setTimeout(() => geoController.abort(), 15000);
+       // 네이버 지도 JS API 지오코딩 (CORS 문제 없음)
+       const geoResult = await new Promise((resolve, reject) => {
+         const timeout = setTimeout(() => reject(new Error('Geocoding timeout')), 15000);
+         
+         if (window.naver?.maps?.Service) {
+           window.naver.maps.Service.geocode({ query }, (status, response) => {
+             clearTimeout(timeout);
+             if (status === window.naver.maps.Service.Status.OK && response.v2?.addresses?.[0]) {
+               resolve(response.v2.addresses[0]);
+             } else {
+               reject(new Error('No results'));
+             }
+           });
+         } else {
+           clearTimeout(timeout);
+           reject(new Error('Naver Maps not loaded'));
+         }
+       });
        
-       const geoResponse = await fetch(
-         `${PROXY_SERVER_URL}/api/geocode?query=${encodeURIComponent(query)}`,
-         { signal: geoController.signal }
-       );
-       clearTimeout(geoTimeoutId);
-       
-       const geoData = await geoResponse.json();
-       if (geoData.addresses?.[0]) {
-         const addr = geoData.addresses[0];
+       if (geoResult) {
          coordinates = {
-           lat: parseFloat(addr.y),
-           lng: parseFloat(addr.x),
-           roadAddress: addr.roadAddress,
-           jibunAddress: addr.jibunAddress
+           lat: parseFloat(geoResult.y),
+           lng: parseFloat(geoResult.x),
+           roadAddress: geoResult.roadAddress,
+           jibunAddress: geoResult.jibunAddress
          };
          addressInfo = {
-           sido: addr.addressElements?.find(e => e.types.includes('SIDO'))?.longName || '',
-           sigungu: addr.addressElements?.find(e => e.types.includes('SIGUGUN'))?.longName || '',
-           dong: addr.addressElements?.find(e => e.types.includes('DONGMYUN'))?.longName || ''
+           sido: geoResult.addressElements?.find(e => e.types?.includes('SIDO'))?.longName || '',
+           sigungu: geoResult.addressElements?.find(e => e.types?.includes('SIGUGUN'))?.longName || '',
+           dong: geoResult.addressElements?.find(e => e.types?.includes('DONGMYUN'))?.longName || ''
          };
          setSalesModeMapCenter(coordinates);
          animateProgressTo(10);
          updateCollectingText(`${query} 지역 위치 확인 완료`);
        }
      } catch (geoError) {
-       if (geoError.name === 'AbortError') {
-         console.log('Geocoding 타임아웃 (15초 초과)');
-       } else {
-         console.log('Geocoding 실패:', geoError);
+       console.log('Geocoding 실패:', geoError.message);
+       // 좌표 직접 입력인 경우 파싱 시도
+       const coordMatch = query.match(/(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)/);
+       if (coordMatch) {
+         coordinates = { lat: parseFloat(coordMatch[1]), lng: parseFloat(coordMatch[2]) };
+         setSalesModeMapCenter(coordinates);
+         updateCollectingText(`좌표 직접 입력 확인 완료`);
        }
      }
 
@@ -3371,12 +3465,28 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
      }
 
      // ═══════════════════════════════════════════════════════════════
-     // 3단계: 프랜차이즈 데이터 추가 (하드코딩 - 공정위 정보공개서)
+     // 3단계: 프랜차이즈 데이터 (하드코딩 + API 보완)
      // ═══════════════════════════════════════════════════════════════
      animateProgressTo(55);
      setSalesModeAnalysisStep('프랜차이즈 데이터 확인 중');
      updateCollectingText(`${query} 지역에 적합한 프랜차이즈 정보를 정리하고 있어요`);
      collectedData.franchiseData = FRANCHISE_DATA;
+     
+     // 공정위 API에서 실시간 프랜차이즈 목록 보완
+     try {
+       const franchiseApiData = await fetchFranchiseData('커피');
+       if (franchiseApiData && Array.isArray(franchiseApiData)) {
+         collectedData.apis.franchiseApi = {
+           description: '공정위 프랜차이즈 정보 (API)',
+           data: franchiseApiData,
+           source: '공정거래위원회 가맹사업정보제공시스템',
+           dataDate: new Date().toISOString().split('T')[0]
+         };
+         console.log(`프랜차이즈 API 데이터 ${franchiseApiData.length}개 수집`);
+       }
+     } catch (e) {
+       console.log('프랜차이즈 API 호출 실패 (하드코딩 데이터 사용):', e.message);
+     }
 
      // ═══════════════════════════════════════════════════════════════
      // 3.5단계: SNS 트렌드 웹검색 (YouTube, 인스타그램, 블로그)
@@ -3446,10 +3556,80 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
      }
 
      // ═══════════════════════════════════════════════════════════════
-     // 3.6단계: 추가 API 호출 (핫플레이스, 배달, 관광, 매출추이, 창업기상도)
+     // 3.6단계: 서울시 열린데이터 API (매출/유동인구 등)
      // ═══════════════════════════════════════════════════════════════
      animateProgressTo(62);
      setSalesModeAnalysisStep('추가 데이터 수집 중');
+     
+     // 서울 지역인 경우 서울시 열린데이터 API 호출
+     const isSeoul = query.includes('서울') || addressInfo?.sido?.includes('서울');
+     if (isSeoul) {
+       updateCollectingText(`서울시 공공데이터에서 상권 정보를 수집하고 있어요`);
+       try {
+         const [floatingData, salesData, storeData] = await Promise.all([
+           fetchSeoulData('floating', { startIndex: 1, endIndex: 100 }),
+           fetchSeoulData('sales', { startIndex: 1, endIndex: 100 }),
+           fetchSeoulData('store', { startIndex: 1, endIndex: 100 })
+         ]);
+         
+         if (floatingData?.VwsmTrdarFlpopQq?.row) {
+           collectedData.apis.seoulFloating = {
+             description: '서울시 유동인구 (열린데이터)',
+             data: floatingData.VwsmTrdarFlpopQq.row,
+             totalCount: floatingData.VwsmTrdarFlpopQq.list_total_count,
+             source: '서울시 열린데이터광장'
+           };
+         }
+         
+         if (salesData?.VwsmTrdarSelng?.row) {
+           collectedData.apis.seoulSales = {
+             description: '서울시 매출 (열린데이터)',
+             data: salesData.VwsmTrdarSelng.row,
+             totalCount: salesData.VwsmTrdarSelng.list_total_count,
+             source: '서울시 열린데이터광장'
+           };
+         }
+         
+         if (storeData?.VwsmTrdarStorQq?.row) {
+           collectedData.apis.seoulStore = {
+             description: '서울시 점포수 (열린데이터)',
+             data: storeData.VwsmTrdarStorQq.row,
+             totalCount: storeData.VwsmTrdarStorQq.list_total_count,
+             source: '서울시 열린데이터광장'
+           };
+         }
+         
+         console.log('서울시 열린데이터 API 수집 완료');
+       } catch (e) {
+         console.log('서울시 API 호출 실패:', e.message);
+       }
+     }
+     
+     // 전국: 소상공인 상가정보 API 호출
+     if (coordinates) {
+       updateCollectingText(`반경 500m 내 점포 정보를 수집하고 있어요`);
+       try {
+         const storeApiData = await fetchStoreData(coordinates.lat, coordinates.lng, 500);
+         if (storeApiData?.body?.items) {
+           const items = storeApiData.body.items;
+           const cafes = items.filter(item => 
+             item.indsMclsNm?.includes('커피') || 
+             item.indsSclsNm?.includes('카페') ||
+             item.bizesNm?.includes('카페')
+           );
+           collectedData.apis.storeRadius = {
+             description: '반경 500m 점포 (소상공인)',
+             data: items,
+             cafeCount: cafes.length,
+             totalCount: storeApiData.body.totalCount,
+             source: '소상공인시장진흥공단 상가정보'
+           };
+           console.log(`반경 500m 내 점포 ${items.length}개, 카페 ${cafes.length}개`);
+         }
+       } catch (e) {
+         console.log('소상공인 상가정보 API 실패:', e.message);
+       }
+     }
      
      // 시군구 코드 추출 (API 호출용)
      const getAreaCode = () => {
