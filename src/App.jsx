@@ -2296,6 +2296,16 @@ const LocationAnalysisModal = ({ data, onClose, onDetailAnalysis, generateAIFeed
  // 빈크래프트 자동 수집 - 확장프로그램 ID
  // 확장프로그램 통신은 postMessage 방식 사용 (ID 불필요)
  const App = () => {
+ // 초기 로딩 화면 숨기기
+ useEffect(() => {
+   const loading = document.getElementById('initial-loading');
+   if (loading) {
+     loading.classList.add('hidden');
+     // 완전히 제거 (트랜지션 후)
+     setTimeout(() => loading.remove(), 300);
+   }
+ }, []);
+
  // 로그인 시 명언 문구
  const [loggedIn, setLoggedIn] = useState(false);
  const [user, setUser] = useState(null);
