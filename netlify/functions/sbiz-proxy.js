@@ -1,23 +1,8 @@
 // 소상공인365 API 프록시 (Netlify Functions)
 // CORS 문제 해결을 위한 서버리스 함수
-// 2026-01-27 개선 버전
+// 2026-01-29 v2 - 새 API 경로(/sbiz/api/*) 지원
 
 const SBIZ365_BASE_URL = 'https://bigdata.sbiz.or.kr';
-
-// 소상공인365 OpenAPI 키 목록
-const API_KEYS = {
-  snsAnaly: 'd46f5d518688912176484b6f894664c5d0b252967d92f4bafc690904381d7ff5',
-  simple: 'bb51c6d3d3f93e8172c7888e73eb19afb9120c9f61676c658648ee2853f88e85',
-  tour: 'fc2070ca36e0ec845ecfd8c949860cfe4552e56903afcb9bcea07a509f820bcd',
-  slsIndex: 'abddbf5dc29670b9209d75e4910c7fd932a8a1a43dcce9d18661585e4040f2fb',
-  delivery: '3ba2863eaf4e3b30b3c0237ab9da80ed11f4a7579d4f212d5c318b8e41a3a304',
-  startupPublic: '167264f6eef5710d8d79e96b1316e8c2cb85a197d32446d3849008d0376cf098',
-  detail: 'b2d9a1ae52aace697124a56c7c2bbed2eeb94fd4996fb5935cb9a25cc4c3c869',
-  stcarSttus: '79a86fd460fe7478f52788c4a68a0e6f3406a23ff123c050a21a160a59946fd3',
-  storSttus: 'b36c5637768f458919f5179641dac0cd742791750dc016a8591c4e7a6ab649c1',
-  weather: '843e44cd955ebc42a684c9c892ada0b122713650e0e85c1f3ebe09c9aeff6319',
-  hpReport: 'd269ecf98403fa878587eb925ded6ecf9e02f297da19f5d8ffec5cac7309647a'
-};
 
 // CORS 헤더
 const corsHeaders = {
@@ -45,9 +30,9 @@ const createErrorResponse = (message, status = 400, details = null) => {
   }, status);
 };
 
-// JSONP 파싱 (소상공인365 GIS API는 JSONP 형식 반환)
-const parseJsonp = (text) => {
-  // callback({"key": "value"}) 형식 처리
+// JSON/JSONP 파싱
+const parseResponse = (text) => {
+  // JSONP callback 형식 처리
   const jsonpMatch = text.match(/callback\s*\(\s*([\s\S]*)\s*\)\s*;?$/);
   if (jsonpMatch) {
     try {
@@ -65,7 +50,7 @@ const parseJsonp = (text) => {
   }
 };
 
-// WGS84 → TM 좌표 변환 (소상공인365 GIS API용)
+// WGS84 → TM 좌표 변환
 const transformWGS84toTM = (lng, lat) => {
   const a = 6378137.0;
   const f = 1 / 298.257222101;
@@ -111,28 +96,73 @@ export default async (request, context) => {
   
   try {
     const url = new URL(request.url);
-    const apiType = url.searchParams.get('api'); // 'gis' 또는 'open'
+    const apiType = url.searchParams.get('api'); // 'gis', 'sbiz', 'coord'
     const endpoint = url.searchParams.get('endpoint');
     
-    // 필수 파라미터 검증
     if (!apiType) {
-      return createErrorResponse('api 파라미터 필요 (gis 또는 open)');
-    }
-    
-    if (!endpoint) {
-      return createErrorResponse('endpoint 파라미터 필요');
+      return createErrorResponse('api 파라미터 필요 (gis, sbiz, coord)');
     }
 
     let targetUrl;
     let apiDescription = '';
     
     // ========================
-    // GIS API 처리 (인증 불필요)
+    // 좌표 → 행정동 코드 변환
     // ========================
-    if (apiType === 'gis') {
+    if (apiType === 'coord') {
+      const lat = url.searchParams.get('lat');
+      const lng = url.searchParams.get('lng');
+      
+      if (!lat || !lng) {
+        return createErrorResponse('lat, lng 파라미터 필요');
+      }
+      
+      const tm = transformWGS84toTM(parseFloat(lng), parseFloat(lat));
+      const margin = 500;
+      
+      const params = new URLSearchParams();
+      params.append('minXAxis', (tm.x - margin).toString());
+      params.append('maxXAxis', (tm.x + margin).toString());
+      params.append('minYAxis', (tm.y - margin).toString());
+      params.append('maxYAxis', (tm.y + margin).toString());
+      params.append('mapLevel', '14');
+      
+      targetUrl = `${SBIZ365_BASE_URL}/gis/api/getCoordToAdmPoint.json?${params.toString()}`;
+      apiDescription = '좌표→행정동 변환';
+    }
+    
+    // ========================
+    // 새 상권 API (/sbiz/api/)
+    // ========================
+    else if (apiType === 'sbiz') {
+      if (!endpoint) {
+        return createErrorResponse('endpoint 파라미터 필요');
+      }
+      
       const params = new URLSearchParams();
       
-      // 좌표 변환 체크 (wgs84 파라미터가 있으면 TM으로 변환)
+      // 모든 파라미터 전달 (api, endpoint 제외)
+      for (const [key, value] of url.searchParams) {
+        if (!['api', 'endpoint'].includes(key)) {
+          params.append(key, value);
+        }
+      }
+      
+      targetUrl = `${SBIZ365_BASE_URL}${endpoint}?${params.toString()}`;
+      apiDescription = `상권API: ${endpoint}`;
+    }
+    
+    // ========================
+    // 기존 GIS API
+    // ========================
+    else if (apiType === 'gis') {
+      if (!endpoint) {
+        return createErrorResponse('endpoint 파라미터 필요');
+      }
+      
+      const params = new URLSearchParams();
+      
+      // 좌표 변환 체크
       const wgs84Lat = url.searchParams.get('wgs84_lat');
       const wgs84Lng = url.searchParams.get('wgs84_lng');
       
@@ -157,67 +187,34 @@ export default async (request, context) => {
     }
     
     // ========================
-    // OpenAPI 처리 (키 필요)
-    // ========================
-    else if (apiType === 'open') {
-      const apiName = url.searchParams.get('apiName');
-      
-      if (!apiName) {
-        return createErrorResponse('apiName 파라미터 필요');
-      }
-      
-      const apiKey = API_KEYS[apiName];
-      
-      if (!apiKey) {
-        return createErrorResponse(`알 수 없는 API: ${apiName}`, 400, {
-          availableApis: Object.keys(API_KEYS)
-        });
-      }
-      
-      const params = new URLSearchParams();
-      params.append('key', apiKey);
-      
-      // 나머지 파라미터 전달
-      for (const [paramKey, value] of url.searchParams) {
-        if (!['api', 'endpoint', 'apiName'].includes(paramKey)) {
-          params.append(paramKey, value);
-        }
-      }
-      
-      targetUrl = `${SBIZ365_BASE_URL}${endpoint}?${params.toString()}`;
-      apiDescription = `OpenAPI: ${apiName}`;
-    }
-    
-    // ========================
     // 잘못된 API 타입
     // ========================
     else {
-      return createErrorResponse('api 타입은 gis 또는 open만 가능');
+      return createErrorResponse('api 타입은 gis, sbiz, coord만 가능');
     }
 
-    console.log(`[프록시 요청] ${apiDescription}`);
-    console.log(`[타겟 URL] ${targetUrl}`);
+    console.log(`[프록시] ${apiDescription}`);
+    console.log(`[URL] ${targetUrl}`);
 
     // 실제 API 호출
     const response = await fetch(targetUrl, {
       method: 'GET',
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': '*/*',
-        'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Accept': 'application/json, text/javascript, */*',
+        'Accept-Language': 'ko-KR,ko;q=0.9',
         'Referer': 'https://bigdata.sbiz.or.kr/',
-        'Origin': 'https://bigdata.sbiz.or.kr'
+        'X-Requested-With': 'XMLHttpRequest'
       }
     });
 
     const responseText = await response.text();
     const elapsedTime = Date.now() - startTime;
     
-    console.log(`[응답 상태] ${response.status} (${elapsedTime}ms)`);
-    console.log(`[응답 크기] ${responseText.length} bytes`);
+    console.log(`[응답] ${response.status} (${elapsedTime}ms, ${responseText.length}bytes)`);
 
     // 응답 파싱
-    const data = parseJsonp(responseText);
+    const data = parseResponse(responseText);
     
     // 성공 여부 판단
     const isSuccess = response.ok && !data.parseError;
@@ -226,7 +223,6 @@ export default async (request, context) => {
       success: isSuccess,
       status: response.status,
       api: apiDescription,
-      url: targetUrl,
       elapsedMs: elapsedTime,
       data: data,
       timestamp: new Date().toISOString()
