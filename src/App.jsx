@@ -4,7 +4,7 @@ import { firebase, database } from './firebase';
 // ═══════════════════════════════════════════════════════════════
 // 앱 버전 관리 - 캐시 무효화용
 // ═══════════════════════════════════════════════════════════════
-const APP_VERSION = '2026.01.30.v3-full-integration';
+const APP_VERSION = '2026.01.30.v4-ui-fixes';
 
 // 앱 시작 시 버전 출력 및 캐시 체크
 (() => {
@@ -2502,6 +2502,8 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
  const [salesModeIframeError, setSalesModeIframeError] = useState(false); // iframe 차단 감지
  const [salesModeHomepageUrl, setSalesModeHomepageUrl] = useState('https://www.beancraft.co.kr'); // 홈페이지 URL
  const [salesModeMapCenter, setSalesModeMapCenter] = useState(null); // 지도 중심 좌표
+ const [salesModeMapExpanded, setSalesModeMapExpanded] = useState(false); // 지도 펼침 상태
+ const [salesModeMapReloading, setSalesModeMapReloading] = useState(false); // 지도 이동 후 재수집 중
  const salesModeTimeoutRef = useRef(null);
  const salesModeLockTimeoutRef = useRef(null);
  const progressIntervalRef = useRef(null); // 부드러운 진행률 애니메이션용
@@ -2524,12 +2526,12 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
  const [locationCircle, setLocationCircle] = useState(null); // 지도 원 객체
  const [locationMarker, setLocationMarker] = useState(null); // 지도 마커 객체
 
- // 영업모드 자동 잠금 타이머 (1분 무활동 시) - 로딩 중에는 잠금 안함
+ // 영업모드 자동 잠금 타이머 (5분 무활동 시) - 로딩 중에는 잠금 안함
  useEffect(() => {
    if (salesModeActive && salesModeScreen === 'main' && !salesModeSearchLoading) {
      const checkInactivity = () => {
        const now = Date.now();
-       if (now - salesModeLastActivity > 60000) { // 1분
+       if (now - salesModeLastActivity > 300000) { // 5분
          setSalesModeScreen('locked');
        }
      };
@@ -3195,117 +3197,195 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
  // 전국 상권 데이터 수집 (관리자 전용) - Firebase 저장
  // ═══════════════════════════════════════════════════════════════
  const collectRegionData = async (sido, sigungu) => {
-   if (!sido || !sigungu) {
-     alert('시도와 시군구를 모두 선택해주세요.');
+   if (!sido) {
+     alert('시도를 선택해주세요.');
      return;
    }
    
-   const sigunguList = KOREA_REGIONS[sido];
-   if (!sigunguList) {
-     alert('선택한 시도가 올바르지 않습니다.');
+   // 전국 수집 또는 시도 전체 수집
+   const isNationwide = sido === '전국';
+   const isSidoWide = sigungu === '전체' || sigungu === '';
+   
+   let regionsToCollect = [];
+   
+   if (isNationwide) {
+     // 전국: 모든 시도의 모든 시군구
+     Object.entries(KOREA_REGIONS).forEach(([sidoName, sigunguList]) => {
+       sigunguList.forEach(sigunguName => {
+         const cortarData = CORTAR_CODES[sidoName];
+         const dongCd = cortarData?.districts?.[sigunguName];
+         if (dongCd) {
+           regionsToCollect.push({ sido: sidoName, sigungu: sigunguName, dongCd });
+         }
+       });
+     });
+   } else if (isSidoWide) {
+     // 시도 전체: 해당 시도의 모든 시군구
+     const sigunguList = KOREA_REGIONS[sido];
+     if (sigunguList) {
+       sigunguList.forEach(sigunguName => {
+         const cortarData = CORTAR_CODES[sido];
+         const dongCd = cortarData?.districts?.[sigunguName];
+         if (dongCd) {
+           regionsToCollect.push({ sido, sigungu: sigunguName, dongCd });
+         }
+       });
+     }
+   } else {
+     // 단일 시군구
+     const cortarData = CORTAR_CODES[sido];
+     const dongCd = cortarData?.districts?.[sigungu];
+     if (dongCd) {
+       regionsToCollect.push({ sido, sigungu, dongCd });
+     }
+   }
+   
+   if (regionsToCollect.length === 0) {
+     alert('수집할 지역이 없습니다. 행정동 코드를 확인해주세요.');
      return;
    }
    
-   // 시군구 코드 가져오기
-   const cortarData = CORTAR_CODES[sido];
-   const dongCd = cortarData?.districts?.[sigungu];
+   const totalRegions = regionsToCollect.length;
+   const totalSteps = totalRegions * 5; // 각 지역당 5단계 (상가, 유동인구, 프랜차이즈, 매출, 저장)
    
-   if (!dongCd) {
-     alert('선택한 지역의 행정동 코드를 찾을 수 없습니다.');
-     return;
-   }
+   setApiCollectProgress({ 
+     current: 0, 
+     total: totalSteps, 
+     region: isNationwide ? '전국' : isSidoWide ? `${sido} 전체 (${totalRegions}개 지역)` : `${sido} ${sigungu}`, 
+     status: '수집 시작...' 
+   });
    
-   setApiCollectProgress({ current: 0, total: 4, region: `${sido} ${sigungu}`, status: '수집 시작...' });
-   
-   const results = {
-     region: { sido, sigungu, dongCd },
+   const allResults = {
+     collectType: isNationwide ? 'nationwide' : isSidoWide ? 'sido' : 'single',
+     sido: sido,
+     sigungu: sigungu,
+     totalRegions,
      timestamp: new Date().toISOString(),
-     data: {},
+     regions: {},
+     summary: { success: 0, failed: 0, totalStores: 0, totalCafes: 0 },
      errors: []
    };
    
-   try {
-     // 1. Render 서버 API 호출
-     setApiCollectProgress(prev => ({ ...prev, current: 1, status: '소상공인 상가정보 수집 중...' }));
-     try {
-       const storeRes = await fetch(`${PROXY_SERVER_URL}/api/store/dong?key=${dongCd}&numOfRows=500`);
-       if (storeRes.ok) {
-         const storeData = await storeRes.json();
-         if (storeData.body?.items) {
-           const items = storeData.body.items;
-           const cafes = items.filter(i => i.indsMclsNm?.includes('커피') || i.indsSclsNm?.includes('카페'));
-           results.data.store = {
-             total: storeData.body.totalCount,
-             cafeCount: cafes.length,
-             categories: {}
-           };
-           // 업종별 집계
-           items.forEach(item => {
-             const cat = item.indsMclsNm || '기타';
-             results.data.store.categories[cat] = (results.data.store.categories[cat] || 0) + 1;
-           });
-         }
-       }
-     } catch (e) { results.errors.push({ api: 'store', message: e.message }); }
+   let currentStep = 0;
+   
+   for (const region of regionsToCollect) {
+     const results = {
+       region: { sido: region.sido, sigungu: region.sigungu, dongCd: region.dongCd },
+       timestamp: new Date().toISOString(),
+       data: {},
+       errors: []
+     };
      
-     // 2. 서울시 데이터 (서울 지역만)
-     setApiCollectProgress(prev => ({ ...prev, current: 2, status: '유동인구 데이터 수집 중...' }));
-     if (sido === '서울특별시') {
+     try {
+       // 1. 소상공인 상가정보
+       currentStep++;
+       setApiCollectProgress(prev => ({ ...prev, current: currentStep, status: `[${region.sigungu}] 상가정보 수집 중...` }));
        try {
-         const floatingRes = await fetch(`${PROXY_SERVER_URL}/api/seoul/floating?startIndex=1&endIndex=100`);
-         if (floatingRes.ok) {
-           const floatingData = await floatingRes.json();
-           if (floatingData.VwsmTrdarFlpopQq?.row) {
-             results.data.seoulFloating = {
-               totalRecords: floatingData.VwsmTrdarFlpopQq.list_total_count,
-               sampleData: floatingData.VwsmTrdarFlpopQq.row.slice(0, 10)
+         const storeRes = await fetch(`${PROXY_SERVER_URL}/api/store/dong?key=${region.dongCd}&numOfRows=500`);
+         if (storeRes.ok) {
+           const storeData = await storeRes.json();
+           if (storeData.body?.items) {
+             const items = storeData.body.items;
+             const cafes = items.filter(i => i.indsMclsNm?.includes('커피') || i.indsSclsNm?.includes('카페'));
+             results.data.store = {
+               total: storeData.body.totalCount,
+               cafeCount: cafes.length,
+               categories: {}
+             };
+             items.forEach(item => {
+               const cat = item.indsMclsNm || '기타';
+               results.data.store.categories[cat] = (results.data.store.categories[cat] || 0) + 1;
+             });
+             allResults.summary.totalStores += storeData.body.totalCount || 0;
+             allResults.summary.totalCafes += cafes.length;
+           }
+         }
+       } catch (e) { results.errors.push({ api: 'store', message: e.message }); }
+       
+       // 2. 서울시 유동인구 (서울만)
+       currentStep++;
+       setApiCollectProgress(prev => ({ ...prev, current: currentStep, status: `[${region.sigungu}] 유동인구 수집 중...` }));
+       if (region.sido === '서울특별시') {
+         try {
+           const floatingRes = await fetch(`${PROXY_SERVER_URL}/api/seoul/floating?startIndex=1&endIndex=100`);
+           if (floatingRes.ok) {
+             const floatingData = await floatingRes.json();
+             if (floatingData.VwsmTrdarFlpopQq?.row) {
+               results.data.seoulFloating = {
+                 totalRecords: floatingData.VwsmTrdarFlpopQq.list_total_count,
+                 source: '서울시 열린데이터'
+               };
+             }
+           }
+         } catch (e) { results.errors.push({ api: 'seoulFloating', message: e.message }); }
+       }
+       
+       // 3. 프랜차이즈 (카페만)
+       currentStep++;
+       setApiCollectProgress(prev => ({ ...prev, current: currentStep, status: `[${region.sigungu}] 프랜차이즈 수집 중...` }));
+       try {
+         const franchiseRes = await fetch(`${PROXY_SERVER_URL}/api/franchise?cafeOnly=true&numOfRows=30`);
+         if (franchiseRes.ok) {
+           const franchiseData = await franchiseRes.json();
+           if (franchiseData.success) {
+             results.data.franchise = {
+               count: franchiseData.totalCount,
+               brands: franchiseData.data?.slice(0, 10).map(f => f.brandNm) || [],
+               source: '공정거래위원회'
              };
            }
          }
-       } catch (e) { results.errors.push({ api: 'seoulFloating', message: e.message }); }
-     }
-     
-     // 3. 프랜차이즈 데이터
-     setApiCollectProgress(prev => ({ ...prev, current: 3, status: '프랜차이즈 데이터 수집 중...' }));
-     try {
-       const franchiseRes = await fetch(`${PROXY_SERVER_URL}/api/franchise?cafeOnly=true&numOfRows=30`);
-       if (franchiseRes.ok) {
-         const franchiseData = await franchiseRes.json();
-         if (franchiseData.success) {
-           results.data.franchise = {
-             count: franchiseData.totalCount,
-             brands: franchiseData.data?.slice(0, 10).map(f => f.brandNm) || []
-           };
+       } catch (e) { results.errors.push({ api: 'franchise', message: e.message }); }
+       
+       // 4. 임대료 데이터 (R-ONE)
+       currentStep++;
+       setApiCollectProgress(prev => ({ ...prev, current: currentStep, status: `[${region.sigungu}] 임대료 수집 중...` }));
+       try {
+         const rentRes = await fetch(`${PROXY_SERVER_URL}/api/rone/rent?pSize=10`);
+         if (rentRes.ok) {
+           const rentData = await rentRes.json();
+           if (rentData.SttsApiTblData?.row) {
+             results.data.rent = {
+               available: true,
+               source: '한국부동산원 R-ONE'
+             };
+           }
          }
+       } catch (e) { results.errors.push({ api: 'rent', message: e.message }); }
+       
+       // 5. Firebase 저장
+       currentStep++;
+       setApiCollectProgress(prev => ({ ...prev, current: currentStep, status: `[${region.sigungu}] Firebase 저장 중...` }));
+       try {
+         const saveKey = `${region.sido}_${region.sigungu}`.replace(/\s/g, '_');
+         await database.ref(`regionData/${saveKey}`).set({
+           ...results,
+           updatedAt: new Date().toISOString(),
+           updatedBy: user?.name || 'admin'
+         });
+         results.savedToFirebase = true;
+         allResults.summary.success++;
+       } catch (e) { 
+         results.errors.push({ api: 'firebase', message: e.message }); 
+         results.savedToFirebase = false;
+         allResults.summary.failed++;
        }
-     } catch (e) { results.errors.push({ api: 'franchise', message: e.message }); }
-     
-     // 4. Firebase 저장
-     setApiCollectProgress(prev => ({ ...prev, current: 4, status: 'Firebase 저장 중...' }));
-     try {
-       const saveKey = `${sido}_${sigungu}`.replace(/\s/g, '_');
-       await database.ref(`regionData/${saveKey}`).set({
-         ...results,
-         updatedAt: new Date().toISOString(),
-         updatedBy: user?.name || 'admin'
-       });
-       results.savedToFirebase = true;
-     } catch (e) { 
-       results.errors.push({ api: 'firebase', message: e.message }); 
-       results.savedToFirebase = false;
+       
+       allResults.regions[`${region.sido}_${region.sigungu}`] = results;
+       
+     } catch (error) {
+       console.error(`[${region.sigungu}] 수집 실패:`, error);
+       allResults.errors.push({ region: `${region.sido} ${region.sigungu}`, message: error.message });
+       allResults.summary.failed++;
      }
      
-     setApiCollectProgress(prev => ({ ...prev, status: '수집 완료!' }));
-     setApiCollectResults(results);
-     setShowApiCollectReport(true);
-     
-   } catch (error) {
-     console.error('전국 상권 수집 실패:', error);
-     setApiCollectProgress(prev => ({ ...prev, status: `오류: ${error.message}` }));
-     results.errors.push({ api: 'general', message: error.message });
-     setApiCollectResults(results);
-     setShowApiCollectReport(true);
+     // 약간의 딜레이 (API 부하 방지)
+     await new Promise(resolve => setTimeout(resolve, 200));
    }
+   
+   setApiCollectProgress(prev => ({ ...prev, current: totalSteps, status: '수집 완료!' }));
+   setApiCollectResults(allResults);
+   setShowApiCollectReport(true);
  };
 
  // 영업모드 지역 검색 (소상공인365 GIS API + Gemini AI 통합)
@@ -3349,9 +3429,58 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
    // ═══════════════════════════════════════════════════════════════
    const expandSearchQuery = (q) => {
      const trimmed = q.trim();
+     
+     // 1. 상세주소 패턴 감지 (예: "종로구 창신동 407-4", "마포구 서교동 123")
+     const detailAddressPattern = /([가-힣]+구)\s*([가-힣]+동)(\s*[\d\-]+)?/;
+     const detailMatch = trimmed.match(detailAddressPattern);
+     if (detailMatch) {
+       const [, gu, dong, number] = detailMatch;
+       // 구 이름으로 시도 추정
+       const seoulGu = ['강남구', '강동구', '강북구', '강서구', '관악구', '광진구', '구로구', '금천구', '노원구', '도봉구', '동대문구', '동작구', '마포구', '서대문구', '서초구', '성동구', '성북구', '송파구', '양천구', '영등포구', '용산구', '은평구', '종로구', '중구', '중랑구'];
+       if (seoulGu.includes(gu)) {
+         return [`서울 ${gu} ${dong}${number || ''}`, `서울특별시 ${gu} ${dong}`, trimmed];
+       }
+       return [trimmed, `서울 ${trimmed}`, `경기 ${trimmed}`];
+     }
+     
+     // 2. 이미 시도가 포함되어 있으면 그대로 반환
      const sidoList = ['서울', '부산', '대구', '인천', '광주', '대전', '울산', '세종', '경기', '강원', '충북', '충남', '전북', '전남', '경북', '경남', '제주'];
      if (sidoList.some(sido => trimmed.includes(sido))) return [trimmed];
      
+     // 3. 동 이름만 입력한 경우 (예: "창신동", "숭인동", "서교동")
+     const dongMapping = {
+       // 종로구
+       '창신동': '서울 종로구 창신동', '숭인동': '서울 종로구 숭인동', '동숭동': '서울 종로구 동숭동',
+       '혜화동': '서울 종로구 혜화동', '명륜동': '서울 종로구 명륜동', '삼청동': '서울 종로구 삼청동',
+       '가회동': '서울 종로구 가회동', '익선동': '서울 종로구 익선동', '연건동': '서울 종로구 연건동',
+       '연지동': '서울 종로구 연지동', '충신동': '서울 종로구 충신동', '동묘앞': '서울 종로구 숭인동',
+       // 마포구
+       '서교동': '서울 마포구 서교동', '망원동': '서울 마포구 망원동', '연남동': '서울 마포구 연남동',
+       '합정동': '서울 마포구 합정동', '상수동': '서울 마포구 상수동', '성산동': '서울 마포구 성산동',
+       // 성동구
+       '성수동': '서울 성동구 성수동', '행당동': '서울 성동구 행당동', '금호동': '서울 성동구 금호동',
+       // 강남구
+       '신사동': '서울 강남구 신사동', '압구정동': '서울 강남구 압구정동', '청담동': '서울 강남구 청담동',
+       '역삼동': '서울 강남구 역삼동', '삼성동': '서울 강남구 삼성동', '논현동': '서울 강남구 논현동',
+       // 중구
+       '명동': '서울 중구 명동', '을지로동': '서울 중구 을지로동', '필동': '서울 중구 필동',
+       // 용산구
+       '이태원동': '서울 용산구 이태원동', '한남동': '서울 용산구 한남동', '후암동': '서울 용산구 후암동',
+       // 서대문구
+       '연희동': '서울 서대문구 연희동', '신촌동': '서울 서대문구 신촌동',
+       // 영등포구
+       '여의도동': '서울 영등포구 여의도동', '당산동': '서울 영등포구 당산동',
+       // 송파구
+       '잠실동': '서울 송파구 잠실동', '방이동': '서울 송파구 방이동', '가락동': '서울 송파구 가락동'
+     };
+     
+     for (const [dong, expanded] of Object.entries(dongMapping)) {
+       if (trimmed === dong || trimmed.includes(dong)) {
+         return [expanded, trimmed];
+       }
+     }
+     
+     // 4. 구/지역명 매핑
      const regionMapping = {
        // 서울 구 단위
        '강남': '서울 강남구', '강북': '서울 강북구', '강서': '서울 강서구', '강동': '서울 강동구',
@@ -3362,7 +3491,7 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
        '서초': '서울 서초구', '송파': '서울 송파구', '구로': '서울 구로구', '금천': '서울 금천구',
        // 서울 유명 지역
        '홍대': '서울 마포구 서교동', '신촌': '서울 서대문구 신촌', '이태원': '서울 용산구 이태원동',
-       '명동': '서울 중구 명동', '건대': '서울 광진구 화양동', '잠실': '서울 송파구 잠실동',
+       '건대': '서울 광진구 화양동', '잠실': '서울 송파구 잠실동',
        '압구정': '서울 강남구 압구정동', '청담': '서울 강남구 청담동', '가로수길': '서울 강남구 신사동',
        '성수': '서울 성동구 성수동', '을지로': '서울 중구 을지로', '동묘': '서울 종로구 숭인동',
        '혜화': '서울 종로구 혜화동', '대학로': '서울 종로구 동숭동', '여의도': '서울 영등포구 여의도동',
@@ -4200,6 +4329,9 @@ ${hasApiData ? '중요: 수집된 GIS API 데이터의 실제 숫자를 반드�
        setSalesModeAnalysisStep('분석 완료');
        setSalesModeCollectingText('');
        setSalesModeSearchResult({ success: true, data, query, hasApiData, collectedData });
+       
+       // 검색 완료 후 지도 자동 펼침
+       setSalesModeMapExpanded(true);
      } catch (e) {
        console.error('영업모드 JSON 파싱 실패:', e);
        console.log('AI 원본 응답:', text);
@@ -10054,48 +10186,29 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                  {/* 검색 결과 */}
                  {salesModeSearchResult?.success && (
                    <div className="space-y-3">
-                     {/* 데이터 신뢰도 + API 상태 */}
+                     {/* 지역명 헤더 (신뢰도/기준일 삭제, 출처보기 아이콘으로 이동) */}
                      <FadeInSection delay={0}>
                        <div className={`p-4 rounded-xl border backdrop-blur ${theme === 'dark' ? 'bg-neutral-800/80 border-neutral-700' : 'bg-white/80 border-neutral-200'}`}>
-                         <div className="flex items-center justify-between mb-2">
-                           <p className={`text-sm font-medium ${t.text}`}>
-                             {salesModeSearchResult.data?.region || '상권 분석 결과'}
+                         <div className="flex items-center justify-between">
+                           <p className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-neutral-900'}`}>
+                             📍 {salesModeSearchResult.data?.region || '상권 분석 결과'}
                            </p>
-                           <ApiStatusIndicator hasData={salesModeSearchResult.data?.hasApiData} />
-                         </div>
-                         <div className={`flex items-center gap-4 text-xs ${t.textMuted}`}>
-                           {salesModeSearchResult.data?.reliability && (
-                             <span>신뢰도: {salesModeSearchResult.data.reliability}</span>
-                           )}
-                           {salesModeSearchResult.data?.dataDate && (
-                             <span>기준: {salesModeSearchResult.data.dataDate}</span>
-                           )}
+                           <div className="flex items-center gap-2">
+                             <ApiStatusIndicator hasData={salesModeSearchResult.data?.hasApiData} />
+                             <button 
+                               onClick={() => setSalesModeShowSources(!salesModeShowSources)}
+                               className={`p-2 rounded-lg ${theme === 'dark' ? 'hover:bg-neutral-700' : 'hover:bg-neutral-100'}`}
+                               title="출처 보기"
+                             >
+                               <span className="text-sm">📋</span>
+                             </button>
+                           </div>
                          </div>
                        </div>
                      </FadeInSection>
 
-                     {/* 1. 지도 - 동적 네이버 지도 + 500m 원 */}
-                     {salesModeMapCenter && (
-                       <FadeInSection delay={0.1}>
-                         <div className={`p-4 rounded-xl border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-neutral-200'}`}>
-                           <h3 className={`font-bold ${t.text} mb-3 flex items-center gap-2`}>
-                             <span className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold ${theme === 'dark' ? 'bg-white/10 text-white' : 'bg-neutral-200 text-neutral-700'}`}>1</span>
-                             위치 (반경 500m)
-                           </h3>
-                           <div 
-                             ref={salesModeMapContainerRef}
-                             className={`h-48 ${theme === 'dark' ? 'bg-neutral-700' : 'bg-neutral-200'} rounded-lg overflow-hidden`}
-                             style={{ minHeight: '192px' }}
-                           />
-                           {salesModeMapCenter.roadAddress && (
-                             <p className={`text-xs mt-2 ${t.textMuted}`}>{salesModeMapCenter.roadAddress}</p>
-                           )}
-                         </div>
-                       </FadeInSection>
-                     )}
-
                      {/* 2. 상권 개요 - 카운트업 애니메이션 적용 */}
-                     <FadeInSection delay={0.2}>
+                     <FadeInSection delay={0.1}>
                        <Accordion title="상권 개요" icon="📊" defaultOpen={true} theme={theme}>
                          <div className="space-y-3">
                            {/* 핵심 지표 그리드 */}
@@ -10140,21 +10253,21 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                        <Accordion title="주요 소비층" icon="👤" defaultOpen={true} theme={theme}>
                          <div className="space-y-3">
                            <div className="grid grid-cols-2 gap-3">
-                             <div className="p-4 rounded-lg bg-gradient-to-br from-blue-500/20 to-blue-600/10 border border-blue-500/20">
-                               <p className="text-xs text-blue-300 mb-1">핵심 타겟</p>
-                               <p className={`font-bold ${t.text}`}>{cleanJsonText(salesModeSearchResult.data?.consumers?.mainTarget) || '-'}</p>
-                               <p className="text-sm text-blue-300 mt-1">{cleanJsonText(salesModeSearchResult.data?.consumers?.mainRatio) || '-'}</p>
+                             <div className={`p-4 rounded-lg border ${theme === 'dark' ? 'bg-blue-500/20 border-blue-500/30' : 'bg-blue-50 border-blue-200'}`}>
+                               <p className={`text-xs mb-1 ${theme === 'dark' ? 'text-blue-300' : 'text-blue-600'}`}>핵심 타겟</p>
+                               <p className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-neutral-900'}`}>{cleanJsonText(salesModeSearchResult.data?.consumers?.mainTarget) || '-'}</p>
+                               <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-blue-300' : 'text-blue-600'}`}>{cleanJsonText(salesModeSearchResult.data?.consumers?.mainRatio) || '-'}</p>
                              </div>
                              <div className={`p-4 rounded-lg border ${theme === 'dark' ? 'bg-neutral-700/50 border-neutral-600' : 'bg-neutral-100 border-neutral-300'}`}>
-                               <p className={`text-xs mb-1 ${t.textMuted}`}>2순위</p>
-                               <p className={`font-medium ${t.text}`}>{cleanJsonText(salesModeSearchResult.data?.consumers?.secondTarget) || '-'}</p>
-                               <p className={`text-sm mt-1 ${t.textMuted}`}>{cleanJsonText(salesModeSearchResult.data?.consumers?.secondRatio) || '-'}</p>
+                               <p className={`text-xs mb-1 ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>2순위</p>
+                               <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-neutral-900'}`}>{cleanJsonText(salesModeSearchResult.data?.consumers?.secondTarget) || '-'}</p>
+                               <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>{cleanJsonText(salesModeSearchResult.data?.consumers?.secondRatio) || '-'}</p>
                              </div>
                            </div>
                            
                            {/* 소비 패턴 - 프로그레스 바 시각화 */}
                            <div className={`p-4 rounded-lg ${theme === 'dark' ? 'bg-neutral-700/50' : 'bg-neutral-100'}`}>
-                             <p className={`text-xs mb-3 ${t.textMuted}`}>소비 패턴</p>
+                             <p className={`text-xs mb-3 ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>소비 패턴</p>
                              <div className="grid grid-cols-3 gap-4 text-center">
                                <div className="space-y-1">
                                  <p className={`text-xs ${t.textMuted}`}>피크타임</p>
@@ -16106,33 +16219,39 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  
  {/* 전국 상권 데이터 수집 (관리자 전용) */}
  <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
- <h3 className={`font-bold ${t.text} text-lg mb-3`}>📊 전국 상권 데이터 수집</h3>
- <p className={`text-sm ${t.textMuted} mb-4`}>선택한 지역의 상권 데이터를 수집하여 Firebase에 저장합니다.</p>
+ <h3 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} text-lg mb-3`}>📊 전국 상권 데이터 수집</h3>
+ <p className={`text-sm ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'} mb-4`}>선택한 지역의 상권 데이터를 수집하여 Firebase에 저장합니다.</p>
  
  <div className="grid grid-cols-2 gap-3 mb-4">
    <div>
-     <label className={`text-xs ${t.textMuted} mb-1 block`}>시/도</label>
+     <label className={`text-xs ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'} mb-1 block`}>시/도</label>
      <select 
        value={apiCollectSido} 
        onChange={(e) => { setApiCollectSido(e.target.value); setApiCollectSigungu(''); }}
        className={`w-full px-3 py-2 rounded-lg border ${theme === 'dark' ? 'bg-neutral-700 border-neutral-600 text-white' : 'bg-white border-neutral-300 text-neutral-900'}`}
      >
        <option value="">시도 선택</option>
+       <option value="전국">🇰🇷 전국 (모든 시/도)</option>
        {Object.keys(KOREA_REGIONS).map(sido => (
          <option key={sido} value={sido}>{sido}</option>
        ))}
      </select>
    </div>
    <div>
-     <label className={`text-xs ${t.textMuted} mb-1 block`}>시/군/구</label>
+     <label className={`text-xs ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'} mb-1 block`}>시/군/구</label>
      <select 
        value={apiCollectSigungu} 
        onChange={(e) => setApiCollectSigungu(e.target.value)}
-       disabled={!apiCollectSido}
+       disabled={!apiCollectSido || apiCollectSido === '전국'}
        className={`w-full px-3 py-2 rounded-lg border ${theme === 'dark' ? 'bg-neutral-700 border-neutral-600 text-white' : 'bg-white border-neutral-300 text-neutral-900'} disabled:opacity-50`}
      >
-       <option value="">시군구 선택</option>
-       {apiCollectSido && KOREA_REGIONS[apiCollectSido]?.map(sigungu => (
+       <option value="">
+         {apiCollectSido === '전국' ? '전국 수집시 불필요' : apiCollectSido ? '전체 시/군/구' : '시군구 선택'}
+       </option>
+       {apiCollectSido && apiCollectSido !== '전국' && (
+         <option value="전체">📁 {apiCollectSido} 전체</option>
+       )}
+       {apiCollectSido && apiCollectSido !== '전국' && KOREA_REGIONS[apiCollectSido]?.map(sigungu => (
          <option key={sigungu} value={sigungu}>{sigungu}</option>
        ))}
      </select>
@@ -16142,27 +16261,33 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {apiCollectProgress.status && (
    <div className="mb-4">
      <div className="flex justify-between text-xs mb-1">
-       <span className={t.textMuted}>{apiCollectProgress.region}</span>
-       <span className={t.textMuted}>{apiCollectProgress.current}/{apiCollectProgress.total}</span>
+       <span className={theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}>{apiCollectProgress.region}</span>
+       <span className={theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}>{apiCollectProgress.current}/{apiCollectProgress.total}</span>
      </div>
-     <div className="w-full h-2 bg-neutral-200 rounded-full overflow-hidden">
+     <div className={`w-full h-2 rounded-full overflow-hidden ${theme === 'dark' ? 'bg-neutral-700' : 'bg-neutral-200'}`}>
        <div 
          className="h-full bg-blue-500 transition-all duration-300"
-         style={{ width: `${(apiCollectProgress.current / apiCollectProgress.total) * 100}%` }}
+         style={{ width: `${apiCollectProgress.total > 0 ? (apiCollectProgress.current / apiCollectProgress.total) * 100 : 0}%` }}
        />
      </div>
-     <p className={`text-xs mt-1 ${t.textMuted}`}>{apiCollectProgress.status}</p>
+     <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>{apiCollectProgress.status}</p>
    </div>
  )}
  
- <button 
-   onClick={() => collectRegionData(apiCollectSido, apiCollectSigungu)}
-   disabled={!apiCollectSido || !apiCollectSigungu || apiCollectProgress.status?.includes('수집')}
-   className="px-4 py-2 bg-blue-600 rounded-lg font-medium hover:bg-blue-700 transition-all text-white w-full disabled:opacity-50 disabled:cursor-not-allowed"
- >
-   {apiCollectProgress.status?.includes('수집') ? '수집 중...' : '🔄 데이터 수집 시작'}
- </button>
- <p className={`text-xs mt-2 ${t.textMuted}`}>※ 수집된 데이터는 Firebase에 저장되어 영업모드에서 활용됩니다.</p>
+ <div className="flex gap-2">
+   <button 
+     onClick={() => collectRegionData(apiCollectSido, apiCollectSigungu)}
+     disabled={!apiCollectSido || apiCollectProgress.status?.includes('수집')}
+     className="flex-1 px-4 py-2 bg-blue-600 rounded-lg font-medium hover:bg-blue-700 transition-all text-white disabled:opacity-50 disabled:cursor-not-allowed"
+   >
+     {apiCollectProgress.status?.includes('수집') ? '수집 중...' : '🔄 수집 시작'}
+   </button>
+ </div>
+ <p className={`text-xs mt-2 ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>
+   {apiCollectSido === '전국' 
+     ? '※ 전국 수집은 시간이 오래 걸릴 수 있습니다.'
+     : '※ 수집된 데이터는 Firebase에 저장되어 영업모드에서 활용됩니다.'}
+ </p>
  </div>
  
  {/* 재등록 표시 관리 */}
@@ -16233,60 +16358,106 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* 전국 상권 수집 보고서 모달 */}
  {showApiCollectReport && apiCollectResults && (
  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowApiCollectReport(false)}>
-   <div className={`w-full max-w-lg rounded-2xl p-6 ${theme === 'dark' ? 'bg-neutral-800' : 'bg-white'}`} onClick={e => e.stopPropagation()}>
+   <div className={`w-full max-w-lg max-h-[80vh] overflow-y-auto rounded-2xl p-6 ${theme === 'dark' ? 'bg-neutral-800' : 'bg-white'}`} onClick={e => e.stopPropagation()}>
      <div className="flex justify-between items-center mb-4">
-       <h3 className={`font-bold ${t.text} text-xl`}>📊 수집 보고서</h3>
-       <button onClick={() => setShowApiCollectReport(false)} className={`text-2xl ${t.textMuted} hover:${t.text}`}>×</button>
+       <h3 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} text-xl`}>📊 수집 보고서</h3>
+       <button onClick={() => setShowApiCollectReport(false)} className={`text-2xl ${theme === 'dark' ? 'text-neutral-400 hover:text-white' : 'text-neutral-400 hover:text-neutral-900'}`}>×</button>
      </div>
      
      <div className={`p-4 rounded-xl mb-4 ${theme === 'dark' ? 'bg-neutral-700' : 'bg-neutral-100'}`}>
-       <p className={`font-bold ${t.text} mb-2`}>{apiCollectResults.region?.sido} {apiCollectResults.region?.sigungu}</p>
-       <p className={`text-xs ${t.textMuted}`}>수집 시간: {new Date(apiCollectResults.timestamp).toLocaleString('ko-KR')}</p>
+       <p className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} mb-2`}>
+         {apiCollectResults.collectType === 'nationwide' ? '🇰🇷 전국' : 
+          apiCollectResults.collectType === 'sido' ? `${apiCollectResults.sido} 전체` :
+          `${apiCollectResults.sido || apiCollectResults.region?.sido} ${apiCollectResults.sigungu || apiCollectResults.region?.sigungu}`}
+       </p>
+       <p className={`text-xs ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>
+         수집 시간: {new Date(apiCollectResults.timestamp).toLocaleString('ko-KR')}
+       </p>
+       {apiCollectResults.totalRegions > 1 && (
+         <p className={`text-xs ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'} mt-1`}>
+           총 {apiCollectResults.totalRegions}개 지역 수집
+         </p>
+       )}
      </div>
      
      <div className="space-y-3 mb-4">
-       {/* 상가정보 */}
+       {/* 수집 요약 (다중 지역) */}
+       {apiCollectResults.summary && (
+         <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-blue-900/30' : 'bg-blue-50'}`}>
+           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} mb-2`}>📈 수집 요약</p>
+           <div className="grid grid-cols-2 gap-2 text-sm">
+             <p className={theme === 'dark' ? 'text-neutral-300' : 'text-neutral-600'}>성공: {apiCollectResults.summary.success}개 지역</p>
+             <p className={theme === 'dark' ? 'text-neutral-300' : 'text-neutral-600'}>실패: {apiCollectResults.summary.failed}개 지역</p>
+             <p className={theme === 'dark' ? 'text-neutral-300' : 'text-neutral-600'}>총 점포: {apiCollectResults.summary.totalStores?.toLocaleString()}개</p>
+             <p className={theme === 'dark' ? 'text-neutral-300' : 'text-neutral-600'}>총 카페: {apiCollectResults.summary.totalCafes?.toLocaleString()}개</p>
+           </div>
+         </div>
+       )}
+       
+       {/* 상가정보 (단일 지역) */}
        {apiCollectResults.data?.store && (
          <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-700/50' : 'bg-blue-50'}`}>
-           <p className={`font-medium ${t.text} mb-1`}>🏪 상가정보</p>
-           <p className={`text-sm ${t.textMuted}`}>전체 점포: {apiCollectResults.data.store.total?.toLocaleString() || 0}개</p>
-           <p className={`text-sm ${t.textMuted}`}>카페: {apiCollectResults.data.store.cafeCount?.toLocaleString() || 0}개</p>
+           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} mb-1`}>🏪 상가정보</p>
+           <p className={`text-sm ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>전체 점포: {apiCollectResults.data.store.total?.toLocaleString() || 0}개</p>
+           <p className={`text-sm ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>카페: {apiCollectResults.data.store.cafeCount?.toLocaleString() || 0}개</p>
          </div>
        )}
        
        {/* 서울시 유동인구 */}
-       {apiCollectResults.data?.seoulFloating && (
+       {(apiCollectResults.data?.seoulFloating || apiCollectResults.summary?.success > 0) && apiCollectResults.sido?.includes('서울') && (
          <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-700/50' : 'bg-green-50'}`}>
-           <p className={`font-medium ${t.text} mb-1`}>👥 서울시 유동인구</p>
-           <p className={`text-sm ${t.textMuted}`}>총 레코드: {apiCollectResults.data.seoulFloating.totalRecords?.toLocaleString() || 0}건</p>
+           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} mb-1`}>👥 서울시 유동인구</p>
+           <p className={`text-sm ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>
+             {apiCollectResults.data?.seoulFloating?.totalRecords 
+               ? `총 레코드: ${apiCollectResults.data.seoulFloating.totalRecords?.toLocaleString()}건`
+               : '데이터 수집 완료'}
+           </p>
          </div>
        )}
        
        {/* 프랜차이즈 */}
        {apiCollectResults.data?.franchise && (
          <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-700/50' : 'bg-purple-50'}`}>
-           <p className={`font-medium ${t.text} mb-1`}>☕ 프랜차이즈 (카페)</p>
-           <p className={`text-sm ${t.textMuted}`}>수집 브랜드: {apiCollectResults.data.franchise.count || 0}개</p>
-           {apiCollectResults.data.franchise.brands?.length > 0 && (
-             <p className={`text-xs ${t.textMuted} mt-1`}>{apiCollectResults.data.franchise.brands.slice(0, 5).join(', ')}...</p>
-           )}
+           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} mb-1`}>☕ 프랜차이즈 (카페)</p>
+           <p className={`text-sm ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>수집 브랜드: {apiCollectResults.data.franchise.count || 0}개</p>
+         </div>
+       )}
+       
+       {/* 임대료 */}
+       {apiCollectResults.data?.rent && (
+         <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-700/50' : 'bg-yellow-50'}`}>
+           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} mb-1`}>🏠 임대료</p>
+           <p className={`text-sm ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>한국부동산원 R-ONE 데이터 수집 완료</p>
          </div>
        )}
        
        {/* Firebase 저장 상태 */}
-       <div className={`p-3 rounded-lg ${apiCollectResults.savedToFirebase ? (theme === 'dark' ? 'bg-emerald-900/30' : 'bg-emerald-50') : (theme === 'dark' ? 'bg-rose-900/30' : 'bg-rose-50')}`}>
-         <p className={`font-medium ${t.text}`}>
-           {apiCollectResults.savedToFirebase ? '✅ Firebase 저장 완료' : '❌ Firebase 저장 실패'}
+       <div className={`p-3 rounded-lg ${
+         (apiCollectResults.savedToFirebase || apiCollectResults.summary?.success > 0) 
+           ? (theme === 'dark' ? 'bg-emerald-900/30' : 'bg-emerald-50') 
+           : (theme === 'dark' ? 'bg-rose-900/30' : 'bg-rose-50')
+       }`}>
+         <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-neutral-900'}`}>
+           {(apiCollectResults.savedToFirebase || apiCollectResults.summary?.success > 0) 
+             ? '✅ Firebase 저장 완료' 
+             : '❌ Firebase 저장 실패'}
          </p>
        </div>
        
        {/* 에러 표시 */}
        {apiCollectResults.errors?.length > 0 && (
          <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-rose-900/30' : 'bg-rose-50'}`}>
-           <p className={`font-medium text-rose-500 mb-1`}>⚠️ 수집 중 오류</p>
-           {apiCollectResults.errors.map((err, idx) => (
-             <p key={idx} className={`text-xs ${t.textMuted}`}>{err.api}: {err.message}</p>
+           <p className={`font-medium text-rose-500 mb-1`}>⚠️ 수집 중 오류 ({apiCollectResults.errors.length}건)</p>
+           {apiCollectResults.errors.slice(0, 5).map((err, idx) => (
+             <p key={idx} className={`text-xs ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>
+               {err.region || err.api}: {err.message}
+             </p>
            ))}
+           {apiCollectResults.errors.length > 5 && (
+             <p className={`text-xs ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>
+               ... 외 {apiCollectResults.errors.length - 5}건
+             </p>
+           )}
          </div>
        )}
      </div>
