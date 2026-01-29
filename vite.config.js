@@ -4,11 +4,14 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [
     react({
-      jsxRuntime: 'classic'
+      jsxRuntime: 'automatic'
     })
   ],
   build: {
     outDir: 'dist',
     sourceMap: false
+  },
+  optimizeDeps: {
+    include: ['react', 'react-dom']
   }
 })
