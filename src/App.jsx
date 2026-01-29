@@ -2733,43 +2733,10 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
        fillOpacity: 0.15
      });
      
-     // 역지오코딩으로 주소 얻기
-     let displayAddress = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-     try {
-       const reverseResult = await new Promise((resolve) => {
-         window.naver.maps.Service.reverseGeocode(
-           { coords: new window.naver.maps.LatLng(lat, lng) },
-           (status, response) => {
-             if (status === window.naver.maps.Service.Status.OK) {
-               const result = response.v2.address;
-               // 도로명 주소 또는 지번 주소 사용
-               const roadAddr = result.roadAddress;
-               const jibunAddr = result.jibunAddress;
-               
-               if (roadAddr) {
-                 // 도로명 주소에서 동/리 단위까지만 추출
-                 const parts = roadAddr.split(' ');
-                 displayAddress = parts.slice(0, Math.min(4, parts.length)).join(' ');
-               } else if (jibunAddr) {
-                 const parts = jibunAddr.split(' ');
-                 displayAddress = parts.slice(0, Math.min(4, parts.length)).join(' ');
-               }
-               resolve(displayAddress);
-             } else {
-               resolve(displayAddress);
-             }
-           }
-         );
-       });
-       displayAddress = reverseResult;
-     } catch (e) {
-       console.error('역지오코딩 실패:', e);
-     }
-     
-     // 검색 실행 (주소로 표시)
-     setSalesModeSearchQuery(displayAddress);
-     setSalesModeMapCenter({ lat, lng, address: displayAddress });
-     await searchSalesModeRegion(displayAddress);
+     // 검색 실행
+     setSalesModeSearchQuery(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+     setSalesModeMapCenter({ lat, lng });
+     await searchSalesModeRegion(`${lat}, ${lng}`);
      
      // 위치 선택 모드 종료
      setLocationSelectMode(false);
@@ -3667,34 +3634,6 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
      
      // 동 → 시도/시군구 매핑 (서울 전체 동 확장)
      const dongToRegion = {
-       // 주요 역명/지역명 → 행정구역 매핑 (먼저 체크)
-       '동묘': { sido: '서울특별시', sigungu: '종로구' }, '동묘앞': { sido: '서울특별시', sigungu: '종로구' },
-       '동묘앞역': { sido: '서울특별시', sigungu: '종로구' }, '동대문': { sido: '서울특별시', sigungu: '종로구' },
-       '광장시장': { sido: '서울특별시', sigungu: '종로구' }, '종각': { sido: '서울특별시', sigungu: '종로구' },
-       '종각역': { sido: '서울특별시', sigungu: '종로구' }, '을지로입구': { sido: '서울특별시', sigungu: '중구' },
-       '홍대': { sido: '서울특별시', sigungu: '마포구' }, '홍대입구': { sido: '서울특별시', sigungu: '마포구' },
-       '홍대입구역': { sido: '서울특별시', sigungu: '마포구' }, '합정': { sido: '서울특별시', sigungu: '마포구' },
-       '합정역': { sido: '서울특별시', sigungu: '마포구' }, '망원': { sido: '서울특별시', sigungu: '마포구' },
-       '연남동': { sido: '서울특별시', sigungu: '마포구' }, '상수': { sido: '서울특별시', sigungu: '마포구' },
-       '강남역': { sido: '서울특별시', sigungu: '강남구' }, '신논현': { sido: '서울특별시', sigungu: '강남구' },
-       '역삼': { sido: '서울특별시', sigungu: '강남구' }, '역삼역': { sido: '서울특별시', sigungu: '강남구' },
-       '선릉': { sido: '서울특별시', sigungu: '강남구' }, '선릉역': { sido: '서울특별시', sigungu: '강남구' },
-       '삼성': { sido: '서울특별시', sigungu: '강남구' }, '삼성역': { sido: '서울특별시', sigungu: '강남구' },
-       '압구정': { sido: '서울특별시', sigungu: '강남구' }, '청담': { sido: '서울특별시', sigungu: '강남구' },
-       '성수': { sido: '서울특별시', sigungu: '성동구' }, '성수역': { sido: '서울특별시', sigungu: '성동구' },
-       '뚝섬': { sido: '서울특별시', sigungu: '성동구' }, '건대입구': { sido: '서울특별시', sigungu: '광진구' },
-       '건대': { sido: '서울특별시', sigungu: '광진구' }, '이태원': { sido: '서울특별시', sigungu: '용산구' },
-       '이태원역': { sido: '서울특별시', sigungu: '용산구' }, '한남동': { sido: '서울특별시', sigungu: '용산구' },
-       '잠실': { sido: '서울특별시', sigungu: '송파구' }, '잠실역': { sido: '서울특별시', sigungu: '송파구' },
-       '신촌': { sido: '서울특별시', sigungu: '서대문구' }, '신촌역': { sido: '서울특별시', sigungu: '서대문구' },
-       '이대': { sido: '서울특별시', sigungu: '서대문구' }, '이대역': { sido: '서울특별시', sigungu: '서대문구' },
-       '여의도': { sido: '서울특별시', sigungu: '영등포구' }, '영등포': { sido: '서울특별시', sigungu: '영등포구' },
-       '판교': { sido: '경기도', sigungu: '성남시' }, '판교역': { sido: '경기도', sigungu: '성남시' },
-       '분당': { sido: '경기도', sigungu: '성남시' }, '정자': { sido: '경기도', sigungu: '성남시' },
-       '수원역': { sido: '경기도', sigungu: '수원시' }, '수원': { sido: '경기도', sigungu: '수원시' },
-       '일산': { sido: '경기도', sigungu: '고양시' }, '부천역': { sido: '경기도', sigungu: '부천시' },
-       '해운대': { sido: '부산광역시', sigungu: '해운대구' }, '서면': { sido: '부산광역시', sigungu: '부산진구' },
-       '광안리': { sido: '부산광역시', sigungu: '수영구' },
        // 종로구 (전체 동)
        '청운동': { sido: '서울특별시', sigungu: '종로구' }, '효자동': { sido: '서울특별시', sigungu: '종로구' },
        '창성동': { sido: '서울특별시', sigungu: '종로구' }, '통의동': { sido: '서울특별시', sigungu: '종로구' },
@@ -3895,14 +3834,12 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
        const data = snapshot.val();
        console.log('Firebase 조회 결과:', data ? '데이터 있음' : '데이터 없음');
        
-       // ★★★ 확장프로그램 매물 시세 데이터 추가 조회 ★★★
-       // 경로: rentData/${sido}/${sigungu}
+       // 확장프로그램 매물 시세 데이터 추가 조회 (rentData 경로)
        try {
          const rentSnapshot = await database.ref(`rentData/${sidoKey}/${sigunguKey}`).once('value');
          const rentData = rentSnapshot.val();
          if (rentData) {
            console.log('Firebase rentData 조회 결과:', rentData);
-           // 기존 데이터에 매물 시세 정보 병합
            if (data) {
              data.data = data.data || {};
              data.data.rent = {
@@ -3917,7 +3854,6 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
                updated_at: rentData.updated_at
              };
            } else {
-             // regionData가 없어도 rentData만 있으면 반환
              return {
                data: {
                  rent: {
@@ -3989,112 +3925,10 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
        const franchiseData = firebaseData.data.franchise || {};
        const rentData = firebaseData.data.rent || {};
        
-       // 임대료 데이터 기반 창업비용 계산 함수
-       const calculateStartupCost = (rentInfo, sido) => {
-         // 지역별 기준 데이터 (한국부동산원, 소상공인시장진흥공단 통계 기반)
-         const regionalMultiplier = {
-           '서울특별시': { depositMulti: 15, premiumMulti: 20, interiorPerPyeong: 450, equipmentBase: 2500 },
-           '경기도': { depositMulti: 12, premiumMulti: 12, interiorPerPyeong: 380, equipmentBase: 2300 },
-           '부산광역시': { depositMulti: 10, premiumMulti: 10, interiorPerPyeong: 350, equipmentBase: 2200 },
-           'default': { depositMulti: 10, premiumMulti: 8, interiorPerPyeong: 320, equipmentBase: 2000 }
-         };
-         const region = regionalMultiplier[sido] || regionalMultiplier['default'];
-         const avgPyeong = 15; // 평균 15평 기준
-         
-         // ★★★ 확장프로그램 수집 데이터 우선 사용 ★★★
-         // avgDeposit: 평균 보증금 (만원), avgMonthlyRent: 평균 월세 (만원)
-         if (rentInfo.avgDeposit > 0 || rentInfo.avgMonthlyRent > 0) {
-           // 실제 수집 데이터 사용
-           const avgDeposit = rentInfo.avgDeposit || 0;
-           const avgMonthlyRent = rentInfo.avgMonthlyRent || 0;
-           
-           // 보증금: 수집 데이터 기반 ±30%
-           const depositMin = avgDeposit > 0 ? Math.round(avgDeposit * 0.7 / 100) * 100 : 0;
-           const depositMax = avgDeposit > 0 ? Math.round(avgDeposit * 1.3 / 100) * 100 : 0;
-           
-           // 권리금: 수집된 premiumCount 기반 추정 또는 월세 기준
-           const premiumBase = avgMonthlyRent > 0 ? avgMonthlyRent * region.premiumMulti : 0;
-           const premiumMin = premiumBase > 0 ? Math.round(premiumBase * 0.5 / 100) * 100 : 0;
-           const premiumMax = premiumBase > 0 ? Math.round(premiumBase * 1.5 / 100) * 100 : 0;
-           
-           // 인테리어: 평당 320~450만원
-           const interiorMin = Math.round(region.interiorPerPyeong * avgPyeong * 0.8 / 100) * 100;
-           const interiorMax = Math.round(region.interiorPerPyeong * avgPyeong * 1.3 / 100) * 100;
-           
-           // 설비/장비
-           const equipmentMin = Math.round(region.equipmentBase * 0.8 / 100) * 100;
-           const equipmentMax = Math.round(region.equipmentBase * 1.2 / 100) * 100;
-           
-           // 총 비용
-           const totalMin = depositMin + premiumMin + interiorMin + equipmentMin;
-           const totalMax = depositMax + premiumMax + interiorMax + equipmentMax;
-           
-           return {
-             deposit: avgDeposit > 0 ? `약 ${depositMin.toLocaleString()}~${depositMax.toLocaleString()}만원` : '-',
-             premium: premiumMax > 0 ? `약 ${premiumMin.toLocaleString()}~${premiumMax.toLocaleString()}만원 (현장 확인 필수)` : '현장 확인 필요',
-             interior: `약 ${interiorMin.toLocaleString()}~${interiorMax.toLocaleString()}만원 (${avgPyeong}평 기준)`,
-             equipment: `약 ${equipmentMin.toLocaleString()}~${equipmentMax.toLocaleString()}만원`,
-             total: totalMin > 0 ? `약 ${(totalMin/10000).toFixed(1)}~${(totalMax/10000).toFixed(1)}억원` : '-',
-             note: `※ 네이버부동산 실제 매물 데이터 기반 (${rentInfo.articleCount || 0}건 분석)`
-           };
-         }
-         
-         // ★ 한국부동산원 데이터 사용 (avgRentPerPyeong)
-         if (rentInfo.avgRentPerPyeong) {
-           const monthlyRentPerPyeong = rentInfo.avgRentPerPyeong;
-           const monthlyRent = monthlyRentPerPyeong * avgPyeong;
-           
-           // 보증금: 월세의 10~15배 (지역별)
-           const depositMin = Math.round(monthlyRent * region.depositMulti * 0.8 / 100) * 100;
-           const depositMax = Math.round(monthlyRent * region.depositMulti * 1.2 / 100) * 100;
-           
-           // 권리금: 지역별 편차 큼 (데이터 없으면 직접 확인 권장)
-           const premiumMin = Math.round(monthlyRent * region.premiumMulti * 0.5 / 100) * 100;
-           const premiumMax = Math.round(monthlyRent * region.premiumMulti * 1.5 / 100) * 100;
-           
-           // 인테리어: 평당 320~450만원
-           const interiorMin = Math.round(region.interiorPerPyeong * avgPyeong * 0.8 / 100) * 100;
-           const interiorMax = Math.round(region.interiorPerPyeong * avgPyeong * 1.3 / 100) * 100;
-           
-           // 설비/장비: 커피머신, 냉장고 등 기본 장비
-           const equipmentMin = Math.round(region.equipmentBase * 0.8 / 100) * 100;
-           const equipmentMax = Math.round(region.equipmentBase * 1.2 / 100) * 100;
-           
-           // 총 비용
-           const totalMin = depositMin + premiumMin + interiorMin + equipmentMin;
-           const totalMax = depositMax + premiumMax + interiorMax + equipmentMax;
-           
-           return {
-             deposit: `약 ${depositMin.toLocaleString()}~${depositMax.toLocaleString()}만원`,
-             premium: premiumMax > 0 ? `약 ${premiumMin.toLocaleString()}~${premiumMax.toLocaleString()}만원 (현장 확인 필수)` : '현장 확인 필요',
-             interior: `약 ${interiorMin.toLocaleString()}~${interiorMax.toLocaleString()}만원 (${avgPyeong}평 기준)`,
-             equipment: `약 ${equipmentMin.toLocaleString()}~${equipmentMax.toLocaleString()}만원`,
-             total: `약 ${(totalMin/10000).toFixed(1)}~${(totalMax/10000).toFixed(1)}억원`,
-             note: '※ 한국부동산원 임대료 데이터 기반 추정치'
-           };
-         }
-             note: '※ 한국부동산원 임대료 데이터 기반 추정치'
-           };
-         }
-         
-         // 데이터 없으면 표시 안함
-         return {
-           deposit: '-',
-           premium: '-',
-           interior: '-',
-           equipment: '-',
-           total: '-',
-           note: '※ 임대료 데이터 수집 필요'
-         };
-       };
-       
-       const calculatedCost = calculateStartupCost(rentData, parsedRegion.sido);
-       
        const formattedResult = {
          success: true,
          data: {
            region: `${parsedRegion.sido} ${parsedRegion.sigungu}`,
-           searchQuery: query, // 원본 검색어 저장
            hasApiData: true,
            dataSource: 'firebase',
            dataDate: firebaseData.updatedAt ? new Date(firebaseData.updatedAt).toLocaleDateString('ko-KR') : '-',
@@ -4127,7 +3961,13 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
            },
            opportunities: [],
            risks: [],
-           startupCost: calculatedCost
+           startupCost: {
+             deposit: '-',
+             premium: '-',
+             interior: '-',
+             equipment: '-',
+             total: '-'
+           }
          },
          query,
          hasApiData: true,
@@ -10920,23 +10760,13 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                  {/* 검색 결과 */}
                  {salesModeSearchResult?.success && (
                    <div className="space-y-3">
-                     {/* 지역명 헤더 (검색어 우선 표시) */}
+                     {/* 지역명 헤더 (신뢰도/기준일 삭제, 출처보기 아이콘으로 이동) */}
                      <FadeInSection delay={0}>
                        <div className={`p-4 rounded-xl border backdrop-blur ${theme === 'dark' ? 'bg-neutral-800/80 border-neutral-700' : 'bg-white/80 border-neutral-200'}`}>
                          <div className="flex items-center justify-between">
-                           <div>
-                             <p className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-neutral-900'}`}>
-                               {salesModeSearchResult.data?.searchQuery || salesModeSearchResult.query || salesModeSearchResult.data?.region || '상권 분석 결과'}
-                             </p>
-                             {/* 검색어와 region이 다르면 시도/시군구 별도 표시 */}
-                             {salesModeSearchResult.data?.region && 
-                              salesModeSearchResult.data?.searchQuery && 
-                              salesModeSearchResult.data?.searchQuery !== salesModeSearchResult.data?.region && (
-                               <p className={`text-xs mt-1 ${t.textMuted}`}>
-                                 분석 범위: {salesModeSearchResult.data.region}
-                               </p>
-                             )}
-                           </div>
+                           <p className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-neutral-900'}`}>
+                             {salesModeSearchResult.data?.region || '상권 분석 결과'}
+                           </p>
                            <div className="flex items-center gap-2">
                              <ApiStatusIndicator hasData={salesModeSearchResult.data?.hasApiData} />
                              <button 
@@ -11607,29 +11437,29 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                            
                            {/* 날씨별 영향 그리드 */}
                            <div className="grid grid-cols-3 gap-2 mb-4">
-                             <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-700' : 'bg-neutral-200'} border border-neutral-600 text-center`}>
-                               <p className="text-lg mb-1"></p>
+                             <div className="p-3 rounded-lg bg-gray-100 text-center">
+                               <p className="text-lg mb-1">️</p>
                                <p className={`text-xs ${t.textSecondary}`}>비 오는 날</p>
-                               <p className={`text-lg font-bold ${weatherData.비 < 0 ? 'text-red-400' : 'text-green-400'}`}>
+                               <p className={`text-lg font-bold ${weatherData.비 < 0 ? 'text-white' : 'text-white'}`}>
                                  {weatherData.비 > 0 ? '+' : ''}{weatherData.비}%
                                </p>
-                               <p className={`text-xs ${t.textMuted}`}>(평균 {baseData.비}%)</p>
+                               <p className={`text-xs ${t.textSecondary}`}>(평균 {baseData.비}%)</p>
                              </div>
                              <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-700' : 'bg-neutral-200'} border border-neutral-600 text-center`}>
-                               <p className="text-lg mb-1"></p>
+                               <p className="text-lg mb-1">️</p>
                                <p className={`text-xs ${t.textSecondary}`}>맑은 날</p>
-                               <p className={`text-lg font-bold ${weatherData.맑음 > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                               <p className={`text-lg font-bold ${weatherData.맑음 > 0 ? 'text-white' : 'text-white'}`}>
                                  {weatherData.맑음 > 0 ? '+' : ''}{weatherData.맑음}%
                                </p>
-                               <p className={`text-xs ${t.textMuted}`}>(평균 +{baseData.맑음}%)</p>
+                               <p className={`text-xs ${t.textSecondary}`}>(평균 +{baseData.맑음}%)</p>
                              </div>
                              <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-700' : 'bg-neutral-200'} border border-neutral-600 text-center`}>
-                               <p className="text-lg mb-1"></p>
+                               <p className="text-lg mb-1">️</p>
                                <p className={`text-xs ${t.textSecondary}`}>눈 오는 날</p>
-                               <p className={`text-lg font-bold ${weatherData.눈 < 0 ? 'text-red-400' : 'text-green-400'}`}>
+                               <p className={`text-lg font-bold ${weatherData.눈 < 0 ? 'text-white' : 'text-white'}`}>
                                  {weatherData.눈 > 0 ? '+' : ''}{weatherData.눈}%
                                </p>
-                               <p className={`text-xs ${t.textMuted}`}>(평균 {baseData.눈}%)</p>
+                               <p className={`text-xs ${t.textSecondary}`}>(평균 {baseData.눈}%)</p>
                              </div>
                            </div>
                            
@@ -11637,13 +11467,13 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                            <div className="grid grid-cols-2 gap-2 mb-4">
                              <div className={`p-2 rounded-lg ${theme === 'dark' ? 'bg-neutral-700' : 'bg-neutral-200'} border border-neutral-600 flex items-center justify-between`}>
                                <span className={`text-sm ${t.textSecondary}`}>폭염</span>
-                               <span className={`font-bold ${weatherData.폭염 >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                               <span className={`font-bold ${weatherData.폭염 >= 0 ? 'text-white' : 'text-white'}`}>
                                  {weatherData.폭염 > 0 ? '+' : ''}{weatherData.폭염}%
                                </span>
                              </div>
                              <div className={`p-2 rounded-lg ${theme === 'dark' ? 'bg-neutral-700' : 'bg-neutral-200'} border border-neutral-600 flex items-center justify-between`}>
                                <span className={`text-sm ${t.textSecondary}`}> 한파</span>
-                               <span className={`font-bold ${weatherData.한파 >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                               <span className={`font-bold ${weatherData.한파 >= 0 ? 'text-white' : 'text-white'}`}>
                                  {weatherData.한파 > 0 ? '+' : ''}{weatherData.한파}%
                                </span>
                              </div>
@@ -11693,9 +11523,6 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                            <span className={`font-bold ${t.text}`}>총 예상 비용</span>
                            <span className={`font-bold ${t.text}`}>{cleanJsonText(salesModeSearchResult.data?.startupCost?.total) || '-'}</span>
                          </div>
-                         {salesModeSearchResult.data?.startupCost?.note && (
-                           <p className={`text-xs mt-3 ${t.textMuted}`}>{salesModeSearchResult.data.startupCost.note}</p>
-                         )}
                        </div>
                      </div>
 
