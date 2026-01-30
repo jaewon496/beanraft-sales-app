@@ -4,7 +4,7 @@ import { firebase, database } from './firebase';
 // ═══════════════════════════════════════════════════════════════
 // 앱 버전 관리 - 캐시 무효화용
 // ═══════════════════════════════════════════════════════════════
-const APP_VERSION = '2026.01.30.v8-franchise-ui-cleanup';
+const APP_VERSION = '2026.01.30.v9-franchise-ai-analysis';
 
 // 앱 시작 시 버전 출력 및 캐시 체크
 (() => {
@@ -1633,7 +1633,7 @@ const FRANCHISE_DATA = {
     가맹비: 550, 교육비: 220, 보증금: 500, 기타비용: 9159,
     인테리어: 1600, // 33㎡(10평) 기준
     총비용: '약 1억 429만원 (10평 기준, 임대료/권리금 별도)',
-    아메리카노: 1800, 로열티월: 20, 광고비월: null, // 공정위 기준 월 20만원 (2025년 가격 인상)
+    아메리카노: 1800, 로열티월: 20, 광고비월: null, // 공정위 기준 월 20만원
     매장수: 3000, // 2025년 9월 기준
     연평균매출: null, // 미확인
     폐업률: 0.63, // %, 2023년 기준
@@ -1937,6 +1937,8 @@ const getAvailableFranchises = () => {
       if (data.총비용 && data.총비용.includes('가맹 불가')) return false;
       // 별칭(메가커피, 이디야)은 중복이므로 제외
       if (name === '메가커피' || name === '이디야') return false;
+      // 통계 데이터 제외
+      if (name === '시장통계' || name === 'OECD비교') return false;
       return true;
     })
     .reduce((acc, [name, data]) => {
@@ -13794,42 +13796,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
    // 뉴스 URL 검색 함수
    const searchNewsUrl = async (issue) => {
      const searchQuery = `${selectedFranchise} ${issue}`;
-     const cacheKey = `${selectedFranchise}_${issue}`;
-     
-     if (franchiseNewsUrls[cacheKey]) {
-       window.open(franchiseNewsUrls[cacheKey], '_blank');
-       return;
-     }
-     
-     try {
-       const response = await fetch(
-         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`,
-         {
-           method: 'POST',
-           headers: { 'Content-Type': 'application/json' },
-           body: JSON.stringify({
-             contents: [{ parts: [{ text: `"${searchQuery}" 관련 최신 뉴스 기사 URL을 하나만 알려주세요. 반드시 실제 존재하는 URL이어야 합니다. URL만 출력하세요. (예: https://news.example.com/article/123)` }] }],
-             generationConfig: { temperature: 0.3, maxOutputTokens: 200 },
-             tools: [{ googleSearch: {} }]
-           })
-         }
-       );
-       
-       const result = await response.json();
-       const text = result?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-       const urlMatch = text.match(/https?:\/\/[^\s"<>]+/);
-       
-       if (urlMatch) {
-         setFranchiseNewsUrls(prev => ({...prev, [cacheKey]: urlMatch[0]}));
-         window.open(urlMatch[0], '_blank');
-       } else {
-         // 검색 결과 없으면 네이버 뉴스 검색으로 이동
-         window.open(`https://search.naver.com/search.naver?where=news&query=${encodeURIComponent(searchQuery)}`, '_blank');
-       }
-     } catch (e) {
-       // 오류 시 네이버 뉴스 검색으로 이동
-       window.open(`https://search.naver.com/search.naver?where=news&query=${encodeURIComponent(searchQuery)}`, '_blank');
-     }
+     // 네이버 뉴스 검색으로 이동
+     window.open(`https://search.naver.com/search.naver?where=news&query=${encodeURIComponent(searchQuery)}`, '_blank');
    };
    
    return (
@@ -13903,9 +13871,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
            {data.폐업률 !== null && (
              <div>
                <span className={`${t.textMuted}`}>폐업률: </span>
-               <span className={`font-medium ${t.text}`}>
-                 {data.폐업률}%
-               </span>
+               <span className={`font-medium ${t.text}`}>{data.폐업률}%</span>
              </div>
            )}
            {data.연평균매출 && (
@@ -14092,8 +14058,6 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
 
 
-
-
  {/* 팀 피드백 자동 학습 시스템 */}
  <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
  <div className="flex items-center justify-between mb-4">
@@ -14193,6 +14157,11 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  )}
  </div>
+ </div>
+ </div>
+ </div>
+ )}
+
  </div>
  )}
  {tab === 'calendar' && (
