@@ -4,7 +4,7 @@ import { firebase, database } from './firebase';
 // ═══════════════════════════════════════════════════════════════
 // 앱 버전 관리 - 캐시 무효화용
 // ═══════════════════════════════════════════════════════════════
-const APP_VERSION = '2026.01.30.v6-firebase-fix';
+const APP_VERSION = '2026.01.30.v8-franchise-ui-cleanup';
 
 // 앱 시작 시 버전 출력 및 캐시 체크
 (() => {
@@ -1088,15 +1088,15 @@ const callGisAPIViaProxy = async (apiPath, params = {}, maxRetry = 3) => {
       if (response.ok) {
         const result = await response.json();
         if (result.success && result.data) {
-          console.log(` GIS API ${apiPath} 성공 (${result.elapsedMs}ms)`);
+          console.log(`✅ GIS API ${apiPath} 성공 (${result.elapsedMs}ms)`);
           return result.data;
         }
-        console.warn(` GIS API ${apiPath} 응답 실패:`, result.error || '알 수 없는 오류');
+        console.warn(`⚠️ GIS API ${apiPath} 응답 실패:`, result.error || '알 수 없는 오류');
       } else {
-        console.warn(` GIS API ${apiPath} HTTP 오류:`, response.status);
+        console.warn(`⚠️ GIS API ${apiPath} HTTP 오류:`, response.status);
       }
     } catch (e) {
-      console.warn(` GIS API ${apiPath} 호출 실패 (${attempt}/${maxRetry}):`, e.message);
+      console.warn(`⚠️ GIS API ${apiPath} 호출 실패 (${attempt}/${maxRetry}):`, e.message);
       if (attempt < maxRetry) {
         await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
       }
@@ -1127,12 +1127,12 @@ const callOpenAPIViaProxy = async (apiName, apiPath, params = {}) => {
     if (response.ok) {
       const result = await response.json();
       if (result.success && result.data) {
-        console.log(` OpenAPI ${apiName} 성공`);
+        console.log(`✅ OpenAPI ${apiName} 성공`);
         return result.data;
       }
     }
   } catch (e) {
-    console.warn(` OpenAPI ${apiName} 호출 실패:`, e.message);
+    console.warn(`⚠️ OpenAPI ${apiName} 호출 실패:`, e.message);
   }
   return null;
 };
@@ -1222,19 +1222,19 @@ const callSbizAPI = async (endpoint, params = {}, maxRetry = 3) => {
         if (result.success && result.data) {
           // 새 API는 resultCode: 'SUCCESS' 형태
           if (result.data.resultCode === 'SUCCESS') {
-            console.log(` 새 API ${endpoint.split('/').pop()} 성공`);
+            console.log(`✅ 새 API ${endpoint.split('/').pop()} 성공`);
             return result.data.data;
           }
           // 배열 형태 응답 (좌표→행정동)
           if (Array.isArray(result.data)) {
-            console.log(` 새 API ${endpoint.split('/').pop()} 성공`);
+            console.log(`✅ 새 API ${endpoint.split('/').pop()} 성공`);
             return result.data;
           }
         }
       }
-      console.warn(` 새 API ${endpoint} 응답 실패 (${attempt}/${maxRetry})`);
+      console.warn(`⚠️ 새 API ${endpoint} 응답 실패 (${attempt}/${maxRetry})`);
     } catch (e) {
-      console.warn(` 새 API ${endpoint} 호출 실패 (${attempt}/${maxRetry}):`, e.message);
+      console.warn(`⚠️ 새 API ${endpoint} 호출 실패 (${attempt}/${maxRetry}):`, e.message);
       if (attempt < maxRetry) {
         await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
       }
@@ -1256,7 +1256,7 @@ const getCoordToDongCd = async (lat, lng) => {
       const result = await response.json();
       if (result.success && result.data && result.data.length > 0) {
         const dong = result.data[0];
-        console.log(` 행정동: ${dong.dongNm} (${dong.dongCd})`);
+        console.log(`✅ 행정동: ${dong.dongNm} (${dong.dongCd})`);
         return {
           dongCd: dong.dongCd,
           dongNm: dong.dongNm,
@@ -1615,8 +1615,8 @@ const FRANCHISE_DATA = {
     가맹비: 550, 교육비: 330, 보증금: 200, 기타비용: 5599, 
     인테리어: 1540, // 33㎡(10평) 기준
     총비용: '약 6,679만원 (10평 기준, 임대료/권리금 별도)',
-    아메리카노: 2000, 로열티월: null, 광고비월: null, 
-    매장수: 3038, // 2024년 기준
+    아메리카노: 2000, 로열티월: 15, 광고비월: null, // 공정위 기준 월 15만원
+    매장수: 3889, // 2025년 1월 기준
     연평균매출: 28600, // 만원, 2022년 기준
     폐업률: 0.52, // %, 2023년 기준
     카테고리: '저가',
@@ -1633,8 +1633,8 @@ const FRANCHISE_DATA = {
     가맹비: 550, 교육비: 220, 보증금: 500, 기타비용: 9159,
     인테리어: 1600, // 33㎡(10평) 기준
     총비용: '약 1억 429만원 (10평 기준, 임대료/권리금 별도)',
-    아메리카노: 1500, 로열티월: null, 광고비월: null,
-    매장수: 2500, // 2024년 기준
+    아메리카노: 1800, 로열티월: 20, 광고비월: null, // 공정위 기준 월 20만원 (2025년 가격 인상)
+    매장수: 3000, // 2025년 9월 기준
     연평균매출: null, // 미확인
     폐업률: 0.63, // %, 2023년 기준
     평균영업기간: '1년 6개월', // 저가 커피 중 가장 짧음
@@ -1652,8 +1652,8 @@ const FRANCHISE_DATA = {
     가맹비: 330, 교육비: 330, 보증금: 500, 기타비용: 6827,
     인테리어: 1672, // 33㎡(10평) 기준
     총비용: '약 7,987만원 (10평 기준, 임대료/권리금 별도)',
-    아메리카노: 2000, 로열티월: null, 광고비월: null,
-    매장수: 1514, // 2024년 3월 기준
+    아메리카노: 2000, 로열티월: 25, 광고비월: null, // 공정위 기준 월 25만원
+    매장수: 1819, // 2025년 2분기 기준
     연평균매출: 29000, // 만원, 2022년 기준 (최고)
     폐업률: 1.38, // %, 2023년 기준
     카테고리: '저가',
@@ -1670,7 +1670,7 @@ const FRANCHISE_DATA = {
     가맹비: null, 교육비: null, 보증금: null, 기타비용: null,
     인테리어: 1760, // 33㎡(10평) 기준
     총비용: '약 7,975만원 (10평 기준, 임대료/권리금 별도)',
-    아메리카노: 1500, 로열티월: null, 광고비월: null,
+    아메리카노: 1500, 로열티월: 16.5, 광고비월: null, // 공정위 기준 월 16.5만원
     매장수: 1360, // 2024년 기준
     연평균매출: null,
     폐업률: null,
@@ -1707,8 +1707,8 @@ const FRANCHISE_DATA = {
     가맹비: null, 교육비: null, 보증금: null, 기타비용: null,
     인테리어: 4180, // 66㎡(20평) 기준, 평당 209만원
     총비용: '약 1억 2,913만원 (20평 기준, 임대료/권리금 별도)',
-    아메리카노: 3300, 로열티월: null, 광고비월: null,
-    매장수: 3019, // 2024년 기준
+    아메리카노: 3300, 로열티월: 27.5, 광고비월: null, // 공정위 기준 월 27.5만원
+    매장수: 2581, // 2024년말 기준
     연평균매출: 18033, // 만원, 2022년 기준
     폐업률: 2.8, // %, 저가 대비 높음
     카테고리: '중저가',
@@ -1921,6 +1921,62 @@ const VERIFIED_STATISTICS = {
 // 과거 데이터 호환성을 위한 별칭 (기존 코드 동작 보장)
 FRANCHISE_DATA['메가커피'] = FRANCHISE_DATA['메가MGC커피'];
 FRANCHISE_DATA['이디야'] = FRANCHISE_DATA['이디야커피'];
+
+// ═══════════════════════════════════════════════════════════════
+// 가맹 가능 브랜드만 필터링 (직영 전용 브랜드 제외)
+// 스타벅스, 폴바셋 등 직영 전용 브랜드는 창업 비교 대상에서 제외
+// ═══════════════════════════════════════════════════════════════
+const DIRECT_OPERATION_BRANDS = ['스타벅스', '폴바셋', '블루보틀']; // 직영 전용 브랜드
+
+const getAvailableFranchises = () => {
+  return Object.entries(FRANCHISE_DATA)
+    .filter(([name, data]) => {
+      // 직영 전용 브랜드 제외
+      if (DIRECT_OPERATION_BRANDS.includes(name)) return false;
+      // 총비용에 "가맹 불가" 포함된 브랜드 제외
+      if (data.총비용 && data.총비용.includes('가맹 불가')) return false;
+      // 별칭(메가커피, 이디야)은 중복이므로 제외
+      if (name === '메가커피' || name === '이디야') return false;
+      return true;
+    })
+    .reduce((acc, [name, data]) => {
+      acc[name] = data;
+      return acc;
+    }, {});
+};
+
+// ═══════════════════════════════════════════════════════════════
+// 프랜차이즈 AI 분석 프롬프트 (시장 현실 반영)
+// ═══════════════════════════════════════════════════════════════
+const FRANCHISE_AI_ANALYSIS_PROMPT = `당신은 카페 창업 컨설턴트입니다. 프랜차이즈 브랜드를 분석할 때 다음 시장 현실을 반드시 반영하세요.
+
+[핵심 경고 지표 - 반드시 언급]
+- 본사 영업이익 140% 증가 vs 가맹점 평당매출 1.5% 증가 (2020-2024)
+- 광고를 하더라도 결국 본사만 성장하는 구조. 점주 매출 상승 효과 제한적
+- 가맹점 폐업률 2.4% → 4.6% 증가
+- 숙박·음식점업 5년 생존율 22.8% (전 업종 최저)
+
+[브랜드별 주의사항]
+- 컴포즈커피: 평균 영업기간 1년 6개월 (업계 최단)
+- 저가 커피: 매출 높아 보여도 순이익 300~400만원 수준
+- 매장수 급증 브랜드 = 내 상권에 경쟁점 생길 확률 높음
+- 명의변경 건수 증가 = 기존 점주 운영 포기 후 매각
+
+[분석 원칙]
+- 긍정적 요소와 리스크를 균형있게 제시
+- 출처 없는 숫자 사용 금지
+- 창업자가 스스로 판단할 수 있도록 객관적 정보 제공
+- "~에요", "~거든요" 등 편한 말투 사용
+
+[응답 형식]
+JSON으로 응답. 모든 필드 필수:
+{
+  "summary": "브랜드 한줄 평가 (20자 내외)",
+  "strengths": ["강점1", "강점2"],
+  "risks": ["리스크1", "리스크2", "리스크3"],
+  "marketWarning": "시장 구조적 문제 언급 (본사 vs 가맹점)",
+  "recommendation": "창업 고려 시 체크포인트"
+}`;
 
 // ═══════════════════════════════════════════════════════════════
 // 날씨별 매출 영향 데이터 (상권 유형별) - 추정치
@@ -2420,6 +2476,9 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
  const [franchiseSearch, setFranchiseSearch] = useState('');
  const [selectedFranchise, setSelectedFranchise] = useState(null);
  const [franchiseIssueExpanded, setFranchiseIssueExpanded] = useState({});
+ const [franchiseAiAnalysis, setFranchiseAiAnalysis] = useState({}); // 브랜드별 AI 분석 결과
+ const [franchiseAiLoading, setFranchiseAiLoading] = useState({}); // AI 분석 로딩 상태
+ const [franchiseNewsUrls, setFranchiseNewsUrls] = useState({}); // 브랜드별 뉴스 URL
  
  const [syncStatus, setSyncStatus] = useState('connecting');
  const [dataLoaded, setDataLoaded] = useState(false);
@@ -3921,11 +3980,11 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
            opportunities: [],
            risks: [],
            startupCost: {
-             deposit: '-',
-             premium: '-',
-             interior: '-',
-             equipment: '-',
-             total: '-'
+             deposit: '약 3,000~5,000만원 (추정)',
+             premium: '약 5,000만원~1.5억원 (추정)',
+             interior: '약 5,000~8,000만원 (15평 기준)',
+             equipment: '약 2,000~3,000만원',
+             total: '약 1.5~3억원 (추정)'
            }
          },
          query,
@@ -4551,7 +4610,7 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
 - 출처 없는 숫자 사용 금지
 
 [AI피드백 핵심 원칙]
-1. "상담 시 질문할 것"  → "상담 전 생각할 것" ⭕
+1. "상담 시 질문할 것" ❌ → "상담 전 생각할 것" ⭕
 2. 창업자가 스스로 판단하고 행동할 수 있는 방향 제시
 3. 구체적 예산/가격 함부로 적지 않음 (기준이 될 수 있음)
 4. 필요한 특징과 고려사항만 제시
@@ -4946,11 +5005,11 @@ ${hasApiData ? '중요: 수집된 GIS API 데이터의 실제 숫자를 반드�
            { title: '경쟁 분석 필요', detail: '정확한 리스크 분석을 위해 추가 데이터가 필요합니다.', impact: '중' }
          ],
          startupCost: {
-           deposit: '-',
-           premium: '-',
-           interior: '-',
-           equipment: '-',
-           total: '-'
+           deposit: '약 3,000-5,000만원 (추정)',
+           premium: '약 5,000만원-1.5억원 (추정)',
+           interior: '약 5,000-8,000만원 (15평 기준)',
+           equipment: '약 2,000-3,000만원',
+           total: '약 1.5-3억원 (추정)'
          },
          // 창업지원 효과 - 중소벤처기업부 공식 통계 (2017년 기준, 2019년 발표)
          // 이 데이터는 "정부 창업지원 프로그램" 효과이며, 특정 업체 컨설팅 효과가 아닙니다.
@@ -5014,76 +5073,6 @@ ${hasApiData ? '중요: 수집된 GIS API 데이터의 실제 숫자를 반드�
  btn.classList.remove('text-neutral-700');
  }, 1500);
  }
- };
- 
- // PDF 다운로드 함수 (워터마크 포함)
- const downloadPDF = async (elementId, filename) => {
-   try {
-     // html2canvas와 jspdf 동적 로드
-     const html2canvasScript = document.createElement('script');
-     html2canvasScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-     document.head.appendChild(html2canvasScript);
-     
-     const jspdfScript = document.createElement('script');
-     jspdfScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-     document.head.appendChild(jspdfScript);
-     
-     // 스크립트 로드 대기
-     await new Promise(resolve => setTimeout(resolve, 1000));
-     
-     const element = document.getElementById(elementId);
-     if (!element) {
-       alert('PDF 생성 실패: 요소를 찾을 수 없습니다.');
-       return;
-     }
-     
-     // html2canvas로 캡처
-     const canvas = await window.html2canvas(element, {
-       scale: 2,
-       useCORS: true,
-       logging: false,
-       backgroundColor: '#1a1a1a'
-     });
-     
-     const imgData = canvas.toDataURL('image/png');
-     const pdf = new window.jspdf.jsPDF('p', 'mm', 'a4');
-     
-     const pdfWidth = pdf.internal.pageSize.getWidth();
-     const pdfHeight = pdf.internal.pageSize.getHeight();
-     const imgWidth = pdfWidth - 20;
-     const imgHeight = (canvas.height * imgWidth) / canvas.width;
-     
-     let heightLeft = imgHeight;
-     let position = 10;
-     
-     // 첫 페이지
-     pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
-     heightLeft -= pdfHeight - 20;
-     
-     // 추가 페이지
-     while (heightLeft > 0) {
-       position = heightLeft - imgHeight + 10;
-       pdf.addPage();
-       pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
-       heightLeft -= pdfHeight - 20;
-     }
-     
-     // 워터마크 추가 (모든 페이지)
-     const totalPages = pdf.internal.getNumberOfPages();
-     for (let i = 1; i <= totalPages; i++) {
-       pdf.setPage(i);
-       pdf.setFontSize(12);
-       pdf.setTextColor(150, 150, 150);
-       pdf.text('BeanCraft Consulting', pdfWidth - 50, pdfHeight - 10);
-       pdf.setFontSize(8);
-       pdf.text('www.beancraft.co.kr', pdfWidth - 45, pdfHeight - 5);
-     }
-     
-     pdf.save(filename);
-   } catch (error) {
-     console.error('PDF 생성 오류:', error);
-     alert('PDF 생성 중 오류가 발생했습니다.');
-   }
  };
  
  // 팀 피드백 저장 함수 (Firebase 연동)
@@ -10788,29 +10777,22 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
                  {/* 검색 결과 */}
                  {salesModeSearchResult?.success && (
-                   <div className="space-y-3" id="sales-mode-result">
+                   <div className="space-y-3">
                      {/* 지역명 헤더 (신뢰도/기준일 삭제, 출처보기 아이콘으로 이동) */}
                      <FadeInSection delay={0}>
                        <div className={`p-4 rounded-xl border backdrop-blur ${theme === 'dark' ? 'bg-neutral-800/80 border-neutral-700' : 'bg-white/80 border-neutral-200'}`}>
                          <div className="flex items-center justify-between">
                            <p className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-neutral-900'}`}>
-                              {salesModeSearchResult.data?.region || '상권 분석 결과'}
+                             📍 {salesModeSearchResult.data?.region || '상권 분석 결과'}
                            </p>
                            <div className="flex items-center gap-2">
                              <ApiStatusIndicator hasData={salesModeSearchResult.data?.hasApiData} />
-                             <button 
-                               onClick={() => downloadPDF('sales-mode-result', `BeanCraft_${salesModeSearchResult.data?.region || '상권분석'}_${new Date().toLocaleDateString('ko-KR').replace(/\./g, '')}.pdf`)}
-                               className={`p-2 rounded-lg ${theme === 'dark' ? 'hover:bg-neutral-700' : 'hover:bg-neutral-100'}`}
-                               title="PDF 다운로드"
-                             >
-                               <span className="text-sm">PDF</span>
-                             </button>
                              <button 
                                onClick={() => setSalesModeShowSources(!salesModeShowSources)}
                                className={`p-2 rounded-lg ${theme === 'dark' ? 'hover:bg-neutral-700' : 'hover:bg-neutral-100'}`}
                                title="출처 보기"
                              >
-                               <span className="text-sm">출처</span>
+                               <span className="text-sm">📋</span>
                              </button>
                            </div>
                          </div>
@@ -10819,19 +10801,19 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
                      {/* 2. 상권 개요 - 카운트업 애니메이션 적용 */}
                      <FadeInSection delay={0.1}>
-                       <Accordion title="상권 개요" icon="" defaultOpen={true} theme={theme}>
+                       <Accordion title="상권 개요" icon="📊" defaultOpen={true} theme={theme}>
                          <div className="space-y-3">
                            {/* 핵심 지표 그리드 */}
                            <div className="grid grid-cols-2 gap-3">
                              <DataCard 
                                title="카페 수" 
                                value={cleanJsonText(salesModeSearchResult.data?.overview?.cafeCount) || '-'}
-                               icon="" theme={theme}
+                               icon="☕" theme={theme}
                              />
                              <DataCard 
                                title="일 유동인구" 
                                value={cleanJsonText(salesModeSearchResult.data?.overview?.floatingPop) || '-'}
-                               icon="" theme={theme}
+                               icon="👥" theme={theme}
                              />
                            </div>
                            
@@ -10860,7 +10842,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
                      {/* 3. 주요 소비층 */}
                      <FadeInSection delay={0.3}>
-                       <Accordion title="주요 소비층" icon="" defaultOpen={true} theme={theme}>
+                       <Accordion title="주요 소비층" icon="👤" defaultOpen={true} theme={theme}>
                          <div className="space-y-3">
                            <div className="grid grid-cols-2 gap-3">
                              <div className={`p-4 rounded-lg border ${theme === 'dark' ? 'bg-blue-500/20 border-blue-500/30' : 'bg-blue-50 border-blue-200'}`}>
@@ -10899,7 +10881,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
                      {/* 4. 프랜차이즈 현황 */}
                      <FadeInSection delay={0.4}>
-                       <Accordion title="프랜차이즈 경쟁 현황" icon="" defaultOpen={false} theme={theme}>
+                       <Accordion title="프랜차이즈 경쟁 현황" icon="🏪" defaultOpen={false} theme={theme}>
                          <div className="space-y-2">
                            {(salesModeSearchResult.data?.franchise || []).map((f, idx) => (
                              <div key={idx} className={`flex items-center justify-between p-3 rounded-lg transition-colors ${theme === 'dark' ? 'bg-neutral-700/50 hover:bg-neutral-700' : 'bg-neutral-100 hover:bg-neutral-200'}`}>
@@ -10928,7 +10910,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                      {/* 4.5 SNS 트렌드 분석 */}
                      {salesModeSearchResult.collectedData?.apis?.snsTrend?.data && (
                        <FadeInSection delay={0.45}>
-                         <Accordion title="SNS 트렌드 분석" icon="" defaultOpen={false} theme={theme}>
+                         <Accordion title="SNS 트렌드 분석" icon="📱" defaultOpen={false} theme={theme}>
                          
                            {/* 인기/부정 키워드 */}
                            <div className="grid grid-cols-2 gap-3 mb-4">
@@ -11006,7 +10988,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                      {/* 4.6 확장프로그램 매물 데이터 */}
                      {salesModeSearchResult.collectedData?.apis?.extensionNaverRealEstate?.data && (
                        <FadeInSection delay={0.5}>
-                         <Accordion title="실시간 매물 데이터" icon="" badge="확장프로그램" defaultOpen={false} theme={theme}>
+                         <Accordion title="실시간 매물 데이터" icon="🏠" badge="확장프로그램" defaultOpen={false} theme={theme}>
                          
                          <div className="grid grid-cols-2 gap-3 mb-4">
                            <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-700' : 'bg-neutral-200'}`}>
@@ -11173,7 +11155,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                        <FadeInSection delay={0.65}>
                          <div className={`${theme === 'dark' ? 'bg-neutral-800' : 'bg-neutral-100'} p-5 rounded-xl border border-neutral-700`}>
                            <h3 className={`font-bold ${t.text} mb-4 flex items-center gap-2`}>
-                             <span className={`w-6 h-6 rounded border border-neutral-500 ${t.text} flex items-center justify-center text-xs font-bold`}></span>
+                             <span className={`w-6 h-6 rounded border border-neutral-500 ${t.text} flex items-center justify-center text-xs font-bold`}>🎉</span>
                              관광/축제 정보
                            </h3>
                          
@@ -11212,7 +11194,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                        <FadeInSection delay={0.7}>
                          <div className={`${theme === 'dark' ? 'bg-neutral-800' : 'bg-neutral-100'} p-5 rounded-xl border border-neutral-700`}>
                            <h3 className={`font-bold ${t.text} mb-4 flex items-center gap-2`}>
-                             <span className={`w-6 h-6 rounded border border-neutral-500 ${t.text} flex items-center justify-center text-xs font-bold`}></span>
+                             <span className={`w-6 h-6 rounded border border-neutral-500 ${t.text} flex items-center justify-center text-xs font-bold`}>📈</span>
                              매출추이
                            </h3>
                          
@@ -11269,7 +11251,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                        <FadeInSection delay={0.75}>
                          <div className={`${theme === 'dark' ? 'bg-neutral-800' : 'bg-neutral-100'} p-5 rounded-xl border border-neutral-700`}>
                            <h3 className={`font-bold ${t.text} mb-4 flex items-center gap-2`}>
-                             <span className={`w-6 h-6 rounded border border-neutral-500 ${t.text} flex items-center justify-center text-xs font-bold`}></span>
+                             <span className={`w-6 h-6 rounded border border-neutral-500 ${t.text} flex items-center justify-center text-xs font-bold`}>🌤️</span>
                              창업기상도
                            </h3>
                          
@@ -11284,9 +11266,9 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                                      salesModeSearchResult.collectedData.apis.startupWeather.data.data.wthGrd === '흐림' ? 'bg-neutral-700' :
                                      'bg-neutral-600'
                                    }`}>
-                                     {salesModeSearchResult.collectedData.apis.startupWeather.data.data.wthGrd === '맑음' ? '' :
-                                      salesModeSearchResult.collectedData.apis.startupWeather.data.data.wthGrd === '구름조금' ? '' :
-                                      salesModeSearchResult.collectedData.apis.startupWeather.data.data.wthGrd === '흐림' ? '' : ''}
+                                     {salesModeSearchResult.collectedData.apis.startupWeather.data.data.wthGrd === '맑음' ? '☀️' :
+                                      salesModeSearchResult.collectedData.apis.startupWeather.data.data.wthGrd === '구름조금' ? '⛅' :
+                                      salesModeSearchResult.collectedData.apis.startupWeather.data.data.wthGrd === '흐림' ? '☁️' : '🌧️'}
                                    </div>
                                  </div>
                                
@@ -11333,7 +11315,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                        <FadeInSection delay={0.8}>
                          <div className={`${theme === 'dark' ? 'bg-neutral-800' : 'bg-neutral-100'} p-5 rounded-xl border border-neutral-700`}>
                            <h3 className={`font-bold ${t.text} mb-4 flex items-center gap-2`}>
-                             <span className={`w-6 h-6 rounded border border-neutral-500 ${t.text} flex items-center justify-center text-xs font-bold`}></span>
+                             <span className={`w-6 h-6 rounded border border-neutral-500 ${t.text} flex items-center justify-center text-xs font-bold`}>🔥</span>
                              핫플레이스 Top10
                            </h3>
                          
@@ -11907,7 +11889,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
    className={`p-1.5 rounded-lg transition-all ${theme === 'dark' ? 'hover:bg-white/10 text-neutral-400 hover:text-white' : 'hover:bg-neutral-100 text-neutral-500 hover:text-neutral-900'}`}
    title={theme === 'dark' ? '라이트 모드' : '다크 모드'}
  >
-   {theme === 'dark' ? '' : ''}
+   {theme === 'dark' ? '☀️' : '🌙'}
  </button>
  <button type="button" onClick={logout} className={`text-xs font-medium transition-colors ${theme === 'dark' ? 'text-neutral-500 hover:text-white' : 'text-neutral-500 hover:text-neutral-900'}`}>로그아웃</button>
  </div>
@@ -11930,7 +11912,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
    onClick={toggleTheme}
    className={`p-1.5 rounded-lg transition-all ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}
  >
-   {theme === 'dark' ? '' : ''}
+   {theme === 'dark' ? '☀️' : '🌙'}
  </button>
  <button type="button" onClick={logout} className={`text-sm font-medium transition-colors ${theme === 'dark' ? 'text-neutral-400 hover:text-white' : 'text-neutral-500 hover:text-neutral-900'}`}>나가기</button>
  </div>
@@ -13712,12 +13694,18 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
 
  {/* ═══════════════════════════════════════════════════════════════════════════════
- 프랜차이즈 vs 빈크래프트 비용 비교표 (상세페이지 스타일)
+ 프랜차이즈 브랜드 분석 (AI 동적 생성)
  ═══════════════════════════════════════════════════════════════════════════════ */}
  <div className={`rounded-2xl p-4 break-inside-avoid mb-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
  <h3 className={`font-bold ${t.text} mb-4 text-lg`}>
- 프랜차이즈 vs 빈크래프트 비용 비교
+ 프랜차이즈 브랜드 분석
  </h3>
+ 
+ {/* 시장 경고 배너 */}
+ <div className={`mb-4 p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-700 border-neutral-600' : 'bg-neutral-100 border-neutral-300'}`}>
+   <p className={`text-xs font-medium mb-1 ${t.text}`}>시장 구조적 문제 (2020-2024)</p>
+   <p className={`text-xs ${t.textMuted}`}>본사 영업이익 140% 증가 vs 가맹점 평당매출 1.5% 증가. 광고해도 점주 매출 상승 효과 제한적.</p>
+ </div>
  
  {/* 프랜차이즈 검색 */}
  <div className="mb-4">
@@ -13726,140 +13714,300 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
      value={franchiseSearch}
      onChange={e => setFranchiseSearch(e.target.value)}
      placeholder="업체 검색"
-     className="w-full px-4 py-3 rounded-lg bg-neutral-50 border border-neutral-200 text-neutral-800 placeholder-neutral-400 focus:outline-none focus:border-neutral-400 text-sm"
+     className={`w-full px-4 py-3 rounded-lg border text-sm focus:outline-none focus:border-neutral-400 ${theme === 'dark' ? 'bg-neutral-700 border-neutral-600 text-neutral-100 placeholder-neutral-400' : 'bg-neutral-50 border-neutral-200 text-neutral-800 placeholder-neutral-400'}`}
    />
    {franchiseSearch && (
      <div className={`mt-2 max-h-48 overflow-y-auto rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-neutral-200'}`}>
-       {Object.keys(FRANCHISE_DATA)
+       {Object.keys(getAvailableFranchises())
          .filter(name => name.toLowerCase().includes(franchiseSearch.toLowerCase()))
          .slice(0, 10)
          .map(name => (
            <button
              key={name}
              onClick={() => { setSelectedFranchise(name); setFranchiseSearch(''); }}
-             className="w-full text-left px-4 py-2 hover:bg-neutral-50 text-sm text-neutral-800 border-b border-neutral-100 last:border-b-0"
+             className={`w-full text-left px-4 py-2 text-sm border-b last:border-b-0 ${theme === 'dark' ? 'hover:bg-neutral-700 text-neutral-200 border-neutral-700' : 'hover:bg-neutral-50 text-neutral-800 border-neutral-100'}`}
            >
-             {name} <span className={`text-xs ${t.textMuted}`}>({FRANCHISE_DATA[name].카테고리})</span>
+             {name} <span className={`text-xs ${t.textMuted}`}>({FRANCHISE_DATA[name]?.카테고리})</span>
            </button>
          ))}
-       {Object.keys(FRANCHISE_DATA).filter(name => name.toLowerCase().includes(franchiseSearch.toLowerCase())).length === 0 && (
-         <p className="px-4 py-2 text-sm text-neutral-400">검색 결과가 없습니다</p>
+       {Object.keys(getAvailableFranchises()).filter(name => name.toLowerCase().includes(franchiseSearch.toLowerCase())).length === 0 && (
+         <p className={`px-4 py-2 text-sm ${t.textMuted}`}>검색 결과가 없습니다</p>
        )}
      </div>
    )}
  </div>
 
- {/* 선택된 프랜차이즈 비교 테이블 */}
- {selectedFranchise && FRANCHISE_DATA[selectedFranchise] && (
-   <div className="mb-4 p-4 border border-neutral-300 rounded-xl bg-neutral-50">
+ {/* 선택된 프랜차이즈 상세 카드 */}
+ {selectedFranchise && FRANCHISE_DATA[selectedFranchise] && (() => {
+   const data = FRANCHISE_DATA[selectedFranchise];
+   const isDirectOnly = data.총비용?.includes('가맹 불가');
+   
+   // AI 분석 호출 함수
+   const analyzeWithAI = async () => {
+     if (franchiseAiAnalysis[selectedFranchise] || franchiseAiLoading[selectedFranchise]) return;
+     
+     setFranchiseAiLoading(prev => ({...prev, [selectedFranchise]: true}));
+     
+     try {
+       const prompt = `${FRANCHISE_AI_ANALYSIS_PROMPT}
+
+[분석 대상 브랜드]
+브랜드명: ${selectedFranchise}
+카테고리: ${data.카테고리}
+매장수: ${data.매장수 ? `약 ${data.매장수.toLocaleString()}개` : '미확인'}
+총비용: ${data.총비용}
+폐업률: ${data.폐업률 !== null ? `${data.폐업률}%` : '미확인'}
+연평균매출: ${data.연평균매출 ? `${(data.연평균매출/10000).toFixed(1)}억원` : '미확인'}
+평균영업기간: ${data.평균영업기간 || '미확인'}
+기존 이슈: ${data.이슈?.join(', ') || '없음'}
+
+위 데이터를 기반으로 이 브랜드를 분석해주세요.`;
+
+       const response = await fetch(
+         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`,
+         {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify({
+             contents: [{ parts: [{ text: prompt }] }],
+             generationConfig: { temperature: 0.7, maxOutputTokens: 1000 }
+           })
+         }
+       );
+       
+       const result = await response.json();
+       const text = result?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+       
+       // JSON 파싱 시도
+       const jsonMatch = text.match(/\{[\s\S]*\}/);
+       if (jsonMatch) {
+         const parsed = JSON.parse(jsonMatch[0]);
+         setFranchiseAiAnalysis(prev => ({...prev, [selectedFranchise]: parsed}));
+       }
+     } catch (e) {
+       console.log('AI 분석 실패:', e.message);
+     } finally {
+       setFranchiseAiLoading(prev => ({...prev, [selectedFranchise]: false}));
+     }
+   };
+   
+   // 뉴스 URL 검색 함수
+   const searchNewsUrl = async (issue) => {
+     const searchQuery = `${selectedFranchise} ${issue}`;
+     const cacheKey = `${selectedFranchise}_${issue}`;
+     
+     if (franchiseNewsUrls[cacheKey]) {
+       window.open(franchiseNewsUrls[cacheKey], '_blank');
+       return;
+     }
+     
+     try {
+       const response = await fetch(
+         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`,
+         {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify({
+             contents: [{ parts: [{ text: `"${searchQuery}" 관련 최신 뉴스 기사 URL을 하나만 알려주세요. 반드시 실제 존재하는 URL이어야 합니다. URL만 출력하세요. (예: https://news.example.com/article/123)` }] }],
+             generationConfig: { temperature: 0.3, maxOutputTokens: 200 },
+             tools: [{ googleSearch: {} }]
+           })
+         }
+       );
+       
+       const result = await response.json();
+       const text = result?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+       const urlMatch = text.match(/https?:\/\/[^\s"<>]+/);
+       
+       if (urlMatch) {
+         setFranchiseNewsUrls(prev => ({...prev, [cacheKey]: urlMatch[0]}));
+         window.open(urlMatch[0], '_blank');
+       } else {
+         // 검색 결과 없으면 네이버 뉴스 검색으로 이동
+         window.open(`https://search.naver.com/search.naver?where=news&query=${encodeURIComponent(searchQuery)}`, '_blank');
+       }
+     } catch (e) {
+       // 오류 시 네이버 뉴스 검색으로 이동
+       window.open(`https://search.naver.com/search.naver?where=news&query=${encodeURIComponent(searchQuery)}`, '_blank');
+     }
+   };
+   
+   return (
+   <div className={`mb-4 p-4 border rounded-xl ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-neutral-50 border-neutral-300'}`}>
      <div className="flex items-center justify-between mb-3">
-       <h4 className={`font-bold ${t.text}`}>{selectedFranchise} vs 빈크래프트</h4>
-       <button onClick={() => setSelectedFranchise(null)} className="text-neutral-400 hover:text-neutral-600 text-sm">닫기</button>
+       <h4 className={`font-bold text-lg ${t.text}`}>{selectedFranchise}</h4>
+       <button onClick={() => setSelectedFranchise(null)} className={`${t.textMuted} hover:text-neutral-600 text-sm`}>닫기</button>
      </div>
      
-     {/* 검증 데이터 기준 안내 */}
-     <div className="mb-3 p-2 bg-amber-50 border border-amber-200 rounded-lg">
-       <p className="text-xs text-amber-700">
-         공정위 정보공개서 기반 검증 데이터입니다. "미확인" 항목은 공식 데이터가 없거나 비공개 상태입니다.
-       </p>
+     {/* 직영 전용 브랜드 경고 */}
+     {isDirectOnly && (
+       <div className={`mb-3 p-2 rounded-lg border ${theme === 'dark' ? 'bg-neutral-700 border-neutral-600' : 'bg-neutral-100 border-neutral-300'}`}>
+         <p className={`text-xs font-medium ${t.text}`}>이 브랜드는 가맹 불가 (직영 전용)입니다. 참고용으로만 확인하세요.</p>
+       </div>
+     )}
+     
+     {/* 기본 정보 */}
+     <div className={`grid grid-cols-2 gap-3 mb-4 p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-700' : 'bg-white'}`}>
+       <div>
+         <p className={`text-xs ${t.textMuted}`}>매장수</p>
+         <p className={`font-bold ${t.text}`}>{data.매장수 ? `${data.매장수.toLocaleString()}개` : '미확인'}</p>
+       </div>
+       <div>
+         <p className={`text-xs ${t.textMuted}`}>아메리카노</p>
+         <p className={`font-bold ${t.text}`}>{data.아메리카노 ? `${data.아메리카노.toLocaleString()}원` : '미확인'}</p>
+       </div>
+       <div>
+         <p className={`text-xs ${t.textMuted}`}>총 창업비용</p>
+         <p className={`font-bold ${t.text}`}>{data.총비용 || '미확인'}</p>
+       </div>
+       <div>
+         <p className={`text-xs ${t.textMuted}`}>카테고리</p>
+         <p className={`font-bold ${t.text}`}>{data.카테고리}</p>
+       </div>
      </div>
      
-     <table className="w-full text-sm">
-       <thead>
-         <tr className="border-b border-neutral-200">
-           <th className="py-2 px-2 text-left text-neutral-500">항목</th>
-           <th className="py-2 px-2 text-center text-neutral-800">{selectedFranchise}</th>
-           <th className="py-2 px-2 text-center text-[#1e3a5f]">빈크래프트</th>
-         </tr>
-       </thead>
-       <tbody>
-         <tr className="border-b border-neutral-100">
-           <td className="py-2 px-2">가맹비</td>
-           <td className="py-2 px-2 text-center">{FRANCHISE_DATA[selectedFranchise].가맹비 !== null ? `${FRANCHISE_DATA[selectedFranchise].가맹비}만원` : <span className={`${t.textMuted}`}>미확인</span>}</td>
-           <td className="py-2 px-2 text-center font-bold text-[#1e3a5f]">0원</td>
-         </tr>
-         <tr className="border-b border-neutral-100">
-           <td className="py-2 px-2">교육비</td>
-           <td className="py-2 px-2 text-center">{FRANCHISE_DATA[selectedFranchise].교육비 !== null ? `${FRANCHISE_DATA[selectedFranchise].교육비}만원` : <span className={`${t.textMuted}`}>미확인</span>}</td>
-           <td className="py-2 px-2 text-center text-[#1e3a5f]">컨설팅 포함</td>
-         </tr>
-         <tr className="border-b border-neutral-100">
-           <td className="py-2 px-2">보증금</td>
-           <td className="py-2 px-2 text-center">{FRANCHISE_DATA[selectedFranchise].보증금 !== null ? `${FRANCHISE_DATA[selectedFranchise].보증금}만원` : <span className={`${t.textMuted}`}>미확인</span>}</td>
-           <td className="py-2 px-2 text-center text-[#1e3a5f]">없음</td>
-         </tr>
-         <tr className="border-b border-neutral-100">
-           <td className="py-2 px-2">로열티 (월)</td>
-           <td className="py-2 px-2 text-center">{FRANCHISE_DATA[selectedFranchise].로열티월 !== null ? `${FRANCHISE_DATA[selectedFranchise].로열티월}만원` : <span className={`${t.textMuted}`}>미확인</span>}</td>
-           <td className="py-2 px-2 text-center font-bold text-[#1e3a5f]">0원</td>
-         </tr>
-         <tr className="border-b border-neutral-100">
-           <td className="py-2 px-2">광고분담금 (월)</td>
-           <td className="py-2 px-2 text-center">{FRANCHISE_DATA[selectedFranchise].광고비월 !== null ? `${FRANCHISE_DATA[selectedFranchise].광고비월}만원` : <span className={`${t.textMuted}`}>미확인</span>}</td>
-           <td className="py-2 px-2 text-center font-bold text-[#1e3a5f]">자율 선택</td>
-         </tr>
-         <tr className="border-b border-neutral-100">
-           <td className="py-2 px-2">인테리어 (10평)</td>
-           <td className="py-2 px-2 text-center">{FRANCHISE_DATA[selectedFranchise].인테리어 !== null ? `${FRANCHISE_DATA[selectedFranchise].인테리어}만원` : <span className={`${t.textMuted}`}>미확인</span>}</td>
-           <td className="py-2 px-2 text-center text-[#1e3a5f]">400만원+별도</td>
-         </tr>
-         <tr>
-           <td className="py-2 px-2 font-bold">총 예상비용</td>
-           <td className="py-2 px-2 text-center font-bold">{FRANCHISE_DATA[selectedFranchise].총비용}</td>
-           <td className="py-2 px-2 text-center font-bold text-[#1e3a5f]">1,000만원+</td>
-         </tr>
-       </tbody>
-     </table>
+     {/* 상세 비용 테이블 */}
+     <div className={`mb-4 p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-700' : 'bg-white'}`}>
+       <p className={`text-xs font-medium mb-2 ${t.text}`}>창업 비용 상세</p>
+       <table className="w-full text-sm">
+         <tbody>
+           <tr className={`border-b ${theme === 'dark' ? 'border-neutral-600' : 'border-neutral-100'}`}>
+             <td className={`py-2 ${t.textMuted}`}>가맹비</td>
+             <td className={`py-2 text-right ${t.text}`}>{data.가맹비 !== null ? `${data.가맹비}만원` : '미확인'}</td>
+           </tr>
+           <tr className={`border-b ${theme === 'dark' ? 'border-neutral-600' : 'border-neutral-100'}`}>
+             <td className={`py-2 ${t.textMuted}`}>교육비</td>
+             <td className={`py-2 text-right ${t.text}`}>{data.교육비 !== null ? `${data.교육비}만원` : '미확인'}</td>
+           </tr>
+           <tr className={`border-b ${theme === 'dark' ? 'border-neutral-600' : 'border-neutral-100'}`}>
+             <td className={`py-2 ${t.textMuted}`}>보증금</td>
+             <td className={`py-2 text-right ${t.text}`}>{data.보증금 !== null ? `${data.보증금}만원` : '미확인'}</td>
+           </tr>
+           <tr className={`border-b ${theme === 'dark' ? 'border-neutral-600' : 'border-neutral-100'}`}>
+             <td className={`py-2 ${t.textMuted}`}>인테리어 (10평)</td>
+             <td className={`py-2 text-right ${t.text}`}>{data.인테리어 !== null ? `${data.인테리어}만원` : '미확인'}</td>
+           </tr>
+           <tr>
+             <td className={`py-2 ${t.textMuted}`}>로열티 (월)</td>
+             <td className={`py-2 text-right ${t.text}`}>{data.로열티월 !== null ? `${data.로열티월}만원` : '미확인'}</td>
+           </tr>
+         </tbody>
+       </table>
+     </div>
      
-     {/* 추가 검증 데이터 표시 */}
-     {(FRANCHISE_DATA[selectedFranchise].폐업률 !== null || FRANCHISE_DATA[selectedFranchise].연평균매출) && (
-       <div className={`mt-3 p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-neutral-200'}`}>
-         <h5 className="font-medium text-sm text-neutral-700 mb-2">검증된 실적 데이터</h5>
+     {/* 검증된 실적 데이터 */}
+     {(data.폐업률 !== null || data.연평균매출 || data.평균영업기간 || data.영업이익률) && (
+       <div className={`mb-4 p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-700' : 'bg-white'}`}>
+         <p className={`text-xs font-medium mb-2 ${t.text}`}>검증된 실적</p>
          <div className="grid grid-cols-2 gap-2 text-sm">
-           {FRANCHISE_DATA[selectedFranchise].폐업률 !== null && (
+           {data.폐업률 !== null && (
              <div>
                <span className={`${t.textMuted}`}>폐업률: </span>
-               <span className={FRANCHISE_DATA[selectedFranchise].폐업률 < 1 ? 'text-white font-medium' : 'text-white font-medium'}>
-                 {FRANCHISE_DATA[selectedFranchise].폐업률}%
+               <span className={`font-medium ${t.text}`}>
+                 {data.폐업률}%
                </span>
              </div>
            )}
-           {FRANCHISE_DATA[selectedFranchise].연평균매출 && (
+           {data.연평균매출 && (
              <div>
-               <span className={`${t.textMuted}`}>연평균 매출: </span>
-               <span className="font-medium">{(FRANCHISE_DATA[selectedFranchise].연평균매출 / 10000).toFixed(1)}억원</span>
+               <span className={`${t.textMuted}`}>연평균매출: </span>
+               <span className={`font-medium ${t.text}`}>{(data.연평균매출 / 10000).toFixed(1)}억원</span>
              </div>
            )}
-           {FRANCHISE_DATA[selectedFranchise].평균영업기간 && (
+           {data.평균영업기간 && (
              <div>
                <span className={`${t.textMuted}`}>평균 영업기간: </span>
-               <span className="font-medium">{FRANCHISE_DATA[selectedFranchise].평균영업기간}</span>
+               <span className={`font-medium ${t.text}`}>{data.평균영업기간}</span>
              </div>
            )}
-           {FRANCHISE_DATA[selectedFranchise].영업이익률 && (
+           {data.영업이익률 && (
              <div>
                <span className={`${t.textMuted}`}>영업이익률: </span>
-               <span className="font-medium">{FRANCHISE_DATA[selectedFranchise].영업이익률}%</span>
+               <span className={`font-medium ${t.text}`}>{data.영업이익률}%</span>
              </div>
            )}
          </div>
        </div>
      )}
      
-     {/* 이슈 정보 */}
-     {FRANCHISE_DATA[selectedFranchise].이슈 && (
-       <div className={`mt-3 p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-neutral-200'}`}>
+     {/* AI 분석 섹션 */}
+     <div className={`mb-4 p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-700 border-neutral-600' : 'bg-neutral-100 border-neutral-300'}`}>
+       <div className="flex items-center justify-between mb-2">
+         <p className={`text-xs font-medium ${t.text}`}>AI 분석</p>
+         {!franchiseAiAnalysis[selectedFranchise] && !franchiseAiLoading[selectedFranchise] && (
+           <button 
+             onClick={analyzeWithAI}
+             className={`text-xs px-2 py-1 rounded ${theme === 'dark' ? 'bg-neutral-600 text-white hover:bg-neutral-500' : 'bg-neutral-800 text-white hover:bg-neutral-700'}`}
+           >
+             AI 분석 시작
+           </button>
+         )}
+       </div>
+       
+       {franchiseAiLoading[selectedFranchise] && (
+         <p className={`text-sm ${t.textMuted}`}>AI가 분석 중입니다...</p>
+       )}
+       
+       {franchiseAiAnalysis[selectedFranchise] && (
+         <div className="space-y-2">
+           <p className={`text-sm font-medium ${t.text}`}>{franchiseAiAnalysis[selectedFranchise].summary}</p>
+           
+           {franchiseAiAnalysis[selectedFranchise].strengths?.length > 0 && (
+             <div>
+               <p className={`text-xs ${t.textMuted} mb-1`}>강점:</p>
+               {franchiseAiAnalysis[selectedFranchise].strengths.map((s, i) => (
+                 <p key={i} className={`text-xs ${t.text}`}>• {s}</p>
+               ))}
+             </div>
+           )}
+           
+           {franchiseAiAnalysis[selectedFranchise].risks?.length > 0 && (
+             <div>
+               <p className={`text-xs ${t.textMuted} mb-1`}>리스크:</p>
+               {franchiseAiAnalysis[selectedFranchise].risks.map((r, i) => (
+                 <p key={i} className={`text-xs ${t.text}`}>• {r}</p>
+               ))}
+             </div>
+           )}
+           
+           {franchiseAiAnalysis[selectedFranchise].marketWarning && (
+             <p className={`text-xs ${t.text} mt-2`}>{franchiseAiAnalysis[selectedFranchise].marketWarning}</p>
+           )}
+           
+           {franchiseAiAnalysis[selectedFranchise].recommendation && (
+             <p className={`text-xs ${t.text} mt-2 p-2 rounded ${theme === 'dark' ? 'bg-neutral-600' : 'bg-white'}`}>
+               {franchiseAiAnalysis[selectedFranchise].recommendation}
+             </p>
+           )}
+         </div>
+       )}
+       
+       {!franchiseAiAnalysis[selectedFranchise] && !franchiseAiLoading[selectedFranchise] && (
+         <p className={`text-xs ${t.textMuted}`}>AI 분석 버튼을 클릭하면 이 브랜드에 대한 상세 분석을 제공합니다.</p>
+       )}
+     </div>
+     
+     {/* 이슈 정보 - 클릭 시 실제 뉴스 URL 연결 */}
+     {data.이슈 && data.이슈.length > 0 && (
+       <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-700' : 'bg-white'}`}>
          <button 
            onClick={() => setFranchiseIssueExpanded(prev => ({...prev, [selectedFranchise]: !prev[selectedFranchise]}))}
            className="w-full flex items-center justify-between text-sm"
          >
-           <span className="font-medium text-neutral-700">검토 필요 사항</span>
+           <span className={`font-medium ${t.text}`}>최근 이슈 ({data.이슈.length}건)</span>
            <span className={`${t.textMuted}`}>{franchiseIssueExpanded[selectedFranchise] ? '접기' : '펼치기'}</span>
          </button>
          {franchiseIssueExpanded[selectedFranchise] && (
-           <ul className="mt-2 space-y-1">
-             {FRANCHISE_DATA[selectedFranchise].이슈.map((issue, idx) => (
-               <li key={idx} className="text-sm text-neutral-600">{issue}</li>
+           <ul className="mt-3 space-y-2">
+             {data.이슈.map((issue, idx) => (
+               <li key={idx}>
+                 <button
+                   onClick={() => searchNewsUrl(issue)}
+                   className={`text-left text-sm hover:underline ${t.text}`}
+                 >
+                   • {issue}
+                 </button>
+               </li>
              ))}
            </ul>
          )}
@@ -13867,136 +14015,80 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
      )}
      
      <p className={`text-xs mt-3 ${t.textMuted}`}>
-       매장수: {FRANCHISE_DATA[selectedFranchise].매장수 ? `약 ${FRANCHISE_DATA[selectedFranchise].매장수.toLocaleString()}개` : '미확인'} / 
-       검증일: {FRANCHISE_DATA[selectedFranchise].검증일자 || '미상'} / 
-       출처: 공정위 정보공개서
+       검증일: {data.검증일자 || '미상'} / 출처: 공정위 정보공개서
      </p>
    </div>
- )}
- 
- {/* 기본 비교 테이블 (선택 안 됐을 때) */}
- {!selectedFranchise && (
- <div className="overflow-x-auto">
- <table className="w-full text-sm">
- <thead>
- <tr className="border-b border-neutral-200">
- <th className="py-3 px-2 text-left text-neutral-500 font-medium">항목</th>
- <th className="py-3 px-2 text-center text-neutral-900 font-medium">저가 프랜차이즈</th>
- <th className="py-3 px-2 text-center text-[#1e3a5f] font-medium">빈크래프트</th>
- </tr>
- </thead>
- <tbody className={`${t.text}`}>
- <tr className="border-b border-neutral-200">
- <td className="py-3 px-2 font-medium">가맹비</td>
- <td className={`py-3 px-2 text-center ${t.text}`}>500~1,500만원</td>
- <td className="py-3 px-2 text-center text-[#1e3a5f] font-bold">0원</td>
- </tr>
- <tr className="border-b border-neutral-200">
- <td className="py-3 px-2 font-medium">교육비</td>
- <td className={`py-3 px-2 text-center ${t.text}`}>100~300만원</td>
- <td className="py-3 px-2 text-center text-[#1e3a5f]">컨설팅 포함</td>
- </tr>
- <tr className="border-b border-neutral-200">
- <td className="py-3 px-2 font-medium">컨설팅</td>
- <td className={`py-3 px-2 text-center ${t.text}`}>-</td>
- <td className="py-3 px-2 text-center text-[#1e3a5f]">1,000만원</td>
- </tr>
- <tr className="border-b border-neutral-200">
- <td className="py-3 px-2 font-medium">로열티 (월)</td>
- <td className={`py-3 px-2 text-center ${t.text}`}>15~50만원</td>
- <td className="py-3 px-2 text-center text-[#1e3a5f] font-bold">0원</td>
- </tr>
- <tr className="border-b border-neutral-200">
- <td className="py-3 px-2 font-medium">로열티 (5년)</td>
- <td className={`py-3 px-2 text-center ${t.text}`}>900~3,000만원</td>
- <td className="py-3 px-2 text-center text-[#1e3a5f] font-bold">0원</td>
- </tr>
- <tr className="border-b border-neutral-200">
- <td className="py-3 px-2 font-medium">광고분담금 (월)</td>
- <td className={`py-3 px-2 text-center ${t.text}`}>10~30만원</td>
- <td className="py-3 px-2 text-center text-[#1e3a5f] font-bold">0원</td>
- </tr>
- <tr className="border-b border-neutral-200">
- <td className="py-3 px-2 font-medium">인테리어</td>
- <td className={`py-3 px-2 text-center ${t.text}`}>본사 지정업체</td>
- <td className="py-3 px-2 text-center text-[#1e3a5f]">400만원+견적 별도</td>
- </tr>
- <tr className="border-b border-neutral-200">
- <td className="py-3 px-2 font-medium">기기설비</td>
- <td className={`py-3 px-2 text-center ${t.text}`}>본사 지정업체</td>
- <td className="py-3 px-2 text-center text-[#1e3a5f]">400만원+견적 별도</td>
- </tr>
- <tr className="border-b border-neutral-200">
- <td className="py-3 px-2 font-medium">원두공급</td>
- <td className={`py-3 px-2 text-center ${t.text}`}>본사 지정 (강제)</td>
- <td className="py-3 px-2 text-center text-[#1e3a5f]">공급가 납품 (선택)</td>
- </tr>
- <tr className="border-b border-neutral-200">
- <td className="py-3 px-2 font-medium">메뉴개발</td>
- <td className={`py-3 px-2 text-center ${t.text}`}>본사 고정메뉴</td>
- <td className="py-3 px-2 text-center text-[#1e3a5f]">400만원 (15가지)</td>
- </tr>
- <tr>
- <td className="py-3 px-2 font-medium">계약기간</td>
- <td className={`py-3 px-2 text-center ${t.text}`}>2~5년 (갱신시 추가비용)</td>
- <td className="py-3 px-2 text-center text-[#1e3a5f]">없음</td>
- </tr>
- </tbody>
- </table>
- </div>
- )}
- 
- {/* 업체별 최종 창업비용 - 검색 및 펼쳐보기 */}
+   );
+ })()}
+
+ {/* 브랜드 목록 - 가맹 가능한 브랜드만 */}
  <div className="mt-4">
- <p className="text-sm text-neutral-700 font-semibold mb-3">주요 프랜차이즈 창업비용 ({Object.keys(FRANCHISE_DATA).length}개 브랜드)</p>
- <div className="space-y-2 max-h-64 overflow-y-auto">
- {Object.entries(FRANCHISE_DATA)
-   .sort((a, b) => (b[1].매장수 || 0) - (a[1].매장수 || 0))
-   .slice(0, 10)
-   .map(([name, data]) => (
-   <div key={name} className={`rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-neutral-200'}`}>
-     <button
-       onClick={() => setFranchiseIssueExpanded(prev => ({...prev, [name]: !prev[name]}))}
-       className="w-full flex items-center justify-between p-3 hover:bg-neutral-50"
-     >
-       <div className="flex items-center gap-3 text-left">
-         <span className={`font-medium ${t.text}`}>{name}</span>
-         <span className={`text-xs ${t.textMuted}`}>가맹비 {data.가맹비}만 + 교육비 {data.교육비}만 + 인테리어/기기</span>
-       </div>
-       <div className="flex items-center gap-2">
-         <span className="text-neutral-700 font-bold text-sm">{data.총비용}</span>
-         <span className={`text-xs ${t.textMuted}`}>{franchiseIssueExpanded[name] ? '접기' : '펼치기'}</span>
-       </div>
-     </button>
-     {franchiseIssueExpanded[name] && (
-       <div className="px-3 pb-3 border-t border-neutral-100">
-         <div className="pt-2 space-y-1">
-           <p className={`text-xs ${t.textMuted}`}>매장수: 약 {data.매장수?.toLocaleString()}개 / 로열티: 월 {data.로열티월}만원 / 광고비: 월 {data.광고비월}만원</p>
-           {data.이슈 && (
-             <div className="mt-2">
-               <p className="text-xs text-neutral-600 font-medium mb-1">최근 이슈:</p>
-               {data.이슈.map((issue, idx) => (
-                 <p key={idx} className={`text-xs ${t.textMuted}`}>- {issue}</p>
-               ))}
+   <p className={`text-sm font-semibold mb-3 ${t.text}`}>주요 프랜차이즈 ({Object.keys(getAvailableFranchises()).length}개 브랜드)</p>
+   <div className="space-y-2 max-h-80 overflow-y-auto">
+     {Object.entries(getAvailableFranchises())
+       .sort((a, b) => (b[1].매장수 || 0) - (a[1].매장수 || 0))
+       .slice(0, 15)
+       .map(([name, data]) => (
+       <div key={name} className={`rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-neutral-200'}`}>
+         <button
+           onClick={() => setFranchiseIssueExpanded(prev => ({...prev, [`list_${name}`]: !prev[`list_${name}`]}))}
+           className={`w-full flex items-center justify-between p-3 ${theme === 'dark' ? 'hover:bg-neutral-700' : 'hover:bg-neutral-50'}`}
+         >
+           <div className="flex items-center gap-3 text-left">
+             <span className={`font-medium ${t.text}`}>{name}</span>
+             <span className={`text-xs px-2 py-0.5 rounded-full ${theme === 'dark' ? 'bg-neutral-700 text-neutral-300' : 'bg-neutral-100 text-neutral-600'}`}>{data.카테고리}</span>
+           </div>
+           <div className="flex items-center gap-2">
+             <span className={`font-bold text-sm ${t.text}`}>{data.총비용}</span>
+             <span className={`text-xs ${t.textMuted}`}>{franchiseIssueExpanded[`list_${name}`] ? '▲' : '▼'}</span>
+           </div>
+         </button>
+         {franchiseIssueExpanded[`list_${name}`] && (
+           <div className={`px-3 pb-3 border-t ${theme === 'dark' ? 'border-neutral-700' : 'border-neutral-100'}`}>
+             <div className="pt-2 space-y-2">
+               <div className="grid grid-cols-3 gap-2 text-xs">
+                 <div>
+                   <span className={`${t.textMuted}`}>매장수: </span>
+                   <span className={`${t.text}`}>{data.매장수?.toLocaleString() || '미확인'}개</span>
+                 </div>
+                 <div>
+                   <span className={`${t.textMuted}`}>폐업률: </span>
+                   <span className={`${t.text}`}>
+                     {data.폐업률 !== null ? `${data.폐업률}%` : '미확인'}
+                   </span>
+                 </div>
+                 <div>
+                   <span className={`${t.textMuted}`}>아메리카노: </span>
+                   <span className={`${t.text}`}>{data.아메리카노?.toLocaleString() || '미확인'}원</span>
+                 </div>
+               </div>
+               {data.이슈 && data.이슈.length > 0 && (
+                 <div className="mt-2">
+                   <p className={`text-xs ${t.textMuted} mb-1`}>이슈:</p>
+                   {data.이슈.slice(0, 2).map((issue, idx) => (
+                     <p key={idx} className={`text-xs ${t.text}`}>• {issue}</p>
+                   ))}
+                 </div>
+               )}
+               <button
+                 onClick={(e) => { e.stopPropagation(); setSelectedFranchise(name); }}
+                 className={`mt-2 text-xs px-3 py-1.5 rounded ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 hover:bg-neutral-600' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}
+               >
+                 상세 분석 보기
+               </button>
              </div>
-           )}
-           <button
-             onClick={(e) => { e.stopPropagation(); setSelectedFranchise(name); }}
-             className="mt-2 text-xs text-[#1e3a5f] hover:underline"
-           >
-             빈크래프트와 상세 비교하기
-           </button>
-         </div>
+           </div>
+         )}
        </div>
-     )}
+     ))}
    </div>
- ))}
+   <a href="https://franchise.ftc.go.kr/mnu/00013/program/userRqst/list.do" target="_blank" rel="noopener" className={`flex items-center justify-center gap-2 mt-3 p-3 rounded-lg border transition-all ${theme === 'dark' ? 'border-neutral-600 bg-neutral-700/50 hover:bg-neutral-700' : 'border-neutral-300/50 bg-neutral-800/10 hover:bg-neutral-800/20'}`}>
+     <span className={`text-sm font-medium ${t.text}`}>공정위 가맹사업정보제공시스템에서 상세 정보 확인</span>
+   </a>
+   <p className={`text-xs mt-3 text-center ${t.textMuted}`}>* 최종 창업비용은 점포 크기, 위치, 인테리어 범위에 따라 달라집니다.</p>
  </div>
- <a href="https://franchise.ftc.go.kr/mnu/00013/program/userRqst/list.do" target="_blank" rel="noopener" className="flex items-center justify-center gap-2 mt-3 p-3 rounded-lg border border-neutral-300/50 bg-neutral-800/10 hover:bg-neutral-800/20 transition-all">
- <span className={`text-sm font-medium ${t.text}`}>공정위 가맹사업정보제공시스템에서 상세 정보 확인</span>
- </a>
- <p className="text-xs text-neutral-500 mt-3 text-center">* 최종 창업비용은 점포 크기, 위치, 인테리어 범위에 따라 달라집니다.</p>
  </div>
+
 
 
 
@@ -16829,7 +16921,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  
  {/* 전국 상권 데이터 수집 (관리자 전용) */}
  <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
- <h3 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} text-lg mb-3`}> 전국 상권 데이터 수집</h3>
+ <h3 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} text-lg mb-3`}>📊 전국 상권 데이터 수집</h3>
  <p className={`text-sm ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'} mb-4`}>선택한 지역의 상권 데이터를 수집하여 Firebase에 저장합니다.</p>
  
  <div className="grid grid-cols-2 gap-3 mb-4">
@@ -16970,7 +17062,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowApiCollectReport(false)}>
    <div className={`w-full max-w-lg max-h-[80vh] overflow-y-auto rounded-2xl p-6 ${theme === 'dark' ? 'bg-neutral-800' : 'bg-white'}`} onClick={e => e.stopPropagation()}>
      <div className="flex justify-between items-center mb-4">
-       <h3 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} text-xl`}> 수집 보고서</h3>
+       <h3 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} text-xl`}>📊 수집 보고서</h3>
        <button onClick={() => setShowApiCollectReport(false)} className={`text-2xl ${theme === 'dark' ? 'text-neutral-400 hover:text-white' : 'text-neutral-400 hover:text-neutral-900'}`}>×</button>
      </div>
      
@@ -16994,7 +17086,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        {/* 수집 요약 (다중 지역) */}
        {apiCollectResults.summary && (
          <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-blue-900/30' : 'bg-blue-50'}`}>
-           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} mb-2`}> 수집 요약</p>
+           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} mb-2`}>📈 수집 요약</p>
            <div className="grid grid-cols-2 gap-2 text-sm">
              <p className={theme === 'dark' ? 'text-neutral-300' : 'text-neutral-600'}>성공: {apiCollectResults.summary.success}개 지역</p>
              <p className={theme === 'dark' ? 'text-neutral-300' : 'text-neutral-600'}>실패: {apiCollectResults.summary.failed}개 지역</p>
@@ -17007,7 +17099,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        {/* 상가정보 (단일 지역) */}
        {apiCollectResults.data?.store && (
          <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-700/50' : 'bg-blue-50'}`}>
-           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} mb-1`}> 상가정보</p>
+           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} mb-1`}>🏪 상가정보</p>
            <p className={`text-sm ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>전체 점포: {apiCollectResults.data.store.total?.toLocaleString() || 0}개</p>
            <p className={`text-sm ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>카페: {apiCollectResults.data.store.cafeCount?.toLocaleString() || 0}개</p>
          </div>
@@ -17016,7 +17108,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        {/* 서울시 유동인구 */}
        {(apiCollectResults.data?.seoulFloating || apiCollectResults.summary?.success > 0) && apiCollectResults.sido?.includes('서울') && (
          <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-700/50' : 'bg-green-50'}`}>
-           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} mb-1`}>서울시 유동인구</p>
+           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} mb-1`}>👥 서울시 유동인구</p>
            <p className={`text-sm ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>
              {apiCollectResults.data?.seoulFloating?.totalRecords 
                ? `총 레코드: ${apiCollectResults.data.seoulFloating.totalRecords?.toLocaleString()}건`
@@ -17028,7 +17120,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        {/* 프랜차이즈 */}
        {apiCollectResults.data?.franchise && (
          <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-700/50' : 'bg-purple-50'}`}>
-           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} mb-1`}> 프랜차이즈 (카페)</p>
+           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} mb-1`}>☕ 프랜차이즈 (카페)</p>
            <p className={`text-sm ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>수집 브랜드: {apiCollectResults.data.franchise.count || 0}개</p>
          </div>
        )}
@@ -17036,7 +17128,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        {/* 임대료 */}
        {apiCollectResults.data?.rent && (
          <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-700/50' : 'bg-yellow-50'}`}>
-           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} mb-1`}> 임대료</p>
+           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} mb-1`}>🏠 임대료</p>
            <p className={`text-sm ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>한국부동산원 R-ONE 데이터 수집 완료</p>
          </div>
        )}
@@ -17049,15 +17141,15 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        }`}>
          <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-neutral-900'}`}>
            {(apiCollectResults.savedToFirebase || apiCollectResults.summary?.success > 0) 
-             ? ' Firebase 저장 완료' 
-             : ' Firebase 저장 실패'}
+             ? '✅ Firebase 저장 완료' 
+             : '❌ Firebase 저장 실패'}
          </p>
        </div>
        
        {/* 에러 표시 */}
        {apiCollectResults.errors?.length > 0 && (
          <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-rose-900/30' : 'bg-rose-50'}`}>
-           <p className={`font-medium text-rose-500 mb-1`}> 수집 중 오류 ({apiCollectResults.errors.length}건)</p>
+           <p className={`font-medium text-rose-500 mb-1`}>⚠️ 수집 중 오류 ({apiCollectResults.errors.length}건)</p>
            {apiCollectResults.errors.slice(0, 5).map((err, idx) => (
              <p key={idx} className={`text-xs ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>
                {err.region || err.api}: {err.message}
