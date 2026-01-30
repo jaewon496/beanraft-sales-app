@@ -14194,11 +14194,6 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  )}
  </div>
  </div>
- </div>
- </div>
- )}
-
- </div>
  )}
  {tab === 'calendar' && (
  <div className="space-y-2">
