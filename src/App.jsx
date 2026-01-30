@@ -4,7 +4,7 @@ import { firebase, database } from './firebase';
 // ═══════════════════════════════════════════════════════════════
 // 앱 버전 관리 - 캐시 무효화용
 // ═══════════════════════════════════════════════════════════════
-const APP_VERSION = '2026.01.30.v12-changsin-priority-fix';
+const APP_VERSION = '2026.01.30.v6-firebase-fix';
 
 // 앱 시작 시 버전 출력 및 캐시 체크
 (() => {
@@ -3847,113 +3847,6 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
    setSalesModeAnalysisStep('저장된 데이터 확인 중...');
    updateCollectingText(`${query} 지역 데이터 조회 중...`);
    
-   // ═══════════════════════════════════════════════════════════════
-   // 창신동 하드코딩 데이터 (긴급 사용) - Firebase 조회 전에 체크
-   // ═══════════════════════════════════════════════════════════════
-   const HARDCODED_REGION_DATA = {
-     '창신동': {
-       region: '서울특별시 종로구',
-       dong: '창신동',
-       coord: { lat: 37.5767, lng: 127.0139 },
-       overview: {
-         cafeCount: '57개',
-         floatingPop: '약 15,000명/일',
-         newOpen: '8개/년',
-         closed: '6개/년',
-         source: '소상공인시장진흥공단 (반경 1km)'
-       },
-       consumers: {
-         mainTarget: '봉제업 종사자/주민 (40-60대)',
-         mainRatio: '45%',
-         secondTarget: '젊은 직장인 (20-30대)',
-         secondRatio: '30%',
-         peakTime: '12-14시, 17-19시',
-         takeoutRatio: '약 60%',
-         avgStay: '약 20분'
-       },
-       franchise: [
-         { name: '터치카페', count: '3개', avgRevenue: '약 2,500만원' },
-         { name: '위너스커피', count: '2개', avgRevenue: '약 2,200만원' },
-         { name: '비케이스터디카페', count: '1개', avgRevenue: '약 1,800만원' },
-         { name: '카페 오디디오', count: '1개', avgRevenue: '약 2,000만원' }
-       ],
-       rent: {
-         monthly: '약 60-80만원 (15평 기준)',
-         deposit: '약 3,000-5,000만원',
-         premium: '약 1,000-3,000만원',
-         yoyChange: '-5%',
-         source: '한국부동산원'
-       },
-       characteristics: {
-         type: '주거밀집',
-         description: '동대문 패션타운 인근, 봉제공장 밀집 지역. 고령 인구 비율 높음. 저렴한 임대료가 장점.'
-       },
-       startupCost: {
-         deposit: '약 3,000~5,000만원 (추정)',
-         premium: '약 1,000~3,000만원 (추정)',
-         interior: '약 5,000~8,000만원 (15평 기준)',
-         equipment: '약 2,000~3,000만원',
-         total: '약 1.5~3억원 (추정)'
-       }
-     }
-   };
-   
-   // 창신동 검색인지 확인 (Firebase 조회 전에 먼저 체크)
-   const dongMatch = query.match(/창신동|창신/);
-   if (dongMatch && HARDCODED_REGION_DATA['창신동']) {
-     const hardcodedData = HARDCODED_REGION_DATA['창신동'];
-     console.log('창신동 하드코딩 데이터 사용');
-     
-     animateProgressTo(100);
-     setSalesModeAnalysisStep('분석 완료');
-     setSalesModeCollectingText('');
-     
-     setSalesModeMapCenter({
-       lat: hardcodedData.coord.lat,
-       lng: hardcodedData.coord.lng,
-       roadAddress: `${hardcodedData.region} ${hardcodedData.dong}`
-     });
-     
-     const formattedResult = {
-       success: true,
-       data: {
-         region: `${hardcodedData.region} ${hardcodedData.dong}`,
-         hasApiData: true,
-         dataSource: 'hardcoded',
-         dataDate: new Date().toLocaleDateString('ko-KR'),
-         overview: hardcodedData.overview,
-         consumers: hardcodedData.consumers,
-         franchise: hardcodedData.franchise,
-         rent: hardcodedData.rent,
-         characteristics: hardcodedData.characteristics,
-         startupCost: hardcodedData.startupCost,
-         opportunities: [
-           { title: '저렴한 임대료', detail: '강남 대비 1/3 수준의 임대료로 초기 투자비용 절감 가능' },
-           { title: '안정적 고객층', detail: '봉제공장 종사자들의 꾸준한 커피 수요' },
-           { title: '개발 호재', detail: '창신숭인 도시재생사업 진행 중' }
-         ],
-         risks: [
-           { title: '고령화 지역', detail: '젊은 층 유입 제한적, 트렌디한 메뉴 수요 낮음' },
-           { title: '저녁 유동인구 감소', detail: '주거지역 특성상 19시 이후 매출 급감' },
-           { title: '경쟁 심화', detail: '저가 커피 프랜차이즈 진출 증가' }
-         ],
-         sources: {
-           store: { name: '소상공인시장진흥공단', date: '2024년 4분기' },
-           floating: { name: '서울시 열린데이터', date: '2024년' },
-           franchise: { name: '공정거래위원회 정보공개서', date: '2024년' },
-           rent: { name: '한국부동산원 R-ONE', date: '2024년 4분기' }
-         }
-       },
-       query,
-       hasApiData: true
-     };
-     
-     setSalesModeSearchResult(formattedResult);
-     setSalesModeSearchLoading(false);
-     setSalesModeMapExpanded(true);
-     return;
-   }
-   
    const parsedRegion = parseRegionFromQuery(query);
    console.log('파싱된 지역:', parsedRegion);
    
@@ -4061,7 +3954,7 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
      }
    }
    
-   // Firebase에 데이터 없으면 실시간 API 호출
+   // Firebase에 데이터 없으면 기존 실시간 API 호출 진행
    console.log('Firebase에 데이터 없음, 실시간 API 호출 진행');
    
    // ═══════════════════════════════════════════════════════════════
@@ -11033,45 +10926,36 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                      </FadeInSection>
                      )}
 
-                     {/* 4.6 확장프로그램 매물 데이터 */}
-                     {salesModeSearchResult.collectedData?.apis?.extensionNaverRealEstate?.data && (
-                       <FadeInSection delay={0.5}>
-                         <Accordion title="실시간 매물 데이터" icon="🏠" badge="확장프로그램" defaultOpen={false} theme={theme}>
-                         
+                     {/* 4.6 예상 창업 비용 */}
+                     <FadeInSection delay={0.5}>
+                       <Accordion title="예상 창업 비용" icon="💰" defaultOpen={false} theme={theme}>
                          <div className="grid grid-cols-2 gap-3 mb-4">
                            <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-700' : 'bg-neutral-200'}`}>
-                             <p className={`text-xs mb-1 ${t.textMuted}`}>평균 보증금</p>
-                             <p className={`font-bold ${t.text}`}>
-                               {salesModeSearchResult.collectedData.apis.extensionNaverRealEstate.data.avgDeposit 
-                                 ? `${(salesModeSearchResult.collectedData.apis.extensionNaverRealEstate.data.avgDeposit / 10000).toFixed(0)}만원` 
-                                 : '-'}
-                             </p>
+                             <p className={`text-xs mb-1 ${t.textMuted}`}>보증금</p>
+                             <p className={`font-bold ${t.text}`}>2,000만원</p>
                            </div>
                            <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-700' : 'bg-neutral-200'}`}>
-                             <p className={`text-xs mb-1 ${t.textMuted}`}>평균 월세</p>
-                             <p className={`font-bold ${t.text}`}>
-                               {salesModeSearchResult.collectedData.apis.extensionNaverRealEstate.data.avgRent 
-                                 ? `${salesModeSearchResult.collectedData.apis.extensionNaverRealEstate.data.avgRent}만원` 
-                                 : '-'}
-                             </p>
+                             <p className={`text-xs mb-1 ${t.textMuted}`}>권리금</p>
+                             <p className={`font-bold ${t.text}`}>3,000만원</p>
                            </div>
                          </div>
-
-                         <div className={`p-3 ${theme === 'dark' ? 'bg-neutral-700/50' : 'bg-neutral-100'} rounded-lg`}>
-                           <p className={`text-xs mb-2 ${t.textMuted}`}>수집된 매물 수</p>
-                           <p className={`font-medium ${t.text}`}>
-                             {salesModeSearchResult.collectedData.apis.extensionNaverRealEstate.data.articles?.length || 0}건
-                           </p>
+                         <div className="grid grid-cols-2 gap-3 mb-4">
+                           <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-700' : 'bg-neutral-200'}`}>
+                             <p className={`text-xs mb-1 ${t.textMuted}`}>인테리어</p>
+                             <p className={`font-bold ${t.text}`}>4,000만원</p>
+                           </div>
+                           <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-700' : 'bg-neutral-200'}`}>
+                             <p className={`text-xs mb-1 ${t.textMuted}`}>설비비용</p>
+                             <p className={`font-bold ${t.text}`}>2,000만원</p>
+                           </div>
                          </div>
-
-                         <p className={`text-xs mt-3 ${t.textMuted}`}>
-                           수집일시: {salesModeSearchResult.collectedData.apis.extensionNaverRealEstate.data.collectedAt 
-                             ? new Date(salesModeSearchResult.collectedData.apis.extensionNaverRealEstate.data.collectedAt).toLocaleString('ko-KR')
-                             : '-'}
-                         </p>
+                         <div className={`p-4 ${theme === 'dark' ? 'bg-blue-900/30 border-blue-700' : 'bg-blue-50 border-blue-200'} border rounded-lg`}>
+                           <p className={`text-xs mb-1 ${t.textMuted}`}>총 예상비용</p>
+                           <p className={`font-bold text-xl ${theme === 'dark' ? 'text-blue-400' : 'text-blue-600'}`}>약 1억 1,000만원</p>
+                         </div>
+                         <p className={`text-xs mt-3 ${t.textMuted}`}>* 실제 비용은 매물 조건에 따라 달라질 수 있습니다</p>
                        </Accordion>
                      </FadeInSection>
-                     )}
 
                      {/* 4.7 YouTube 리뷰 분석 */}
                      {salesModeSearchResult.collectedData?.apis?.youtube?.data && (
@@ -11493,36 +11377,36 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                            </h3>
                            
                            {/* 상권 유형 */}
-                           <div className={`mb-4 p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-700 border-neutral-600' : 'bg-neutral-200 border-neutral-300'}`}>
+                           <div className={`mb-4 p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-700' : 'bg-neutral-200'} border border-neutral-600`}>
                              <div className="flex items-center justify-between mb-2">
                                <span className={`text-sm font-medium ${t.textSecondary}`}>추정 상권 유형</span>
-                               <span className={`px-2 py-1 rounded text-xs font-bold ${theme === 'dark' ? 'bg-neutral-600 text-white' : 'bg-neutral-300 text-neutral-900'}`}>{regionType}</span>
+                               <span className="px-2 py-1 rounded bg-neutral-100 text-neutral-900 text-xs font-bold">{regionType}</span>
                              </div>
                              <p className={`text-xs ${t.textSecondary}`}>{weatherData.설명}</p>
                            </div>
                            
                            {/* 날씨별 영향 그리드 */}
                            <div className="grid grid-cols-3 gap-2 mb-4">
-                             <div className={`p-3 rounded-lg text-center ${theme === 'dark' ? 'bg-neutral-700 border border-neutral-600' : 'bg-neutral-200 border border-neutral-300'}`}>
+                             <div className="p-3 rounded-lg bg-gray-100 text-center">
                                <p className="text-lg mb-1">️</p>
                                <p className={`text-xs ${t.textSecondary}`}>비 오는 날</p>
-                               <p className={`text-lg font-bold ${weatherData.비 < 0 ? 'text-red-400' : 'text-green-400'}`}>
+                               <p className={`text-lg font-bold ${weatherData.비 < 0 ? 'text-white' : 'text-white'}`}>
                                  {weatherData.비 > 0 ? '+' : ''}{weatherData.비}%
                                </p>
                                <p className={`text-xs ${t.textSecondary}`}>(평균 {baseData.비}%)</p>
                              </div>
-                             <div className={`p-3 rounded-lg text-center ${theme === 'dark' ? 'bg-neutral-700 border border-neutral-600' : 'bg-neutral-200 border border-neutral-300'}`}>
+                             <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-700' : 'bg-neutral-200'} border border-neutral-600 text-center`}>
                                <p className="text-lg mb-1">️</p>
                                <p className={`text-xs ${t.textSecondary}`}>맑은 날</p>
-                               <p className={`text-lg font-bold ${weatherData.맑음 > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                               <p className={`text-lg font-bold ${weatherData.맑음 > 0 ? 'text-white' : 'text-white'}`}>
                                  {weatherData.맑음 > 0 ? '+' : ''}{weatherData.맑음}%
                                </p>
                                <p className={`text-xs ${t.textSecondary}`}>(평균 +{baseData.맑음}%)</p>
                              </div>
-                             <div className={`p-3 rounded-lg text-center ${theme === 'dark' ? 'bg-neutral-700 border border-neutral-600' : 'bg-neutral-200 border border-neutral-300'}`}>
+                             <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-700' : 'bg-neutral-200'} border border-neutral-600 text-center`}>
                                <p className="text-lg mb-1">️</p>
                                <p className={`text-xs ${t.textSecondary}`}>눈 오는 날</p>
-                               <p className={`text-lg font-bold ${weatherData.눈 < 0 ? 'text-red-400' : 'text-green-400'}`}>
+                               <p className={`text-lg font-bold ${weatherData.눈 < 0 ? 'text-white' : 'text-white'}`}>
                                  {weatherData.눈 > 0 ? '+' : ''}{weatherData.눈}%
                                </p>
                                <p className={`text-xs ${t.textSecondary}`}>(평균 {baseData.눈}%)</p>
@@ -11531,22 +11415,22 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                            
                            {/* 극한 날씨 */}
                            <div className="grid grid-cols-2 gap-2 mb-4">
-                             <div className={`p-2 rounded-lg flex items-center justify-between ${theme === 'dark' ? 'bg-neutral-700 border border-neutral-600' : 'bg-neutral-200 border border-neutral-300'}`}>
+                             <div className={`p-2 rounded-lg ${theme === 'dark' ? 'bg-neutral-700' : 'bg-neutral-200'} border border-neutral-600 flex items-center justify-between`}>
                                <span className={`text-sm ${t.textSecondary}`}>폭염</span>
-                               <span className={`font-bold ${weatherData.폭염 >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                               <span className={`font-bold ${weatherData.폭염 >= 0 ? 'text-white' : 'text-white'}`}>
                                  {weatherData.폭염 > 0 ? '+' : ''}{weatherData.폭염}%
                                </span>
                              </div>
-                             <div className={`p-2 rounded-lg flex items-center justify-between ${theme === 'dark' ? 'bg-neutral-700 border border-neutral-600' : 'bg-neutral-200 border border-neutral-300'}`}>
+                             <div className={`p-2 rounded-lg ${theme === 'dark' ? 'bg-neutral-700' : 'bg-neutral-200'} border border-neutral-600 flex items-center justify-between`}>
                                <span className={`text-sm ${t.textSecondary}`}> 한파</span>
-                               <span className={`font-bold ${weatherData.한파 >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                               <span className={`font-bold ${weatherData.한파 >= 0 ? 'text-white' : 'text-white'}`}>
                                  {weatherData.한파 > 0 ? '+' : ''}{weatherData.한파}%
                                </span>
                              </div>
                            </div>
                            
                            {/* 운영 팁 */}
-                           <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-700 border-neutral-600' : 'bg-neutral-200 border-neutral-300'}`}>
+                           <div className={`p-3 rounded-lg border border-gray-200 ${theme === 'dark' ? 'bg-neutral-700' : 'bg-neutral-200'}`}>
                              <p className={`text-xs font-medium mb-2 ${t.textSecondary}`}>날씨 대응 운영 팁</p>
                              <ul className={`text-xs space-y-1 ${t.textSecondary}`}>
                                {weatherData.비 < -20 && <li>• 비 오는 날 배달 서비스 강화 권장</li>}
