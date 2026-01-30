@@ -4,7 +4,7 @@ import { firebase, database } from './firebase';
 // ═══════════════════════════════════════════════════════════════
 // 앱 버전 관리 - 캐시 무효화용
 // ═══════════════════════════════════════════════════════════════
-const APP_VERSION = '2026.01.30.v9-franchise-ai-analysis';
+const APP_VERSION = '2026.01.30.v10-jsx-fix';
 
 // 앱 시작 시 버전 출력 및 캐시 체크
 (() => {
@@ -14052,7 +14052,6 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
      <span className={`text-sm font-medium ${t.text}`}>공정위 가맹사업정보제공시스템에서 상세 정보 확인</span>
    </a>
    <p className={`text-xs mt-3 text-center ${t.textMuted}`}>* 최종 창업비용은 점포 크기, 위치, 인테리어 범위에 따라 달라집니다.</p>
- </div>
  </div>
 
 
