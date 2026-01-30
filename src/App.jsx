@@ -1088,15 +1088,15 @@ const callGisAPIViaProxy = async (apiPath, params = {}, maxRetry = 3) => {
       if (response.ok) {
         const result = await response.json();
         if (result.success && result.data) {
-          console.log(`GIS API ${apiPath} 성공 (${result.elapsedMs}ms)`);
+          console.log(` GIS API ${apiPath} 성공 (${result.elapsedMs}ms)`);
           return result.data;
         }
-        console.warn(`GIS API ${apiPath} 응답 실패:`, result.error || '알 수 없는 오류');
+        console.warn(` GIS API ${apiPath} 응답 실패:`, result.error || '알 수 없는 오류');
       } else {
-        console.warn(`GIS API ${apiPath} HTTP 오류:`, response.status);
+        console.warn(` GIS API ${apiPath} HTTP 오류:`, response.status);
       }
     } catch (e) {
-      console.warn(`GIS API ${apiPath} 호출 실패 (${attempt}/${maxRetry}):`, e.message);
+      console.warn(` GIS API ${apiPath} 호출 실패 (${attempt}/${maxRetry}):`, e.message);
       if (attempt < maxRetry) {
         await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
       }
@@ -1127,12 +1127,12 @@ const callOpenAPIViaProxy = async (apiName, apiPath, params = {}) => {
     if (response.ok) {
       const result = await response.json();
       if (result.success && result.data) {
-        console.log(`OpenAPI ${apiName} 성공`);
+        console.log(` OpenAPI ${apiName} 성공`);
         return result.data;
       }
     }
   } catch (e) {
-    console.warn(`OpenAPI ${apiName} 호출 실패:`, e.message);
+    console.warn(` OpenAPI ${apiName} 호출 실패:`, e.message);
   }
   return null;
 };
@@ -1222,19 +1222,19 @@ const callSbizAPI = async (endpoint, params = {}, maxRetry = 3) => {
         if (result.success && result.data) {
           // 새 API는 resultCode: 'SUCCESS' 형태
           if (result.data.resultCode === 'SUCCESS') {
-            console.log(`새 API ${endpoint.split('/').pop()} 성공`);
+            console.log(` 새 API ${endpoint.split('/').pop()} 성공`);
             return result.data.data;
           }
           // 배열 형태 응답 (좌표→행정동)
           if (Array.isArray(result.data)) {
-            console.log(`새 API ${endpoint.split('/').pop()} 성공`);
+            console.log(` 새 API ${endpoint.split('/').pop()} 성공`);
             return result.data;
           }
         }
       }
-      console.warn(`새 API ${endpoint} 응답 실패 (${attempt}/${maxRetry})`);
+      console.warn(` 새 API ${endpoint} 응답 실패 (${attempt}/${maxRetry})`);
     } catch (e) {
-      console.warn(`새 API ${endpoint} 호출 실패 (${attempt}/${maxRetry}):`, e.message);
+      console.warn(` 새 API ${endpoint} 호출 실패 (${attempt}/${maxRetry}):`, e.message);
       if (attempt < maxRetry) {
         await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
       }
@@ -1256,7 +1256,7 @@ const getCoordToDongCd = async (lat, lng) => {
       const result = await response.json();
       if (result.success && result.data && result.data.length > 0) {
         const dong = result.data[0];
-        console.log(`행정동: ${dong.dongNm} (${dong.dongCd})`);
+        console.log(` 행정동: ${dong.dongNm} (${dong.dongCd})`);
         return {
           dongCd: dong.dongCd,
           dongNm: dong.dongNm,
@@ -3833,47 +3833,6 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
        const snapshot = await database.ref(`regionData/${sidoKey}/${sigunguKey}`).once('value');
        const data = snapshot.val();
        console.log('Firebase 조회 결과:', data ? '데이터 있음' : '데이터 없음');
-       
-       // 확장프로그램 매물 시세 데이터 추가 조회 (rentData 경로)
-       try {
-         const rentSnapshot = await database.ref(`rentData/${sidoKey}/${sigunguKey}`).once('value');
-         const rentData = rentSnapshot.val();
-         if (rentData) {
-           console.log('Firebase rentData 조회 결과:', rentData);
-           if (data) {
-             data.data = data.data || {};
-             data.data.rent = {
-               ...data.data.rent,
-               avgDeposit: rentData.avgDeposit || data.data.rent?.avgDeposit || 0,
-               avgMonthlyRent: rentData.avgMonthlyRent || data.data.rent?.avgMonthlyRent || 0,
-               avgArea: rentData.avgArea || data.data.rent?.avgArea || 0,
-               avgMaintenance: rentData.avgMaintenance || data.data.rent?.avgMaintenance || 0,
-               premiumCount: rentData.premiumCount || data.data.rent?.premiumCount || 0,
-               articleCount: rentData.articleCount || data.data.rent?.articleCount || 0,
-               source: '네이버부동산 (확장프로그램)',
-               updated_at: rentData.updated_at
-             };
-           } else {
-             return {
-               data: {
-                 rent: {
-                   avgDeposit: rentData.avgDeposit || 0,
-                   avgMonthlyRent: rentData.avgMonthlyRent || 0,
-                   avgArea: rentData.avgArea || 0,
-                   avgMaintenance: rentData.avgMaintenance || 0,
-                   premiumCount: rentData.premiumCount || 0,
-                   articleCount: rentData.articleCount || 0,
-                   source: '네이버부동산 (확장프로그램)',
-                   updated_at: rentData.updated_at
-                 }
-               }
-             };
-           }
-         }
-       } catch (rentError) {
-         console.log('rentData 조회 실패 (정상 - 데이터 없음):', rentError);
-       }
-       
        return data;
      } catch (e) {
        console.log('Firebase 조회 실패:', e);
@@ -4592,7 +4551,7 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
 - 출처 없는 숫자 사용 금지
 
 [AI피드백 핵심 원칙]
-1. "상담 시 질문할 것" → "상담 전 생각할 것" ⭕
+1. "상담 시 질문할 것"  → "상담 전 생각할 것" ⭕
 2. 창업자가 스스로 판단하고 행동할 수 있는 방향 제시
 3. 구체적 예산/가격 함부로 적지 않음 (기준이 될 수 있음)
 4. 필요한 특징과 고려사항만 제시
@@ -5055,6 +5014,76 @@ ${hasApiData ? '중요: 수집된 GIS API 데이터의 실제 숫자를 반드�
  btn.classList.remove('text-neutral-700');
  }, 1500);
  }
+ };
+ 
+ // PDF 다운로드 함수 (워터마크 포함)
+ const downloadPDF = async (elementId, filename) => {
+   try {
+     // html2canvas와 jspdf 동적 로드
+     const html2canvasScript = document.createElement('script');
+     html2canvasScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+     document.head.appendChild(html2canvasScript);
+     
+     const jspdfScript = document.createElement('script');
+     jspdfScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+     document.head.appendChild(jspdfScript);
+     
+     // 스크립트 로드 대기
+     await new Promise(resolve => setTimeout(resolve, 1000));
+     
+     const element = document.getElementById(elementId);
+     if (!element) {
+       alert('PDF 생성 실패: 요소를 찾을 수 없습니다.');
+       return;
+     }
+     
+     // html2canvas로 캡처
+     const canvas = await window.html2canvas(element, {
+       scale: 2,
+       useCORS: true,
+       logging: false,
+       backgroundColor: '#1a1a1a'
+     });
+     
+     const imgData = canvas.toDataURL('image/png');
+     const pdf = new window.jspdf.jsPDF('p', 'mm', 'a4');
+     
+     const pdfWidth = pdf.internal.pageSize.getWidth();
+     const pdfHeight = pdf.internal.pageSize.getHeight();
+     const imgWidth = pdfWidth - 20;
+     const imgHeight = (canvas.height * imgWidth) / canvas.width;
+     
+     let heightLeft = imgHeight;
+     let position = 10;
+     
+     // 첫 페이지
+     pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
+     heightLeft -= pdfHeight - 20;
+     
+     // 추가 페이지
+     while (heightLeft > 0) {
+       position = heightLeft - imgHeight + 10;
+       pdf.addPage();
+       pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
+       heightLeft -= pdfHeight - 20;
+     }
+     
+     // 워터마크 추가 (모든 페이지)
+     const totalPages = pdf.internal.getNumberOfPages();
+     for (let i = 1; i <= totalPages; i++) {
+       pdf.setPage(i);
+       pdf.setFontSize(12);
+       pdf.setTextColor(150, 150, 150);
+       pdf.text('BeanCraft Consulting', pdfWidth - 50, pdfHeight - 10);
+       pdf.setFontSize(8);
+       pdf.text('www.beancraft.co.kr', pdfWidth - 45, pdfHeight - 5);
+     }
+     
+     pdf.save(filename);
+   } catch (error) {
+     console.error('PDF 생성 오류:', error);
+     alert('PDF 생성 중 오류가 발생했습니다.');
+   }
  };
  
  // 팀 피드백 저장 함수 (Firebase 연동)
@@ -10759,22 +10788,29 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
                  {/* 검색 결과 */}
                  {salesModeSearchResult?.success && (
-                   <div className="space-y-3">
+                   <div className="space-y-3" id="sales-mode-result">
                      {/* 지역명 헤더 (신뢰도/기준일 삭제, 출처보기 아이콘으로 이동) */}
                      <FadeInSection delay={0}>
                        <div className={`p-4 rounded-xl border backdrop-blur ${theme === 'dark' ? 'bg-neutral-800/80 border-neutral-700' : 'bg-white/80 border-neutral-200'}`}>
                          <div className="flex items-center justify-between">
                            <p className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-neutral-900'}`}>
-                             {salesModeSearchResult.data?.region || '상권 분석 결과'}
+                              {salesModeSearchResult.data?.region || '상권 분석 결과'}
                            </p>
                            <div className="flex items-center gap-2">
                              <ApiStatusIndicator hasData={salesModeSearchResult.data?.hasApiData} />
+                             <button 
+                               onClick={() => downloadPDF('sales-mode-result', `BeanCraft_${salesModeSearchResult.data?.region || '상권분석'}_${new Date().toLocaleDateString('ko-KR').replace(/\./g, '')}.pdf`)}
+                               className={`p-2 rounded-lg ${theme === 'dark' ? 'hover:bg-neutral-700' : 'hover:bg-neutral-100'}`}
+                               title="PDF 다운로드"
+                             >
+                               <span className="text-sm">PDF</span>
+                             </button>
                              <button 
                                onClick={() => setSalesModeShowSources(!salesModeShowSources)}
                                className={`p-2 rounded-lg ${theme === 'dark' ? 'hover:bg-neutral-700' : 'hover:bg-neutral-100'}`}
                                title="출처 보기"
                              >
-                               <span className="text-sm">📋</span>
+                               <span className="text-sm">출처</span>
                              </button>
                            </div>
                          </div>
@@ -10795,7 +10831,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                              <DataCard 
                                title="일 유동인구" 
                                value={cleanJsonText(salesModeSearchResult.data?.overview?.floatingPop) || '-'}
-                               icon="👥" theme={theme}
+                               icon="" theme={theme}
                              />
                            </div>
                            
@@ -11176,7 +11212,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                        <FadeInSection delay={0.7}>
                          <div className={`${theme === 'dark' ? 'bg-neutral-800' : 'bg-neutral-100'} p-5 rounded-xl border border-neutral-700`}>
                            <h3 className={`font-bold ${t.text} mb-4 flex items-center gap-2`}>
-                             <span className={`w-6 h-6 rounded border border-neutral-500 ${t.text} flex items-center justify-center text-xs font-bold`}>▲</span>
+                             <span className={`w-6 h-6 rounded border border-neutral-500 ${t.text} flex items-center justify-center text-xs font-bold`}></span>
                              매출추이
                            </h3>
                          
@@ -11297,7 +11333,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                        <FadeInSection delay={0.8}>
                          <div className={`${theme === 'dark' ? 'bg-neutral-800' : 'bg-neutral-100'} p-5 rounded-xl border border-neutral-700`}>
                            <h3 className={`font-bold ${t.text} mb-4 flex items-center gap-2`}>
-                             <span className={`w-6 h-6 rounded border border-neutral-500 ${t.text} flex items-center justify-center text-xs font-bold`}>●</span>
+                             <span className={`w-6 h-6 rounded border border-neutral-500 ${t.text} flex items-center justify-center text-xs font-bold`}></span>
                              핫플레이스 Top10
                            </h3>
                          
@@ -16793,7 +16829,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  
  {/* 전국 상권 데이터 수집 (관리자 전용) */}
  <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
- <h3 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} text-lg mb-3`}>전국 상권 데이터 수집</h3>
+ <h3 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} text-lg mb-3`}> 전국 상권 데이터 수집</h3>
  <p className={`text-sm ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'} mb-4`}>선택한 지역의 상권 데이터를 수집하여 Firebase에 저장합니다.</p>
  
  <div className="grid grid-cols-2 gap-3 mb-4">
@@ -16934,7 +16970,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowApiCollectReport(false)}>
    <div className={`w-full max-w-lg max-h-[80vh] overflow-y-auto rounded-2xl p-6 ${theme === 'dark' ? 'bg-neutral-800' : 'bg-white'}`} onClick={e => e.stopPropagation()}>
      <div className="flex justify-between items-center mb-4">
-       <h3 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} text-xl`}>수집 보고서</h3>
+       <h3 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} text-xl`}> 수집 보고서</h3>
        <button onClick={() => setShowApiCollectReport(false)} className={`text-2xl ${theme === 'dark' ? 'text-neutral-400 hover:text-white' : 'text-neutral-400 hover:text-neutral-900'}`}>×</button>
      </div>
      
@@ -16958,7 +16994,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        {/* 수집 요약 (다중 지역) */}
        {apiCollectResults.summary && (
          <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-blue-900/30' : 'bg-blue-50'}`}>
-           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} mb-2`}>수집 요약</p>
+           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} mb-2`}> 수집 요약</p>
            <div className="grid grid-cols-2 gap-2 text-sm">
              <p className={theme === 'dark' ? 'text-neutral-300' : 'text-neutral-600'}>성공: {apiCollectResults.summary.success}개 지역</p>
              <p className={theme === 'dark' ? 'text-neutral-300' : 'text-neutral-600'}>실패: {apiCollectResults.summary.failed}개 지역</p>
@@ -16971,7 +17007,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        {/* 상가정보 (단일 지역) */}
        {apiCollectResults.data?.store && (
          <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-700/50' : 'bg-blue-50'}`}>
-           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} mb-1`}>상가정보</p>
+           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} mb-1`}> 상가정보</p>
            <p className={`text-sm ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>전체 점포: {apiCollectResults.data.store.total?.toLocaleString() || 0}개</p>
            <p className={`text-sm ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>카페: {apiCollectResults.data.store.cafeCount?.toLocaleString() || 0}개</p>
          </div>
@@ -16980,7 +17016,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        {/* 서울시 유동인구 */}
        {(apiCollectResults.data?.seoulFloating || apiCollectResults.summary?.success > 0) && apiCollectResults.sido?.includes('서울') && (
          <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-700/50' : 'bg-green-50'}`}>
-           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} mb-1`}>👥 서울시 유동인구</p>
+           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} mb-1`}>서울시 유동인구</p>
            <p className={`text-sm ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>
              {apiCollectResults.data?.seoulFloating?.totalRecords 
                ? `총 레코드: ${apiCollectResults.data.seoulFloating.totalRecords?.toLocaleString()}건`
@@ -16992,7 +17028,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        {/* 프랜차이즈 */}
        {apiCollectResults.data?.franchise && (
          <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-700/50' : 'bg-purple-50'}`}>
-           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} mb-1`}>프랜차이즈 (카페)</p>
+           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} mb-1`}> 프랜차이즈 (카페)</p>
            <p className={`text-sm ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>수집 브랜드: {apiCollectResults.data.franchise.count || 0}개</p>
          </div>
        )}
@@ -17000,7 +17036,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        {/* 임대료 */}
        {apiCollectResults.data?.rent && (
          <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-700/50' : 'bg-yellow-50'}`}>
-           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} mb-1`}>임대료</p>
+           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} mb-1`}> 임대료</p>
            <p className={`text-sm ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>한국부동산원 R-ONE 데이터 수집 완료</p>
          </div>
        )}
@@ -17013,15 +17049,15 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        }`}>
          <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-neutral-900'}`}>
            {(apiCollectResults.savedToFirebase || apiCollectResults.summary?.success > 0) 
-             ? 'Firebase 저장 완료' 
-             : 'Firebase 저장 실패'}
+             ? ' Firebase 저장 완료' 
+             : ' Firebase 저장 실패'}
          </p>
        </div>
        
        {/* 에러 표시 */}
        {apiCollectResults.errors?.length > 0 && (
          <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-rose-900/30' : 'bg-rose-50'}`}>
-           <p className={`font-medium text-rose-500 mb-1`}>수집 중 오류 ({apiCollectResults.errors.length}건)</p>
+           <p className={`font-medium text-rose-500 mb-1`}> 수집 중 오류 ({apiCollectResults.errors.length}건)</p>
            {apiCollectResults.errors.slice(0, 5).map((err, idx) => (
              <p key={idx} className={`text-xs ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>
                {err.region || err.api}: {err.message}
