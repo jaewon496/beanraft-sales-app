@@ -11064,41 +11064,6 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                        </FadeInSection>
                      )}
 
-                     {/* 4.6 예상 창업 비용 */}                             </div>
-                           </div>
-                         )}
-
-                         {/* 객단가 & 메뉴 트렌드 */}
-                         <div className="grid grid-cols-2 gap-3">
-                           <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-700' : 'bg-neutral-200'}`}>
-                             <p className={`text-xs mb-1 ${t.textMuted}`}>추정 평균 객단가</p>
-                             <p className={`font-bold ${t.text}`}>{salesModeSearchResult.collectedData.apis.snsTrend.data.avgPrice || '-'}</p>
-                           </div>
-                           <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-700' : 'bg-neutral-200'}`}>
-                             <p className={`text-xs mb-1 ${t.textMuted}`}>인기 메뉴 유형</p>
-                             <p className={`font-medium ${t.text} text-sm`}>{salesModeSearchResult.collectedData.apis.snsTrend.data.popularMenuType || '-'}</p>
-                           </div>
-                         </div>
-
-                         {/* SNS 규모 */}
-                         <div className={`mt-4 p-3 ${theme === 'dark' ? 'bg-neutral-700' : 'bg-neutral-200'} rounded-lg`}>
-                           <div className="grid grid-cols-2 gap-3 text-center">
-                             <div>
-                               <p className={`text-xs ${t.textMuted}`}>인스타그램</p>
-                               <p className={`text-sm font-medium ${t.text} mt-1`}>{salesModeSearchResult.collectedData.apis.snsTrend.data.instagramPosts || '-'}</p>
-                             </div>
-                             <div>
-                               <p className={`text-xs ${t.textMuted}`}>유튜브</p>
-                               <p className={`text-sm font-medium ${t.text} mt-1`}>{salesModeSearchResult.collectedData.apis.snsTrend.data.youtubeContent || '-'}</p>
-                             </div>
-                           </div>
-                         </div>
-
-                         <p className={`text-xs mt-3 ${t.textMuted}`}>※ AI 분석 기반 추정치입니다. 실제 현황은 직접 확인이 필요합니다.</p>
-                       </Accordion>
-                     </FadeInSection>
-                     )}
-
                      {/* 4.6 예상 창업 비용 */}
                      <FadeInSection delay={0.5}>
                        <Accordion title="예상 창업 비용" icon="💰" defaultOpen={false} theme={theme}>
