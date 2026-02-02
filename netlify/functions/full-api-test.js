@@ -1,22 +1,24 @@
 // 영업모드 전체 API + AI 테스트
-// https://beancraft-sales.netlify.app/.netlify/functions/full-api-test?region=강남역
+// 사용법: https://beancraft-sales.netlify.app/.netlify/functions/full-api-test?region=강남역&geminiKey=YOUR_KEY
 
 export async function handler(event, context) {
   const region = event.queryStringParameters?.region || "강남역";
+  const geminiKey = event.queryStringParameters?.geminiKey || null;
+  
   const results = {
     timestamp: new Date().toISOString(),
     testRegion: region,
+    geminiKeyProvided: !!geminiKey,
     apis: {},
     aiCharacter: {}
   };
 
   // ═══════════════════════════════════════════════════════════
-  // 1. Gemini AI 테스트
+  // 1. Gemini AI 테스트 (URL 파라미터로 키 입력)
   // ═══════════════════════════════════════════════════════════
-  const GEMINI_KEY = "AIzaSyAXB9YN7_Z6tRG5xTLyUYqaxUD83duiYKc";
-  
-  try {
-    const geminiPrompt = `당신은 빈크래프트의 창업 컨설턴트입니다.
+  if (geminiKey) {
+    try {
+      const geminiPrompt = `당신은 빈크래프트의 창업 컨설턴트입니다.
 
 【빈크래프트 정체성】
 - 컨설팅 서비스 (가맹 사업 아님)
@@ -30,33 +32,39 @@ export async function handler(event, context) {
 
 "${region}" 지역에 카페 창업을 고려하는 고객에게 상권 분석 인사이트를 3문장으로 전달해주세요.`;
 
-    const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: geminiPrompt }] }],
-          generationConfig: { temperature: 0.7, maxOutputTokens: 500 }
-        })
-      }
-    );
-    const geminiData = await geminiRes.json();
-    const aiResponse = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || null;
-    
-    results.apis.gemini = {
-      status: aiResponse ? "SUCCESS" : "FAILED",
-      httpStatus: geminiRes.status,
-      response: aiResponse,
-      error: geminiData.error || null
+      const geminiRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: geminiPrompt }] }],
+            generationConfig: { temperature: 0.7, maxOutputTokens: 500 }
+          })
+        }
+      );
+      const geminiData = await geminiRes.json();
+      const aiResponse = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || null;
+      
+      results.apis.gemini = {
+        status: aiResponse ? "SUCCESS" : "FAILED",
+        httpStatus: geminiRes.status,
+        response: aiResponse,
+        error: geminiData.error || null
+      };
+      results.aiCharacter = {
+        tested: true,
+        characterApplied: aiResponse?.includes("구조") || aiResponse?.includes("판단") || aiResponse?.includes("컨설팅"),
+        response: aiResponse
+      };
+    } catch (e) {
+      results.apis.gemini = { status: "ERROR", error: e.message };
+    }
+  } else {
+    results.apis.gemini = { 
+      status: "SKIPPED", 
+      message: "geminiKey 파라미터 필요. 예: ?geminiKey=AIzaSy..." 
     };
-    results.aiCharacter = {
-      tested: true,
-      characterApplied: aiResponse?.includes("구조") || aiResponse?.includes("판단") || aiResponse?.includes("컨설팅"),
-      response: aiResponse
-    };
-  } catch (e) {
-    results.apis.gemini = { status: "ERROR", error: e.message };
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -73,7 +81,7 @@ export async function handler(event, context) {
       status: storeRes.ok && storeData.body?.items ? "SUCCESS" : "FAILED",
       httpStatus: storeRes.status,
       totalCount: storeData.body?.totalCount || 0,
-      sampleData: storeData.body?.items?.slice(0, 3) || null,
+      sampleData: storeData.body?.items?.slice(0, 2) || null,
       error: storeData.error || null
     };
   } catch (e) {
@@ -94,7 +102,7 @@ export async function handler(event, context) {
       status: seoulRes.ok && seoulData.VwsmTrdarSelngQq ? "SUCCESS" : "FAILED",
       httpStatus: seoulRes.status,
       totalCount: seoulData.VwsmTrdarSelngQq?.list_total_count || 0,
-      sampleData: seoulData.VwsmTrdarSelngQq?.row?.slice(0, 2) || null,
+      sampleData: seoulData.VwsmTrdarSelngQq?.row?.slice(0, 1) || null,
       error: seoulData.RESULT?.MESSAGE || null
     };
   } catch (e) {
@@ -114,7 +122,7 @@ export async function handler(event, context) {
     try {
       roneData = JSON.parse(roneText);
     } catch {
-      roneData = { raw: roneText.substring(0, 500) };
+      roneData = { raw: roneText.substring(0, 300) };
     }
     
     results.apis.rone_rent = {
@@ -166,7 +174,7 @@ export async function handler(event, context) {
     results.apis.weather = {
       status: weatherRes.ok && weatherData.response?.body ? "SUCCESS" : "FAILED",
       httpStatus: weatherRes.status,
-      data: weatherData.response?.body?.items?.item?.slice(0, 3) || null,
+      data: weatherData.response?.body?.items?.item?.slice(0, 2) || null,
       error: weatherData.response?.header?.resultMsg || null
     };
   } catch (e) {
@@ -176,10 +184,11 @@ export async function handler(event, context) {
   // ═══════════════════════════════════════════════════════════
   // 결과 요약
   // ═══════════════════════════════════════════════════════════
+  const apiResults = Object.values(results.apis).filter(a => a.status !== "SKIPPED");
   const summary = {
-    total: Object.keys(results.apis).length,
-    success: Object.values(results.apis).filter(a => a.status === "SUCCESS").length,
-    failed: Object.values(results.apis).filter(a => a.status !== "SUCCESS").length,
+    total: apiResults.length,
+    success: apiResults.filter(a => a.status === "SUCCESS").length,
+    failed: apiResults.filter(a => a.status !== "SUCCESS").length,
     aiCharacterWorking: results.aiCharacter.tested && results.aiCharacter.response
   };
   results.summary = summary;
