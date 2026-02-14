@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+test-screenshots/
+*.test.js
+login-test*.js
+admin-login-test.js
+quick-test.js
+single-test*.js
+full-test*.js
+e2e-test.js
+test-sales-mode.js
