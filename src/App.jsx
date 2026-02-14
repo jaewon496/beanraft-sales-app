@@ -5226,12 +5226,82 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
        } catch (e) { console.log(`지오코딩 시도: "${searchQuery}" - ${e.message}`); }
      }
      
+     // ═══ 2단계: Geocode 실패 시 → Naver Local Search API로 장소 검색 ═══
+     if (!coordinates) {
+       console.log('Geocode 실패 → Naver Local Search API 시도');
+       updateCollectingText(`"${query}" 장소를 검색하고 있어요`);
+       try {
+         const localRes = await fetch(`/api/naver-local-proxy?query=${encodeURIComponent(query)}&display=1`);
+         if (localRes.ok) {
+           const localData = await localRes.json();
+           const item = localData.items?.[0];
+           if (item) {
+             console.log(`Local Search 결과: "${item.title}" → ${item.address || item.roadAddress}`);
+             // 방법 A: roadAddress 또는 address로 Geocode 재시도
+             const localAddr = item.roadAddress || item.address;
+             if (localAddr && window.naver?.maps?.Service) {
+               try {
+                 const geoResult2 = await new Promise((resolve, reject) => {
+                   const timeout = setTimeout(() => reject(new Error('timeout')), 5000);
+                   window.naver.maps.Service.geocode({ query: localAddr }, (status, response) => {
+                     clearTimeout(timeout);
+                     if (status === window.naver.maps.Service.Status.OK && response.v2?.addresses?.[0]) {
+                       resolve(response.v2.addresses[0]);
+                     } else { reject(new Error('No results')); }
+                   });
+                 });
+                 if (geoResult2) {
+                   coordinates = {
+                     lat: parseFloat(geoResult2.y),
+                     lng: parseFloat(geoResult2.x),
+                     roadAddress: geoResult2.roadAddress,
+                     jibunAddress: geoResult2.jibunAddress
+                   };
+                   addressInfo = {
+                     sido: geoResult2.addressElements?.find(e => e.types?.includes('SIDO'))?.longName || '',
+                     sigungu: geoResult2.addressElements?.find(e => e.types?.includes('SIGUGUN'))?.longName || '',
+                     dong: geoResult2.addressElements?.find(e => e.types?.includes('DONGMYUN'))?.longName || ''
+                   };
+                   console.log(`Local Search → Geocode 성공: "${localAddr}" → ${coordinates.lat}, ${coordinates.lng}`);
+                 }
+               } catch (geoErr) {
+                 console.log(`Local Search 주소 Geocode 실패: ${geoErr.message}`);
+               }
+             }
+             // 방법 B: Geocode도 실패하면 mapx/mapy 직접 사용
+             if (!coordinates && item.mapx && item.mapy) {
+               const lat = parseInt(item.mapy) / 10000000;
+               const lng = parseInt(item.mapx) / 10000000;
+               if (lat > 33 && lat < 39 && lng > 124 && lng < 132) {
+                 coordinates = { lat, lng };
+                 // address에서 시도/시군구/동 파싱
+                 const addrParts = (item.address || '').split(' ');
+                 addressInfo = {
+                   sido: addrParts[0] || '',
+                   sigungu: addrParts[1] || '',
+                   dong: addrParts[2] || '',
+                   address: item.address || item.roadAddress
+                 };
+                 console.log(`Local Search mapx/mapy 사용: ${lat}, ${lng} (${item.address})`);
+               }
+             }
+           }
+         }
+       } catch (localErr) {
+         console.log(`Local Search API 실패: ${localErr.message}`);
+       }
+     }
+
+     // ═══ 3단계: 클라이언트 사이드 geocode fallback (이미 1단계에서 시도) ═══
+
      if (coordinates) {
        setSalesModeMapCenter(coordinates);
        animateProgressTo(10);
        updateCollectingText(`${addressInfo?.sigungu || query} 지역 확인 완료`);
      } else {
-       console.log('모든 지오코딩 시도 실패');
+       console.log('모든 검색 시도 실패 (Geocode + Local Search)');
+       setSalesModeAnalysisStep('위치를 찾을 수 없습니다');
+       updateCollectingText(`"${query}" 위치를 찾지 못했어요. 정확한 주소로 다시 검색해주세요.`);
      }
 
      // ═══════════════════════════════════════════════════════════════
