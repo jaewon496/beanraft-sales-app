@@ -5234,8 +5234,12 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
      if (!coordinates) {
        console.log('Geocode 실패 → Naver Local Search API 시도');
        updateCollectingText(`"${query}" 장소를 검색하고 있어요`);
+       // 원래 쿼리 + 확장 쿼리 순서로 Local Search 시도
+       const localSearchQueries = [query, ...searchQueries.filter(q => q !== query)];
+       for (const localQuery of localSearchQueries) {
+         if (coordinates) break;
        try {
-         const localRes = await fetch(`/api/naver-local-proxy?query=${encodeURIComponent(query)}&display=1`);
+         const localRes = await fetch(`/api/naver-local-proxy?query=${encodeURIComponent(localQuery)}&display=1`);
          if (localRes.ok) {
            const localData = await localRes.json();
            const item = localData.items?.[0];
@@ -5292,8 +5296,9 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
            }
          }
        } catch (localErr) {
-         console.log(`Local Search API 실패: ${localErr.message}`);
+         console.log(`Local Search API 실패 (${localQuery}): ${localErr.message}`);
        }
+       } // end for localSearchQueries
      }
 
      // ═══ 3단계: 클라이언트 사이드 geocode fallback (이미 1단계에서 시도) ═══
