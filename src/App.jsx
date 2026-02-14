@@ -6151,14 +6151,70 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
      
      let text = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
      text = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-     
+
      // JSON 추출 시도
      const jsonMatch = text.match(/\{[\s\S]*\}/);
-     
+
+     // ★ 깨진 JSON 복구 함수 (Gemini가 문자열 내 줄바꿈, trailing comma 등 생성 시)
+     const repairAndParseJSON = (raw) => {
+       // 1차: 직접 파싱
+       try { return JSON.parse(raw); } catch(e1) {
+         console.log('JSON 1차 파싱 실패, 복구 시도:', e1.message);
+         let fixed = raw;
+         // trailing comma 제거: ,} 또는 ,]
+         fixed = fixed.replace(/,\s*([}\]])/g, '$1');
+         // 문자열 내 이스케이프 안 된 줄바꿈 수정
+         fixed = fixed.replace(/"([^"]*(?:\\.[^"]*)*)"/g, (match) => {
+           return match.replace(/(?<!\\)\n/g, '\\n').replace(/(?<!\\)\r/g, '\\r').replace(/(?<!\\)\t/g, '\\t');
+         });
+         try { return JSON.parse(fixed); } catch(e2) {
+           console.log('JSON 2차 파싱 실패, 잘린 JSON 복구 시도:', e2.message);
+           // 잘린 JSON 복구: 열린 괄호 수 맞추기
+           let braceCount = 0, bracketCount = 0, inString = false, escape = false;
+           for (let i = 0; i < fixed.length; i++) {
+             const c = fixed[i];
+             if (escape) { escape = false; continue; }
+             if (c === '\\') { escape = true; continue; }
+             if (c === '"') { inString = !inString; continue; }
+             if (inString) continue;
+             if (c === '{') braceCount++;
+             if (c === '}') braceCount--;
+             if (c === '[') bracketCount++;
+             if (c === ']') bracketCount--;
+           }
+           // 닫는 괄호 추가
+           let suffix = '';
+           while (bracketCount > 0) { suffix += ']'; bracketCount--; }
+           while (braceCount > 0) { suffix += '}'; braceCount--; }
+           if (suffix) {
+             // 마지막 유효 JSON 위치 찾기: 마지막 완전한 값 뒤에서 자르기
+             let lastValid = fixed.length - 1;
+             // 문자열이 열려있으면 닫기
+             let openQuote = false;
+             for (let i = 0; i < fixed.length; i++) {
+               if (fixed[i] === '\\') { i++; continue; }
+               if (fixed[i] === '"') openQuote = !openQuote;
+             }
+             if (openQuote) fixed += '"';
+             // trailing comma 다시 제거
+             fixed = fixed.replace(/,\s*$/g, '');
+             fixed += suffix;
+             fixed = fixed.replace(/,\s*([}\]])/g, '$1');
+             try { return JSON.parse(fixed); } catch(e3) {
+               console.log('JSON 3차 복구도 실패:', e3.message);
+               return null;
+             }
+           }
+           return null;
+         }
+       }
+     };
+
      try {
        let data;
        if (jsonMatch) {
-         data = JSON.parse(jsonMatch[0]);
+         data = repairAndParseJSON(jsonMatch[0]);
+         if (!data) throw new Error('JSON 파싱 및 복구 모두 실패');
          
          // ★ React Error #31 방지: 모든 필드를 재귀적으로 순회, 렌더링될 문자열 필드가 객체이면 변환
          const sanitizeForReact = (obj) => {
