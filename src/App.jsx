@@ -4958,19 +4958,20 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
    };
    
    // ═══════════════════════════════════════════════════════════════
-   // 0단계: Firebase에서 미리 수집된 데이터 조회
+   // 0단계: Firebase 캐시 건너뛰기 — 영업모드는 항상 실시간 API + Gemini AI 호출
    // ═══════════════════════════════════════════════════════════════
    animateProgressTo(3);
-   setSalesModeAnalysisStep('저장된 데이터 확인 중...');
-   updateCollectingText(`${query} 지역 데이터 조회 중...`);
-   
+   setSalesModeAnalysisStep('실시간 데이터 수집 준비 중...');
+   updateCollectingText(`${query} 지역 실시간 분석을 시작해요`);
+
    const parsedRegion = parseRegionFromQuery(query);
    console.log('파싱된 지역:', parsedRegion);
-   
-   if (parsedRegion?.sido && parsedRegion?.sigungu) {
+
+   // Firebase 캐시 사용 안 함 — 항상 실시간 API + Gemini로 14카드 전체 생성
+   if (false && parsedRegion?.sido && parsedRegion?.sigungu) {
      const firebaseData = await getFirebaseRegionData(parsedRegion.sido, parsedRegion.sigungu);
      console.log('Firebase 데이터:', firebaseData);
-     
+
      if (firebaseData?.data) {
        // Firebase에 데이터가 있으면 바로 활용
        animateProgressTo(80);
