@@ -600,9 +600,48 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
     return m ? parseFloat(m[0]) : 0;
   };
   
-  // 데이터 파싱
-  const cafeCount = extractNum(d.overview?.cafeCount);
-  const floatingPop = extractNum(d.overview?.floatingPop);
+  // 데이터 파싱 - API 실데이터 우선, Gemini 텍스트 fallback
+  const _apiCfrStcnt = cd?.apis?.cfrStcnt?.data;
+  const _apiDynPpl = cd?.apis?.dynPplCmpr?.data;
+  const _apiSalesAvg = cd?.apis?.salesAvg?.data;
+
+  // 카페 수: cfrStcnt API stcnt → salesAvg '카페' stcnt → Gemini 텍스트
+  const cafeCount = (() => {
+    // 1순위: cfrStcnt API 직접값
+    if (_apiCfrStcnt?.stcnt && _apiCfrStcnt.stcnt > 0) return _apiCfrStcnt.stcnt;
+    // 2순위: salesAvg에서 카페 업종 stcnt
+    if (Array.isArray(_apiSalesAvg)) {
+      const cafeItem = _apiSalesAvg.find(s => s.tpbizClscdNm === '카페');
+      if (cafeItem?.stcnt > 0) return cafeItem.stcnt;
+      // 카페 관련 업종 합산
+      const cafeRelated = _apiSalesAvg.filter(s => ['카페','커피','빵','도넛','디저트','음료','베이커리'].some(k => (s.tpbizClscdNm||'').includes(k)));
+      const sum = cafeRelated.reduce((s, c) => s + (c.stcnt || 0), 0);
+      if (sum > 0) return sum;
+    }
+    // 3순위: Gemini 텍스트에서 추출 (단, '1km' 같은 거리 숫자 제외)
+    const overviewText = String(d.overview?.cafeCount || '');
+    const cafeMatch = overviewText.match(/카페[가\s]*(\d[\d,]+)\s*개/);
+    if (cafeMatch) return parseInt(cafeMatch[1].replace(/,/g, ''));
+    const numMatch = overviewText.match(/(\d[\d,]+)\s*개/);
+    if (numMatch) return parseInt(numMatch[1].replace(/,/g, ''));
+    return extractNum(d.overview?.cafeCount);
+  })();
+
+  // 유동인구: dynPplCmpr API cnt → Gemini 텍스트
+  const floatingPop = (() => {
+    if (Array.isArray(_apiDynPpl) && _apiDynPpl.length > 0) {
+      const cnt = _apiDynPpl[0]?.cnt || _apiDynPpl[0]?.fpCnt || 0;
+      if (cnt > 0) return cnt;
+    }
+    // Gemini 텍스트에서 추출 - "약 X만명" 또는 "X명"
+    const popText = String(d.overview?.floatingPop || '');
+    const manMatch = popText.match(/([\d,.]+)\s*만\s*명/);
+    if (manMatch) return Math.round(parseFloat(manMatch[1].replace(/,/g, '')) * 10000);
+    const numMatch = popText.match(/([\d,]+)\s*명/);
+    if (numMatch) return parseInt(numMatch[1].replace(/,/g, ''));
+    return extractNum(d.overview?.floatingPop);
+  })();
+
   const newOpen = extractNum(d.overview?.newOpen);
   const closed = extractNum(d.overview?.closed);
   
@@ -618,16 +657,48 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
     share: extractNum(f.count) || 1,
   }));
   
-  // 창업비용 데이터
+  // 창업비용 데이터 - 만원/억원 단위 파싱 강화
+  const extractCostNum = (val) => {
+    if (!val) return 0;
+    if (typeof val === 'number') return val;
+    const s = String(val).replace(/[,\s]/g, '');
+    // "X억" → X * 10000 (만원 단위로 통일)
+    const eokMatch = s.match(/([\d.]+)\s*억/);
+    if (eokMatch) return Math.round(parseFloat(eokMatch[1]) * 10000);
+    // "X,XXX만원" 또는 "X,XXX만"
+    const manMatch = s.match(/([\d.]+)\s*만/);
+    if (manMatch) return Math.round(parseFloat(manMatch[1]));
+    // "X~Y만" 범위 → 중간값
+    const rangeMatch = s.match(/([\d,.]+)\s*[~\-]\s*([\d,.]+)\s*만/);
+    if (rangeMatch) {
+      const low = parseFloat(rangeMatch[1].replace(/,/g, ''));
+      const high = parseFloat(rangeMatch[2].replace(/,/g, ''));
+      return Math.round((low + high) / 2);
+    }
+    // 일반 숫자
+    const numMatch = s.match(/[\d.]+/);
+    return numMatch ? parseFloat(numMatch[0]) : 0;
+  };
+
   const costItems = [];
   if (d.startupCost) {
     const sc = d.startupCost;
-    if (sc.deposit) costItems.push({ item: '보증금', cost: extractNum(sc.deposit) });
-    if (sc.premium) costItems.push({ item: '권리금', cost: extractNum(sc.premium) });
-    if (sc.interior) costItems.push({ item: '인테리어', cost: extractNum(sc.interior) });
-    if (sc.equipment) costItems.push({ item: '설비/장비', cost: extractNum(sc.equipment) });
+    const dep = extractCostNum(sc.deposit);
+    const prem = extractCostNum(sc.premium);
+    const inter = extractCostNum(sc.interior);
+    const equip = extractCostNum(sc.equipment);
+    if (dep > 0) costItems.push({ item: '보증금', cost: dep });
+    if (prem > 0) costItems.push({ item: '권리금', cost: prem });
+    if (inter > 0) costItems.push({ item: '인테리어', cost: inter });
+    if (equip > 0) costItems.push({ item: '설비/장비', cost: equip });
   }
-  const totalCost = extractNum(d.startupCost?.total) || costItems.reduce((s, c) => s + c.cost, 0);
+  // costItems가 비어있으면 기본값으로 fallback
+  if (costItems.length === 0) {
+    costItems.push({ item: '보증금', cost: 3000 });
+    costItems.push({ item: '인테리어', cost: 4000 });
+    costItems.push({ item: '설비/장비', cost: 2500 });
+  }
+  const totalCost = extractCostNum(d.startupCost?.total) || costItems.reduce((s, c) => s + c.cost, 0);
   const aCost = useCountUpToss(totalCost, 1200, 0, v5);
   
   // 월평균 매출 (collectedData에서)
@@ -783,6 +854,21 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
         </div>
         {d.overview?.source && (
           <p style={{ fontSize: 12, color: t3, marginTop: 24 }}>출처: {S(d.overview.source)}</p>
+        )}
+        {/* AI 한줄 정리 */}
+        {(d.overview?.bruSummary || d.insight) && (
+          <FadeUpToss inView={v1} delay={0.55}>
+            <div style={{
+              marginTop: 20, background: `linear-gradient(135deg, ${blue}15, #6366F115)`,
+              borderRadius: 14, padding: '14px 18px',
+              borderLeft: `4px solid ${blue}`
+            }}>
+              <p style={{ fontSize: 12, color: blue, fontWeight: 700, marginBottom: 4 }}>AI 한줄 정리</p>
+              <p style={{ fontSize: 15, color: t1, fontWeight: 600, lineHeight: 1.5 }}>
+                {S(d.overview?.bruSummary || (typeof d.insight === 'string' ? d.insight.substring(0, 60) + '...' : ''))}
+              </p>
+            </div>
+          </FadeUpToss>
         )}
         <BruBubble text={d.overview?.bruFeedback} summary={d.overview?.bruSummary} delay={0.6} />
       </div>
@@ -1023,10 +1109,10 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             <p style={secLabel}>예상 창업비용</p>
             <div style={{ marginBottom: 40 }}>
               <span style={{ fontSize: 72, fontWeight: 900, color: t1, letterSpacing: '-0.04em' }}>
-                {totalCost >= 10000 ? `${(aCost/10000).toFixed(1)}` : aCost.toLocaleString()}
+                {isNaN(aCost) || aCost === 0 ? '-' : totalCost >= 10000 ? `${(aCost/10000).toFixed(1)}` : aCost.toLocaleString()}
               </span>
               <span style={{ fontSize: 24, fontWeight: 500, color: t2, marginLeft: 6 }}>
-                {totalCost >= 10000 ? '억원' : '만원'}
+                {isNaN(aCost) || aCost === 0 ? '' : totalCost >= 10000 ? '억원' : '만원'}
               </span>
             </div>
           </FadeUpToss>
@@ -1038,7 +1124,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
                 <div key={i} style={{ marginBottom: 24 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
                     <span style={{ fontSize: 16, color: t1, fontWeight: 500 }}>{c.item}</span>
-                    <span style={{ fontSize: 18, fontWeight: 700, color: t1 }}>{c.cost.toLocaleString()}만원</span>
+                    <span style={{ fontSize: 18, fontWeight: 700, color: t1 }}>{isNaN(c.cost) ? '-' : c.cost.toLocaleString()}만원</span>
                   </div>
                   <div style={{ height: 10, background: divColor, borderRadius: 5, overflow: 'hidden' }}>
                     <div style={{
@@ -1190,15 +1276,21 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
               </div>
             </FadeUpToss>
           )}
-          {cd.apis.snsTrend.data.summary && (
+          {(cd.apis.snsTrend.data.summary || cd.apis.snsTrend.data.analysis) && (
             <FadeUpToss inView={true} delay={0.35}>
-              <p style={{ fontSize: 14, color: t2, lineHeight: 1.6, marginTop: 16 }}>{S(cd.apis.snsTrend.data.summary)}</p>
+              <p style={{ fontSize: 14, color: t2, lineHeight: 1.6, marginTop: 16 }}>{S(cd.apis.snsTrend.data.summary || cd.apis.snsTrend.data.analysis)}</p>
+            </FadeUpToss>
+          )}
+          {/* SNS 트렌드 - summary가 없을 때 bruFeedback으로 대체 표시 */}
+          {!cd.apis.snsTrend.data.summary && !cd.apis.snsTrend.data.analysis && d.snsTrend?.bruFeedback && (
+            <FadeUpToss inView={true} delay={0.35}>
+              <p style={{ fontSize: 14, color: t2, lineHeight: 1.6, marginTop: 16 }}>{S(d.snsTrend.bruFeedback)}</p>
             </FadeUpToss>
           )}
         </div>
       )}
 
-        <BruBubble text={d.snsTrend?.bruFeedback} delay={0.3} />
+        <BruBubble text={d.snsTrend?.bruFeedback} summary={d.snsTrend?.bruSummary} delay={0.3} />
 
       {/* ━━━ 6.5 날씨 영향 분석 ━━━ */}
       {d.weatherImpact && (
@@ -1217,9 +1309,12 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
                   <div key={i} style={{ background: cardBg, borderRadius: 14, padding: 16, textAlign: 'center' }}>
                     <p style={{ fontSize: 24, marginBottom: 4 }}>{weather === '맑음' ? '☀️' : weather === '흐림' ? '☁️' : weather === '비' ? '🌧️' : weather === '눈' ? '❄️' : '🌤️'}</p>
                     <p style={{ fontSize: 13, fontWeight: 600, color: t1 }}>{weather}</p>
-                    <p style={{ fontSize: 15, fontWeight: 800, color: typeof effect === 'number' ? (effect >= 0 ? green : red) : t2, marginTop: 4 }}>
-                      {typeof effect === 'number' ? `${effect > 0 ? '+' : ''}${effect}%` : S(effect)}
+                    <p style={{ fontSize: 15, fontWeight: 800, color: typeof effect === 'number' ? (effect >= 0 ? green : red) : (typeof effect === 'object' && effect?.impact ? (String(effect.impact).includes('+') ? green : String(effect.impact).includes('-') ? red : t2) : t2), marginTop: 4 }}>
+                      {typeof effect === 'number' ? `${effect > 0 ? '+' : ''}${effect}%` : (typeof effect === 'object' && effect?.impact ? String(effect.impact) : S(effect))}
                     </p>
+                    {typeof effect === 'object' && effect?.desc && (
+                      <p style={{ fontSize: 11, color: t3, marginTop: 2 }}>{effect.desc}</p>
+                    )}
                   </div>
                 ))}
               </div>
@@ -5463,6 +5558,8 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
   "snsTrend": {
     "popularKeywords": ["오션뷰", "브런치", "디저트"],
     "negativeKeywords": ["비싸요", "웨이팅", "주차"],
+    "sentiment": { "positive": 65, "neutral": 25, "negative": 10 },
+    "summary": "이 지역 카페 SNS 트렌드를 2~3문장으로 종합 요약해주세요.",
     "competitors": [
       { "name": "실제카페명", "feature": "특징", "priceRange": "객단가" }
     ],
@@ -5470,7 +5567,8 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
     "popularMenuType": "시그니처 음료, 대형 디저트",
     "instagramPosts": "약 X만 게시물 추정",
     "youtubeContent": "리뷰 영상 트렌드 요약",
-    "bruFeedback": "브루가 SNS 트렌드를 바탕으로 브랜딩 방향을 제시해요. 테이크아웃 컵 디자인 등 바이럴 포인트 중심."
+    "bruFeedback": "브루가 SNS 트렌드를 바탕으로 브랜딩 방향을 제시해요. 테이크아웃 컵 디자인 등 바이럴 포인트 중심.",
+    "bruSummary": "40자 이내 한줄 핵심"
   }
 }
 
@@ -5485,14 +5583,27 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
          const snsText = snsResult.candidates?.[0]?.content?.parts?.[0]?.text || '';
          const cleanSnsText = snsText.replace(/```json\n?|\n?```/g, '').trim();
          try {
-           snsTrendData = JSON.parse(cleanSnsText);
+           const snsJsonMatch = cleanSnsText.match(/\{[\s\S]*\}/);
+           snsTrendData = snsJsonMatch ? JSON.parse(snsJsonMatch[0]) : JSON.parse(cleanSnsText);
+           const snsContent = snsTrendData.snsTrend || snsTrendData;
            collectedData.apis.snsTrend = {
              description: 'SNS 트렌드 분석',
-             data: snsTrendData.snsTrend
+             data: snsContent
            };
            console.log('SNS 트렌드 분석 완료');
          } catch (e) {
-           console.log('SNS 트렌드 JSON 파싱 실패');
+           console.log('SNS 트렌드 JSON 파싱 실패, 복구 시도');
+           try {
+             const snsJsonMatch = cleanSnsText.match(/\{[\s\S]*\}/);
+             if (snsJsonMatch) {
+               let fixedSns = snsJsonMatch[0].replace(/,\s*([}\]])/g, '$1');
+               fixedSns = fixedSns.replace(/"([^"]*(?:\\.[^"]*)*)"/g, (match) => match.replace(/(?<!\\)\n/g, '\\n'));
+               snsTrendData = JSON.parse(fixedSns);
+               const snsContent = snsTrendData.snsTrend || snsTrendData;
+               collectedData.apis.snsTrend = { description: 'SNS 트렌드 분석', data: snsContent };
+               console.log('SNS 트렌드 복구 파싱 성공');
+             }
+           } catch (e2) { console.log('SNS 트렌드 복구도 실패'); }
          }
        }
      } catch (e) {
@@ -6275,11 +6386,31 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
          data.overview.cafeCount = String(_totalCafe);
          console.log(`카페 수 override: ${_totalCafe}개 (${_nearbySalesData.length + 1}개 동 합산)`);
        }
+       // cfrStcnt API 직접 override (salesAvg에 카페 항목이 없을 때)
+       if (_totalCafe === 0 && data.overview) {
+         const cfrData = collectedData.apis?.cfrStcnt?.data;
+         if (cfrData?.stcnt && cfrData.stcnt > 0) {
+           data.overview.cafeCount = String(cfrData.stcnt);
+           console.log(`카페 수 cfrStcnt override: ${cfrData.stcnt}개`);
+         }
+       }
        if (_cafeSalesDongCount > 0 && data.overview) {
          const avgSales = Math.round(_totalCafeSalesAmt / _cafeSalesDongCount);
          if (avgSales > 0) data.overview.avgMonthlySales = String(avgSales);
        }
-       
+
+       // ═══ API 실제 유동인구 데이터로 override ═══
+       if (data.overview) {
+         const dynData = collectedData.apis?.dynPplCmpr?.data;
+         if (Array.isArray(dynData) && dynData.length > 0) {
+           const popCnt = dynData[0]?.cnt || dynData[0]?.fpCnt || 0;
+           if (popCnt > 0) {
+             data.overview.floatingPop = String(popCnt);
+             console.log(`유동인구 override: ${popCnt}명 (dynPplCmpr API)`);
+           }
+         }
+       }
+
        // SNS 트렌드 데이터 보강 (별도 AI 호출 결과)
        if (collectedData.apis?.snsTrend?.data && !data.snsTrend) {
          data.snsTrend = collectedData.apis.snsTrend.data;
