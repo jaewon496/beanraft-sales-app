@@ -77,12 +77,35 @@ exports.handler = async (event, context) => {
       Object.keys(queryParams).forEach(k => { if (queryParams[k]) urlParams.append(k, queryParams[k]); });
       targetUrl = `https://bigdata.sbiz.or.kr${endpoint}?${urlParams.toString()}`;
     }
-    // 4. coord
+    // 4. coord (반경 자동 확대: 1000 → 2000 → 3000)
     else if (api === 'coord') {
       const { lat, lng } = queryParams;
       if (!lat || !lng) return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'lat, lng 필요' }) };
       const tm = wgs84ToTM(parseFloat(lat), parseFloat(lng));
-      targetUrl = `https://bigdata.sbiz.or.kr/gis/api/getCoordToAdmPoint.json?minXAxis=${tm.x-1000}&maxXAxis=${tm.x+1000}&minYAxis=${tm.y-1000}&maxYAxis=${tm.y+1000}&mapLevel=14`;
+      const margins = [1000, 2000, 3000];
+      let coordResult = null;
+      for (const margin of margins) {
+        const coordUrl = `https://bigdata.sbiz.or.kr/gis/api/getCoordToAdmPoint.json?minXAxis=${tm.x-margin}&maxXAxis=${tm.x+margin}&minYAxis=${tm.y-margin}&maxYAxis=${tm.y+margin}&mapLevel=14`;
+        const coordData = await new Promise((resolve, reject) => {
+          const req = https.get(coordUrl, { rejectUnauthorized: false, headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://bigdata.sbiz.or.kr/' }, timeout: 15000 }, (res) => {
+            let body = '';
+            res.on('data', chunk => body += chunk);
+            res.on('end', () => { try { resolve(JSON.parse(body)); } catch(e) { resolve([]); } });
+          });
+          req.on('error', () => resolve([]));
+          req.on('timeout', () => { req.destroy(); resolve([]); });
+        });
+        if (Array.isArray(coordData) && coordData.length > 0) {
+          coordResult = coordData;
+          console.log(`[coord] margin=${margin}m → ${coordData.length}개 행정동 찾음`);
+          break;
+        }
+      }
+      return {
+        statusCode: 200,
+        headers: corsHeaders,
+        body: JSON.stringify({ success: true, status: 200, data: coordResult || [], elapsedMs: Date.now() - startTime })
+      };
     }
     // 5. store (공공데이터포털)
     else if (api === 'store') {
