@@ -798,13 +798,14 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
       {/* ━━━ 0. 브루 인사 (1문단: 꽉 채운 카드) ━━━ */}
       <div style={{ ...sec, minHeight: '70vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
         <FadeUpToss inView={true} delay={0}>
-          <div style={{ 
-            width: 80, height: 80, borderRadius: '50%', 
-            background: 'linear-gradient(135deg, #3182F6, #6366F1)', 
+          <div style={{
+            width: 80, height: 80, borderRadius: '50%',
+            background: 'linear-gradient(135deg, #3182F6, #6366F1)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            marginBottom: 32, boxShadow: '0 8px 32px rgba(49,130,246,0.25)'
+            marginBottom: 32, boxShadow: '0 8px 32px rgba(49,130,246,0.25)',
+            overflow: 'hidden'
           }}>
-            <span style={{ fontSize: 36 }}>☕</span>
+            <img src="/logo.png" alt="BeanCraft" style={{ width: 56, height: 56, objectFit: 'contain' }} />
           </div>
         </FadeUpToss>
         <FadeUpToss inView={true} delay={0.2}>
@@ -3563,6 +3564,7 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
  const [salesModeAnalysisProgress, setSalesModeAnalysisProgress] = useState(0); // 0-100 진행률
  const [salesModeAnalysisStep, setSalesModeAnalysisStep] = useState(''); // 현재 단계 텍스트
  const [salesModeCollectingText, setSalesModeCollectingText] = useState(''); // 실시간 수집 텍스트
+ const salesModeAbortRef = useRef(null); // 분석 중지용 AbortController ref
  const [salesModeShowSources, setSalesModeShowSources] = useState(false);
  const [salesModeIframeError, setSalesModeIframeError] = useState(false); // iframe 차단 감지
  const [salesModeHomepageUrl, setSalesModeHomepageUrl] = useState('https://www.beancraft.co.kr'); // 홈페이지 URL
@@ -4724,6 +4726,11 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
    setSalesModeSearchResult(null);
    setSalesModeMapCenter(null);
    
+   // 분석 중지 컨트롤러 초기화
+   if (salesModeAbortRef.current) salesModeAbortRef.current.abort();
+   const abortCtrl = new AbortController();
+   salesModeAbortRef.current = abortCtrl;
+
    setSalesModeSearchLoading(true);
    setSalesModeAnalysisProgress(0);
    currentProgressRef.current = 0;
@@ -7220,6 +7227,14 @@ ${crossData.dynPopForTime || '유동인구 데이터 수집됨'}${crossData.dynA
        setSalesModeSearchResult({ success: true, data: fallbackData, query, hasApiData, partial: true, collectedData });
      }
    } catch (error) {
+     // 분석 중지(abort)인 경우 에러 표시하지 않음
+     if (error.name === 'AbortError' || salesModeAbortRef.current?.signal?.aborted) {
+       console.log('분석이 사용자에 의해 중지됨');
+       if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+       setSalesModeAnalysisProgress(0);
+       currentProgressRef.current = 0;
+       return;
+     }
      console.error('영업모드 검색 에러:', error);
      if (progressIntervalRef.current) {
        clearInterval(progressIntervalRef.current);
@@ -13181,6 +13196,28 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                        {salesModeCollectingText || salesModeAnalysisStep}
                      </p>
                      <p className={`text-xs ${t.textSecondary}`}>잠시만 기다려주세요</p>
+
+                     {/* 분석 중지 버튼 */}
+                     <button
+                       onClick={() => {
+                         if (salesModeAbortRef.current) {
+                           salesModeAbortRef.current.abort();
+                           salesModeAbortRef.current = null;
+                         }
+                         setSalesModeSearchLoading(false);
+                         setSalesModeAnalysisStep('분석이 중지되었습니다');
+                         setSalesModeCollectingText('');
+                         setSalesModeAnalysisProgress(0);
+                       }}
+                       className="mt-6 px-6 py-2.5 rounded-full text-sm font-medium transition-all"
+                       style={{
+                         background: 'rgba(240, 68, 82, 0.1)',
+                         color: '#F04452',
+                         border: '1px solid rgba(240, 68, 82, 0.3)',
+                       }}
+                     >
+                       분석 중지
+                     </button>
                    </div>
                  )}
 
