@@ -659,11 +659,24 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
   const aOpen = useCountUpToss(newOpen, 800, 0, v1);
   const aClose = useCountUpToss(closed, 800, 0, v1);
   
-  // 프랜차이즈 PieChart 데이터
-  const franchiseData = (d.franchise || []).map(f => ({
-    name: f.name,
-    share: extractNum(f.count) || 1,
-  }));
+  // 프랜차이즈 PieChart 데이터 (반경 500m 데이터 우선)
+  const nearbyFC = cd?.nearbyFranchiseCounts || {};
+  const hasNearbyData = Object.keys(nearbyFC).length > 0 || (cd?.nearbyTotalCafes > 0);
+  const franchiseData = (d.franchise || []).map(f => {
+    const fName = (f.name || '').toUpperCase();
+    let localCount = 0;
+    if (hasNearbyData) {
+      const matchKey = Object.keys(nearbyFC).find(k =>
+        fName.includes(k.replace(/커피|카페/g, '').toUpperCase()) ||
+        k.toUpperCase().includes(fName.replace(/커피|카페/g, ''))
+      );
+      localCount = matchKey ? nearbyFC[matchKey] : 0;
+    }
+    return {
+      name: f.name,
+      share: hasNearbyData ? (localCount || 0.3) : (extractNum(f.count) || 1),
+    };
+  });
   
   // 창업비용 데이터 - 만원/억원 단위 파싱 강화
   const extractCostNum = (val) => {
@@ -995,6 +1008,11 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
           <FadeUpToss inView={v3}>
             <p style={secLabel}>프랜차이즈 현황</p>
             <h2 style={secTitle}>카페 경쟁 분석</h2>
+            {cd?.nearbyTotalCafes > 0 && (
+              <p style={{ fontSize: 13, color: t3, marginTop: 4 }}>
+                반경 500m · 카페 {cd.nearbyTotalCafes}개 (프랜차이즈 {cd.nearbyTotalCafes - (cd.nearbyIndependentCafes || 0)}개 · 개인 {cd.nearbyIndependentCafes || 0}개)
+              </p>
+            )}
           </FadeUpToss>
           <FadeUpToss inView={v3} delay={0.15}>
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 32 }}>
@@ -1011,16 +1029,31 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
           </FadeUpToss>
           <FadeUpToss inView={v3} delay={0.3}>
             {(d.franchise || []).map((f, i) => {
-              // FRANCHISE_DATA에서 매장 수 보충
               const fName = f.name || '';
               const fdbMatch = Object.keys(FRANCHISE_DATA).find(k =>
                 fName.includes(k) || k.includes(fName) ||
                 fName.replace(/커피|카페/g, '').includes(k.replace(/커피|카페/g, ''))
               );
               const fdb = fdbMatch ? FRANCHISE_DATA[fdbMatch] : null;
-              const displayCount = (f.count && f.count !== '0' && f.count !== '-' && f.count !== 0)
-                ? f.count
-                : fdb?.매장수 ? `${fdb.매장수.toLocaleString()}개` : f.count;
+
+              // 반경 500m 내 실제 매장 수 (storeRadius API 데이터)
+              const nearbyFC = cd?.nearbyFranchiseCounts || {};
+              const hasNearbyData = Object.keys(nearbyFC).length > 0 || (cd?.nearbyTotalCafes > 0);
+              let localCount = null;
+              if (hasNearbyData) {
+                const matchKey = Object.keys(nearbyFC).find(k =>
+                  fName.toUpperCase().includes(k.replace(/커피|카페/g, '').toUpperCase()) ||
+                  k.toUpperCase().includes(fName.replace(/커피|카페/g, '').toUpperCase()) ||
+                  (fdbMatch && (k === fdbMatch || fdbMatch.includes(k) || k.includes(fdbMatch)))
+                );
+                localCount = matchKey ? nearbyFC[matchKey] : 0;
+              }
+
+              const displayCount = hasNearbyData
+                ? (localCount > 0 ? `${localCount}개` : '0개')
+                : (f.count && f.count !== '0' && f.count !== '-' && f.count !== 0)
+                  ? f.count
+                  : fdb?.매장수 ? `전국 ${fdb.매장수.toLocaleString()}개` : f.count;
               const displayPrice = fdb?.아메리카노 ? `아메 ${fdb.아메리카노.toLocaleString()}원` : (f.royalty || '');
 
               return (
@@ -5684,6 +5717,79 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
      } catch (e) { console.log('프랜차이즈 API 실패 (하드코딩 사용):', e.message); }
 
      // ═══════════════════════════════════════════════════════════════
+     // 3.1단계: 반경 500m 내 카페 매장 수집 (공공데이터포털 storeRadius)
+     // ═══════════════════════════════════════════════════════════════
+     if (coordinates) {
+       updateCollectingText('반경 500m 내 카페 매장을 조사하고 있어요');
+       try {
+         const storeRadiusRes = await fetch(`${SBIZ_PROXY_URL}?api=storeRadius&cx=${coordinates.lng}&cy=${coordinates.lat}&radius=500&indsLclsCd=Q&indsMclsCd=Q12&numOfRows=200&pageNo=1`);
+         if (storeRadiusRes.ok) {
+           const storeRadiusRaw = await storeRadiusRes.json();
+           let nearbyItems = [];
+           const srBody = storeRadiusRaw?.data?.body || storeRadiusRaw?.body;
+           if (srBody?.items) {
+             nearbyItems = Array.isArray(srBody.items) ? srBody.items : (srBody.items.item || []);
+           }
+           if (!Array.isArray(nearbyItems)) nearbyItems = nearbyItems ? [nearbyItems] : [];
+
+           // 카페/커피 업종만 필터
+           const nearbyCafes = nearbyItems.filter(i =>
+             i.indsMclsCd === 'Q12' || i.indsMclsNm?.includes('커피') ||
+             i.indsSclsNm?.includes('카페') || i.indsSclsNm?.includes('커피')
+           );
+
+           // 프랜차이즈 브랜드별 매칭
+           const FRANCHISE_KEYWORDS = {
+             '메가MGC커피': ['메가커피','메가MGC','MEGA MGC','MEGA COFFEE'],
+             '컴포즈커피': ['컴포즈','COMPOSE'],
+             '빽다방': ['빽다방'],
+             '더벤티': ['더벤티','THE VENTI','THEVENTI'],
+             '매머드커피': ['매머드','MAMMOTH','매머드익스프레스'],
+             '이디야커피': ['이디야','EDIYA'],
+             '투썸플레이스': ['투썸','TWOSOME','A TWOSOME'],
+             '할리스': ['할리스','HOLLYS'],
+             '스타벅스': ['스타벅스','STARBUCKS'],
+             '폴바셋': ['폴바셋','PAUL BASSETT'],
+             '카페베네': ['카페베네','CAFFEBENE'],
+             '탐앤탐스': ['탐앤탐스','TOM N TOMS'],
+             '파스쿠찌': ['파스쿠찌','PASCUCCI'],
+             '커피빈': ['커피빈','COFFEE BEAN'],
+             '엔제리너스': ['엔제리너스','ANGEL-IN-US','ANGELINUS'],
+             '감성커피': ['감성커피'],
+             '하삼동커피': ['하삼동'],
+             '커피에반하다': ['커피에반하다','반하다커피'],
+           };
+
+           const nearbyFranchiseCounts = {};
+           let nearbyIndependentCount = 0;
+           const nearbyFranchiseList = []; // 매장명+브랜드 상세
+
+           nearbyCafes.forEach(store => {
+             const storeName = (store.bizesNm || '').toUpperCase();
+             let matched = false;
+             for (const [brand, keywords] of Object.entries(FRANCHISE_KEYWORDS)) {
+               if (keywords.some(kw => storeName.includes(kw.toUpperCase()))) {
+                 nearbyFranchiseCounts[brand] = (nearbyFranchiseCounts[brand] || 0) + 1;
+                 nearbyFranchiseList.push({ name: store.bizesNm, brand, addr: store.rdnmAdr || store.lnoAdr });
+                 matched = true;
+                 break;
+               }
+             }
+             if (!matched) nearbyIndependentCount++;
+           });
+
+           collectedData.nearbyFranchiseCounts = nearbyFranchiseCounts;
+           collectedData.nearbyTotalCafes = nearbyCafes.length;
+           collectedData.nearbyIndependentCafes = nearbyIndependentCount;
+           collectedData.nearbyFranchiseList = nearbyFranchiseList;
+
+           const fcSummary = Object.entries(nearbyFranchiseCounts).map(([k,v]) => `${k}:${v}`).join(', ');
+           console.log(`[영업모드] 반경 500m 카페: 총 ${nearbyCafes.length}개 (프랜차이즈: ${fcSummary || '없음'}, 개인: ${nearbyIndependentCount}개)`);
+         }
+       } catch (e) { console.log('반경 500m 카페 매장 수집 실패:', e.message); }
+     }
+
+     // ═══════════════════════════════════════════════════════════════
      // 3.5단계: SNS 트렌드 웹검색 (YouTube, 인스타그램, 블로그)
      // ═══════════════════════════════════════════════════════════════
      animateProgressTo(60);
@@ -6057,6 +6163,12 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
 [분석 대상 지역]
 ${query} (${addressInfo?.sido || ''} ${addressInfo?.sigungu || ''} ${addressInfo?.dong || ''})
 좌표: ${coordinates ? `${coordinates.lat}, ${coordinates.lng}` : '미확인'}
+${collectedData.nearbyTotalCafes > 0 ? `
+[반경 500m 내 카페 매장 현황 - 공공데이터포털 storeRadius API]
+총 카페: ${collectedData.nearbyTotalCafes}개 (프랜차이즈: ${collectedData.nearbyTotalCafes - (collectedData.nearbyIndependentCafes || 0)}개, 개인: ${collectedData.nearbyIndependentCafes || 0}개)
+프랜차이즈별: ${Object.entries(collectedData.nearbyFranchiseCounts || {}).map(([k,v]) => `${k} ${v}개`).join(', ') || '없음'}
+매장 목록: ${(collectedData.nearbyFranchiseList || []).slice(0, 10).map(s => s.name).join(', ')}
+※ 이 데이터는 반경 500m 실측 데이터입니다. franchise 배열의 count에 반드시 이 숫자를 사용하세요.` : ''}
 
 [수집된 실제 데이터 - 소상공인365 GIS API]
 ${hasApiData ? `
@@ -6211,11 +6323,12 @@ bruFeedback은 3단계 깊이로 작성해야 해요. 1차원(데이터 읽기)�
     "bruSummary": "40자 이내 한줄 핵심"
   },
   "franchise": [
-    { "name": "메가커피", "count": XX, "price": 1500, "monthly": "약 X,XXX만원" },
-    { "name": "컴포즈커피", "count": XX, "price": 1500, "monthly": "약 X,XXX만원" },
-    { "name": "이디야", "count": XX, "price": 3300, "monthly": "약 X,XXX만원" },
-    { "name": "스타벅스", "count": XX, "price": 4500, "monthly": "약 X,XXX만원", "feedback": "이 지역 프랜차이즈 현황에 대한 브루의 코멘트입니다." }
+    { "name": "스타벅스", "count": "반경 500m N개", "price": 4500, "monthly": "약 X,XXX만원" },
+    { "name": "메가커피", "count": "반경 500m N개", "price": 2000, "monthly": "약 X,XXX만원" },
+    { "name": "컴포즈커피", "count": "반경 500m N개", "price": 1500, "monthly": "약 X,XXX만원" },
+    { "name": "이디야", "count": "반경 500m N개", "price": 3300, "monthly": "약 X,XXX만원", "feedback": "이 지역 프랜차이즈 현황에 대한 브루의 코멘트입니다." }
   ],
+  ※ franchise.count는 반드시 [반경 500m 내 카페 매장 현황]의 실측 데이터를 사용. 전국 매장 수 사용 금지. 500m 내 없으면 0.
   "rent": { 
     "monthly": "월세 XXX-XXX만원 수준이에요.", 
     "deposit": "보증금 X,XXX-X,XXX만원 정도예요.", 
@@ -6940,7 +7053,13 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
        crossData.cafeCount = totalCafeCount > 0 ? totalCafeCount : (data.overview?.cafeCount || '?');
        crossData.nearbyDongCount = dongCount;
        crossData.franchiseInfo = nearbySearchResult?.substring(0, 600) || '';
-       
+
+       // 반경 500m 프랜차이즈 데이터 (storeRadius API)
+       crossData.nearbyFranchiseCounts = collectedData.nearbyFranchiseCounts || {};
+       crossData.nearbyTotalCafes = collectedData.nearbyTotalCafes || 0;
+       crossData.nearbyIndependentCafes = collectedData.nearbyIndependentCafes || 0;
+       crossData.nearbyFranchiseStr = Object.entries(collectedData.nearbyFranchiseCounts || {}).map(([k,v]) => `${k} ${v}개`).join(', ') || '미수집';
+
        // 웹검색 카페 목록 (거리 포함)
        crossData.nearCafes = nearbySearchResult?.substring(0, 800) || '';
        
@@ -7017,11 +7136,13 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
 {"bruFeedback":"여기에 피드백","bruSummary":"40자이내 요약"}`,
          
          franchise: `당신은 카페 창업 컨설턴트 '브루'예요. 카드3(프랜차이즈 경쟁) 피드백을 작성해주세요.
-[이 카드 데이터] 주변카페: ${crossData.nearCafes.substring(0,400)}
+[이 카드 데이터] 반경 500m 프랜차이즈: ${crossData.nearbyFranchiseStr}
+총 카페: ${crossData.nearbyTotalCafes}개, 개인카페: ${crossData.nearbyIndependentCafes}개
+주변카페(웹검색): ${crossData.nearCafes.substring(0,300)}
 [교차 데이터] 소비 1위: ${crossData.topSpendAge}(${crossData.topSpendPct}%)
 임대료: ${crossData.rentStr}
 매출: ${crossData.cafeSalesStr}
-[규칙] 실제 카페 이름과 가격 필수 언급. 가격 양극화(저가 vs 고가) 분석. 틈새 가격대 제시. "메가커피 2,000원과 싸우면 안 된다"식의 현실 조언. 100자 이상.
+[규칙] 반경 500m 내 실제 프랜차이즈 매장 수 기반으로 경쟁 분석. 실제 카페 이름과 가격 필수 언급. 가격 양극화(저가 vs 고가) 분석. 틈새 가격대 제시. "메가커피 2,000원과 싸우면 안 된다"식의 현실 조언. 100자 이상.
 ${isDetailed ? '상세주소이므로 "선택하신 주소에서 가장 가까운 카페는 ○○(주소)" 언급 필수.' : ''}
 [bruSummary] 40자 이내
 반드시 아래 JSON 포맷만 출력하세요. 다른 텍스트, 설명, 마크다운 금지.
