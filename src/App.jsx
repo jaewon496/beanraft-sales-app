@@ -5240,10 +5240,8 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
        updateCollectingText(`"${query}" 장소를 검색하고 있어요`);
        // 원래 쿼리 + 확장 쿼리 순서로 Local Search 시도
        const localSearchQueries = [query, ...searchQueries.filter(q => q !== query)];
-       console.log("Local Search 시도할 쿼리 목록:", JSON.stringify(localSearchQueries));
        for (const localQuery of localSearchQueries) {
          if (coordinates) break;
-         console.log("Local Search 시도 중: " + localQuery);
        try {
          const localRes = await fetch(`/api/naver-local-proxy?query=${encodeURIComponent(localQuery)}&display=1`);
          if (localRes.ok) {
