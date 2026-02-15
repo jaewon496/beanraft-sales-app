@@ -5097,9 +5097,13 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
      // 2. 이미 시도+행정구역(구/시/군/읍/면)이 포함되어 있으면 그대로 반환
      // 단, "광주 충장로"처럼 시도+유명지역명은 regionMapping으로 넘겨야 함
      const sidoList = ['서울', '부산', '대구', '인천', '광주', '대전', '울산', '세종', '경기', '강원', '충북', '충남', '전북', '전남', '경북', '경남', '제주'];
-     const hasSido = sidoList.some(sido => trimmed.startsWith(sido));
-     const hasAdmin = /[가-힣]+(구|시|군|읍|면|동)\s/.test(trimmed) || /[가-힣]+(구|시|군|읍|면|동)$/.test(trimmed);
-     if (hasSido && hasAdmin) return [trimmed];
+     const matchedSido = sidoList.find(sido => trimmed.startsWith(sido));
+     if (matchedSido) {
+       // 시도명을 제거한 나머지에서 행정구역(구/시/군/읍/면/동) 포함 여부 확인
+       const rest = trimmed.slice(matchedSido.length).trim();
+       const hasAdmin = /[가-힣]+(구|시|군|읍|면|동)(\s|$)/.test(rest);
+       if (hasAdmin) return [trimmed];
+     }
      
      // 3. 동 이름만 입력한 경우 (예: "창신동", "숭인동", "서교동")
      const dongMapping = {
