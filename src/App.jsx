@@ -5725,9 +5725,7 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
          const storeRadiusRes = await fetch(`${PROXY_SERVER_URL}/api/store/radius?cx=${coordinates.lng}&cy=${coordinates.lat}&radius=500&numOfRows=200&pageNo=1`);
          if (storeRadiusRes.ok) {
            const storeRadiusRaw = await storeRadiusRes.json();
-           console.log('[영업모드] storeRadius 응답:', JSON.stringify(storeRadiusRaw).substring(0, 300));
            let nearbyItems = [];
-           // 기존 Line 4484-4491 패턴과 동일한 파싱
            const srBody = storeRadiusRaw?.body || storeRadiusRaw?.data?.body;
            if (srBody?.items) {
              nearbyItems = Array.isArray(srBody.items) ? srBody.items : (srBody.items.item || []);
