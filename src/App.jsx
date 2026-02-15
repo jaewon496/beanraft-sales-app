@@ -743,11 +743,25 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
     ? cafeSalesData.slice(0, 5).map(s => ({ name: s.tpbizClscdNm || '', sales: s.mmavgSlsAmt || 0 }))
     : (cd?.apis?.mmavgList?.data || []).slice(0, 5).map(s => ({ name: s.tpbizNm || '', sales: s.slsamt || 0 }));
   
-  // 방문연령 데이터 (collectedData에서)
+  // 방문연령 데이터 (collectedData에서) - pipcnt 내림차순 정렬
   const vstAgeData = cd?.apis?.vstAgeRnk?.data;
+  const vstCstData = cd?.apis?.vstCst?.data;
   const ageMap = { 'M10': '10대', 'M20': '20대', 'M30': '30대', 'M40': '40대', 'M50': '50대', 'M60': '60대+' };
-  const ageBarData = vstAgeData && Array.isArray(vstAgeData) 
-    ? vstAgeData.slice(0, 6).map(a => ({
+
+  // 소비 연령 (vstCst) 데이터를 우선 사용 - 카페 분석에 더 적합
+  const sortedCstData = vstCstData && Array.isArray(vstCstData)
+    ? [...vstCstData].sort((a, b) => (b.pipcnt || 0) - (a.pipcnt || 0)) : [];
+  const sortedAgeData = vstAgeData && Array.isArray(vstAgeData)
+    ? [...vstAgeData].sort((a, b) => (b.pipcnt || 0) - (a.pipcnt || 0)) : [];
+
+  // 카드 차트: 소비 연령 데이터 우선, 없으면 방문 연령
+  const ageBarData = sortedCstData.length > 0
+    ? sortedCstData.slice(0, 6).map(a => ({
+        name: ageMap[a.age] || a.age,
+        count: a.pipcnt || 0,
+      }))
+    : sortedAgeData.length > 0
+    ? sortedAgeData.slice(0, 6).map(a => ({
         name: ageMap[a.age] || a.age,
         count: a.pipcnt || 0,
       }))
@@ -876,10 +890,12 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
       {ageBarData.length > 0 && (
         <div ref={r2} style={sec}>
           <FadeUpToss inView={v2}>
-            <p style={secLabel}>방문 고객 분석</p>
-            <h2 style={secTitle}>연령별 방문자</h2>
+            <p style={secLabel}>소비 고객 분석</p>
+            <h2 style={secTitle}>연령별 소비 고객</h2>
             <p style={secSub}>
-              {d.consumers?.mainTarget ? `핵심 타겟: ${S(d.consumers.mainTarget)} (${S(d.consumers.mainRatio || '')})` : '방문 연령 데이터'}
+              {sortedCstData.length > 0
+                ? `핵심 소비층: ${ageMap[sortedCstData[0]?.age] || '?'}(${sortedCstData[0]?.pipcnt ? Math.round(sortedCstData[0].pipcnt / sortedCstData.reduce((s,d) => s + (d.pipcnt||0), 0) * 100) + '%' : ''})`
+                : d.consumers?.mainTarget ? `핵심 타겟: ${S(d.consumers.mainTarget)} (${S(d.consumers.mainRatio || '')})` : '소비 연령 데이터'}
             </p>
           </FadeUpToss>
           <FadeUpToss inView={v2} delay={0.2}>
@@ -890,7 +906,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
                   <YAxis hide />
                   <Tooltip 
                     contentStyle={{ background: dark ? '#2B2B2B' : '#FFF', border: 'none', borderRadius: 12, color: t1, fontSize: 14, boxShadow: '0 4px 24px rgba(0,0,0,0.2)' }} 
-                    formatter={(v) => [`${v.toLocaleString()}명`, '방문자']} 
+                    formatter={(v) => [sortedCstData.length > 0 ? `${v.toLocaleString()}만원` : `${v.toLocaleString()}명`, sortedCstData.length > 0 ? '소비금액' : '방문자']}
                   />
                   <Bar dataKey="count" fill={blue} radius={[8, 8, 0, 0]} barSize={36} />
                 </BarChart>
@@ -3970,21 +3986,27 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
        }
      }
      
-     // 방문 연령
+     // 소비 연령 우선 (카페 분석에 적합) - vstCst가 있으면 소비 기준, 없으면 방문 기준
      let mainTarget = null;
      let mainTargetRatio = 0;
      let secondTarget = null;
      let secondTargetRatio = 0;
      const ageMap = { 'M10': '10대', 'M20': '20대', 'M30': '30대', 'M40': '40대', 'M50': '50대', 'M60': '60대 이상' };
-     if (vstAgeData && Array.isArray(vstAgeData) && vstAgeData.length > 0) {
-       const totalAge = vstAgeData.reduce((s, d) => s + (d.pipcnt || 0), 0);
-       if (vstAgeData[0] && totalAge > 0) {
-         mainTarget = ageMap[vstAgeData[0].age] || vstAgeData[0].age;
-         mainTargetRatio = Math.round((vstAgeData[0].pipcnt / totalAge) * 100);
+     // vstCst(소비 연령)를 우선 사용
+     const _ageSource = (vstCstData && Array.isArray(vstCstData) && vstCstData.length > 0)
+       ? [...vstCstData].sort((a, b) => (b.pipcnt || 0) - (a.pipcnt || 0))
+       : (vstAgeData && Array.isArray(vstAgeData) && vstAgeData.length > 0)
+       ? [...vstAgeData].sort((a, b) => (b.pipcnt || 0) - (a.pipcnt || 0))
+       : [];
+     if (_ageSource.length > 0) {
+       const totalAge = _ageSource.reduce((s, d) => s + (d.pipcnt || 0), 0);
+       if (_ageSource[0] && totalAge > 0) {
+         mainTarget = ageMap[_ageSource[0].age] || _ageSource[0].age;
+         mainTargetRatio = Math.round((_ageSource[0].pipcnt / totalAge) * 100);
        }
-       if (vstAgeData[1] && totalAge > 0) {
-         secondTarget = ageMap[vstAgeData[1].age] || vstAgeData[1].age;
-         secondTargetRatio = Math.round((vstAgeData[1].pipcnt / totalAge) * 100);
+       if (_ageSource[1] && totalAge > 0) {
+         secondTarget = ageMap[_ageSource[1].age] || _ageSource[1].age;
+         secondTargetRatio = Math.round((_ageSource[1].pipcnt / totalAge) * 100);
        }
      }
      
@@ -6616,7 +6638,7 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
          const totalSpend = vstCst.reduce((s,d) => s + (d.pipcnt||0), 0);
          const totalVisit = vstAge.reduce((s,d) => s + (d.pipcnt||0), 0);
          const topSpend = [...vstCst].sort((a,b) => (b.pipcnt||0) - (a.pipcnt||0))[0];
-         const topVisit = vstAge[0];
+         const topVisit = [...vstAge].sort((a,b) => (b.pipcnt||0) - (a.pipcnt||0))[0];
          if (topSpend && topVisit) {
            const spendAge = topSpend.age?.replace('M','');
            const visitAge = topVisit.age?.replace('M','');
@@ -6687,7 +6709,7 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
        const totalSpendX = vstCstData.reduce((s,d) => s + (d.pipcnt||0), 0);
        const totalVisitX = vstAgeData.reduce((s,d) => s + (d.pipcnt||0), 0);
        const spendSorted = [...vstCstData].sort((a,b) => (b.pipcnt||0) - (a.pipcnt||0));
-       const visitSorted = [...vstAgeData];
+       const visitSorted = [...vstAgeData].sort((a,b) => (b.pipcnt||0) - (a.pipcnt||0));
        crossData.topSpendAge = spendSorted[0]?.age?.replace('M','') + '대';
        crossData.topSpendPct = totalSpendX > 0 ? (spendSorted[0]?.pipcnt / totalSpendX * 100).toFixed(1) : '?';
        crossData.topVisitAge = visitSorted[0]?.age?.replace('M','') + '대';
