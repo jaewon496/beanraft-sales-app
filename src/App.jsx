@@ -1101,11 +1101,11 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             </p>
           </FadeUpToss>
           {/* 매출 요약 (있으면 표시) */}
-          {crossData?.cafeSalesStr && (
+          {avgMonthlySales > 0 && (
             <FadeUpToss inView={v3b} delay={0.1}>
               <div style={{ background: `${blue}12`, borderRadius: 12, padding: '12px 16px', marginTop: 12 }}>
                 <p style={{ fontSize: 13, color: t2, lineHeight: 1.5 }}>
-                  이 지역 카페 평균 매출 <span style={{ fontWeight: 700, color: t1 }}>{crossData.avgCafeSales ? `${crossData.avgCafeSales.toLocaleString()}만원` : '-'}</span>/월
+                  이 지역 카페 평균 매출 <span style={{ fontWeight: 700, color: t1 }}>{avgMonthlySales.toLocaleString()}만원</span>/월
                 </p>
               </div>
             </FadeUpToss>
