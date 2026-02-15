@@ -6734,16 +6734,25 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
          const sgNmForSales = addressInfo?.sigungu || '';
          const salesKws = [dongNmForSales.replace(/\d+동$/, ''), query.split(' ')[0], sgNmForSales.replace('구', '')].filter(kw => kw && kw.length >= 2);
 
-         // 서울시 VwsmTrdarSelngQq (추정매출) API - Netlify 프록시 경유
-         const salesRes = await fetch(`/api/sbiz-proxy?api=seoul&service=VwsmTrdarSelngQq&startIndex=1&endIndex=1000`);
-         if (salesRes.ok) {
-           const salesRaw = await salesRes.json();
-           const salesData = salesRaw?.data || salesRaw;
-           const salesRows = salesData?.VwsmTrdarSelngQq?.row || [];
+         // 서울시 VwsmTrdarSelngQq (추정매출) API - 최신 분기, 5배치 병렬 수집
+         const batchPromises = [];
+         const batchSize = 5000;
+         for (let batch = 0; batch < 25000; batch += batchSize) {
+           batchPromises.push(
+             fetch(`/api/sbiz-proxy?api=seoul&service=VwsmTrdarSelngQq&startIndex=${batch+1}&endIndex=${batch+batchSize}&stdrYyquCd=20253`)
+               .then(r => r.ok ? r.json() : null)
+               .then(d => { const raw = d?.data || d; return raw?.VwsmTrdarSelngQq?.row || []; })
+               .catch(() => [])
+           );
+         }
+         const batchResults = await Promise.all(batchPromises);
+         const allSalesRows = batchResults.flat();
+         if (allSalesRows.length > 0) {
            // 카페 업종(CS100010)만 필터
-           const cafeRows = salesRows.filter(r => r.SVC_INDUTY_CD === 'CS100010');
-           // 지역 매칭
+           const cafeRows = allSalesRows.filter(r => r.SVC_INDUTY_CD === 'CS100010');
+           // 지역 매칭 (여러 키워드로)
            const cafeMatched = cafeRows.filter(r => salesKws.some(kw => (r.TRDAR_CD_NM || '').includes(kw)));
+           console.log(`[영업모드] 서울 추정매출: 전체=${allSalesRows.length}, 카페=${cafeRows.length}, 매칭=${cafeMatched.length} (키워드: ${salesKws.join(',')})`);
 
            if (cafeMatched.length > 0) {
              // 연령별 카페 결제건수 합산
