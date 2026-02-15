@@ -5866,12 +5866,19 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
          if (cafeItem) summary.push(`→ 카페: ${cafeItem.stcnt}개, 매출 ${cafeItem.mmavgSlsAmt ? cafeItem.mmavgSlsAmt.toLocaleString()+'만' : '비공개'}`);
        }
        
-       // 메인 동 카페 데이터 (인접 동 합산 제거)
-       {
+       // 인접 동 카페 합산 (nearbySales)
+       if (apis.nearbySales?.data && apis.nearbySales.data.length > 0) {
+         let totalCafe = 0, totalSales = 0, cnt = 0;
+         apis.nearbySales.data.forEach(nd => {
+           if (Array.isArray(nd.sales)) {
+             const c = nd.sales.find(s => s.tpbizClscdNm === '카페');
+             if (c) { totalCafe += (c.stcnt||0); if (c.mmavgSlsAmt) { totalSales += c.mmavgSlsAmt; cnt++; } }
+           }
+         });
+         // 메인 동도 합산
          const mainCafe = apis.salesAvg?.data?.find?.(s => s.tpbizClscdNm === '카페');
-         if (mainCafe) {
-           summary.push(`카페: ${mainCafe.stcnt||0}개, 월매출 ${mainCafe.mmavgSlsAmt ? mainCafe.mmavgSlsAmt.toLocaleString()+'만' : '비공개'} (메인 동)`);
-         }
+         if (mainCafe) { totalCafe += (mainCafe.stcnt||0); if (mainCafe.mmavgSlsAmt) { totalSales += mainCafe.mmavgSlsAmt; cnt++; } }
+         summary.push(`인접 동 합산 카페: ${totalCafe}개, 평균 매출 ${cnt > 0 ? Math.round(totalSales/cnt).toLocaleString()+'만' : '비공개'}`);
        }
        
        // 방문 연령 (vstAgeRnk)
@@ -6702,30 +6709,53 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
        const salesData = collectedData.apis?.salesAvg?.data || [];
        const nearbySalesData = collectedData.apis?.nearbySales?.data || [];
        
-       // 메인 동 카페 데이터만 사용 (인접 동 합산 제거)
+       // 메인 동 + 인접 동 카페 합산 (교차 분석용)
        let totalCafeCount = 0;
        let totalCafeSalesAmt = 0;
+       let totalCafeSalesCount = 0;
        let allCafeSalesItems = [];
 
+       // 메인 동 카페 데이터
        if (Array.isArray(salesData)) {
          const cafeItem = salesData.find(s => s.tpbizClscdNm === '카페');
          if (cafeItem) {
-           totalCafeCount = (cafeItem.stcnt || 0);
-           totalCafeSalesAmt = (cafeItem.mmavgSlsAmt || 0);
+           totalCafeCount += (cafeItem.stcnt || 0);
+           totalCafeSalesAmt += (cafeItem.mmavgSlsAmt || 0);
+           totalCafeSalesCount += 1;
          }
-         // 카페 관련 업종 (메인 동만)
+         // 카페 관련 업종 전부
          const cafeSales = salesData.filter(s => ['카페','커피','빵','도넛','베이커리','디저트'].some(k => (s.tpbizClscdNm||'').includes(k)));
          allCafeSalesItems.push(...cafeSales);
        }
 
-       crossData.cafeSalesStr = allCafeSalesItems.length > 0
-         ? `카페 월매출 ${totalCafeSalesAmt > 0 ? totalCafeSalesAmt.toLocaleString() + '만' : '미수집'}, ` + allCafeSalesItems.filter(s => s.mmavgSlsAmt > 0).map(s => `${s.tpbizClscdNm}:${s.mmavgSlsAmt.toLocaleString()}만(${s.stcnt}점포)`).join(', ')
-         : '카페 매출 데이터 미수집';
-       crossData.avgCafeSales = totalCafeSalesAmt;
+       // 인접 동 카페 데이터 합산
+       nearbySalesData.forEach(nd => {
+         if (Array.isArray(nd.sales)) {
+           const cafeItem = nd.sales.find(s => s.tpbizClscdNm === '카페');
+           if (cafeItem) {
+             totalCafeCount += (cafeItem.stcnt || 0);
+             if (cafeItem.mmavgSlsAmt) {
+               totalCafeSalesAmt += cafeItem.mmavgSlsAmt;
+               totalCafeSalesCount += 1;
+             }
+           }
+           const cafeSales = nd.sales.filter(s => ['카페','커피','빵','도넛','베이커리','디저트'].some(k => (s.tpbizClscdNm||'').includes(k)));
+           allCafeSalesItems.push(...cafeSales);
+         }
+       });
 
-       // 카페 수: 메인 동만
+       // 평균 매출 계산
+       const avgCafeSales = totalCafeSalesCount > 0 ? Math.round(totalCafeSalesAmt / totalCafeSalesCount) : 0;
+
+       const dongCount = (nearbySalesData.length || 0) + 1;
+       crossData.cafeSalesStr = allCafeSalesItems.length > 0
+         ? `카페 평균 월매출 ${avgCafeSales > 0 ? avgCafeSales.toLocaleString() + '만' : '미수집'}(${dongCount}개동 합산), ` + allCafeSalesItems.filter(s => s.mmavgSlsAmt > 0).map(s => `${s.tpbizClscdNm}:${s.mmavgSlsAmt.toLocaleString()}만(${s.stcnt}점포)`).join(', ')
+         : '카페 매출 데이터 미수집';
+       crossData.avgCafeSales = avgCafeSales;
+
+       // 카페 수: API 실제 합산 데이터 (인접 동 포함)
        crossData.cafeCount = totalCafeCount > 0 ? totalCafeCount : (data.overview?.cafeCount || '?');
-       crossData.nearbyDongCount = 1;
+       crossData.nearbyDongCount = dongCount;
        crossData.franchiseInfo = nearbySearchResult?.substring(0, 600) || '';
        
        // 웹검색 카페 목록 (거리 포함)
