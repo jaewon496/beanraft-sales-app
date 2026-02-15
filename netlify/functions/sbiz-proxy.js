@@ -136,8 +136,19 @@ exports.handler = async (event, context) => {
       if (indsSclsCd) urlParams.append('indsSclsCd', indsSclsCd);
       targetUrl = `http://apis.data.go.kr/B553077/api/open/sdsc/storeListByIndsMclasCd?${urlParams.toString()}`;
     }
+    // 6. 서울시 열린데이터 (추정매출, 유동인구 등)
+    else if (api === 'seoul') {
+      useHttp = true;
+      const seoulApiKey = '6d6c71717173656f3432436863774a';
+      const { service, startIndex, endIndex, stdrYyquCd } = queryParams;
+      const svc = service || 'VwsmTrdarSelngQq'; // 기본: 추정매출
+      const si = startIndex || '1';
+      const ei = endIndex || '1000';
+      const quarter = stdrYyquCd ? `/${stdrYyquCd}` : '';
+      targetUrl = `http://openapi.seoul.go.kr:8088/${seoulApiKey}/json/${svc}/${si}/${ei}${quarter}`;
+    }
     else {
-      return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: '지원하지 않는 api 타입', available: ['sbiz','coord','store','storeRadius','storeInds','gis','open'] }) };
+      return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: '지원하지 않는 api 타입', available: ['sbiz','coord','store','storeRadius','storeInds','gis','open','seoul'] }) };
     }
 
     console.log('[프록시]', api, targetUrl?.substring(0, 200));

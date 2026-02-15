@@ -746,16 +746,23 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
   // 방문연령 데이터 (collectedData에서) - pipcnt 내림차순 정렬
   const vstAgeData = cd?.apis?.vstAgeRnk?.data;
   const vstCstData = cd?.apis?.vstCst?.data;
+  const cafeAgeData = cd?.apis?.cafeAgeData?.data; // 서울시 카페 전용 연령별 결제건수
+  const isCafeSpecificAge = cd?.apis?.cafeAgeData?.isCafeSpecific === true;
   const ageMap = { 'M10': '10대', 'M20': '20대', 'M30': '30대', 'M40': '40대', 'M50': '50대', 'M60': '60대+' };
 
-  // 소비 연령 (vstCst) 데이터를 우선 사용 - 카페 분석에 더 적합
+  // 소비 연령 (vstCst) 데이터 - 소상공인365 (전체 업종)
   const sortedCstData = vstCstData && Array.isArray(vstCstData)
     ? [...vstCstData].sort((a, b) => (b.pipcnt || 0) - (a.pipcnt || 0)) : [];
   const sortedAgeData = vstAgeData && Array.isArray(vstAgeData)
     ? [...vstAgeData].sort((a, b) => (b.pipcnt || 0) - (a.pipcnt || 0)) : [];
 
-  // 카드 차트: 소비 연령 데이터 우선, 없으면 방문 연령
-  const ageBarData = sortedCstData.length > 0
+  // 카드 차트: 카페 전용 데이터 > 소비 연령 > 방문 연령 (우선순위)
+  const ageBarData = (cafeAgeData && Array.isArray(cafeAgeData) && cafeAgeData.length > 0)
+    ? cafeAgeData.slice(0, 6).map(a => ({
+        name: ageMap[a.age] || a.age,
+        count: a.pct || a.pipcnt || 0,
+      }))
+    : sortedCstData.length > 0
     ? sortedCstData.slice(0, 6).map(a => ({
         name: ageMap[a.age] || a.age,
         count: a.pipcnt || 0,
@@ -766,6 +773,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
         count: a.pipcnt || 0,
       }))
     : [];
+  const ageDataSource = isCafeSpecificAge ? '카페 업종' : '전체 업종';
   
   // 공통 섹션 스타일
   const sec = {
@@ -891,11 +899,13 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
       {ageBarData.length > 0 && (
         <div ref={r2} style={sec}>
           <FadeUpToss inView={v2}>
-            <p style={secLabel}>소비 고객 분석</p>
-            <h2 style={secTitle}>연령별 소비 고객</h2>
+            <p style={secLabel}>소비 고객 분석 · {ageDataSource} 기준</p>
+            <h2 style={secTitle}>연령별 {isCafeSpecificAge ? '카페 고객' : '소비 고객'}</h2>
             <p style={secSub}>
-              {sortedCstData.length > 0
-                ? `핵심 소비층: ${ageMap[sortedCstData[0]?.age] || '?'}(${sortedCstData[0]?.pipcnt ? Math.round(sortedCstData[0].pipcnt / sortedCstData.reduce((s,d) => s + (d.pipcnt||0), 0) * 100) + '%' : ''})`
+              {(cafeAgeData && cafeAgeData.length > 0)
+                ? `핵심 카페 소비층: ${ageMap[cafeAgeData[0]?.age] || '?'}(${cafeAgeData[0]?.pct || 0}%)`
+                : sortedCstData.length > 0
+                ? `핵심 소비층: ${ageMap[sortedCstData[0]?.age] || '?'}(${sortedCstData[0]?.pipcnt ? Math.round(sortedCstData[0].pipcnt / sortedCstData.reduce((s,d) => s + (d.pipcnt||0), 0) * 100) + '%' : ''}) ⚠ 전체 업종`
                 : d.consumers?.mainTarget ? `핵심 타겟: ${S(d.consumers.mainTarget)} (${S(d.consumers.mainRatio || '')})` : '소비 연령 데이터'}
             </p>
           </FadeUpToss>
@@ -907,7 +917,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
                   <YAxis hide />
                   <Tooltip 
                     contentStyle={{ background: dark ? '#2B2B2B' : '#FFF', border: 'none', borderRadius: 12, color: t1, fontSize: 14, boxShadow: '0 4px 24px rgba(0,0,0,0.2)' }} 
-                    formatter={(v) => [sortedCstData.length > 0 ? `${v.toLocaleString()}만원` : `${v.toLocaleString()}명`, sortedCstData.length > 0 ? '소비금액' : '방문자']}
+                    formatter={(v) => [isCafeSpecificAge ? `${v}%` : sortedCstData.length > 0 ? `${v.toLocaleString()}만원` : `${v.toLocaleString()}명`, isCafeSpecificAge ? '카페 결제 비중' : sortedCstData.length > 0 ? '소비금액' : '방문자']}
                   />
                   <Bar dataKey="count" fill={blue} radius={[8, 8, 0, 0]} barSize={36} />
                 </BarChart>
@@ -6717,6 +6727,115 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
          }
        } catch (e) { console.log('[영업모드] 시간대 유동인구 수집 실패:', e.message); }
 
+       // ═══ 서울시 추정매출 API로 카페 전용 연령/시간대/요일 데이터 수집 (서울 지역만) ═══
+       if (isSeoul) try {
+         updateCollectingText('카페 업종 전용 매출·연령 데이터를 수집하고 있어요');
+         const dongNmForSales = collectedData.dongInfo?.dongNm || addressInfo?.dong || '';
+         const sgNmForSales = addressInfo?.sigungu || '';
+         const salesKws = [dongNmForSales.replace(/\d+동$/, ''), query.split(' ')[0], sgNmForSales.replace('구', '')].filter(kw => kw && kw.length >= 2);
+
+         // 서울시 VwsmTrdarSelngQq (추정매출) API - Netlify 프록시 경유
+         const salesRes = await fetch(`/api/sbiz-proxy?api=seoul&service=VwsmTrdarSelngQq&startIndex=1&endIndex=1000`);
+         if (salesRes.ok) {
+           const salesRaw = await salesRes.json();
+           const salesData = salesRaw?.data || salesRaw;
+           const salesRows = salesData?.VwsmTrdarSelngQq?.row || [];
+           // 카페 업종(CS100010)만 필터
+           const cafeRows = salesRows.filter(r => r.SVC_INDUTY_CD === 'CS100010');
+           // 지역 매칭
+           const cafeMatched = cafeRows.filter(r => salesKws.some(kw => (r.TRDAR_CD_NM || '').includes(kw)));
+
+           if (cafeMatched.length > 0) {
+             // 연령별 카페 결제건수 합산
+             let a10=0, a20=0, a30=0, a40=0, a50=0, a60=0;
+             // 시간대별 카페 매출건수 합산
+             let t0006=0, t0611=0, t1114=0, t1417=0, t1721=0, t2124=0;
+             // 요일별 카페 매출건수 합산
+             let dMon=0, dTue=0, dWed=0, dThu=0, dFri=0, dSat=0, dSun=0;
+             // 성별 매출건수
+             let mCo=0, fCo=0;
+             // 총 매출액
+             let totalSales=0;
+
+             cafeMatched.forEach(r => {
+               a10 += +(r.AGRDE_10_SELNG_CO||0);
+               a20 += +(r.AGRDE_20_SELNG_CO||0);
+               a30 += +(r.AGRDE_30_SELNG_CO||0);
+               a40 += +(r.AGRDE_40_SELNG_CO||0);
+               a50 += +(r.AGRDE_50_SELNG_CO||0);
+               a60 += +(r.AGRDE_60_ABOVE_SELNG_CO||0);
+               t0006 += +(r.TMZON_00_06_SELNG_CO||0);
+               t0611 += +(r.TMZON_06_11_SELNG_CO||0);
+               t1114 += +(r.TMZON_11_14_SELNG_CO||0);
+               t1417 += +(r.TMZON_14_17_SELNG_CO||0);
+               t1721 += +(r.TMZON_17_21_SELNG_CO||0);
+               t2124 += +(r.TMZON_21_24_SELNG_CO||0);
+               dMon += +(r.MON_SELNG_CO||0);
+               dTue += +(r.TUES_SELNG_CO||0);
+               dWed += +(r.WED_SELNG_CO||0);
+               dThu += +(r.THUR_SELNG_CO||0);
+               dFri += +(r.FRI_SELNG_CO||0);
+               dSat += +(r.SAT_SELNG_CO||0);
+               dSun += +(r.SUN_SELNG_CO||0);
+               mCo += +(r.ML_SELNG_CO||0);
+               fCo += +(r.FML_SELNG_CO||0);
+               totalSales += +(r.THSMON_SELNG_AMT||0);
+             });
+
+             const n = cafeMatched.length;
+             const totalAgeCo = a10+a20+a30+a40+a50+a60;
+
+             // 카페 전용 연령별 데이터 저장
+             collectedData.apis.cafeAgeData = {
+               description: '카페 업종 연령별 결제건수 (서울시 추정매출)',
+               data: [
+                 { age: 'M10', pipcnt: Math.round(a10/n), pct: totalAgeCo > 0 ? Math.round(a10/totalAgeCo*100) : 0 },
+                 { age: 'M20', pipcnt: Math.round(a20/n), pct: totalAgeCo > 0 ? Math.round(a20/totalAgeCo*100) : 0 },
+                 { age: 'M30', pipcnt: Math.round(a30/n), pct: totalAgeCo > 0 ? Math.round(a30/totalAgeCo*100) : 0 },
+                 { age: 'M40', pipcnt: Math.round(a40/n), pct: totalAgeCo > 0 ? Math.round(a40/totalAgeCo*100) : 0 },
+                 { age: 'M50', pipcnt: Math.round(a50/n), pct: totalAgeCo > 0 ? Math.round(a50/totalAgeCo*100) : 0 },
+                 { age: 'M60', pipcnt: Math.round(a60/n), pct: totalAgeCo > 0 ? Math.round(a60/totalAgeCo*100) : 0 }
+               ].sort((a, b) => b.pipcnt - a.pipcnt),
+               source: '서울시 열린데이터 추정매출 (카페 업종)',
+               matchedCount: n,
+               matchedNames: cafeMatched.slice(0, 5).map(r => r.TRDAR_CD_NM),
+               isCafeSpecific: true
+             };
+
+             // 카페 전용 시간대별 데이터 저장
+             collectedData.apis.cafeTimeData = {
+               description: '카페 업종 시간대별 결제건수 (서울시 추정매출)',
+               data: {
+                 timeSlots: { '00~06시': Math.round(t0006/n), '06~11시': Math.round(t0611/n), '11~14시': Math.round(t1114/n), '14~17시': Math.round(t1417/n), '17~21시': Math.round(t1721/n), '21~24시': Math.round(t2124/n) },
+                 daySlots: { '월': Math.round(dMon/n), '화': Math.round(dTue/n), '수': Math.round(dWed/n), '목': Math.round(dThu/n), '금': Math.round(dFri/n), '토': Math.round(dSat/n), '일': Math.round(dSun/n) },
+                 gender: { male: mCo, female: fCo, malePct: (mCo+fCo)>0 ? Math.round(mCo/(mCo+fCo)*100) : 50 },
+                 avgSalesPerStore: n > 0 ? Math.round(totalSales / n) : 0
+               },
+               source: '서울시 열린데이터 추정매출 (카페 업종)',
+               isCafeSpecific: true
+             };
+
+             console.log(`[영업모드] 카페 전용 매출 데이터: ${n}개 상권, 연령 1위=${collectedData.apis.cafeAgeData.data[0]?.age}(${collectedData.apis.cafeAgeData.data[0]?.pct}%)`);
+
+             // mainTarget을 카페 전용 데이터로 업데이트
+             const cafeTop = collectedData.apis.cafeAgeData.data[0];
+             const cafeSecond = collectedData.apis.cafeAgeData.data[1];
+             const cafeAgeMap = { 'M10': '10대', 'M20': '20대', 'M30': '30대', 'M40': '40대', 'M50': '50대', 'M60': '60대 이상' };
+             if (cafeTop) {
+               data.consumers = data.consumers || {};
+               data.consumers.mainTarget = `${cafeAgeMap[cafeTop.age] || cafeTop.age} (카페 결제 기준)`;
+               data.consumers.mainRatio = `${cafeTop.pct}%`;
+               if (cafeSecond) {
+                 data.consumers.secondTarget = cafeAgeMap[cafeSecond.age] || cafeSecond.age;
+                 data.consumers.secondRatio = `${cafeSecond.pct}%`;
+               }
+             }
+           } else {
+             console.log('[영업모드] 카페 전용 매출: 해당 지역 매칭 없음 (검색:', salesKws.join(','), ')');
+           }
+         }
+       } catch (e) { console.log('[영업모드] 카페 전용 매출 수집 실패:', e.message); }
+
        // ═══ 방법 A: 카드별 개별 프롬프트 강화 ═══
        setSalesModeAnalysisStep('브루 피드백 강화 중');
        updateCollectingText('각 카드별 맞춤 피드백을 작성하고 있어요');
@@ -6725,17 +6844,30 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
        // 교차 분석용 데이터 미리 계산
        const crossData = {};
        
-       // 소비연령 데이터
+       // 소비연령 데이터 - 카페 전용 데이터가 있으면 우선 사용
+       const _cafeAge = collectedData.apis?.cafeAgeData?.data || [];
        const vstCstData = collectedData.apis?.vstCst?.data || [];
        const vstAgeData = collectedData.apis?.vstAgeRnk?.data || [];
-       const totalSpendX = vstCstData.reduce((s,d) => s + (d.pipcnt||0), 0);
-       const totalVisitX = vstAgeData.reduce((s,d) => s + (d.pipcnt||0), 0);
-       const spendSorted = [...vstCstData].sort((a,b) => (b.pipcnt||0) - (a.pipcnt||0));
-       const visitSorted = [...vstAgeData].sort((a,b) => (b.pipcnt||0) - (a.pipcnt||0));
-       crossData.topSpendAge = spendSorted[0]?.age?.replace('M','') + '대';
-       crossData.topSpendPct = totalSpendX > 0 ? (spendSorted[0]?.pipcnt / totalSpendX * 100).toFixed(1) : '?';
-       crossData.topVisitAge = visitSorted[0]?.age?.replace('M','') + '대';
-       crossData.topVisitPct = totalVisitX > 0 ? (visitSorted[0]?.pipcnt / totalVisitX * 100).toFixed(1) : '?';
+
+       if (_cafeAge.length > 0) {
+         // 카페 전용 연령 데이터 (서울시 추정매출)
+         crossData.topSpendAge = (_cafeAge[0]?.age || 'M30').replace('M','') + '대';
+         crossData.topSpendPct = _cafeAge[0]?.pct || '?';
+         crossData.topVisitAge = (_cafeAge[1]?.age || 'M20').replace('M','') + '대';
+         crossData.topVisitPct = _cafeAge[1]?.pct || '?';
+         crossData.ageSource = '카페 업종 결제건수 (서울시 열린데이터)';
+       } else {
+         // 전체 업종 데이터 (소상공인365) - fallback
+         const totalSpendX = vstCstData.reduce((s,d) => s + (d.pipcnt||0), 0);
+         const totalVisitX = vstAgeData.reduce((s,d) => s + (d.pipcnt||0), 0);
+         const spendSorted = [...vstCstData].sort((a,b) => (b.pipcnt||0) - (a.pipcnt||0));
+         const visitSorted = [...vstAgeData].sort((a,b) => (b.pipcnt||0) - (a.pipcnt||0));
+         crossData.topSpendAge = (spendSorted[0]?.age || 'M?').replace('M','') + '대';
+         crossData.topSpendPct = totalSpendX > 0 ? (spendSorted[0]?.pipcnt / totalSpendX * 100).toFixed(1) : '?';
+         crossData.topVisitAge = (visitSorted[0]?.age || 'M?').replace('M','') + '대';
+         crossData.topVisitPct = totalVisitX > 0 ? (visitSorted[0]?.pipcnt / totalVisitX * 100).toFixed(1) : '?';
+         crossData.ageSource = '전체 업종 (소상공인365)';
+       }
        
        // 임대료 데이터
        const fbRentData = collectedData.apis?.firebaseRent?.data;
