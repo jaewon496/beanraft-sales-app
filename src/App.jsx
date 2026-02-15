@@ -991,17 +991,31 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             </div>
           </FadeUpToss>
           <FadeUpToss inView={v3} delay={0.3}>
-            {(d.franchise || []).map((f, i) => (
-              <div key={i} style={{ padding: '14px 0', borderBottom: i < d.franchise.length - 1 ? `1px solid ${divColor}` : 'none' }}>
-                <div style={{ display: 'flex', alignItems: 'center', marginBottom: f.feedback ? 8 : 0 }}>
-                  <div style={{ width: 12, height: 12, borderRadius: 4, background: TOSS_COLORS[i % TOSS_COLORS.length], marginRight: 14, flexShrink: 0 }} />
-                  <span style={{ fontSize: 17, color: t1, flex: 1, fontWeight: 500 }}>{S(f.name)}</span>
-                  <span style={{ fontSize: 14, color: t2 }}>{S(f.count)}</span>
+            {(d.franchise || []).map((f, i) => {
+              // FRANCHISE_DATA에서 매장 수 보충
+              const fName = f.name || '';
+              const fdbMatch = Object.keys(FRANCHISE_DATA).find(k =>
+                fName.includes(k) || k.includes(fName) ||
+                fName.replace(/커피|카페/g, '').includes(k.replace(/커피|카페/g, ''))
+              );
+              const fdb = fdbMatch ? FRANCHISE_DATA[fdbMatch] : null;
+              const displayCount = (f.count && f.count !== '0' && f.count !== '-' && f.count !== 0)
+                ? f.count
+                : fdb?.매장수 ? `${fdb.매장수.toLocaleString()}개` : f.count;
+              const displayPrice = fdb?.아메리카노 ? `아메 ${fdb.아메리카노.toLocaleString()}원` : (f.royalty || '');
+
+              return (
+                <div key={i} style={{ padding: '14px 0', borderBottom: i < d.franchise.length - 1 ? `1px solid ${divColor}` : 'none' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: f.feedback || displayPrice ? 8 : 0 }}>
+                    <div style={{ width: 12, height: 12, borderRadius: 4, background: TOSS_COLORS[i % TOSS_COLORS.length], marginRight: 14, flexShrink: 0 }} />
+                    <span style={{ fontSize: 17, color: t1, flex: 1, fontWeight: 500 }}>{S(fName)}</span>
+                    <span style={{ fontSize: 14, color: t2, fontWeight: 600 }}>{S(displayCount)}</span>
+                  </div>
+                  {displayPrice && <p style={{ fontSize: 13, color: t2, marginLeft: 26, marginBottom: 4 }}>{displayPrice}</p>}
+                  {f.feedback && <p style={{ fontSize: 13, color: red, marginLeft: 26, lineHeight: 1.5, opacity: 0.9 }}>{S(f.feedback)}</p>}
                 </div>
-                {f.royalty && <p style={{ fontSize: 13, color: t2, marginLeft: 26, marginBottom: 4 }}>로열티: {S(f.royalty)}</p>}
-                {f.feedback && <p style={{ fontSize: 13, color: red, marginLeft: 26, lineHeight: 1.5, opacity: 0.9 }}>{S(f.feedback)}</p>}
-              </div>
-            ))}
+              );
+            })}
           </FadeUpToss>
           {d.franchiseCommonRisks?.length > 0 && (
             <FadeUpToss inView={v3} delay={0.45}>
