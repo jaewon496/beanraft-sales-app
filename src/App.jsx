@@ -605,19 +605,15 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
   const _apiDynPpl = cd?.apis?.dynPplCmpr?.data;
   const _apiSalesAvg = cd?.apis?.salesAvg?.data;
 
-  // 카페 수: cfrStcnt API stcnt → salesAvg '카페' stcnt → Gemini 텍스트
+  // 카페 수: salesAvg '카페' stcnt → Gemini 텍스트
   const cafeCount = (() => {
-    // 1순위: cfrStcnt API 직접값
-    if (_apiCfrStcnt?.stcnt && _apiCfrStcnt.stcnt > 0) return _apiCfrStcnt.stcnt;
-    // 2순위: salesAvg에서 카페 업종 stcnt
+    // 1순위: salesAvg에서 카페 업종 stcnt (메인 동만)
     if (Array.isArray(_apiSalesAvg)) {
       const cafeItem = _apiSalesAvg.find(s => s.tpbizClscdNm === '카페');
       if (cafeItem?.stcnt > 0) return cafeItem.stcnt;
-      // 카페 관련 업종 합산
-      const cafeRelated = _apiSalesAvg.filter(s => ['카페','커피','빵','도넛','디저트','음료','베이커리'].some(k => (s.tpbizClscdNm||'').includes(k)));
-      const sum = cafeRelated.reduce((s, c) => s + (c.stcnt || 0), 0);
-      if (sum > 0) return sum;
     }
+    // 2순위: cfrStcnt API (주의: 전체 업종 포함일 수 있음)
+    if (_apiCfrStcnt?.stcnt && _apiCfrStcnt.stcnt > 0 && _apiCfrStcnt.tpbizClscdNm === '카페') return _apiCfrStcnt.stcnt;
     // 3순위: Gemini 텍스트에서 추출 (단, '1km' 같은 거리 숫자 제외)
     const overviewText = String(d.overview?.cafeCount || '');
     const cafeMatch = overviewText.match(/카페[가\s]*(\d[\d,]+)\s*개/);
@@ -627,11 +623,11 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
     return extractNum(d.overview?.cafeCount);
   })();
 
-  // 유동인구: dynPplCmpr API cnt → Gemini 텍스트
+  // 유동인구: dynPplCmpr API cnt(월간) → 일평균(÷30) → Gemini 텍스트
   const floatingPop = (() => {
     if (Array.isArray(_apiDynPpl) && _apiDynPpl.length > 0) {
       const cnt = _apiDynPpl[0]?.cnt || _apiDynPpl[0]?.fpCnt || 0;
-      if (cnt > 0) return cnt;
+      if (cnt > 0) return Math.round(cnt / 30); // 월간→일평균
     }
     // Gemini 텍스트에서 추출 - "약 X만명" 또는 "X명"
     const popText = String(d.overview?.floatingPop || '');
@@ -921,7 +917,8 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
       {cd?.apis?.dynPplCmpr?.data && (() => {
         const raw = cd.apis.dynPplCmpr.data;
         const popData = Array.isArray(raw) ? raw.filter(Boolean) : [];
-        const totalPop = popData.reduce((s, d) => s + (d.cnt || d.fpCnt || 0), 0);
+        // 메인 동(첫번째)만 사용, 월간→일평균(÷30)
+        const totalPop = Math.round((popData[0]?.cnt || popData[0]?.fpCnt || 0) / 30);
         const vstData = cd?.apis?.vstCst?.data;
         const totalVst = Array.isArray(vstData) ? vstData.reduce((s, d) => s + (d.pipcnt || 0), 0) : 0;
         if (totalPop === 0 && totalVst === 0) return null;
@@ -1058,7 +1055,8 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
         const maxVal = Math.max(...timeData.map(t => t.value), 1);
         const hasTimeChart = timeData.length > 0;
         // 서울 외 지역: 시간대 차트 없어도 유동인구 데이터+AI 피드백은 표시
-        const dongPop = popData[0]?.cnt || popData[0]?.fpCnt || 0;
+        // dynPplCmpr API는 월간 유동인구 → 일평균(÷30)
+        const dongPop = Math.round((popData[0]?.cnt || popData[0]?.fpCnt || 0) / 30);
         if (!hasTimeChart && dongPop === 0 && !d.floatingPopTimeFeedback) return null;
         return (
         <div style={sec}>
@@ -1089,7 +1087,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
                     <div>
                       <p style={{ fontSize: 12, color: t3 }}>상위 지역</p>
                       <p style={{ fontSize: 16, fontWeight: 700, color: blue, marginTop: 6 }}>{popData[1].nm}</p>
-                      <p style={{ fontSize: 13, color: t2 }}>{(popData[1].cnt || 0).toLocaleString()}명</p>
+                      <p style={{ fontSize: 13, color: t2 }}>{Math.round((popData[1].cnt || 0) / 30).toLocaleString()}명</p>
                     </div>
                   )}
                 </div>
@@ -5850,8 +5848,9 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
        if (apis.dynPplCmpr?.data) {
          const d = apis.dynPplCmpr.data;
          if (Array.isArray(d) && d.length > 0) {
-           summary.push(`유동인구: ${d[0].nm} ${d[0].cnt?.toLocaleString()}명 (${d[0].crtrYm})`);
-           if (d[1]) summary.push(`  ${d[1].nm} 전체: ${d[1].cnt?.toLocaleString()}명`);
+           const dailyPop = Math.round((d[0].cnt || 0) / 30);
+           summary.push(`유동인구: ${d[0].nm} 일평균 ${dailyPop.toLocaleString()}명 (${d[0].crtrYm} 기준, 월${d[0].cnt?.toLocaleString()}명÷30)`);
+           if (d[1]) summary.push(`  ${d[1].nm} 전체: 일평균 ${Math.round((d[1].cnt||0)/30).toLocaleString()}명`);
          }
        }
        
@@ -5864,19 +5863,12 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
          if (cafeItem) summary.push(`→ 카페: ${cafeItem.stcnt}개, 매출 ${cafeItem.mmavgSlsAmt ? cafeItem.mmavgSlsAmt.toLocaleString()+'만' : '비공개'}`);
        }
        
-       // 인접 동 카페 합산 (nearbySales)
-       if (apis.nearbySales?.data && apis.nearbySales.data.length > 0) {
-         let totalCafe = 0, totalSales = 0, cnt = 0;
-         apis.nearbySales.data.forEach(nd => {
-           if (Array.isArray(nd.sales)) {
-             const c = nd.sales.find(s => s.tpbizClscdNm === '카페');
-             if (c) { totalCafe += (c.stcnt||0); if (c.mmavgSlsAmt) { totalSales += c.mmavgSlsAmt; cnt++; } }
-           }
-         });
-         // 메인 동도 합산
+       // 메인 동 카페 데이터 (인접 동 합산 제거)
+       {
          const mainCafe = apis.salesAvg?.data?.find?.(s => s.tpbizClscdNm === '카페');
-         if (mainCafe) { totalCafe += (mainCafe.stcnt||0); if (mainCafe.mmavgSlsAmt) { totalSales += mainCafe.mmavgSlsAmt; cnt++; } }
-         summary.push(`인접 동 합산 카페: ${totalCafe}개, 평균 매출 ${cnt > 0 ? Math.round(totalSales/cnt).toLocaleString()+'만' : '비공개'}`);
+         if (mainCafe) {
+           summary.push(`카페: ${mainCafe.stcnt||0}개, 월매출 ${mainCafe.mmavgSlsAmt ? mainCafe.mmavgSlsAmt.toLocaleString()+'만' : '비공개'} (메인 동)`);
+         }
        }
        
        // 방문 연령 (vstAgeRnk)
@@ -6449,47 +6441,41 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
        // 원본 API 데이터 첨부 (출처 표시용)
        data.rawApiData = hasApiData ? collectedData.apis : null;
        
-       // ═══ API 실제 데이터로 카페 수/매출 override (인접 동 합산) ═══
+       // ═══ API 실제 데이터로 카페 수/매출 override (메인 동만 사용) ═══
        const _salesAvgData = collectedData.apis?.salesAvg?.data || [];
-       const _nearbySalesData = collectedData.apis?.nearbySales?.data || [];
-       let _totalCafe = 0, _totalCafeSalesAmt = 0, _cafeSalesDongCount = 0;
-       
+       let _mainCafe = 0, _mainCafeSalesAmt = 0;
+
        if (Array.isArray(_salesAvgData)) {
          const c = _salesAvgData.find(s => s.tpbizClscdNm === '카페');
-         if (c) { _totalCafe += (c.stcnt||0); if (c.mmavgSlsAmt) { _totalCafeSalesAmt += c.mmavgSlsAmt; _cafeSalesDongCount++; } }
+         if (c) { _mainCafe = (c.stcnt||0); _mainCafeSalesAmt = (c.mmavgSlsAmt||0); }
        }
-       _nearbySalesData.forEach(nd => {
-         if (Array.isArray(nd.sales)) {
-           const c = nd.sales.find(s => s.tpbizClscdNm === '카페');
-           if (c) { _totalCafe += (c.stcnt||0); if (c.mmavgSlsAmt) { _totalCafeSalesAmt += c.mmavgSlsAmt; _cafeSalesDongCount++; } }
-         }
-       });
-       
-       if (_totalCafe > 0 && data.overview) {
-         data.overview.cafeCount = String(_totalCafe);
-         console.log(`카페 수 override: ${_totalCafe}개 (${_nearbySalesData.length + 1}개 동 합산)`);
+
+       if (_mainCafe > 0 && data.overview) {
+         data.overview.cafeCount = String(_mainCafe);
+         console.log(`카페 수 override: ${_mainCafe}개 (메인 동)`);
        }
        // cfrStcnt API 직접 override (salesAvg에 카페 항목이 없을 때)
-       if (_totalCafe === 0 && data.overview) {
+       if (_mainCafe === 0 && data.overview) {
          const cfrData = collectedData.apis?.cfrStcnt?.data;
          if (cfrData?.stcnt && cfrData.stcnt > 0) {
            data.overview.cafeCount = String(cfrData.stcnt);
            console.log(`카페 수 cfrStcnt override: ${cfrData.stcnt}개`);
          }
        }
-       if (_cafeSalesDongCount > 0 && data.overview) {
-         const avgSales = Math.round(_totalCafeSalesAmt / _cafeSalesDongCount);
-         if (avgSales > 0) data.overview.avgMonthlySales = String(avgSales);
+       if (_mainCafeSalesAmt > 0 && data.overview) {
+         data.overview.avgMonthlySales = String(_mainCafeSalesAmt);
        }
 
-       // ═══ API 실제 유동인구 데이터로 override ═══
+       // ═══ API 실제 유동인구 데이터로 override (월간→일평균 변환) ═══
        if (data.overview) {
          const dynData = collectedData.apis?.dynPplCmpr?.data;
          if (Array.isArray(dynData) && dynData.length > 0) {
            const popCnt = dynData[0]?.cnt || dynData[0]?.fpCnt || 0;
            if (popCnt > 0) {
-             data.overview.floatingPop = String(popCnt);
-             console.log(`유동인구 override: ${popCnt}명 (dynPplCmpr API)`);
+             // dynPplCmpr API는 월간 유동인구를 반환 → 일평균으로 변환 (÷30)
+             const dailyPop = Math.round(popCnt / 30);
+             data.overview.floatingPop = String(dailyPop);
+             console.log(`유동인구 override: 월${popCnt}명 → 일평균${dailyPop}명 (dynPplCmpr API)`);
            }
          }
        }
@@ -6713,53 +6699,30 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
        const salesData = collectedData.apis?.salesAvg?.data || [];
        const nearbySalesData = collectedData.apis?.nearbySales?.data || [];
        
-       // 메인 동 + 인접 동 카페 합산
+       // 메인 동 카페 데이터만 사용 (인접 동 합산 제거)
        let totalCafeCount = 0;
        let totalCafeSalesAmt = 0;
-       let totalCafeSalesCount = 0;
        let allCafeSalesItems = [];
-       
-       // 메인 동 카페 데이터
+
        if (Array.isArray(salesData)) {
          const cafeItem = salesData.find(s => s.tpbizClscdNm === '카페');
          if (cafeItem) {
-           totalCafeCount += (cafeItem.stcnt || 0);
-           totalCafeSalesAmt += (cafeItem.mmavgSlsAmt || 0);
-           totalCafeSalesCount += 1;
+           totalCafeCount = (cafeItem.stcnt || 0);
+           totalCafeSalesAmt = (cafeItem.mmavgSlsAmt || 0);
          }
-         // 카페 관련 업종 전부
+         // 카페 관련 업종 (메인 동만)
          const cafeSales = salesData.filter(s => ['카페','커피','빵','도넛','베이커리','디저트'].some(k => (s.tpbizClscdNm||'').includes(k)));
          allCafeSalesItems.push(...cafeSales);
        }
-       
-       // 인접 동 카페 데이터 합산
-       nearbySalesData.forEach(nd => {
-         if (Array.isArray(nd.sales)) {
-           const cafeItem = nd.sales.find(s => s.tpbizClscdNm === '카페');
-           if (cafeItem) {
-             totalCafeCount += (cafeItem.stcnt || 0);
-             if (cafeItem.mmavgSlsAmt) {
-               totalCafeSalesAmt += cafeItem.mmavgSlsAmt;
-               totalCafeSalesCount += 1;
-             }
-           }
-           const cafeSales = nd.sales.filter(s => ['카페','커피','빵','도넛','베이커리','디저트'].some(k => (s.tpbizClscdNm||'').includes(k)));
-           allCafeSalesItems.push(...cafeSales);
-         }
-       });
-       
-       // 평균 매출 계산
-       const avgCafeSales = totalCafeSalesCount > 0 ? Math.round(totalCafeSalesAmt / totalCafeSalesCount) : 0;
-       
-       const dongCount = (nearbySalesData.length || 0) + 1;
+
        crossData.cafeSalesStr = allCafeSalesItems.length > 0
-         ? `카페 평균 월매출 ${avgCafeSales > 0 ? avgCafeSales.toLocaleString() + '만' : '미수집'}(${dongCount}개동 합산), ` + allCafeSalesItems.filter(s => s.mmavgSlsAmt > 0).map(s => `${s.tpbizClscdNm}:${s.mmavgSlsAmt.toLocaleString()}만(${s.stcnt}점포)`).join(', ')
+         ? `카페 월매출 ${totalCafeSalesAmt > 0 ? totalCafeSalesAmt.toLocaleString() + '만' : '미수집'}, ` + allCafeSalesItems.filter(s => s.mmavgSlsAmt > 0).map(s => `${s.tpbizClscdNm}:${s.mmavgSlsAmt.toLocaleString()}만(${s.stcnt}점포)`).join(', ')
          : '카페 매출 데이터 미수집';
-       crossData.avgCafeSales = avgCafeSales;
-       
-       // 카페 수: API 실제 합산 데이터 (인접 동 포함)
+       crossData.avgCafeSales = totalCafeSalesAmt;
+
+       // 카페 수: 메인 동만
        crossData.cafeCount = totalCafeCount > 0 ? totalCafeCount : (data.overview?.cafeCount || '?');
-       crossData.nearbyDongCount = (nearbySalesData.length || 0) + 1;
+       crossData.nearbyDongCount = 1;
        crossData.franchiseInfo = nearbySearchResult?.substring(0, 600) || '';
        
        // 웹검색 카페 목록 (거리 포함)
@@ -6785,11 +6748,12 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
          // 서울 외 지역: 소상공인365 유동인구 데이터를 교차데이터로 전달
          const dynData = collectedData.apis?.dynPplCmpr?.data;
          if (Array.isArray(dynData) && dynData.length > 0) {
-           const dongPop = dynData[0]?.cnt || 0;
-           crossData.dynPopForTime = dongPop > 0 ? `일 유동인구 ${dongPop.toLocaleString()}명` : '';
-           // 상위지역 (구/시 단위) 데이터
+           const dongPopMonthly = dynData[0]?.cnt || 0;
+           const dongPopDaily = Math.round(dongPopMonthly / 30);
+           crossData.dynPopForTime = dongPopDaily > 0 ? `일 유동인구 ${dongPopDaily.toLocaleString()}명` : '';
+           // 상위지역 (구/시 단위) 데이터 — 월간→일평균
            if (dynData.length > 1 && dynData[1]?.nm && dynData[1]?.cnt) {
-             crossData.dynAreaForTime = `${dynData[1].nm} ${dynData[1].cnt.toLocaleString()}명`;
+             crossData.dynAreaForTime = `${dynData[1].nm} ${Math.round(dynData[1].cnt / 30).toLocaleString()}명`;
            } else {
              crossData.dynAreaForTime = '';
            }
