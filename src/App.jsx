@@ -470,21 +470,30 @@ const useInViewToss = (threshold = 0.25) => {
 };
 
 const useCountUpToss = (end, duration = 1200, start = 0, trigger = true) => {
-  const [value, setValue] = useState(start);
+  const numEnd = typeof end === 'string' ? parseFloat(String(end).replace(/[^0-9.-]/g, '')) : (end || 0);
+  const safeEnd = isNaN(numEnd) ? 0 : numEnd;
+  const [value, setValue] = useState(safeEnd > 0 ? safeEnd : start);
+  const hasAnimated = useRef(false);
   useEffect(() => {
-    if (!trigger || !end) return;
-    const numEnd = typeof end === 'string' ? parseFloat(end.replace(/[^0-9.-]/g, '')) : end;
-    if (isNaN(numEnd)) return;
+    // end가 바뀌면 즉시 반영 (애니메이션 전이라도 값 표시)
+    if (safeEnd > 0 && !hasAnimated.current) setValue(safeEnd);
+  }, [safeEnd]);
+  useEffect(() => {
+    if (!trigger || !safeEnd) return;
+    if (hasAnimated.current) return;
+    hasAnimated.current = true;
+    // trigger 시 0에서 카운트업 애니메이션
+    setValue(0);
     let startTime = null;
     const animate = (ts) => {
       if (!startTime) startTime = ts;
       const progress = Math.min((ts - startTime) / duration, 1);
       const eased = 1 - Math.pow(1 - progress, 3);
-      setValue(Math.floor(start + (numEnd - start) * eased));
+      setValue(Math.floor(start + (safeEnd - start) * eased));
       if (progress < 1) requestAnimationFrame(animate);
     };
     requestAnimationFrame(animate);
-  }, [end, trigger]);
+  }, [safeEnd, trigger]);
   return value;
 };
 
