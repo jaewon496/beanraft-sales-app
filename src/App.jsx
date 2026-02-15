@@ -1276,28 +1276,43 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
           {d.rent && (
             <FadeUpToss inView={v5} delay={0.4}>
               <div style={{ background: cardBg, borderRadius: 20, padding: 24, marginTop: 24 }}>
-                <p style={{ fontSize: 14, color: t2, fontWeight: 600, marginBottom: 16 }}>임대료 정보</p>
+                <p style={{ fontSize: 14, color: t2, fontWeight: 600, marginBottom: 8 }}>임대료 정보</p>
+                {d.rent.primaryDong && <p style={{ fontSize: 12, color: t3, marginBottom: 12 }}>{S(d.rent.primaryDong)} 기준 · 소규모 상가 {S(d.rent.dongCount)}</p>}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                   {d.rent.monthly && (
                     <div>
                       <p style={{ fontSize: 12, color: t3 }}>월 임대료</p>
-                      <p style={{ fontSize: 16, fontWeight: 700, color: t1 }}>{S(d.rent.monthly)}</p>
+                      <p style={{ fontSize: 20, fontWeight: 700, color: t1 }}>{S(d.rent.monthly)}</p>
                     </div>
                   )}
                   {d.rent.deposit && (
                     <div>
                       <p style={{ fontSize: 12, color: t3 }}>보증금</p>
-                      <p style={{ fontSize: 16, fontWeight: 700, color: t1 }}>{S(d.rent.deposit)}</p>
-                    </div>
-                  )}
-                  {d.rent.yoyChange && (
-                    <div>
-                      <p style={{ fontSize: 12, color: t3 }}>전년 대비</p>
-                      <p style={{ fontSize: 16, fontWeight: 700, color: S(d.rent.yoyChange || '').includes('+') ? red : green }}>{S(d.rent.yoyChange)}</p>
+                      <p style={{ fontSize: 20, fontWeight: 700, color: t1 }}>{S(d.rent.deposit)}</p>
                     </div>
                   )}
                 </div>
-                {d.rent.source && <p style={{ fontSize: 11, color: t3, marginTop: 12 }}>출처: {S(d.rent.source)}</p>}
+                {/* 주변 동 비교 */}
+                {d.rentDetail && d.rentDetail.length > 1 && (
+                  <div style={{ marginTop: 14, background: `${blue}08`, borderRadius: 12, padding: '10px 14px' }}>
+                    <p style={{ fontSize: 12, color: t3, marginBottom: 8 }}>주변 동별 월세 비교</p>
+                    {d.rentDetail.slice(0, 5).map((rd, rdi) => (
+                      <div key={rdi} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 0' }}>
+                        <span style={{ fontSize: 13, color: rd.dong === d.rent.primaryDong ? blue : t2 }}>
+                          {rd.dong === d.rent.primaryDong ? '📍 ' : ''}{S(rd.dong)}
+                        </span>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: t1 }}>월 {(rd.monthly||0).toLocaleString()}만</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {d.rent.yoyChange && (
+                  <div style={{ marginTop: 12 }}>
+                    <p style={{ fontSize: 12, color: t3 }}>전년 대비</p>
+                    <p style={{ fontSize: 16, fontWeight: 700, color: S(d.rent.yoyChange || '').includes('+') ? red : green }}>{S(d.rent.yoyChange)}</p>
+                  </div>
+                )}
+                {d.rent.source && <p style={{ fontSize: 11, color: t3, marginTop: 12 }}>출처: {S(d.rent.source)} · 매물 {S(d.rent.articleCount)}</p>}
                 {d.rent.bruFeedback && (
                   <div style={{ marginTop: 12 }}>
                     <BruBubble text={d.rent.bruFeedback} summary={d.rent?.bruSummary} delay={0.3} />
@@ -5679,14 +5694,52 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
          .map(r => r.value);
        
        if (validRents.length > 0) {
-         // 가장 가까운 동 (첫 번째 매칭) + 주변 동 평균
-         const primaryRent = validRents[0];
-         const avgDeposit = Math.round(validRents.reduce((s,r) => s + (r.avgDeposit||0), 0) / validRents.length);
-         const avgMonthly = Math.round(validRents.reduce((s,r) => s + (r.avgMonthlyRent||0), 0) / validRents.length);
-         const avgArea = Math.round(validRents.reduce((s,r) => s + (r.avgArea||0), 0) / validRents.length * 10) / 10;
-         const avgPerPyeong = Math.round(validRents.reduce((s,r) => s + (r.avgRentPerPyeong||0), 0) / validRents.length);
-         const totalArticles = validRents.reduce((s,r) => s + (r.articleCount||0), 0);
-         
+         // ★ 카페 창업 기준 임대료 산출 (소규모 상가 필터링, 이상치 제거)
+         const primaryRent = validRents[0]; // 검색 주소 동
+
+         // 1) 카페 규모 필터: 평균 면적 200㎡(60평) 이상 동은 대형 상업지구로 제외
+         const cafeScaleRents = validRents.filter(r => (r.avgArea || 0) < 200 && (r.avgMonthlyRent || 0) > 0);
+         const targetRents = cafeScaleRents.length >= 2 ? cafeScaleRents : validRents.filter(r => (r.avgMonthlyRent || 0) > 0);
+
+         // 2) 중위값(median) 사용으로 이상치 영향 최소화
+         const sortedMonthly = [...targetRents].sort((a, b) => (a.avgMonthlyRent || 0) - (b.avgMonthlyRent || 0));
+         const sortedDeposit = [...targetRents].sort((a, b) => (a.avgDeposit || 0) - (b.avgDeposit || 0));
+         const medIdx = Math.floor(sortedMonthly.length / 2);
+         const medianMonthly = sortedMonthly.length > 0 ? (sortedMonthly.length % 2 === 0
+           ? Math.round(((sortedMonthly[medIdx - 1]?.avgMonthlyRent || 0) + (sortedMonthly[medIdx]?.avgMonthlyRent || 0)) / 2)
+           : (sortedMonthly[medIdx]?.avgMonthlyRent || 0)) : 0;
+         const medIdx2 = Math.floor(sortedDeposit.length / 2);
+         const medianDeposit = sortedDeposit.length > 0 ? (sortedDeposit.length % 2 === 0
+           ? Math.round(((sortedDeposit[medIdx2 - 1]?.avgDeposit || 0) + (sortedDeposit[medIdx2]?.avgDeposit || 0)) / 2)
+           : (sortedDeposit[medIdx2]?.avgDeposit || 0)) : 0;
+
+         // 3) IQR 기반 이상치 제거 후 평균
+         const q1Idx = Math.floor(sortedMonthly.length * 0.25);
+         const q3Idx = Math.min(Math.floor(sortedMonthly.length * 0.75), sortedMonthly.length - 1);
+         const q1 = sortedMonthly[q1Idx]?.avgMonthlyRent || 0;
+         const q3 = sortedMonthly[q3Idx]?.avgMonthlyRent || 0;
+         const iqr = q3 - q1;
+         const upperBound = q3 + 1.5 * iqr;
+         const filteredRents = targetRents.filter(r => (r.avgMonthlyRent || 0) <= upperBound);
+         const iqrAvgMonthly = filteredRents.length > 0
+           ? Math.round(filteredRents.reduce((s, r) => s + (r.avgMonthlyRent || 0), 0) / filteredRents.length)
+           : medianMonthly;
+         const iqrAvgDeposit = filteredRents.length > 0
+           ? Math.round(filteredRents.reduce((s, r) => s + (r.avgDeposit || 0), 0) / filteredRents.length)
+           : medianDeposit;
+
+         // 4) 최종값: primary 동(검색주소 동) 60% + 주변 중위값 40% 가중평균
+         const finalMonthly = (primaryRent.avgMonthlyRent || 0) > 0
+           ? Math.round(primaryRent.avgMonthlyRent * 0.6 + medianMonthly * 0.4)
+           : iqrAvgMonthly;
+         const finalDeposit = (primaryRent.avgDeposit || 0) > 0
+           ? Math.round(primaryRent.avgDeposit * 0.6 + medianDeposit * 0.4)
+           : iqrAvgDeposit;
+
+         const avgArea = Math.round(targetRents.reduce((s, r) => s + (r.avgArea || 0), 0) / targetRents.length * 10) / 10;
+         const avgPerPyeong = Math.round(targetRents.reduce((s, r) => s + (r.avgRentPerPyeong || 0), 0) / targetRents.length);
+         const totalArticles = validRents.reduce((s, r) => s + (r.articleCount || 0), 0);
+
          collectedData.apis.firebaseRent = {
            description: '상가 임대료 (빈크래프트 수집기)',
            data: {
@@ -5694,14 +5747,18 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
              primaryData: primaryRent,
              nearbyDongs: validRents,
              summary: {
-               avgDeposit, avgMonthlyRent: avgMonthly, avgArea, avgRentPerPyeong: avgPerPyeong, totalArticles,
+               avgDeposit: finalDeposit, avgMonthlyRent: finalMonthly, avgArea, avgRentPerPyeong: avgPerPyeong, totalArticles,
                dongCount: validRents.length,
+               filteredDongCount: targetRents.length,
                source: '네이버부동산 (빈크래프트 수집기)',
-               updatedAt: primaryRent.updatedAt
+               updatedAt: primaryRent.updatedAt,
+               primaryMonthly: primaryRent.avgMonthlyRent,
+               primaryDeposit: primaryRent.avgDeposit,
+               medianMonthly, medianDeposit
              }
            }
          };
-         console.log(`Firebase 임대료: ${validRents.length}개 동, 평균 보증금 ${avgDeposit}만, 월세 ${avgMonthly}만`);
+         console.log(`Firebase 임대료: ${validRents.length}개 동 중 카페규모 ${targetRents.length}개 필터, 중위값 월세 ${medianMonthly}만, 최종 월세 ${finalMonthly}만 (primary: ${primaryRent.dong} ${primaryRent.avgMonthlyRent}만)`);
        }
      } catch (e) { console.log('Firebase 임대료 조회 실패:', e.message); }
      
@@ -6948,24 +7005,35 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
          }
        }
        
-       // Firebase 임대료 데이터 → data.rent 병합
+       // Firebase 임대료 데이터 → data.rent 병합 (★ 카페 규모 기준 필터링된 결과 사용)
        if (collectedData.apis?.firebaseRent?.data) {
          const fbRent = collectedData.apis.firebaseRent.data;
          const s = fbRent.summary;
+         const hasPrimary = (s.primaryMonthly || 0) > 0;
          data.rent = {
            ...(data.rent || {}),
            monthly: `${s.avgMonthlyRent.toLocaleString()}만원`,
            deposit: `${s.avgDeposit.toLocaleString()}만원`,
-           avgArea: `${s.avgArea}㎡ (${(s.avgArea / 3.3).toFixed(1)}평)`,
-           avgRentPerPyeong: `${s.avgRentPerPyeong.toLocaleString()}원/평`,
-           articleCount: `${s.totalArticles.toLocaleString()}건`,
-           dongCount: `${s.dongCount}개 동`,
+           avgArea: s.avgArea ? `${s.avgArea}㎡ (${(s.avgArea / 3.3).toFixed(1)}평)` : '',
+           avgRentPerPyeong: s.avgRentPerPyeong ? `${s.avgRentPerPyeong.toLocaleString()}원/평` : '',
+           articleCount: `${(s.totalArticles || 0).toLocaleString()}건`,
+           dongCount: `${s.filteredDongCount || s.dongCount}개 동`,
            source: s.source || '네이버부동산 (빈크래프트 수집기)',
            updatedAt: s.updatedAt,
-           bruFeedback: data.rent?.bruFeedback || `이 지역 상가 평균 보증금 ${s.avgDeposit.toLocaleString()}만원, 월세 ${s.avgMonthlyRent.toLocaleString()}만원이에요. 매물 ${s.totalArticles.toLocaleString()}건 기준이에요.`
+           primaryDong: fbRent.primaryDong || '',
+           primaryMonthly: s.primaryMonthly || 0,
+           primaryDeposit: s.primaryDeposit || 0,
+           medianMonthly: s.medianMonthly || 0,
+           medianDeposit: s.medianDeposit || 0,
+           bruFeedback: data.rent?.bruFeedback || (hasPrimary
+             ? `${fbRent.primaryDong} 기준 보증금 ${(s.primaryDeposit||0).toLocaleString()}만원, 월세 ${(s.primaryMonthly||0).toLocaleString()}만원이에요. 주변 ${s.filteredDongCount||s.dongCount}개 동 중위값은 월 ${(s.medianMonthly||0).toLocaleString()}만원이에요.`
+             : `이 지역 소규모 상가 기준 보증금 ${s.avgDeposit.toLocaleString()}만원, 월세 ${s.avgMonthlyRent.toLocaleString()}만원이에요.`)
          };
-         // 인접 동별 상세 데이터
-         data.rentDetail = fbRent.nearbyDongs.map(d => ({
+         // 인접 동별 상세 데이터 (카페 규모 기준 상위 5개)
+         const rentDongs = (fbRent.nearbyDongs || [])
+           .filter(d => (d.avgArea || 0) < 200)
+           .sort((a, b) => (a.avgMonthlyRent || 0) - (b.avgMonthlyRent || 0));
+         data.rentDetail = rentDongs.slice(0, 8).map(d => ({
            dong: d.dong,
            deposit: d.avgDeposit,
            monthly: d.avgMonthlyRent,
@@ -7179,15 +7247,20 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
          crossData.ageSource = '전체 업종 (소상공인365)';
        }
        
-       // 임대료 데이터
+       // 임대료 데이터 (★ 카페 규모 기준 필터링된 결과)
        const fbRentData = collectedData.apis?.firebaseRent?.data;
        crossData.avgMonthly = fbRentData?.summary?.avgMonthlyRent || 0;
        crossData.avgDeposit = fbRentData?.summary?.avgDeposit || 0;
-       crossData.rentDongs = (fbRentData?.nearbyDongs || []).map(d => `${d.dong}:월${d.avgMonthlyRent}만`).join(', ');
-       // 임대료 데이터 출처 표시
+       crossData.primaryMonthly = fbRentData?.summary?.primaryMonthly || 0;
+       crossData.medianMonthly = fbRentData?.summary?.medianMonthly || 0;
+       // 동별 데이터: 카페 규모(200㎡ 미만)만 포함
+       crossData.rentDongs = (fbRentData?.nearbyDongs || [])
+         .filter(d => (d.avgArea || 0) < 200)
+         .sort((a, b) => (a.avgMonthlyRent || 0) - (b.avgMonthlyRent || 0))
+         .map(d => `${d.dong}:월${d.avgMonthlyRent}만(${d.avgArea ? Math.round(d.avgArea/3.3) + '평' : ''})`).join(', ');
        const rentSource = fbRentData?.summary?.isEstimate ? ` (${fbRentData.summary.source || '부동산원 추정'})` : '';
-       crossData.rentStr = crossData.avgMonthly > 0 
-         ? `평균 월${crossData.avgMonthly}만, 보증금${crossData.avgDeposit}만${rentSource}`
+       crossData.rentStr = crossData.avgMonthly > 0
+         ? `월세 ${crossData.avgMonthly}만, 보증금 ${crossData.avgDeposit}만${rentSource}${crossData.primaryMonthly > 0 ? ` (${fbRentData.primaryDong || '해당동'} 기준 월${crossData.primaryMonthly}만, 주변 중위값 월${crossData.medianMonthly}만)` : ''}`
          : '임대료 데이터 미수집';
        crossData.rentDongsStr = crossData.rentDongs || '동별 데이터 없음';
        
@@ -8336,18 +8409,38 @@ ${JSON.stringify(regionData, null, 2)}
            );
            const validRents = rentResults.filter(r => r.status === 'fulfilled' && r.value).map(r => r.value);
            if (validRents.length > 0) {
+             // ★ 카페 규모 필터 + 이상치 제거 (소규모 상가 기준)
+             const primaryR = validRents[0];
+             const cafeScale = validRents.filter(r => (r.avgArea || 0) < 200 && (r.avgMonthlyRent || 0) > 0);
+             const tgtRents = cafeScale.length >= 2 ? cafeScale : validRents.filter(r => (r.avgMonthlyRent || 0) > 0);
+             const srtM = [...tgtRents].sort((a, b) => (a.avgMonthlyRent || 0) - (b.avgMonthlyRent || 0));
+             const srtD = [...tgtRents].sort((a, b) => (a.avgDeposit || 0) - (b.avgDeposit || 0));
+             const mi = Math.floor(srtM.length / 2);
+             const medM = srtM.length > 0 ? (srtM.length % 2 === 0 ? Math.round(((srtM[mi-1]?.avgMonthlyRent||0)+(srtM[mi]?.avgMonthlyRent||0))/2) : (srtM[mi]?.avgMonthlyRent||0)) : 0;
+             const mi2 = Math.floor(srtD.length / 2);
+             const medD = srtD.length > 0 ? (srtD.length % 2 === 0 ? Math.round(((srtD[mi2-1]?.avgDeposit||0)+(srtD[mi2]?.avgDeposit||0))/2) : (srtD[mi2]?.avgDeposit||0)) : 0;
+             const finM = (primaryR.avgMonthlyRent || 0) > 0 ? Math.round(primaryR.avgMonthlyRent * 0.6 + medM * 0.4) : medM;
+             const finD = (primaryR.avgDeposit || 0) > 0 ? Math.round(primaryR.avgDeposit * 0.6 + medD * 0.4) : medD;
+
              collectedData.apis.firebaseRent = {
                description: '임대료',
                data: {
                  summary: {
-                   avgDeposit: Math.round(validRents.reduce((s,r) => s + (r.avgDeposit||0), 0) / validRents.length),
-                   avgMonthlyRent: Math.round(validRents.reduce((s,r) => s + (r.avgMonthlyRent||0), 0) / validRents.length),
+                   avgDeposit: finD,
+                   avgMonthlyRent: finM,
                    dongCount: validRents.length,
-                   totalArticles: validRents.reduce((s,r) => s + (r.articleCount||0), 0)
+                   filteredDongCount: tgtRents.length,
+                   totalArticles: validRents.reduce((s,r) => s + (r.articleCount||0), 0),
+                   primaryMonthly: primaryR.avgMonthlyRent,
+                   primaryDeposit: primaryR.avgDeposit,
+                   medianMonthly: medM, medianDeposit: medD,
+                   source: '네이버부동산 (빈크래프트 수집기)',
+                   updatedAt: primaryR.updatedAt
                  },
                  nearbyDongs: validRents.slice(0, 5)
                }
              };
+             console.log(`영업모드 임대료: ${validRents.length}개 동→카페규모 ${tgtRents.length}개, 중위 월세 ${medM}만, 최종 ${finM}만`);
            }
          } catch (e) { console.log('영업모드 임대료 조회 실패:', e.message); }
          
