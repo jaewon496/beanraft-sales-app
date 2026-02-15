@@ -595,6 +595,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
   const [r1, v1] = useInViewToss();
   const [r2, v2] = useInViewToss();
   const [r3, v3] = useInViewToss();
+  const [r3b, v3b] = useInViewToss();
   const [r4, v4] = useInViewToss();
   const [r5, v5] = useInViewToss();
   const [r6, v6] = useInViewToss();
@@ -1083,6 +1084,39 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
       )}
       
         <BruBubble text={d.franchise?.[0]?.feedback} summary={d.franchise?.[0]?.bruSummary} delay={0.5} />
+
+      {/* ━━━ 3.5 개인 카페 경쟁 분석 ━━━ */}
+      {(cd?.nearbyIndependentList?.length > 0 || (cd?.nearbyIndependentCafes > 0)) && (
+        <div ref={r3b} style={sec}>
+          <FadeUpToss inView={v3b}>
+            <p style={secLabel}>개인 카페 현황</p>
+            <h2 style={secTitle}>개인 카페 경쟁 분석</h2>
+            <p style={{ fontSize: 13, color: t3, marginTop: 4 }}>
+              반경 500m · 개인카페 {cd?.nearbyIndependentCafes || cd?.nearbyIndependentList?.length || 0}개
+            </p>
+          </FadeUpToss>
+          <FadeUpToss inView={v3b} delay={0.15}>
+            <div style={{ marginTop: 16 }}>
+              {(cd?.nearbyIndependentList || []).slice(0, 8).map((cafe, i) => (
+                <div key={i} style={{ padding: '12px 0', borderBottom: i < Math.min((cd?.nearbyIndependentList || []).length, 8) - 1 ? `1px solid ${divColor}` : 'none' }}>
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: TOSS_COLORS[(i + 3) % TOSS_COLORS.length], marginRight: 12, flexShrink: 0 }} />
+                    <span style={{ fontSize: 16, color: t1, flex: 1, fontWeight: 500 }}>{S(cafe.name)}</span>
+                  </div>
+                  {cafe.addr && <p style={{ fontSize: 12, color: t3, marginLeft: 22, marginTop: 4, lineHeight: 1.4 }}>{S(cafe.addr)}</p>}
+                </div>
+              ))}
+              {(cd?.nearbyIndependentCafes || 0) > 8 && (
+                <p style={{ fontSize: 13, color: t3, textAlign: 'center', marginTop: 12 }}>
+                  외 {(cd?.nearbyIndependentCafes || 0) - 8}개 매장
+                </p>
+              )}
+            </div>
+          </FadeUpToss>
+        </div>
+      )}
+
+        <BruBubble text={d.indieCafe?.bruFeedback} summary={d.indieCafe?.bruSummary} delay={0.5} />
 
       {/* ━━━ 4. 월 매출 (업종별 Top 5) ━━━ */}
       {topSalesBarData.length > 0 && (
@@ -5763,6 +5797,7 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
            const nearbyFranchiseCounts = {};
            let nearbyIndependentCount = 0;
            const nearbyFranchiseList = []; // 매장명+브랜드 상세
+           const nearbyIndependentList = []; // 개인카페 이름+주소
 
            nearbyCafes.forEach(store => {
              const storeName = (store.bizesNm || '').toUpperCase();
@@ -5775,13 +5810,17 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
                  break;
                }
              }
-             if (!matched) nearbyIndependentCount++;
+             if (!matched) {
+              nearbyIndependentCount++;
+              nearbyIndependentList.push({ name: store.bizesNm, addr: store.rdnmAdr || store.lnoAdr });
+            }
            });
 
            collectedData.nearbyFranchiseCounts = nearbyFranchiseCounts;
            collectedData.nearbyTotalCafes = nearbyCafes.length;
            collectedData.nearbyIndependentCafes = nearbyIndependentCount;
            collectedData.nearbyFranchiseList = nearbyFranchiseList;
+           collectedData.nearbyIndependentList = nearbyIndependentList;
 
            const fcSummary = Object.entries(nearbyFranchiseCounts).map(([k,v]) => `${k}:${v}`).join(', ');
            console.log(`[영업모드] 반경 500m 카페: 총 ${nearbyCafes.length}개 (프랜차이즈: ${fcSummary || '없음'}, 개인: ${nearbyIndependentCount}개)`);
@@ -7059,6 +7098,8 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
        crossData.nearbyTotalCafes = collectedData.nearbyTotalCafes || 0;
        crossData.nearbyIndependentCafes = collectedData.nearbyIndependentCafes || 0;
        crossData.nearbyFranchiseStr = Object.entries(collectedData.nearbyFranchiseCounts || {}).map(([k,v]) => `${k} ${v}개`).join(', ') || '미수집';
+       crossData.nearbyIndependentList = collectedData.nearbyIndependentList || [];
+       crossData.independentCafeStr = (collectedData.nearbyIndependentList || []).slice(0, 10).map(c => c.name).join(', ') || '미수집';
 
        // 웹검색 카페 목록 (거리 포함)
        crossData.nearCafes = nearbySearchResult?.substring(0, 800) || '';
@@ -7147,7 +7188,22 @@ ${isDetailed ? '상세주소이므로 "선택하신 주소에서 가장 가까�
 [bruSummary] 40자 이내
 반드시 아래 JSON 포맷만 출력하세요. 다른 텍스트, 설명, 마크다운 금지.
 {"bruFeedback":"여기에 피드백","bruSummary":"40자이내 요약"}`,
-         
+
+         indieCafe: `당신은 카페 창업 컨설턴트 '브루'예요. 카드3.5(개인카페 경쟁) 피드백을 작성해주세요.
+[이 카드 데이터] 반경 500m 개인카페: ${crossData.nearbyIndependentCafes}개
+개인카페 목록: ${crossData.independentCafeStr}
+총 카페: ${crossData.nearbyTotalCafes}개, 프랜차이즈: ${crossData.nearbyFranchiseStr}
+[교차 데이터] 소비 1위: ${crossData.topSpendAge}(${crossData.topSpendPct}%)
+임대료: ${crossData.rentStr}
+매출: ${crossData.cafeSalesStr}
+[규칙] 개인카페의 특성(전문성, 분위기, 메뉴 차별화)과 경쟁력을 분석하세요.
+프랜차이즈 대비 개인카페가 많은/적은 이유를 해석하세요.
+"개인카페 N개 중 살아남으려면" 관점에서 차별화 전략을 제시하세요.
+실제 매장명을 언급하며 분석하세요. 100자 이상.
+[bruSummary] 40자 이내
+반드시 아래 JSON 포맷만 출력하세요. 다른 텍스트, 설명, 마크다운 금지.
+{"bruFeedback":"여기에 피드백","bruSummary":"40자이내 요약"}`,
+
          cafeSales: `당신은 카페 창업 컨설턴트 '브루'예요. 카드4(카페매출) 피드백을 작성해주세요.
 [이 카드 데이터] 매출: ${crossData.cafeSalesStr}
 [교차 데이터] 소비 1위: ${crossData.topSpendAge}(${crossData.topSpendPct}%)
@@ -7333,6 +7389,11 @@ ${crossData.dynPopForTime || '유동인구 데이터 수집됨'}${crossData.dynA
              if (cardData.bruFeedback) {
                if (data.franchise?.[0]) { data.franchise[0].feedback = cardData.bruFeedback; data.franchise[0].bruSummary = cardData.bruSummary; }
                else { if (!data.franchise) data.franchise = []; if (data.franchise.length === 0) data.franchise.push({}); data.franchise[0].feedback = cardData.bruFeedback; data.franchise[0].bruSummary = cardData.bruSummary; }
+             }
+             break;
+           case 'indieCafe':
+             if (cardData.bruFeedback) {
+               data.indieCafe = { bruFeedback: cardData.bruFeedback, bruSummary: cardData.bruSummary };
              }
              break;
            case 'cafeSales':
