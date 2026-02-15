@@ -3565,6 +3565,7 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
  const [salesModeAnalysisStep, setSalesModeAnalysisStep] = useState(''); // 현재 단계 텍스트
  const [salesModeCollectingText, setSalesModeCollectingText] = useState(''); // 실시간 수집 텍스트
  const salesModeAbortRef = useRef(null); // 분석 중지용 AbortController ref
+ const [salesAutoCompleteOpen, setSalesAutoCompleteOpen] = useState(false); // 검색 자동완성 드롭다운
  const [salesModeShowSources, setSalesModeShowSources] = useState(false);
  const [salesModeIframeError, setSalesModeIframeError] = useState(false); // iframe 차단 감지
  const [salesModeHomepageUrl, setSalesModeHomepageUrl] = useState('https://www.beancraft.co.kr'); // 홈페이지 URL
@@ -13060,23 +13061,71 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
              {/* 분석 탭 */}
              {salesModeTab === 'analysis' && (
                <div className="p-4 space-y-2">
-                 {/* 지역 검색창 */}
+                 {/* 지역 검색창 + 자동완성 */}
                  <div className="relative">
                    <input
                      type="text"
                      value={salesModeSearchQuery}
-                     onChange={(e) => setSalesModeSearchQuery(e.target.value)}
-                     onKeyDown={(e) => e.key === 'Enter' && searchSalesModeRegion(salesModeSearchQuery)}
+                     onChange={(e) => { setSalesModeSearchQuery(e.target.value); setSalesAutoCompleteOpen(e.target.value.length >= 1); }}
+                     onKeyDown={(e) => {
+                       if (e.key === 'Enter') {
+                         setSalesAutoCompleteOpen(false);
+                         searchSalesModeRegion(salesModeSearchQuery);
+                       }
+                       if (e.key === 'Escape') setSalesAutoCompleteOpen(false);
+                     }}
+                     onFocus={() => { if (salesModeSearchQuery.length >= 1) setSalesAutoCompleteOpen(true); }}
                      placeholder="지역을 검색하세요 (예: 강남역, 판교)"
                      className={`w-full px-4 py-3 rounded-xl border focus:outline-none transition-all ${theme === 'dark' ? 'border-neutral-700 bg-neutral-800 focus:border-white text-white placeholder-gray-500' : 'border-neutral-200 bg-white focus:border-neutral-400 text-neutral-900 placeholder-neutral-400'}`}
                    />
                    <button
-                     onClick={() => searchSalesModeRegion(salesModeSearchQuery)}
+                     onClick={() => { setSalesAutoCompleteOpen(false); searchSalesModeRegion(salesModeSearchQuery); }}
                      disabled={salesModeSearchLoading}
                      className={`absolute right-2 top-1/2 -translate-y-1/2 px-5 py-2.5 rounded-xl text-sm font-bold disabled:opacity-50 transition-all ${theme === 'dark' ? 'bg-white text-black hover:bg-gray-100' : 'bg-neutral-900 text-white hover:bg-neutral-800'}`}
                    >
                      {salesModeSearchLoading ? '분석중...' : '검색'}
                    </button>
+
+                   {/* 자동완성 드롭다운 */}
+                   {salesAutoCompleteOpen && salesModeSearchQuery.length >= 1 && (() => {
+                     const popularSpots = [
+                       '강남역','홍대입구역','건대입구역','성수동','이태원','명동','잠실','신촌',
+                       '판교역','분당 정자동','수원역','일산','안양 범계역','김포 장기동',
+                       '해운대','서면','부산 남포동','대구 동성로','대전 둔산동','광주 충장로',
+                       '전주 객사','제주 연동','창원 상남동','코엑스','가로수길','을지로3가',
+                       '삼청동','북촌','연남동','망원동','합정','역삼','종로','광화문','여의도',
+                       '서울대입구역','연세대','남대문시장','동대문시장'
+                     ];
+                     const q = salesModeSearchQuery.toLowerCase();
+                     const filtered = popularSpots.filter(s => s.toLowerCase().includes(q)).slice(0, 6);
+                     if (filtered.length === 0) return null;
+                     return (
+                       <div style={{
+                         position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
+                         marginTop: 4, borderRadius: 12, overflow: 'hidden',
+                         background: theme === 'dark' ? '#2B2B2B' : '#FFF',
+                         border: `1px solid ${theme === 'dark' ? '#444' : '#E5E5E5'}`,
+                         boxShadow: '0 8px 32px rgba(0,0,0,0.15)'
+                       }}>
+                         {filtered.map((spot, i) => (
+                           <div key={i}
+                             onClick={() => { setSalesModeSearchQuery(spot); setSalesAutoCompleteOpen(false); searchSalesModeRegion(spot); }}
+                             style={{
+                               padding: '10px 16px', cursor: 'pointer', fontSize: 14,
+                               color: theme === 'dark' ? '#DDD' : '#333',
+                               borderBottom: i < filtered.length - 1 ? `1px solid ${theme === 'dark' ? '#333' : '#F0F0F0'}` : 'none',
+                               display: 'flex', alignItems: 'center', gap: 8,
+                             }}
+                             onMouseOver={(e) => e.currentTarget.style.background = theme === 'dark' ? '#333' : '#F7F7F7'}
+                             onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                           >
+                             <span style={{ color: theme === 'dark' ? '#888' : '#BBB', fontSize: 12 }}>📍</span>
+                             <span>{spot}</span>
+                           </div>
+                         ))}
+                       </div>
+                     );
+                   })()}
                  </div>
 
                  {/* 검색 안내 */}
