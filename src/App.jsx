@@ -5162,7 +5162,7 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
        '안양': '경기 안양시', '평택': '경기 평택시', '화성': '경기 화성시', '광명': '경기 광명시',
        '파주': '경기 파주시', '김포': '경기 김포시', '동탄': '경기 화성시 동탄',
        // 기타 광역시
-       '동성로': '대구 중구 동인동', '유성': '대전 유성구', '둔산': '대전 서구 둔산동',
+       '동성로': '대구광역시 중구', '유성': '대전 유성구', '둔산': '대전 서구 둔산동',
        '부평': '인천 부평구', '송도': '인천 연수구 송도동', '청라': '인천 서구 청라동',
        '충장로': '광주 동구 충장동',
        // 기타 지역
@@ -5236,8 +5236,10 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
        updateCollectingText(`"${query}" 장소를 검색하고 있어요`);
        // 원래 쿼리 + 확장 쿼리 순서로 Local Search 시도
        const localSearchQueries = [query, ...searchQueries.filter(q => q !== query)];
+       console.log("Local Search 시도할 쿼리 목록:", JSON.stringify(localSearchQueries));
        for (const localQuery of localSearchQueries) {
          if (coordinates) break;
+         console.log("Local Search 시도 중: " + localQuery);
        try {
          const localRes = await fetch(`/api/naver-local-proxy?query=${encodeURIComponent(localQuery)}&display=1`);
          if (localRes.ok) {
