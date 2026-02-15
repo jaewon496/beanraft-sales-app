@@ -6734,12 +6734,12 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
          const sgNmForSales = addressInfo?.sigungu || '';
          const salesKws = [dongNmForSales.replace(/\d+동$/, ''), query.split(' ')[0], sgNmForSales.replace('구', '')].filter(kw => kw && kw.length >= 2);
 
-         // 서울시 VwsmTrdarSelngQq (추정매출) API - 최신 분기, 5배치 병렬 수집
+         // 서울시 VwsmTrdarSelngQq (추정매출) API - 최신 분기, 1000개x22배치 병렬
+         // 서울시 API는 최대 1000건씩만 가능, 총 ~21,500건
          const batchPromises = [];
-         const batchSize = 5000;
-         for (let batch = 0; batch < 25000; batch += batchSize) {
+         for (let si = 1; si <= 22000; si += 1000) {
            batchPromises.push(
-             fetch(`/api/sbiz-proxy?api=seoul&service=VwsmTrdarSelngQq&startIndex=${batch+1}&endIndex=${batch+batchSize}&stdrYyquCd=20253`)
+             fetch(`/api/sbiz-proxy?api=seoul&service=VwsmTrdarSelngQq&startIndex=${si}&endIndex=${si+999}&stdrYyquCd=20253`)
                .then(r => r.ok ? r.json() : null)
                .then(d => { const raw = d?.data || d; return raw?.VwsmTrdarSelngQq?.row || []; })
                .catch(() => [])
