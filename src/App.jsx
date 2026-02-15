@@ -638,8 +638,11 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
     return extractNum(d.overview?.floatingPop);
   })();
 
-  const newOpen = extractNum(d.overview?.newOpen);
-  const closed = extractNum(d.overview?.closed);
+  // 개업/폐업: 비상식적 숫자 필터 (1개 동에서 연간 200개 초과 불가능)
+  const _rawNewOpen = extractNum(d.overview?.newOpen);
+  const _rawClosed = extractNum(d.overview?.closed);
+  const newOpen = _rawNewOpen > 200 ? 0 : _rawNewOpen;
+  const closed = _rawClosed > 200 ? 0 : _rawClosed;
   
   // 카운트업 애니메이션
   const aCafe = useCountUpToss(cafeCount, 1200, 0, v1);
