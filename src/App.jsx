@@ -5652,16 +5652,32 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
        const dongName = addressInfo?.dong || '';
        const FIREBASE_DB = 'https://beancraft-sales-team-default-rtdb.asia-southeast1.firebasedatabase.app';
        
-       // 행정동 이름에서 가능한 법정동 후보 생성
+       // ★ 주소 텍스트에서 법정동 우선 추출 (행정동 ≠ 법정동 문제 해결)
        const rentDongCandidates = [];
-       if (dongName) {
+       const addrText = addressInfo?.address || query || '';
+       // "청파로 205-6" → 도로명에서 법정동 후보 추출 (청파→청파동1가~5가)
+       const roadMatch = addrText.match(/([\uAC00-\uD7AF]+)(로|길)\s/);
+       if (roadMatch) {
+         const roadBase = roadMatch[1]; // e.g. "청파"
+         for (let i = 1; i <= 5; i++) rentDongCandidates.push(`${roadBase}동${i}가`);
+         rentDongCandidates.push(`${roadBase}동`);
+       }
+       // 주소에 동/가 직접 포함된 경우 (e.g. "청파동1가")
+       const dongMatch = addrText.match(/([\uAC00-\uD7AF]+\d*[동가])/);
+       if (dongMatch && !rentDongCandidates.includes(dongMatch[1])) {
+         rentDongCandidates.unshift(dongMatch[1]);
+       }
+       // 행정동 후보 추가
+       if (dongName && !rentDongCandidates.includes(dongName)) {
          rentDongCandidates.push(dongName);
-         // "한강로동" → "한강로1가"~"한강로5가", "한강로동"
-         // "이촌2동" → "이촌동", "이촌1가"~"이촌5가" (숫자 제거 후 법정동 후보)
+       }
+       if (dongName) {
          const baseName = dongName.replace(/\d*동$/, '').replace(/\d+가$/, '');
-         // 법정동 후보 생성 (baseName + 가/동)
-         rentDongCandidates.push(`${baseName}동`);
-         for (let i = 1; i <= 5; i++) rentDongCandidates.push(`${baseName}${i}가`);
+         if (!rentDongCandidates.includes(`${baseName}동`)) rentDongCandidates.push(`${baseName}동`);
+         for (let i = 1; i <= 5; i++) {
+           const cand = `${baseName}${i}가`;
+           if (!rentDongCandidates.includes(cand)) rentDongCandidates.push(cand);
+         }
        }
        // 인접 동도 추가 (addressInfo에서 확인 가능한 경우)
        if (addressInfo?.sigungu) {
@@ -8378,13 +8394,27 @@ ${JSON.stringify(regionData, null, 2)}
            };
          }
          
-         // ═══ Firebase 임대료 조회 ═══
+         // ═══ Firebase 임대료 조회 (★ 법정동 우선) ═══
          const FIREBASE_DB = 'https://beancraft-sales-team-default-rtdb.asia-southeast1.firebasedatabase.app';
          const dngName = dongInfo.dongNm || '';
-         const rentCandidates = [dngName];
+         const rentCandidates = [];
+         // 주소에서 법정동 추출 (도로명에서 추론)
+         const addrTxt = addressInfo?.address || query || '';
+         const roadM = addrTxt.match(/([\uAC00-\uD7AF]+)(로|길)\s/);
+         if (roadM) {
+           const rBase = roadM[1];
+           for (let ri = 1; ri <= 5; ri++) rentCandidates.push(`${rBase}동${ri}가`);
+           rentCandidates.push(`${rBase}동`);
+         }
+         const dongM = addrTxt.match(/([\uAC00-\uD7AF]+\d*[동가])/);
+         if (dongM && !rentCandidates.includes(dongM[1])) rentCandidates.unshift(dongM[1]);
+         if (dngName && !rentCandidates.includes(dngName)) rentCandidates.push(dngName);
          const bName = dngName.replace(/\d*동$/, '').replace(/\d+가$/, '');
-         rentCandidates.push(`${bName}동`);
-         for (let ri = 1; ri <= 5; ri++) rentCandidates.push(`${bName}${ri}가`);
+         if (!rentCandidates.includes(`${bName}동`)) rentCandidates.push(`${bName}동`);
+         for (let ri = 1; ri <= 5; ri++) {
+           const rc = `${bName}${ri}가`;
+           if (!rentCandidates.includes(rc)) rentCandidates.push(rc);
+         }
          // 시군구별 법정동 추가
          const sgDongs = {
            '용산구': ['갈월동','남영동','효창동','원효로1가','원효로2가','한강로1가','한강로2가','한강로3가','용산동2가','용산동3가','용산동5가','이촌동','이태원동','한남동','보광동'],
