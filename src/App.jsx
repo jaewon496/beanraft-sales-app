@@ -6734,25 +6734,14 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
          const sgNmForSales = addressInfo?.sigungu || '';
          const salesKws = [dongNmForSales.replace(/\d+동$/, ''), query.split(' ')[0], sgNmForSales.replace('구', '')].filter(kw => kw && kw.length >= 2);
 
-         // 서울시 VwsmTrdarSelngQq (추정매출) API - 최신 분기, 1000개x22배치 병렬
-         // 서울시 API는 최대 1000건씩만 가능, 총 ~21,500건
-         const batchPromises = [];
-         for (let si = 1; si <= 22000; si += 1000) {
-           batchPromises.push(
-             fetch(`/api/sbiz-proxy?api=seoul&service=VwsmTrdarSelngQq&startIndex=${si}&endIndex=${si+999}&stdrYyquCd=20253`)
-               .then(r => r.ok ? r.json() : null)
-               .then(d => { const raw = d?.data || d; return raw?.VwsmTrdarSelngQq?.row || []; })
-               .catch(() => [])
-           );
-         }
-         const batchResults = await Promise.all(batchPromises);
-         const allSalesRows = batchResults.flat();
-         if (allSalesRows.length > 0) {
-           // 카페 업종(CS100010)만 필터
-           const cafeRows = allSalesRows.filter(r => r.SVC_INDUTY_CD === 'CS100010');
+         // 서울시 VwsmTrdarSelngQq (추정매출) API - 프록시에서 카페만 필터링해서 반환
+         const cafeSalesRes = await fetch(`/api/sbiz-proxy?api=seoul&service=VwsmTrdarSelngQq&stdrYyquCd=20253&industryCode=CS100010`);
+         if (cafeSalesRes.ok) {
+           const cafeSalesRaw = await cafeSalesRes.json();
+           const cafeRows = cafeSalesRaw?.data?.filteredRows || [];
            // 지역 매칭 (여러 키워드로)
            const cafeMatched = cafeRows.filter(r => salesKws.some(kw => (r.TRDAR_CD_NM || '').includes(kw)));
-           console.log(`[영업모드] 서울 추정매출: 전체=${allSalesRows.length}, 카페=${cafeRows.length}, 매칭=${cafeMatched.length} (키워드: ${salesKws.join(',')})`);
+           console.log(`[영업모드] 서울 카페 추정매출: 카페=${cafeRows.length}개, 매칭=${cafeMatched.length}개 (키워드: ${salesKws.join(',')})`);
 
            if (cafeMatched.length > 0) {
              // 연령별 카페 결제건수 합산

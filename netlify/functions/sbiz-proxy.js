@@ -138,13 +138,49 @@ exports.handler = async (event, context) => {
     }
     // 6. 서울시 열린데이터 (추정매출, 유동인구 등)
     else if (api === 'seoul') {
-      useHttp = true;
       const seoulApiKey = '6d6c71717173656f3432436863774a';
-      const { service, startIndex, endIndex, stdrYyquCd } = queryParams;
-      const svc = service || 'VwsmTrdarSelngQq'; // 기본: 추정매출
+      const { service, startIndex, endIndex, stdrYyquCd, industryCode } = queryParams;
+      const svc = service || 'VwsmTrdarSelngQq';
+      const quarter = stdrYyquCd ? `/${stdrYyquCd}` : '';
+
+      // industryCode가 있으면 전체 데이터를 서버에서 수집 후 필터링
+      if (industryCode) {
+        const allRows = [];
+        const fetchBatch = (si, ei) => new Promise((resolve, reject) => {
+          const batchUrl = `http://openapi.seoul.go.kr:8088/${seoulApiKey}/json/${svc}/${si}/${ei}${quarter}`;
+          http.get(batchUrl, { timeout: 15000 }, (res) => {
+            let body = '';
+            res.on('data', chunk => body += chunk);
+            res.on('end', () => { try { resolve(JSON.parse(body)); } catch(e) { resolve(null); } });
+          }).on('error', () => resolve(null));
+        });
+
+        // 1000건씩 순차 수집 (최대 22배치, 타임아웃 방지)
+        for (let si = 1; si <= 22000; si += 1000) {
+          try {
+            const batch = await fetchBatch(si, si + 999);
+            const rows = batch?.[svc]?.row || [];
+            if (rows.length === 0) break;
+            const filtered = rows.filter(r => r.SVC_INDUTY_CD === industryCode);
+            allRows.push(...filtered);
+          } catch(e) { break; }
+        }
+
+        return {
+          statusCode: 200,
+          headers: corsHeaders,
+          body: JSON.stringify({
+            success: true,
+            data: { filteredRows: allRows, totalFiltered: allRows.length, industryCode, quarter: stdrYyquCd },
+            elapsedMs: Date.now() - startTime
+          })
+        };
+      }
+
+      // 일반 호출 (필터 없음)
+      useHttp = true;
       const si = startIndex || '1';
       const ei = endIndex || '1000';
-      const quarter = stdrYyquCd ? `/${stdrYyquCd}` : '';
       targetUrl = `http://openapi.seoul.go.kr:8088/${seoulApiKey}/json/${svc}/${si}/${ei}${quarter}`;
     }
     else {
