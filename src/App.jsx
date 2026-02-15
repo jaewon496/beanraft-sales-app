@@ -610,15 +610,12 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
     // 1순위: salesAvg에서 카페 업종 stcnt (메인 동만)
     if (Array.isArray(_apiSalesAvg)) {
       const cafeItem = _apiSalesAvg.find(s => s.tpbizClscdNm === '카페');
-      console.log('[DEBUG cafeCount] 1순위 salesAvg:', JSON.stringify(_apiSalesAvg?.map(s => ({ name: s.tpbizClscdNm, stcnt: s.stcnt })).slice(0,5)), 'cafeItem:', cafeItem ? `stcnt=${cafeItem.stcnt}` : 'NOT FOUND');
       if (cafeItem?.stcnt > 0) return cafeItem.stcnt;
     }
     // 2순위: cfrStcnt API (주의: 전체 업종 포함일 수 있음)
-    console.log('[DEBUG cafeCount] 2순위 cfrStcnt:', _apiCfrStcnt?.tpbizClscdNm, _apiCfrStcnt?.stcnt);
     if (_apiCfrStcnt?.stcnt && _apiCfrStcnt.stcnt > 0 && _apiCfrStcnt.tpbizClscdNm === '카페') return _apiCfrStcnt.stcnt;
     // 3순위: Gemini 텍스트에서 추출 (단, '1km' 같은 거리 숫자 제외)
     const overviewText = String(d.overview?.cafeCount || '');
-    console.log('[DEBUG cafeCount] 3순위 overview.cafeCount:', JSON.stringify(d.overview?.cafeCount), '→ extractNum:', extractNum(d.overview?.cafeCount));
     const cafeMatch = overviewText.match(/카페[가\s]*(\d[\d,]+)\s*개/);
     if (cafeMatch) return parseInt(cafeMatch[1].replace(/,/g, ''));
     const numMatch = overviewText.match(/(\d[\d,]+)\s*개/);
@@ -630,12 +627,10 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
   const floatingPop = (() => {
     if (Array.isArray(_apiDynPpl) && _apiDynPpl.length > 0) {
       const cnt = _apiDynPpl[0]?.cnt || _apiDynPpl[0]?.fpCnt || 0;
-      console.log('[DEBUG floatingPop] 1순위 dynPpl cnt:', cnt, 'raw:', JSON.stringify(_apiDynPpl[0]).substring(0,200));
       if (cnt > 0) return Math.round(cnt / 30); // 월간→일평균
     }
     // Gemini 텍스트에서 추출 - "약 X만명" 또는 "X명"
     const popText = String(d.overview?.floatingPop || '');
-    console.log('[DEBUG floatingPop] 3순위 overview.floatingPop:', JSON.stringify(d.overview?.floatingPop), '→ extractNum:', extractNum(d.overview?.floatingPop));
     const manMatch = popText.match(/([\d,.]+)\s*만\s*명/);
     if (manMatch) return Math.round(parseFloat(manMatch[1].replace(/,/g, '')) * 10000);
     const numMatch = popText.match(/([\d,]+)\s*명/);
