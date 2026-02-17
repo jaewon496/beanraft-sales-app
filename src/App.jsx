@@ -570,10 +570,11 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
     const safeSummary = typeof summary === 'string' ? summary : (summary && typeof summary === 'object' ? JSON.stringify(summary) : summary ? String(summary) : null);
     return (
       <FadeUpToss inView={true} delay={delay}>
-        <div style={{ marginTop: 20 }}>
+        <div style={{ marginTop: 20, position: 'relative', zIndex: 10 }}>
           {/* 접힌 상태: 탭 바 */}
           <button
-            onClick={() => setOpen(!open)}
+            type="button"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen(prev => !prev); }}
             style={{
               width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               padding: '14px 18px',
@@ -582,6 +583,8 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
               border: 'none', cursor: 'pointer',
               borderLeft: `3px solid ${blue}40`,
               transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+              WebkitTapHighlightColor: 'transparent',
+              touchAction: 'manipulation',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -592,10 +595,10 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
                 color: '#fff', fontSize: 11, fontWeight: 900,
                 boxShadow: '0 2px 8px rgba(49,130,246,0.3)',
               }}>B</span>
-              <span style={{ fontSize: 14, color: blue, fontWeight: 700 }}>브루의 한마디</span>
+              <span style={{ fontSize: 14, color: blue, fontWeight: 700 }}>브루</span>
               {safeSummary && !open && (
-                <span style={{ fontSize: 12, color: t2, fontWeight: 500, marginLeft: 4, maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block' }}>
-                  — {safeSummary.length > 20 ? safeSummary.substring(0, 20) + '...' : safeSummary}
+                <span style={{ fontSize: 12, color: t2, fontWeight: 500, marginLeft: 4, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block' }}>
+                  — {safeSummary.length > 25 ? safeSummary.substring(0, 25) + '...' : safeSummary}
                 </span>
               )}
             </div>
@@ -609,10 +612,11 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
 
           {/* 펼쳐진 상세 내용 */}
           <div style={{
-            maxHeight: open ? 600 : 0,
+            maxHeight: open ? 2000 : 0,
             opacity: open ? 1 : 0,
-            overflow: 'hidden',
+            overflow: open ? 'visible' : 'hidden',
             transition: 'max-height 0.5s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s ease',
+            pointerEvents: open ? 'auto' : 'none',
           }}>
             <div style={{
               background: `${blue}0F`, borderRadius: '0 0 18px 18px',
@@ -1020,20 +1024,48 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
               </ResponsiveContainer>
             </div>
           </FadeUpToss>
-          {d.consumers?.peakTime && (
-            <FadeUpToss inView={v2} delay={0.35}>
-              <div style={{ display: 'flex', gap: 16, marginTop: 32, flexWrap: 'wrap' }}>
-                <div className={dark ? 'glass-card light-sweep' : 'glass-card-light'} style={{ padding: '18px 20px', flex: 1, minWidth: 120 }}>
-                  <p style={{ fontSize: 12, color: t2, marginBottom: 8 }}>피크 시간</p>
-                  <p style={{ fontSize: 18, fontWeight: 700, color: t1 }}>{S(d.consumers.peakTime)}</p>
+          {(() => {
+            // 피크시간: API 실데이터 우선, 없으면 dynPplCmpr에서 직접 계산
+            let peakTimeStr = d.consumers?.peakTime;
+            if (!peakTimeStr && cd?.apis?.dynPplCmpr?.data) {
+              const dynRaw = cd.apis.dynPplCmpr.data;
+              if (Array.isArray(dynRaw) && dynRaw.length > 0) {
+                const slots = [
+                  { label: '오전 6~9시', key: 'tmzn1' }, { label: '오전 9~12시', key: 'tmzn2' },
+                  { label: '오후 12~15시', key: 'tmzn3' }, { label: '오후 15~18시', key: 'tmzn4' },
+                  { label: '저녁 18~21시', key: 'tmzn5' }, { label: '야간 21~24시', key: 'tmzn6' }
+                ];
+                const vals = slots.map(s => ({ label: s.label, v: dynRaw.reduce((sum, d) => sum + (d[s.key + 'FpCnt'] || d[s.key] || 0), 0) })).filter(x => x.v > 0).sort((a, b) => b.v - a.v);
+                if (vals.length > 0) peakTimeStr = `${vals[0].label} (${vals[0].v.toLocaleString()}명)`;
+              }
+            }
+            // 배달/테이크아웃: 실데이터 있으면 배달비중, 없으면 카페 점포 수
+            const baeData = cd?.apis?.baeminTpbiz?.data;
+            const cafeBae = Array.isArray(baeData) ? baeData.find(b => (b.baeminTpbizClsfNm || '').includes('카페') || (b.baeminTpbizClsfNm || '').includes('커피') || (b.baeminTpbizClsfNm || '').includes('음료')) : null;
+            const secondInfo = cafeBae ? { label: '카페 배달 주문', value: `${cafeBae.cnt?.toLocaleString() || 0}건` }
+              : d.consumers?.takeoutRatio && d.consumers.takeoutRatio !== '-' ? { label: '테이크아웃', value: S(d.consumers.takeoutRatio) }
+              : cd?.nearbyTotalCafes > 0 ? { label: '반경 500m 카페', value: `${cd.nearbyTotalCafes}개` }
+              : null;
+            if (!peakTimeStr && !secondInfo) return null;
+            return (
+              <FadeUpToss inView={v2} delay={0.35}>
+                <div style={{ display: 'flex', gap: 16, marginTop: 32, flexWrap: 'wrap' }}>
+                  {peakTimeStr && (
+                    <div className={dark ? 'glass-card light-sweep' : 'glass-card-light'} style={{ padding: '18px 20px', flex: 1, minWidth: 120 }}>
+                      <p style={{ fontSize: 12, color: t2, marginBottom: 8 }}>피크 시간</p>
+                      <p style={{ fontSize: 16, fontWeight: 700, color: t1 }}>{peakTimeStr}</p>
+                    </div>
+                  )}
+                  {secondInfo && (
+                    <div className={dark ? 'glass-card light-sweep' : 'glass-card-light'} style={{ padding: '18px 20px', flex: 1, minWidth: 120 }}>
+                      <p style={{ fontSize: 12, color: t2, marginBottom: 8 }}>{secondInfo.label}</p>
+                      <p style={{ fontSize: 18, fontWeight: 700, color: t1 }}>{secondInfo.value}</p>
+                    </div>
+                  )}
                 </div>
-                <div className={dark ? 'glass-card light-sweep' : 'glass-card-light'} style={{ padding: '18px 20px', flex: 1, minWidth: 120 }}>
-                  <p style={{ fontSize: 12, color: t2, marginBottom: 8 }}>테이크아웃</p>
-                  <p style={{ fontSize: 18, fontWeight: 700, color: t1 }}>{S(d.consumers.takeoutRatio || '-')}</p>
-                </div>
-              </div>
-            </FadeUpToss>
-          )}
+              </FadeUpToss>
+            );
+          })()}
           <BruBubble text={d.consumers?.bruFeedback || d.overview?.bruFeedback} summary={d.consumers?.bruSummary} delay={0.5} />
         </div>
       )}
@@ -4208,7 +4240,8 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
        vstCstData,      // 방문 고객
        cfrStcntData,    // 점포수
        baeminData,      // 배달 업종
-       mmavgListData    // 월평균 매출
+       mmavgListData,   // 월평균 매출
+       dongMTpctdData   // 업종 비교 (신규 활성화)
      ] = await Promise.all([
        callSbizAPI(SBIZ365_NEW_API.dynPplCmpr, { dongCd }).catch(() => null),
        callSbizAPI(SBIZ365_NEW_API.salesAvg, { dongCd, tpbizCd }).catch(() => null),
@@ -4216,7 +4249,8 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
        callSbizAPI(SBIZ365_NEW_API.vstCst, { dongCd }).catch(() => null),
        callSbizAPI(SBIZ365_NEW_API.cfrStcnt, { dongCd, tpbizCd }).catch(() => null),
        callSbizAPI(SBIZ365_NEW_API.baeminTpbiz, { dongCd }).catch(() => null),
-       callSbizAPI(SBIZ365_NEW_API.mmavgList, { dongCd, tpbizCd }).catch(() => null)
+       callSbizAPI(SBIZ365_NEW_API.mmavgList, { dongCd, tpbizCd }).catch(() => null),
+       callSbizAPI(SBIZ365_NEW_API.dongMTpctdCmpr, { dongCd }).catch(() => null)
      ]);
      
      // 3. 데이터 파싱
@@ -5641,10 +5675,11 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
          { name: 'vstCst', endpoint: SBIZ365_NEW_API.vstCst, params: { dongCd }, desc: '방문 고객' },
          { name: 'cfrStcnt', endpoint: SBIZ365_NEW_API.cfrStcnt, params: { dongCd, tpbizCd }, desc: '점포수' },
          { name: 'baeminTpbiz', endpoint: SBIZ365_NEW_API.baeminTpbiz, params: { dongCd }, desc: '배달 업종' },
-         { name: 'mmavgList', endpoint: SBIZ365_NEW_API.mmavgList, params: { dongCd, tpbizCd }, desc: '월평균 매출' }
+         { name: 'mmavgList', endpoint: SBIZ365_NEW_API.mmavgList, params: { dongCd, tpbizCd }, desc: '월평균 매출' },
+         { name: 'dongMTpctdCmpr', endpoint: SBIZ365_NEW_API.dongMTpctdCmpr, params: { dongCd }, desc: '업종 비교' }
        ];
 
-       // 순차 호출로 실시간 텍스트 업데이트 (기존 7개)
+       // 순차 호출로 실시간 텍스트 업데이트
        for (let i = 0; i < apiCalls.length; i++) {
          const api = apiCalls[i];
          updateCollectingText(`${query} 지역의 ${api.desc} 정보를 가져오고 있어요`);
@@ -6048,6 +6083,16 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
              '카페봄봄': ['카페봄봄'],
              '커피명가': ['커피명가'],
              '요거프레소': ['요거프레소','YOGERPRESSO'],
+             '만랩커피': ['만랩','만랩커피','MANLAB','MAN LAB'],
+             '블루보틀': ['블루보틀','BLUE BOTTLE','BLUEBOTTLE'],
+             '테라로사': ['테라로사','TERAROSA'],
+             '어니언': ['어니언','ONION'],
+             '프릳츠': ['프릳츠','FRITZ'],
+             '센터커피': ['센터커피','CENTER COFFEE'],
+             '아라비카': ['아라비카','% ARABICA','ARABICA'],
+             '토프레소': ['토프레소','TOPRESSO'],
+             '그라찌에': ['그라찌에','GRAZIE'],
+             '전광수커피': ['전광수','JEON KWANG SOO'],
            };
 
            const nearbyFranchiseCounts = {};
@@ -6130,7 +6175,9 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
              '탐앤탐스': ['탐앤탐스','TOM N TOMS'], '파스쿠찌': ['파스쿠찌','PASCUCCI'],
              '감성커피': ['감성커피'], '하삼동커피': ['하삼동'], '카페베네': ['카페베네'],
              '엔제리너스': ['엔제리너스','ANGEL'], '커피에반하다': ['반하다커피'],
-             '달콤커피': ['달콤커피'], '드롭탑': ['드롭탑','DROPTOP'], '요거프레소': ['요거프레소']
+             '달콤커피': ['달콤커피'], '드롭탑': ['드롭탑','DROPTOP'], '요거프레소': ['요거프레소'],
+             '만랩커피': ['만랩','MANLAB'], '블루보틀': ['블루보틀','BLUE BOTTLE'],
+             '토프레소': ['토프레소'], '전광수커피': ['전광수']
            };
            let naverAdded = 0;
            const existingNames = [
@@ -6473,9 +6520,41 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
        
        // 월평균 매출 (mmavgList)
        if (apis.mmavgList?.data && Array.isArray(apis.mmavgList.data)) {
-         summary.push(`월평균 매출 TOP: ${apis.mmavgList.data.slice(0,3).map(m => `${m.tpbizNm}:${m.slsamt?.toLocaleString()}만`).join(', ')}`);
+         summary.push(`월평균 매출 TOP: ${apis.mmavgList.data.slice(0,5).map(m => `${m.tpbizNm}:${m.slsamt?.toLocaleString()}만(${m.stcnt || 0}개 점포)`).join(', ')}`);
        }
-       
+
+       // 업종 비교 (dongMTpctdCmpr)
+       if (apis.dongMTpctdCmpr?.data && Array.isArray(apis.dongMTpctdCmpr.data)) {
+         summary.push(`업종비교: ${apis.dongMTpctdCmpr.data.slice(0,5).map(d => `${d.tpbizClscdNm || d.tpbizNm || ''}:${d.stcnt || d.storCnt || 0}개`).join(', ')}`);
+       }
+
+       // 업소현황 (storSttus) - 업종별 점포 수 상세
+       if (apis.storSttus?.data && Array.isArray(apis.storSttus.data)) {
+         summary.push(`업소현황(음식업): ${apis.storSttus.data.slice(0,5).map(d => `${d.indsClsNm || d.tpbizNm || ''}:${d.storCo || d.stcnt || 0}개`).join(', ')}`);
+       }
+
+       // 개폐업 상세 (detail) - 최근 신규/폐업 현황
+       if (apis.detail?.data && Array.isArray(apis.detail.data)) {
+         const detailTop = apis.detail.data.slice(0, 3);
+         summary.push(`개폐업현황: ${detailTop.map(d => `${d.crtrYm || ''}기준 신규${d.opBizCnt || 0}개/폐업${d.clsBizCnt || 0}개`).join(', ')}`);
+       }
+
+       // 업력현황 (stcarSttus) - 영업기간별 점포 분포
+       if (apis.stcarSttus?.data && Array.isArray(apis.stcarSttus.data)) {
+         summary.push(`업력현황: ${apis.stcarSttus.data.slice(0,5).map(d => `${d.stcarNm || d.stcarRange || ''}:${d.storCo || d.stcnt || 0}개`).join(', ')}`);
+       }
+
+       // dynPplCmpr 시간대별 유동인구 (tmzn1~tmzn6)
+       if (apis.dynPplCmpr?.data && Array.isArray(apis.dynPplCmpr.data) && apis.dynPplCmpr.data.length > 0) {
+         const d0 = apis.dynPplCmpr.data[0];
+         const timeSlots = ['tmzn1FpCnt','tmzn2FpCnt','tmzn3FpCnt','tmzn4FpCnt','tmzn5FpCnt','tmzn6FpCnt'];
+         const timeLabels = ['6~9시','9~12시','12~15시','15~18시','18~21시','21~24시'];
+         const hasTimeData = timeSlots.some(k => d0[k] > 0);
+         if (hasTimeData) {
+           summary.push(`시간대별 유동인구: ${timeSlots.map((k,i) => `${timeLabels[i]}:${(d0[k] || 0).toLocaleString()}명`).join(', ')}`);
+         }
+       }
+
        // Firebase 임대료
        if (apis.firebaseRent?.data?.summary) {
          const s = apis.firebaseRent.data.summary;
@@ -8536,7 +8615,8 @@ ${JSON.stringify(regionData, null, 2)}
            { name: 'vstCst', endpoint: SBIZ365_NEW_API.vstCst, params: { dongCd }, desc: '방문 고객' },
            { name: 'cfrStcnt', endpoint: SBIZ365_NEW_API.cfrStcnt, params: { dongCd, tpbizCd }, desc: '점포수' },
            { name: 'baeminTpbiz', endpoint: SBIZ365_NEW_API.baeminTpbiz, params: { dongCd }, desc: '배달 업종' },
-           { name: 'mmavgList', endpoint: SBIZ365_NEW_API.mmavgList, params: { dongCd, tpbizCd }, desc: '월평균 매출' }
+           { name: 'mmavgList', endpoint: SBIZ365_NEW_API.mmavgList, params: { dongCd, tpbizCd }, desc: '월평균 매출' },
+           { name: 'dongMTpctdCmpr', endpoint: SBIZ365_NEW_API.dongMTpctdCmpr, params: { dongCd }, desc: '업종 비교' }
          ];
 
          const results = await Promise.allSettled(
