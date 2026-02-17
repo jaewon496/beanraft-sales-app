@@ -894,10 +894,10 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
           ].map((item, i) => (
             <FadeUpToss key={i} inView={v1} delay={0.2 + i * 0.1}>
               <p style={secLabel}>{S(item.label)}</p>
-              <p style={{ ...heroNum, color: item.color }}>
-                {S(item.val)}
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
+                <span style={{ ...heroNum, color: item.color }}>{S(item.val)}</span>
                 <span style={heroUnit}>{S(item.unit)}</span>
-              </p>
+              </div>
             </FadeUpToss>
           ))}
         </div>
@@ -1246,10 +1246,10 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
           <FadeUpToss inView={v5}>
             <p style={secLabel}>예상 창업비용</p>
             <div style={{ marginBottom: 40 }}>
-              <span style={{ fontSize: 72, fontWeight: 900, color: t1, letterSpacing: '-0.04em' }}>
+              <span style={{ ...heroNum }}>
                 {isNaN(aCost) || aCost === 0 ? '-' : totalCost >= 10000 ? `${(aCost/10000).toFixed(1)}` : aCost.toLocaleString()}
               </span>
-              <span style={{ fontSize: 24, fontWeight: 500, color: t2, marginLeft: 6 }}>
+              <span style={heroUnit}>
                 {isNaN(aCost) || aCost === 0 ? '' : totalCost >= 10000 ? '억원' : '만원'}
               </span>
             </div>
