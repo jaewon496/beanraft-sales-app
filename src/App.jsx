@@ -831,21 +831,26 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
       MozOsxFontSmoothing: 'grayscale',
     }}>
       {/* ━━━ 0. 브루 인사 (1문단: 꽉 채운 카드) ━━━ */}
-      <div style={{ ...sec, minHeight: '70vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+      <div style={{ ...sec, minHeight: '70vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
+        {/* 배경 블롭 - 토스식 분위기 조명 */}
+        <div className="bg-blob bg-blob-blue" style={{ width: 250, height: 250, top: '15%', left: '-10%' }} />
+        <div className="bg-blob bg-blob-purple" style={{ width: 200, height: 200, bottom: '10%', right: '-5%' }} />
+
         <FadeUpToss inView={true} delay={0}>
-          <div style={{
-            width: 88, height: 88, borderRadius: 28,
-            background: 'linear-gradient(135deg, #3182F6, #6366F1)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            marginBottom: 36, boxShadow: '0 12px 40px rgba(49,130,246,0.3)',
-            overflow: 'hidden',
-          }}>
-            <img src="/logo.png" alt="BeanCraft" style={{ width: 60, height: 60, objectFit: 'contain' }} />
+          <div className="hero-orb-container" style={{ marginBottom: 40 }}>
+            <div className="hero-orb-glow" />
+            <div className="hero-orb">
+              <img src="/logo.png" alt="BeanCraft" style={{ width: 56, height: 56, objectFit: 'contain', position: 'relative', zIndex: 2, filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.15))' }} />
+            </div>
+            {/* 떠다니는 반짝이 도트 */}
+            <div className="sparkle-dot" style={{ top: 10, right: 20, animationDelay: '0s' }} />
+            <div className="sparkle-dot" style={{ bottom: 15, left: 10, animationDelay: '0.7s' }} />
+            <div className="sparkle-dot" style={{ top: '50%', right: 5, animationDelay: '1.4s' }} />
           </div>
         </FadeUpToss>
         <FadeUpToss inView={true} delay={0.2}>
           <h1 style={{ fontSize: 34, fontWeight: 800, color: t1, letterSpacing: '-0.03em', lineHeight: 1.35 }}>
-            안녕하세요 사장님 :)
+            안녕하세요 사장님 <span style={{ display: 'inline-block', animation: 'orb-float 3s ease-in-out infinite', animationDelay: '0.5s' }}>:)</span>
           </h1>
         </FadeUpToss>
       </div>
@@ -875,9 +880,13 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
       </div>
 
       {/* ━━━ 1. 상권 개요 Hero ━━━ */}
-      <div ref={r1} style={sec}>
+      <div ref={r1} style={{ ...sec, position: 'relative', overflow: 'hidden' }}>
+        {/* 배경 분위기 조명 */}
+        <div className="bg-blob bg-blob-blue" style={{ width: 200, height: 200, top: '5%', right: '-10%', opacity: 0.1 }} />
+        <div className="bg-blob bg-blob-green" style={{ width: 150, height: 150, bottom: '15%', left: '-5%', opacity: 0.08 }} />
+
         <FadeUpToss inView={v1} delay={0}>
-          <p style={{ fontSize: 15, color: blue, fontWeight: 700, marginBottom: 4 }}>상권 분석 리포트</p>
+          <p className="gradient-text" style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>상권 분석 리포트</p>
           <p style={{ fontSize: 12, color: t3, marginBottom: 12 }}>선택 지역 반경 500m 기준 분석 결과예요</p>
         </FadeUpToss>
         <FadeUpToss inView={v1} delay={0.1}>
@@ -907,13 +916,15 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
         {/* AI 한줄 정리 */}
         {(d.overview?.bruSummary || d.insight) && (
           <FadeUpToss inView={v1} delay={0.55}>
-            <div style={{
-              marginTop: 20, background: `linear-gradient(135deg, ${blue}15, #6366F115)`,
-              borderRadius: 14, padding: '14px 18px',
-              borderLeft: `4px solid ${blue}`
+            <div className="light-sweep" style={{
+              marginTop: 20, background: `linear-gradient(135deg, ${blue}15, #6366F110)`,
+              borderRadius: 18, padding: '16px 20px',
+              borderLeft: `4px solid ${blue}`,
+              backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+              boxShadow: dark ? 'inset 0 1px 0 rgba(255,255,255,0.05)' : 'inset 0 1px 0 rgba(255,255,255,0.5)',
             }}>
-              <p style={{ fontSize: 12, color: blue, fontWeight: 700, marginBottom: 4 }}>AI 한줄 정리</p>
-              <p style={{ fontSize: 15, color: t1, fontWeight: 600, lineHeight: 1.5 }}>
+              <p className="gradient-text" style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>AI 한줄 정리</p>
+              <p style={{ fontSize: 15, color: t1, fontWeight: 600, lineHeight: 1.55, letterSpacing: '-0.01em' }}>
                 {S(d.overview?.bruSummary || (typeof d.insight === 'string' ? d.insight.substring(0, 60) + '...' : ''))}
               </p>
             </div>
@@ -937,16 +948,23 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             </p>
           </FadeUpToss>
           <FadeUpToss inView={v2} delay={0.2}>
-            <div style={{ width: '100%', height: 280 }}>
+            <div className="chart-glow" style={{ width: '100%', height: 280 }}>
               <ResponsiveContainer>
                 <BarChart data={ageBarData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: t3, fontSize: 13 }} />
                   <YAxis hide />
-                  <Tooltip 
-                    contentStyle={{ background: dark ? '#21212A' : '#FFF', border: 'none', borderRadius: 14, color: t1, fontSize: 14, boxShadow: '0 4px 24px rgba(0,0,0,0.2)' }} 
+                  <Tooltip
+                    contentStyle={{ background: dark ? '#21212A' : '#FFF', border: 'none', borderRadius: 14, color: t1, fontSize: 14, boxShadow: '0 8px 28px rgba(0,0,0,0.12)', backdropFilter: 'blur(20px)' }}
                     formatter={(v) => [isCafeSpecificAge ? `${v}%` : sortedCstData.length > 0 ? `${v.toLocaleString()}만원` : `${v.toLocaleString()}명`, isCafeSpecificAge ? '카페 결제 비중' : sortedCstData.length > 0 ? '소비금액' : '방문자']}
                   />
-                  <Bar dataKey="count" fill={blue} radius={[8, 8, 0, 0]} barSize={36} />
+                  <Bar dataKey="count" fill="url(#blueGradient)" radius={[8, 8, 0, 0]} barSize={36}>
+                    <defs>
+                      <linearGradient id="blueGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#6366F1" />
+                        <stop offset="100%" stopColor="#3182F6" />
+                      </linearGradient>
+                    </defs>
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -1020,11 +1038,12 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             )}
           </FadeUpToss>
           <FadeUpToss inView={v3} delay={0.15}>
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 32 }}>
-              <div style={{ width: 200, height: 200 }}>
+            <div className="chart-glow" style={{ display: 'flex', justifyContent: 'center', marginBottom: 32 }}>
+              <div style={{ width: 220, height: 220, position: 'relative' }}>
+                <div style={{ position: 'absolute', inset: -10, borderRadius: '50%', background: 'radial-gradient(circle, rgba(49,130,246,0.06) 0%, transparent 70%)', filter: 'blur(8px)' }} />
                 <ResponsiveContainer>
                   <PieChart>
-                    <Pie data={franchiseData} cx="50%" cy="50%" innerRadius={60} outerRadius={95} dataKey="share" stroke="none" paddingAngle={2}>
+                    <Pie data={franchiseData} cx="50%" cy="50%" innerRadius={65} outerRadius={100} dataKey="share" stroke="none" paddingAngle={3}>
                       {franchiseData.map((_, i) => <Cell key={i} fill={TOSS_COLORS[i % TOSS_COLORS.length]} />)}
                     </Pie>
                   </PieChart>
@@ -1264,13 +1283,11 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
                     <span style={{ fontSize: 16, color: t1, fontWeight: 500 }}>{c.item}</span>
                     <span style={{ fontSize: 18, fontWeight: 700, color: t1 }}>{isNaN(c.cost) ? '-' : c.cost.toLocaleString()}만원</span>
                   </div>
-                  <div style={{ height: 10, background: divColor, borderRadius: 5, overflow: 'hidden' }}>
-                    <div style={{
+                  <div style={{ height: 8, background: divColor, borderRadius: 9999, overflow: 'hidden' }}>
+                    <div className="progress-bar-animated" style={{
                       width: v5 ? `${pct}%` : '0%',
                       height: '100%',
-                      background: blue,
-                      borderRadius: 5,
-                      transition: `width 0.9s cubic-bezier(0.16, 1, 0.3, 1) ${i * 0.1}s`,
+                      transition: `width 1.2s cubic-bezier(0.16, 1, 0.3, 1) ${i * 0.15}s`,
                     }} />
                   </div>
                 </div>
@@ -1279,7 +1296,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
           </FadeUpToss>
           {d.rent && (
             <FadeUpToss inView={v5} delay={0.4}>
-              <div style={{ background: cardBg, borderRadius: 22, padding: 24, marginTop: 24 }}>
+              <div className={dark ? 'glass-card' : 'glass-card-light'} style={{ padding: 24, marginTop: 24 }}>
                 <p style={{ fontSize: 14, color: t2, fontWeight: 600, marginBottom: 8 }}>임대료 정보</p>
                 {d.rent.primaryDong && <p style={{ fontSize: 12, color: t3, marginBottom: 12 }}>{S(d.rent.primaryDong)} 기준 · 소규모 상가 {S(d.rent.dongCount)}</p>}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
@@ -1530,19 +1547,23 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
         <BruBubble text={d.marketSurvival?.bruFeedback} summary={d.marketSurvival?.bruSummary} delay={0.3} />
 
       {/* ━━━ 7. AI 종합 분석 + 빈크래프트 ━━━ */}
-      <div ref={r7} style={sec}>
+      <div ref={r7} style={{ ...sec, position: 'relative', overflow: 'hidden' }}>
+        {/* 배경 분위기 조명 */}
+        <div className="bg-blob bg-blob-blue" style={{ width: 200, height: 200, top: '20%', right: '-10%', opacity: 0.08 }} />
+        <div className="bg-blob bg-blob-purple" style={{ width: 180, height: 180, bottom: '10%', left: '-8%', opacity: 0.06 }} />
+
         {d.insight && (
           <FadeUpToss inView={v7}>
-            <p style={secLabel}>AI 종합 분석</p>
+            <p className="gradient-text" style={{ fontSize: 13, fontWeight: 700, marginBottom: 10, letterSpacing: '0.02em' }}>AI 종합 분석</p>
             <h2 style={{ ...secTitle, fontSize: 28 }}>빈코치의 한마디</h2>
-            <p style={{ fontSize: 16, color: t2, lineHeight: 1.7, marginBottom: 40 }}>{typeof d.insight === 'string' ? d.insight : JSON.stringify(d.insight)}</p>
+            <p style={{ fontSize: 16, color: t2, lineHeight: 1.75, marginBottom: 40, letterSpacing: '-0.01em' }}>{typeof d.insight === 'string' ? d.insight : JSON.stringify(d.insight)}</p>
           </FadeUpToss>
         )}
-        
+
         {d.beancraftFeedback && (
           <FadeUpToss inView={v7} delay={0.2}>
-            <div style={{ background: `${blue}15`, borderRadius: 22, padding: 28 }}>
-              <p style={{ fontSize: 16, color: blue, fontWeight: 800, marginBottom: 20 }}>빈크래프트 컨설팅 포인트</p>
+            <div className="light-sweep" style={{ background: `linear-gradient(135deg, ${blue}12, #6366F10A)`, borderRadius: 22, padding: 28, border: `1px solid ${dark ? 'rgba(49,130,246,0.1)' : 'rgba(49,130,246,0.08)'}`, backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }}>
+              <p className="gradient-text" style={{ fontSize: 16, fontWeight: 800, marginBottom: 20 }}>빈크래프트 컨설팅 포인트</p>
               
               {d.beancraftFeedback.priority?.length > 0 && (
                 <div style={{ marginBottom: 20 }}>

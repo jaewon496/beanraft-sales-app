@@ -555,3 +555,303 @@ textarea::placeholder {
   border-radius: var(--radius-md);
   padding: 14px 18px;
 }
+
+/* ========================================
+   🌟 토스급 프리미엄 3D 비주얼 이펙트
+   ======================================== */
+
+/* ── 3D 빛나는 오브 (히어로 영역) ── */
+@keyframes orb-float {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(10px, -15px) scale(1.05); }
+  50% { transform: translate(-5px, -25px) scale(1.02); }
+  75% { transform: translate(-15px, -10px) scale(1.07); }
+}
+
+@keyframes orb-glow-pulse {
+  0%, 100% { opacity: 0.6; filter: blur(40px); }
+  50% { opacity: 0.9; filter: blur(50px); }
+}
+
+@keyframes orb-rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.hero-orb-container {
+  position: relative;
+  width: 140px;
+  height: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hero-orb-glow {
+  position: absolute;
+  inset: -20px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(49,130,246,0.4) 0%, rgba(99,102,241,0.2) 50%, transparent 70%);
+  animation: orb-glow-pulse 3s ease-in-out infinite;
+  z-index: 0;
+}
+
+.hero-orb {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  border-radius: 30px;
+  background: linear-gradient(135deg, #3182F6 0%, #6366F1 50%, #818CF8 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+  animation: orb-float 6s ease-in-out infinite;
+  box-shadow:
+    0 20px 60px rgba(49,130,246,0.35),
+    0 4px 20px rgba(99,102,241,0.2),
+    inset 0 -4px 12px rgba(0,0,0,0.15),
+    inset 0 4px 12px rgba(255,255,255,0.2);
+  overflow: hidden;
+}
+
+.hero-orb::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: conic-gradient(from 0deg, transparent 0%, rgba(255,255,255,0.08) 10%, transparent 20%);
+  animation: orb-rotate 8s linear infinite;
+}
+
+.hero-orb::after {
+  content: '';
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  width: 35%;
+  height: 25%;
+  background: linear-gradient(135deg, rgba(255,255,255,0.35) 0%, transparent 100%);
+  border-radius: 50%;
+  filter: blur(4px);
+}
+
+/* ── 글래스모피즘 카드 ── */
+.glass-card {
+  background: rgba(255,255,255,0.05);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--radius-lg);
+  position: relative;
+  overflow: hidden;
+}
+
+.glass-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+}
+
+.glass-card-light {
+  background: rgba(255,255,255,0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255,255,255,0.5);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.04), 0 1px 4px rgba(0,0,0,0.02);
+  position: relative;
+  overflow: hidden;
+}
+
+.glass-card-light::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.9), transparent);
+}
+
+/* ── 숫자 글로우 이펙트 ── */
+@keyframes number-glow-in {
+  0% { text-shadow: none; opacity: 0.5; transform: scale(0.9); }
+  50% { text-shadow: 0 0 40px rgba(49,130,246,0.4); }
+  100% { text-shadow: none; opacity: 1; transform: scale(1); }
+}
+
+.number-glow {
+  animation: number-glow-in 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* ── 빛 반사 스위프 효과 ── */
+@keyframes light-sweep {
+  0% { transform: translateX(-100%) skewX(-15deg); }
+  100% { transform: translateX(300%) skewX(-15deg); }
+}
+
+.light-sweep {
+  position: relative;
+  overflow: hidden;
+}
+
+.light-sweep::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 30%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.07), transparent);
+  animation: light-sweep 4s ease-in-out infinite;
+  animation-delay: 1s;
+}
+
+/* ── 떠다니는 배경 블롭 ── */
+@keyframes blob-move-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(30px, -50px) scale(1.1); }
+  66% { transform: translate(-20px, 20px) scale(0.9); }
+}
+
+@keyframes blob-move-2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(-40px, 30px) scale(1.15); }
+  66% { transform: translate(15px, -40px) scale(0.95); }
+}
+
+.bg-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.15;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.bg-blob-blue {
+  background: radial-gradient(circle, #3182F6, transparent 70%);
+  animation: blob-move-1 12s ease-in-out infinite;
+}
+
+.bg-blob-purple {
+  background: radial-gradient(circle, #6366F1, transparent 70%);
+  animation: blob-move-2 14s ease-in-out infinite;
+}
+
+.bg-blob-green {
+  background: radial-gradient(circle, #03B26C, transparent 70%);
+  animation: blob-move-1 16s ease-in-out infinite reverse;
+}
+
+/* ── 카드 3D 호버 + 진입 ── */
+@keyframes card-3d-enter {
+  from {
+    opacity: 0;
+    transform: perspective(1000px) rotateX(5deg) translateY(60px) scale(0.95);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: perspective(1000px) rotateX(0) translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+.card-3d-enter {
+  animation: card-3d-enter 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ── 프로그레스 바 그라데이션 애니메이션 ── */
+@keyframes progress-gradient-flow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.progress-bar-animated {
+  background: linear-gradient(270deg, #3182F6, #6366F1, #3182F6);
+  background-size: 200% 200%;
+  animation: progress-gradient-flow 3s ease infinite;
+  border-radius: var(--radius-full);
+  transition: width 1s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ── 파티클 / 반짝이는 도트 ── */
+@keyframes sparkle {
+  0%, 100% { opacity: 0; transform: scale(0); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+.sparkle-dot {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  background: rgba(255,255,255,0.6);
+  border-radius: 50%;
+  animation: sparkle 2s ease-in-out infinite;
+}
+
+/* ── 그라데이션 텍스트 ── */
+.gradient-text {
+  background: linear-gradient(135deg, #3182F6, #6366F1, #818CF8);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-size: 200% 200%;
+  animation: gradient-shift 4s ease infinite;
+}
+
+/* ── 차트 영역 배경 글로우 ── */
+.chart-glow {
+  position: relative;
+}
+
+.chart-glow::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 60%;
+  height: 60%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(ellipse, rgba(49,130,246,0.08) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+/* ── 리스트 아이템 슬라이드-인 ── */
+@keyframes list-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.list-slide-in {
+  animation: list-slide-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ── 배지 글로우 ── */
+.badge-glow-blue {
+  box-shadow: 0 0 12px rgba(49,130,246,0.3), 0 0 4px rgba(49,130,246,0.2);
+}
+
+.badge-glow-green {
+  box-shadow: 0 0 12px rgba(3,178,108,0.3), 0 0 4px rgba(3,178,108,0.2);
+}
+
+.badge-glow-red {
+  box-shadow: 0 0 12px rgba(240,68,82,0.3), 0 0 4px rgba(240,68,82,0.2);
+}
