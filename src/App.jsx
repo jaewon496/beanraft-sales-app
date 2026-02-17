@@ -9212,6 +9212,13 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  const [zigbangDetailSearch, setZigbangDetailSearch] = useState('');
  const [realtorCollections, setRealtorCollections] = useState([]);
  const [realtorSearchQuery, setRealtorSearchQuery] = useState('');
+ const [_realtorSearchDebounced, _setRealtorSearchDebounced] = useState('');
+ const _realtorDebounceRef = useRef(null);
+ const setRealtorSearchDebounced = useCallback((val) => {
+   setRealtorSearchQuery(val);
+   if (_realtorDebounceRef.current) clearTimeout(_realtorDebounceRef.current);
+   _realtorDebounceRef.current = setTimeout(() => _setRealtorSearchDebounced(val), 250);
+ }, []);
  const [realtorRegionFilter, setRealtorRegionFilter] = useState('');
  const [realtorSortMode, setRealtorSortMode] = useState('listings');
  const [routeSearchRegion, setRouteSearchRegion] = useState('');
@@ -18182,9 +18189,16 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  '경상남도': '경남', '제주특별자치도': '제주'
  };
  
- // 시/도 및 구/군 추출
+ // 시/도 및 구/군 추출 (캐시 적용으로 성능 최적화)
+ const _cdCache = new Map();
  const extractCityDistrict = (address) => {
  if (!address) return { city: '기타', district: '기타' };
+ if (_cdCache.has(address)) return _cdCache.get(address);
+ const _result = _extractCityDistrictInner(address);
+ _cdCache.set(address, _result);
+ return _result;
+ };
+ const _extractCityDistrictInner = (address) => {
  
  // 서울 구 목록 (구 없이 이름만 나와도 인식)
  const seoulDistricts = ['종로', '중구', '용산', '성동', '광진', '동대문', '중랑', '성북', '강북', '도봉', '노원', '은평', '서대문', '마포', '양천', '강서', '구로', '금천', '영등포', '동작', '관악', '서초', '강남', '송파', '강동'];
@@ -18354,6 +18368,17 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
    });
  });
  
+ // checkDuplicate 캐시 (한 번만 계산, 렌더링마다 재사용)
+ const _dupCache = new Map();
+ validRealtors.forEach(r => {
+   const key = r.id || getOfficeName(r);
+   _dupCache.set(key, checkDuplicate(r, companies));
+ });
+ const getCachedDuplicate = (realtor) => {
+   const key = realtor.id || getOfficeName(realtor);
+   return _dupCache.get(key) || { isDuplicate: false, matchedCompany: null };
+ };
+
  // 시/도 > 구/군 계층 구조 생성
  const regionHierarchy = {};
  validRealtors.forEach(r => {
@@ -18398,7 +18423,37 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  )}
  </div>
  </div>
- 
+
+ {/* 자동 수집 스케줄 상태 */}
+ {(() => {
+   const schedRef = database?.ref('autoCollectSchedule');
+   const [sched, setSched] = React.useState(null);
+   React.useEffect(() => {
+     if (!schedRef) return;
+     const cb = schedRef.on('value', snap => { if (snap.val()) setSched(snap.val()); });
+     return () => schedRef.off('value', cb);
+   }, []);
+   if (!sched) return null;
+   const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+   return (
+     <div className={`rounded-2xl p-3 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
+       <div className="flex items-center justify-between">
+         <div className="flex items-center gap-2">
+           <span style={{ fontSize: 16 }}>🤖</span>
+           <span className={`text-sm font-bold ${t.text}`}>자동 수집</span>
+           <span className={`text-xs px-2 py-0.5 rounded-full ${sched.enabled ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{sched.enabled ? '활성' : '비활성'}</span>
+         </div>
+         {sched.nextRun && (
+           <span className={`text-xs ${t.textMuted}`}>
+             다음: {dayNames[sched.dayOfWeek]}요일 {sched.hour}시
+           </span>
+         )}
+       </div>
+       <p className={`text-xs ${t.textMuted} mt-1`}>Chrome 확장 프로그램이 매주 자동으로 전국 중개사 데이터를 수집합니다</p>
+     </div>
+   );
+ })()}
+
  {/* 검색/필터/정렬 */}
  <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <div className="flex flex-wrap gap-2 mb-3">
@@ -18406,7 +18461,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  type="text"
  placeholder="지역(강남구) 또는 업체명 검색..."
  value={realtorSearchQuery}
- onChange={e => setRealtorSearchQuery(e.target.value)}
+ onChange={e => setRealtorSearchDebounced(e.target.value)}
  className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all flex-1 min-w-[150px]`}
  />
  <select value={realtorRegionFilter} onChange={e => setRealtorRegionFilter(e.target.value)} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} focus:outline-none focus:border-[#3182F6] transition-all`}>
@@ -18440,9 +18495,9 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {(() => {
  let filtered = [...validRealtors];
  
-              // 스마트 검색 - 주소 + 업체명 + 담당자 통합 검색
-              if (realtorSearchQuery) {
-                const q = realtorSearchQuery.trim();
+              // 스마트 검색 - 주소 + 업체명 + 담당자 통합 검색 (debounced)
+              if (_realtorSearchDebounced) {
+                const q = _realtorSearchDebounced.trim();
                 // "역" 제거 (회기역 → 회기, 성수역 → 성수)
                 const qClean = q.replace(/역$/, '');
                 const qLower = qClean.toLowerCase();
@@ -18520,10 +18575,10 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <span className="font-bold">{district} ({realtors.length}개)</span>
  </summary>
  <div className="max-h-80 overflow-y-auto bg-[#F9FAFB]">
- {realtors.map((realtor, idx) => {
+ {realtors.slice(0, 50).map((realtor, idx) => {
  const officeName = getOfficeName(realtor);
  const listingCount = getListingCount(realtor);
- const duplicateCheck = checkDuplicate(realtor, companies);
+ const duplicateCheck = getCachedDuplicate(realtor);
  const isRegistered = duplicateCheck.isDuplicate || realtor.isFromCompany;
  const matchedCompany = duplicateCheck.matchedCompany;
  // 등록된 업체인 경우 직접 managerId로 담당자 찾기
