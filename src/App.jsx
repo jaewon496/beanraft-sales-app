@@ -803,9 +803,22 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
         return !cafeRelatedCodes.some(c => code.startsWith(c)) && !cafeKeywords.some(k => name.includes(k));
       })
     : [];
-  const topSalesBarData = cafeSalesData.length > 0
-    ? cafeSalesData.slice(0, 5).map(s => ({ name: s.tpbizClscdNm || '', sales: s.mmavgSlsAmt || 0 }))
-    : (cd?.apis?.mmavgList?.data || []).slice(0, 5).map(s => ({ name: s.tpbizNm || '', sales: s.slsamt || 0 }));
+  // 업종별 매출 + 프랜차이즈 연평균 매출 통합
+  const _baseSalesData = cafeSalesData.length > 0
+    ? cafeSalesData.slice(0, 5).map(s => ({ name: s.tpbizClscdNm || '', sales: s.mmavgSlsAmt || 0, type: '개인+전체' }))
+    : (cd?.apis?.mmavgList?.data || []).slice(0, 5).map(s => ({ name: s.tpbizNm || '', sales: s.slsamt || 0, type: '전체' }));
+  // 프랜차이즈 브랜드별 연평균 매출 추가 (FRANCHISE_DATA에서)
+  const _franchiseSalesItems = [];
+  if (cd?.nearbyFranchiseCounts) {
+    Object.entries(cd.nearbyFranchiseCounts).forEach(([brand, cnt]) => {
+      const fd = typeof FRANCHISE_DATA !== 'undefined' ? FRANCHISE_DATA[brand] : null;
+      if (fd?.연평균매출 && fd.연평균매출 > 0) {
+        const monthlyAvg = Math.round(fd.연평균매출 / 12);
+        _franchiseSalesItems.push({ name: `${brand}(${cnt}개)`, sales: monthlyAvg, type: '프랜차이즈' });
+      }
+    });
+  }
+  const topSalesBarData = [..._baseSalesData, ..._franchiseSalesItems.slice(0, 3)].sort((a, b) => b.sales - a.sales).slice(0, 7);
   
   // 방문연령 데이터 (collectedData에서) - pipcnt 내림차순 정렬
   const vstAgeData = cd?.apis?.vstAgeRnk?.data;
@@ -1118,6 +1131,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
                   ? f.count
                   : fdb?.매장수 ? `전국 ${fdb.매장수.toLocaleString()}개` : f.count;
               const displayPrice = fdb?.아메리카노 ? `아메 ${fdb.아메리카노.toLocaleString()}원` : (f.royalty || '');
+              const displayMonthlySales = fdb?.연평균매출 ? Math.round(fdb.연평균매출 / 12) : 0;
 
               return (
                 <div key={i} className="list-slide-in" style={{ padding: '14px 0', borderBottom: i < d.franchise.length - 1 ? `1px solid ${divColor}` : 'none', animationDelay: `${i * 0.08}s` }}>
@@ -1126,7 +1140,11 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
                     <span style={{ fontSize: 17, color: t1, flex: 1, fontWeight: 500 }}>{S(fName)}</span>
                     <span style={{ fontSize: 14, color: t2, fontWeight: 600 }}>{S(displayCount)}</span>
                   </div>
-                  {displayPrice && <p style={{ fontSize: 13, color: t2, marginLeft: 26, marginBottom: 4 }}>{displayPrice}</p>}
+                  {(displayPrice || displayMonthlySales > 0) && (
+                    <p style={{ fontSize: 13, color: t2, marginLeft: 26, marginBottom: 4 }}>
+                      {displayPrice}{displayPrice && displayMonthlySales > 0 ? ' · ' : ''}{displayMonthlySales > 0 ? `월 평균 ${displayMonthlySales.toLocaleString()}만원` : ''}
+                    </p>
+                  )}
                   {(() => {
                     const fList = cd?.nearbyFranchiseList || [];
                     const nearest = fList.find(fl => fl.brand === fName || fName.includes(fl.brand?.replace(/커피|카페/g, '')) || fl.brand?.includes(fName.replace(/커피|카페/g, '')));
@@ -1162,16 +1180,43 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
               반경 500m · 개인카페 {cd?.nearbyIndependentCafes || cd?.nearbyIndependentList?.length || 0}개
             </p>
           </FadeUpToss>
-          {/* 매출 요약 (있으면 표시) */}
-          {avgMonthlySales > 0 && (
-            <FadeUpToss inView={v3b} delay={0.1}>
-              <div style={{ background: `${blue}12`, borderRadius: 14, padding: '12px 16px', marginTop: 12 }}>
-                <p style={{ fontSize: 13, color: t2, lineHeight: 1.5 }}>
-                  이 지역 카페 평균 매출 <span style={{ fontWeight: 700, color: t1 }}>{avgMonthlySales.toLocaleString()}만원</span>/월
-                </p>
-              </div>
-            </FadeUpToss>
-          )}
+          {/* 매출+가격 요약 */}
+          <FadeUpToss inView={v3b} delay={0.1}>
+            <div style={{ display: 'grid', gridTemplateColumns: avgMonthlySales > 0 ? '1fr 1fr' : '1fr', gap: 10, marginTop: 12 }}>
+              {avgMonthlySales > 0 && (
+                <div style={{ background: `${blue}12`, borderRadius: 14, padding: '12px 16px' }}>
+                  <p style={{ fontSize: 11, color: t3, marginBottom: 4 }}>카페 평균 매출</p>
+                  <p style={{ fontSize: 18, fontWeight: 700, color: t1 }}>{avgMonthlySales.toLocaleString()}<span style={{ fontSize: 13, fontWeight: 500, color: t2 }}>만원/월</span></p>
+                </div>
+              )}
+              {(() => {
+                // 주변 프랜차이즈 아메리카노 가격 범위 계산
+                const prices = [];
+                if (cd?.nearbyFranchiseCounts) {
+                  Object.keys(cd.nearbyFranchiseCounts).forEach(brand => {
+                    const fd = typeof FRANCHISE_DATA !== 'undefined' ? FRANCHISE_DATA[brand] : null;
+                    if (fd?.아메리카노) prices.push(fd.아메리카노);
+                  });
+                }
+                const minP = prices.length > 0 ? Math.min(...prices) : 0;
+                const maxP = prices.length > 0 ? Math.max(...prices) : 0;
+                const indieEstimate = maxP > 0 ? Math.round((maxP + 1000) / 500) * 500 : 0; // 개인카페는 보통 프랜차이즈 최고가+500~1000원
+                return (
+                  <div style={{ background: `${green}12`, borderRadius: 14, padding: '12px 16px' }}>
+                    <p style={{ fontSize: 11, color: t3, marginBottom: 4 }}>주변 아메리카노 가격</p>
+                    {minP > 0 ? (
+                      <p style={{ fontSize: 14, fontWeight: 600, color: t1, lineHeight: 1.4 }}>
+                        프랜차이즈 {minP.toLocaleString()}~{maxP.toLocaleString()}원
+                        {indieEstimate > 0 && <><br/><span style={{ color: t2, fontWeight: 500 }}>개인카페 추정 {(maxP + 500).toLocaleString()}~{indieEstimate.toLocaleString()}원</span></>}
+                      </p>
+                    ) : (
+                      <p style={{ fontSize: 14, fontWeight: 600, color: t2 }}>데이터 수집 중</p>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+          </FadeUpToss>
           <FadeUpToss inView={v3b} delay={0.15}>
             <div style={{ marginTop: 16 }}>
               {(cd?.nearbyIndependentList || []).slice(0, 8).map((cafe, i) => (
@@ -1200,7 +1245,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
       {topSalesBarData.length > 0 && (
         <div ref={r4} style={sec}>
           <FadeUpToss inView={v4}>
-            <p className="gradient-text" style={{...secLabel, color: undefined}}>업종별 월 평균 매출</p>
+            <p className="gradient-text" style={{...secLabel, color: undefined}}>업종별 월 평균 매출 (프랜차이즈+개인)</p>
             {avgMonthlySales > 0 && (
               <div style={{ marginBottom: 4 }}>
                 <span style={{ fontSize: 56, fontWeight: 900, color: t1, letterSpacing: '-0.04em' }}>
@@ -1308,7 +1353,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
       {costItems.length > 0 && (
         <div ref={r5} style={sec}>
           <FadeUpToss inView={v5}>
-            <p className="gradient-text" style={{...secLabel, color: undefined}}>예상 창업비용</p>
+            <p className="gradient-text" style={{...secLabel, color: undefined}}>상가 시세 · 창업비용</p>
             <div style={{ marginBottom: 40 }}>
               <span style={{ ...heroNum }}>
                 {isNaN(aCost) || aCost === 0 ? '-' : totalCost >= 10000 ? `${(aCost/10000).toFixed(1)}` : aCost.toLocaleString()}
@@ -5954,7 +5999,7 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
      if (coordinates) {
        updateCollectingText('반경 500m 내 카페 매장을 조사하고 있어요');
        try {
-         const storeRadiusRes = await fetch(`${PROXY_SERVER_URL}/api/store/radius?cx=${coordinates.lng}&cy=${coordinates.lat}&radius=500&numOfRows=200&pageNo=1`);
+         const storeRadiusRes = await fetch(`${PROXY_SERVER_URL}/api/store/radius?cx=${coordinates.lng}&cy=${coordinates.lat}&radius=500&numOfRows=500&pageNo=1`);
          if (storeRadiusRes.ok) {
            const storeRadiusRaw = await storeRadiusRes.json();
            let nearbyItems = [];
@@ -5964,32 +6009,45 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
            }
            if (!Array.isArray(nearbyItems)) nearbyItems = nearbyItems ? [nearbyItems] : [];
 
-           // 카페/커피 업종만 필터
-           const nearbyCafes = nearbyItems.filter(i =>
-             i.indsMclsCd === 'Q12' || i.indsMclsNm?.includes('커피') ||
-             i.indsSclsNm?.includes('카페') || i.indsSclsNm?.includes('커피')
-           );
+           // 카페/커피 업종만 필터 (더 넓은 범위로 검출)
+           const nearbyCafes = nearbyItems.filter(i => {
+             const mclsCd = i.indsMclsCd || '';
+             const mclsNm = (i.indsMclsNm || '').toLowerCase();
+             const sclsNm = (i.indsSclsNm || '').toLowerCase();
+             const bizNm = (i.bizesNm || '').toLowerCase();
+             return mclsCd === 'Q12' || mclsNm.includes('커피') || mclsNm.includes('음료') ||
+               sclsNm.includes('카페') || sclsNm.includes('커피') || sclsNm.includes('coffee') ||
+               bizNm.includes('카페') || bizNm.includes('커피') || bizNm.includes('coffee') ||
+               bizNm.includes('cafe') || bizNm.includes('빽다방') || bizNm.includes('메가') ||
+               bizNm.includes('컴포즈') || bizNm.includes('이디야') || bizNm.includes('스타벅스');
+           });
 
            // 프랜차이즈 브랜드별 매칭
            const FRANCHISE_KEYWORDS = {
-             '메가MGC커피': ['메가커피','메가MGC','MEGA MGC','MEGA COFFEE'],
-             '컴포즈커피': ['컴포즈','COMPOSE'],
-             '빽다방': ['빽다방'],
+             '메가MGC커피': ['메가커피','메가MGC','MEGA MGC','MEGA COFFEE','메가엠지씨','MGC커피','MGC COFFEE','메가M','MEGACOFFEE'],
+             '컴포즈커피': ['컴포즈','COMPOSE','COMPOSECOFFEE'],
+             '빽다방': ['빽다방','PAIKDABANG','PAIK'],
              '더벤티': ['더벤티','THE VENTI','THEVENTI'],
-             '매머드커피': ['매머드','MAMMOTH','매머드익스프레스'],
+             '매머드커피': ['매머드','MAMMOTH','매머드익스프레스','MAMMOTHEXPRESS'],
              '이디야커피': ['이디야','EDIYA'],
              '투썸플레이스': ['투썸','TWOSOME','A TWOSOME'],
              '할리스': ['할리스','HOLLYS'],
              '스타벅스': ['스타벅스','STARBUCKS'],
              '폴바셋': ['폴바셋','PAUL BASSETT'],
              '카페베네': ['카페베네','CAFFEBENE'],
-             '탐앤탐스': ['탐앤탐스','TOM N TOMS'],
+             '탐앤탐스': ['탐앤탐스','TOM N TOMS','TOMNTOMS'],
              '파스쿠찌': ['파스쿠찌','PASCUCCI'],
-             '커피빈': ['커피빈','COFFEE BEAN'],
-             '엔제리너스': ['엔제리너스','ANGEL-IN-US','ANGELINUS'],
-             '감성커피': ['감성커피'],
-             '하삼동커피': ['하삼동'],
+             '커피빈': ['커피빈','COFFEE BEAN','COFFEEBEAN'],
+             '엔제리너스': ['엔제리너스','ANGEL-IN-US','ANGELINUS','ANGEL IN US'],
+             '감성커피': ['감성커피','GAMSUNGCOFFEE'],
+             '하삼동커피': ['하삼동','HASAMDONG'],
              '커피에반하다': ['커피에반하다','반하다커피'],
+             '달콤커피': ['달콤커피','DALKOM'],
+             '커피나무': ['커피나무','COFFEENAMU'],
+             '드롭탑': ['드롭탑','DROPTOP'],
+             '카페봄봄': ['카페봄봄'],
+             '커피명가': ['커피명가'],
+             '요거프레소': ['요거프레소','YOGERPRESSO'],
            };
 
            const nearbyFranchiseCounts = {};
@@ -6064,14 +6122,15 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
            const naverCafeData = await naverCafeRes.json();
            const naverItems = naverCafeData.items || [];
            const FRANCHISE_KEYWORDS_FLAT = {
-             '메가MGC커피': ['메가커피','메가MGC','MEGA'], '컴포즈커피': ['컴포즈','COMPOSE'],
-             '빽다방': ['빽다방'], '더벤티': ['더벤티','VENTI'], '이디야커피': ['이디야','EDIYA'],
+             '메가MGC커피': ['메가커피','메가MGC','MEGA','메가엠지씨','MGC커피','MEGACOFFEE'], '컴포즈커피': ['컴포즈','COMPOSE'],
+             '빽다방': ['빽다방','PAIK'], '더벤티': ['더벤티','VENTI'], '이디야커피': ['이디야','EDIYA'],
              '투썸플레이스': ['투썸','TWOSOME'], '할리스': ['할리스','HOLLYS'],
              '스타벅스': ['스타벅스','STARBUCKS'], '폴바셋': ['폴바셋','PAUL BASSETT'],
              '커피빈': ['커피빈','COFFEE BEAN'], '매머드커피': ['매머드','MAMMOTH'],
              '탐앤탐스': ['탐앤탐스','TOM N TOMS'], '파스쿠찌': ['파스쿠찌','PASCUCCI'],
              '감성커피': ['감성커피'], '하삼동커피': ['하삼동'], '카페베네': ['카페베네'],
-             '엔제리너스': ['엔제리너스','ANGEL'], '커피에반하다': ['반하다커피']
+             '엔제리너스': ['엔제리너스','ANGEL'], '커피에반하다': ['반하다커피'],
+             '달콤커피': ['달콤커피'], '드롭탑': ['드롭탑','DROPTOP'], '요거프레소': ['요거프레소']
            };
            let naverAdded = 0;
            const existingNames = [
@@ -7013,6 +7072,39 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
              data.overview.floatingPop = String(dailyPop);
              console.log(`유동인구 override: 월${popCnt}명 → 일평균${dailyPop}명 (dynPplCmpr API)`);
            }
+         }
+       }
+
+       // ═══ 피크시간 실데이터 override (dynPplCmpr 시간대별 유동인구) ═══
+       if (data.consumers) {
+         const dynData = collectedData.apis?.dynPplCmpr?.data;
+         if (Array.isArray(dynData) && dynData.length > 0) {
+           const timeSlots = [
+             { label: '오전 6~9시', key: 'tmzn1' },
+             { label: '오전 9~12시', key: 'tmzn2' },
+             { label: '오후 12~15시', key: 'tmzn3' },
+             { label: '오후 15~18시', key: 'tmzn4' },
+             { label: '저녁 18~21시', key: 'tmzn5' },
+             { label: '야간 21~24시', key: 'tmzn6' }
+           ];
+           const timeValues = timeSlots.map(ts => ({
+             label: ts.label,
+             value: dynData.reduce((s, d) => s + (d[ts.key + 'FpCnt'] || d[ts.key] || 0), 0)
+           })).filter(t => t.value > 0);
+           if (timeValues.length > 0) {
+             timeValues.sort((a, b) => b.value - a.value);
+             const peak1 = timeValues[0];
+             const peak2 = timeValues.length > 1 ? timeValues[1] : null;
+             const peakStr = peak2 ? `${peak1.label}(${peak1.value.toLocaleString()}명), ${peak2.label}(${peak2.value.toLocaleString()}명)` : `${peak1.label}(${peak1.value.toLocaleString()}명)`;
+             data.consumers.peakTime = peakStr;
+             console.log(`피크시간 override: ${peakStr} (dynPplCmpr API 실데이터)`);
+           }
+         }
+         // 서울 floatingTime 데이터가 있으면 그것으로 추가 override
+         const ftData = collectedData.apis?.floatingTime?.data;
+         if (ftData?.peakTime) {
+           data.consumers.peakTime = `${ftData.peakTime} (${(ftData.peakTimePop || 0).toLocaleString()}명)`;
+           console.log(`피크시간 서울 override: ${ftData.peakTime} (floatingTime API)`);
          }
        }
 
