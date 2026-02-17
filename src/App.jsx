@@ -19312,9 +19312,43 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  <p className="text-xs text-[#56565F] mt-3">※ 비밀번호는 4자 이상이어야 합니다. {isAdmin ? '(관리자 계정)' : ''}</p>
  </div>
+
+ {/* 앱 설치 */}
+ <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
+   <h3 className={`font-bold ${t.text} text-lg mb-3`}>앱 설치</h3>
+   <p className={`text-sm mb-4 ${t.textMuted}`}>홈 화면에 빈크래프트를 추가하면 앱처럼 사용할 수 있어요.</p>
+   <button
+     type="button"
+     onClick={() => {
+       if (window.deferredPrompt) {
+         window.deferredPrompt.prompt();
+         window.deferredPrompt.userChoice.then((choice) => {
+           if (choice.outcome === 'accepted') alert('빈크래프트가 설치되었습니다!');
+           window.deferredPrompt = null;
+         });
+       } else {
+         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+         const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+         if (isStandalone) { alert('이미 앱으로 설치되어 있습니다!'); }
+         else if (isIOS) { alert('Safari 하단의 공유 버튼 → "홈 화면에 추가"를 눌러주세요.'); }
+         else { alert('Chrome 메뉴(⋮) → "앱 설치" 또는 "홈 화면에 추가"를 선택하세요.'); }
+       }
+     }}
+     className="w-full px-4 py-3 bg-gradient-to-r from-[#3182F6] to-[#6366F1] text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center justify-center gap-2"
+   >
+     홈 화면에 앱 설치하기
+   </button>
+   <div className={`mt-3 p-3 rounded-lg ${theme === 'dark' ? 'bg-[#171717]' : 'bg-[#F9FAFB]'}`}>
+     <p className={`text-xs ${t.textMuted} leading-relaxed`}>
+       <strong>카카오톡으로 공유하기</strong><br/>
+       아래 링크를 카카오톡으로 보내면 누구나 설치할 수 있어요:<br/>
+       <span className="text-[#3182F6] font-mono select-all">beancraft-sales.netlify.app</span>
+     </p>
+   </div>
+ </div>
  </div>
  )}
- 
+
  {/* 관리자 전용 탭 */}
  {settingsTab === 'admin' && isAdmin && (
  <div className="space-y-2">

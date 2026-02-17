@@ -12,7 +12,9 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="빈크래프트" />
   
-  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <link rel="icon" type="image/svg+xml" href="/icon-192.svg" />
+  <link rel="apple-touch-icon" href="/icon-192.svg" />
+  <link rel="manifest" href="/manifest.json" />
   
   <!-- 네이버 지도 API -->
   <script type="text/javascript" src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=dx2ymyk2b1&submodules=geocoder"></script>
@@ -96,7 +98,35 @@
   <div id="root"></div>
   
   <script type="module" src="/src/main.jsx"></script>
-  
+
+  <!-- Service Worker 등록 -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('/sw.js')
+          .then(function(reg) { console.log('[PWA] SW registered:', reg.scope); })
+          .catch(function(err) { console.log('[PWA] SW registration failed:', err); });
+      });
+    }
+
+    // 앱 설치 배너 이벤트 캡처
+    var deferredPrompt = null;
+    window.addEventListener('beforeinstallprompt', function(e) {
+      e.preventDefault();
+      deferredPrompt = e;
+      window.deferredPrompt = e;
+      console.log('[PWA] Install prompt captured');
+      // 커스텀 이벤트 발생 (React에서 사용)
+      window.dispatchEvent(new CustomEvent('pwa-install-available'));
+    });
+
+    window.addEventListener('appinstalled', function() {
+      console.log('[PWA] App installed successfully');
+      deferredPrompt = null;
+      window.deferredPrompt = null;
+    });
+  </script>
+
   <script>
     window.onerror = function(msg, url, line) {
       console.error('[BeanCraft Error]', msg, 'at line:', line);

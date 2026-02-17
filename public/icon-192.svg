@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="32" fill="#171717"/>
+  <text x="96" y="80" text-anchor="middle" fill="#3182F6" font-size="48" font-weight="900" font-family="Arial,sans-serif">BEAN</text>
+  <text x="96" y="120" text-anchor="middle" fill="#F59E0B" font-size="28" font-weight="700" font-family="Arial,sans-serif">CRAFT</text>
+  <circle cx="96" cy="148" r="8" fill="#3182F6" opacity="0.6"/>
+</svg>

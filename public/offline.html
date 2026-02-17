@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>빈크래프트 - 오프라인</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Noto Sans KR', -apple-system, sans-serif;
+      background: #171717;
+      color: #f8fafc;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px;
+    }
+    .container { text-align: center; max-width: 360px; }
+    .icon {
+      width: 80px; height: 80px;
+      margin: 0 auto 24px;
+      background: linear-gradient(135deg, #3182F6, #6366F1);
+      border-radius: 20px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 36px; font-weight: 900; color: white;
+    }
+    h1 { font-size: 22px; font-weight: 700; margin-bottom: 12px; }
+    p { font-size: 15px; color: #94a3b8; line-height: 1.6; margin-bottom: 24px; }
+    .btn {
+      display: inline-block;
+      padding: 14px 32px;
+      background: #3182F6;
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .btn:active { transform: scale(0.96); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="icon">B</div>
+    <h1>인터넷 연결 없음</h1>
+    <p>빈크래프트를 사용하려면 인터넷 연결이 필요해요.<br>Wi-Fi 또는 모바일 데이터를 확인해 주세요.</p>
+    <button class="btn" onclick="location.reload()">다시 시도</button>
+  </div>
+</body>
+</html>
