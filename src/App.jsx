@@ -7602,6 +7602,10 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
          return `${c.name}${distStr}`;
        }).join(', ') || '미수집';
 
+       // 업종비교 (dongMTpctdCmpr) - 동 단위 업종별 점포수·매출 비교
+       const dongMTpctdData = collectedData.apis?.dongMTpctdCmpr?.data;
+       crossData.dongMTpctdStr = Array.isArray(dongMTpctdData) ? dongMTpctdData.slice(0, 8).map(d => `${d.tpbizClscdNm || d.tpbizNm || ''}:${d.stcnt || d.storCnt || 0}개${d.mmavgSlsAmt ? '(월'+d.mmavgSlsAmt.toLocaleString()+'만)' : ''}`).join(', ') : '미수집';
+
        // 업소현황 (storSttus) - 업종별 점포수/매출 비율
        const storSttusData = collectedData.apis?.storSttus?.data;
        crossData.storSttusStr = Array.isArray(storSttusData) ? storSttusData.slice(0, 8).map(s => `${s.indsNm || s.indsMclsNm || ''}:${s.storCo || s.stcnt || 0}개`).join(', ') : '미수집';
@@ -7658,12 +7662,15 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
        // 카드별 프롬프트 생성
        const cardPrompts = {
          overview: `당신은 카페 창업 컨설턴트 '브루'예요. 카드1(상권개요) 피드백을 작성해주세요.
-[이 카드 데이터] 카페 ${crossData.cafeCount}, 유동인구 데이터 있음
+[이 카드 데이터] 카페 ${crossData.cafeCount}개(인접 ${crossData.nearbyDongCount}개동 합산), 유동인구 데이터 있음
 [교차 데이터] 주변카페: ${crossData.nearCafes.substring(0,300)}
+업종비교(동 단위): ${crossData.dongMTpctdStr}
+업소현황: ${crossData.storSttusStr}
+개폐업 추이: ${crossData.detailStr}
 임대료: ${crossData.rentDongsStr}
 소비연령: ${crossData.topSpendAge} ${crossData.topSpendPct}%
 매출: ${crossData.cafeSalesStr}
-[규칙] 1차원(카페 X개, 경쟁 치열) 금지. 실제 카페 이름+가격+매출+임대료를 교차해서 현실적 조언. "~에요/~입니다" 혼용 OK. 80자 이상.
+[규칙] 1차원(카페 X개, 경쟁 치열) 금지. 실제 카페 이름+가격+매출+임대료+업종비교 데이터를 교차해서 현실적 조언. 개폐업 추이가 있으면 "최근 이 동에서 카페 N개 새로 열렸고 M개 폐업" 식으로 현실 반영. "~에요/~입니다" 혼용 OK. 100자 이상.
 [bruSummary] 40자 이내 핵심 한줄도 함께.
 반드시 아래 JSON 포맷만 출력하세요. 다른 텍스트, 설명, 마크다운 금지.
 {"bruFeedback":"여기에 피드백","bruSummary":"40자이내 요약"}`,
@@ -7732,8 +7739,10 @@ ${isDetailed ? '상세주소이므로 "선택하신 주소에서 가장 가까�
 [이 카드 데이터] 매출: ${crossData.cafeSalesStr}
 [교차 데이터] 소비 1위: ${crossData.topSpendAge}(${crossData.topSpendPct}%)
 임대료: ${crossData.rentStr}, 동별: ${crossData.rentDongsStr}
+업종비교(동 단위): ${crossData.dongMTpctdStr}
+업소현황: ${crossData.storSttusStr}
 주변카페: ${crossData.nearCafes.substring(0,200)}
-[규칙] 매출 데이터와 임대료를 교차해서 "매출 대비 임대료 비중 X%" 계산. 빵/도넛 매출이 카페보다 높으면 디저트 전략 제시. 객단가 추정도 포함. 100자 이상.
+[규칙] 매출 데이터와 임대료를 교차해서 "매출 대비 임대료 비중 X%" 계산. 업종비교 데이터가 있으면 카페 vs 다른 업종(빵/치킨/분식 등)의 매출·점포수 비교 필수. "이 동에서 카페보다 매출이 높은 업종은 ○○" 식으로. 빵/도넛 매출이 카페보다 높으면 디저트 전략 제시. 객단가 추정도 포함. 120자 이상.
 [bruSummary] 40자 이내
 반드시 아래 JSON 포맷만 출력하세요. 다른 텍스트, 설명, 마크다운 금지.
 {"bruFeedback":"여기에 피드백","bruSummary":"40자이내 요약"}`,
@@ -7781,8 +7790,11 @@ ${crossData.dynPopForTime || '유동인구 데이터 수집됨'}${crossData.dynA
 [교차 데이터] 소비: ${crossData.topSpendAge}(${crossData.topSpendPct}%)
 매출: ${crossData.cafeSalesStr}
 임대료: ${crossData.rentStr}
+업종비교: ${crossData.dongMTpctdStr}
+개폐업추이: ${crossData.detailStr}
+업력현황: ${crossData.stcarStr}
 주변카페: ${crossData.nearCafes.substring(0,200)}
-[규칙] "A를 하면 X, B를 하면 Y" 시나리오 필수. 객단가 계산 포함. 100자 이상.
+[규칙] "A를 하면 X, B를 하면 Y" 시나리오 필수. 객단가 계산 포함. 개폐업 추이에서 신규 오픈 > 폐업이면 "성장하는 상권", 반대면 "진입 주의" 식으로 해석. 업력 데이터로 "3년 이상 버틴 카페 비율 X%" 인용. 120자 이상.
 [bruSummary] 40자 이내
 반드시 아래 JSON 포맷만 출력하세요. 다른 텍스트, 설명, 마크다운 금지.
 {"bruFeedback":"여기에 피드백","bruSummary":"40자이내 요약"}`,
@@ -7791,8 +7803,11 @@ ${crossData.dynPopForTime || '유동인구 데이터 수집됨'}${crossData.dynA
 [교차 데이터] 카페수: ${crossData.cafeCount}
 임대료: ${crossData.rentStr}, 동별: ${crossData.rentDongsStr}
 매출: ${crossData.cafeSalesStr}
+업종비교: ${crossData.dongMTpctdStr}
+개폐업추이: ${crossData.detailStr}
+업력현황: ${crossData.stcarStr}
 주변카페: ${crossData.nearCafes.substring(0,200)}
-[규칙] 위험 시나리오를 숫자로 보여줘. "월세 X만이면 매출의 Y%, 순이익 Z만원" 계산. 100자 이상.
+[규칙] 위험 시나리오를 숫자로 보여줘. "월세 X만이면 매출의 Y%, 순이익 Z만원" 계산. 개폐업 데이터에서 폐업이 많으면 "최근 N개월간 폐업 M개 → 이 상권 진입 리스크" 경고. 업력 데이터에서 1년 미만 폐업률이 높으면 구체적 수치로 경고. 120자 이상.
 [bruSummary] 40자 이내
 반드시 아래 JSON 포맷만 출력하세요. 다른 텍스트, 설명, 마크다운 금지.
 {"bruFeedback":"여기에 피드백","bruSummary":"40자이내 요약"}`,
@@ -7810,20 +7825,28 @@ ${crossData.dynPopForTime || '유동인구 데이터 수집됨'}${crossData.dynA
 [이 카드 데이터] 카페 5년 생존율 22.8%
 [교차 데이터] 이 상권 카페수: ${crossData.cafeCount}, 임대료: ${crossData.rentStr}
 매출: ${crossData.cafeSalesStr}
-[규칙] 단순히 "22.8%는 낮다" 금지. 이 상권에서 생존하려면 구체적으로 뭘 해야 하는지. 빈크래프트 교육 자연스럽게 연결. 80자 이상.
+업력현황(이 동 실제 데이터): ${crossData.stcarStr}
+개폐업추이: ${crossData.detailStr}
+[규칙] 단순히 "22.8%는 낮다" 금지. 업력 데이터가 있으면 "이 동에서 3년 이상 영업 중인 점포 X%"처럼 실제 수치 인용. 개폐업 추이로 "최근 N개월 폐업 M건" 식으로 현실 반영. 이 상권에서 생존하려면 구체적으로 뭘 해야 하는지. 빈크래프트 교육 자연스럽게 연결. 100자 이상.
 [bruSummary] 40자 이내
 반드시 아래 JSON 포맷만 출력하세요. 다른 텍스트, 설명, 마크다운 금지.
 {"bruFeedback":"여기에 피드백","bruSummary":"40자이내 요약"}`,
          
          insight: `당신은 카페 창업 컨설턴트 '브루'예요. 카드7(AI종합) 작성해주세요.
 [전체 데이터 요약]
-카페: ${crossData.cafeCount}
+카페: ${crossData.cafeCount}개(반경 500m 총 ${crossData.nearbyTotalCafes}개: 프랜차이즈 ${crossData.nearbyFranchiseStr}, 개인 ${crossData.nearbyIndependentCafes}개)
 소비: ${crossData.topSpendAge}(${crossData.topSpendPct}%), 방문: ${crossData.topVisitAge}(${crossData.topVisitPct}%)
 매출: ${crossData.cafeSalesStr}
 임대료: ${crossData.rentStr}, 동별: ${crossData.rentDongsStr}
+업종비교(동 단위): ${crossData.dongMTpctdStr}
+개폐업추이: ${crossData.detailStr}
+업력현황: ${crossData.stcarStr}
+업소현황: ${crossData.storSttusStr}
 주변카페: ${crossData.nearCafes.substring(0,300)}
 배달: ${crossData.baeminStr}
-[규칙] 각 카드 내용을 반복하지 말고, "이 상권에서 개인카페가 살아남는 공식" 하나의 결론으로 연결. 판단 기준을 제시. 빈크래프트 상담 연결. 200자 이상.
+[규칙] 각 카드 내용을 반복하지 말고, 위 전체 데이터를 교차 분석해서 "이 상권에서 개인카페가 살아남는 공식"을 하나의 결론으로 연결하세요.
+반드시 수치를 인용하면서: ① 매출 대비 임대료 비중 ② 생존 카페 특성(업력 데이터) ③ 소비 연령 맞춤 전략 ④ 프랜차이즈 vs 개인의 포지셔닝.
+빈크래프트 상담으로 자연스럽게 연결. 250자 이상.
 반드시 아래 JSON 포맷만 출력하세요. 다른 텍스트, 설명, 마크다운 금지.
 {"insight":"여기에 종합 피드백"}`
        };
