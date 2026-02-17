@@ -500,9 +500,10 @@ const useCountUpToss = (end, duration = 1200, start = 0, trigger = true) => {
 const FadeUpToss = ({ children, delay = 0, inView }) => (
   <div style={{
     opacity: inView ? 1 : 0,
-    transform: inView ? 'translateY(0) scale(1)' : 'translateY(40px) scale(0.98)',
-    transition: `opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1) ${delay}s, transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) ${delay}s`,
-    willChange: 'transform, opacity',
+    transform: inView ? 'translateY(0) scale(1)' : 'translateY(40px) scale(0.97)',
+    filter: inView ? 'blur(0px)' : 'blur(6px)',
+    transition: `opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1) ${delay}s, transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) ${delay}s, filter 0.6s cubic-bezier(0.16, 1, 0.3, 1) ${delay}s`,
+    willChange: 'transform, opacity, filter',
   }}>
     {children}
   </div>
@@ -971,12 +972,12 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
           {d.consumers?.peakTime && (
             <FadeUpToss inView={v2} delay={0.35}>
               <div style={{ display: 'flex', gap: 16, marginTop: 32, flexWrap: 'wrap' }}>
-                <div style={{ background: cardBg, borderRadius: 22, padding: '16px 20px', flex: 1, minWidth: 120 }}>
-                  <p style={{ fontSize: 12, color: t2, marginBottom: 6 }}>피크 시간</p>
+                <div className={dark ? 'glass-card light-sweep' : 'glass-card-light'} style={{ padding: '18px 20px', flex: 1, minWidth: 120 }}>
+                  <p style={{ fontSize: 12, color: t2, marginBottom: 8 }}>피크 시간</p>
                   <p style={{ fontSize: 18, fontWeight: 700, color: t1 }}>{S(d.consumers.peakTime)}</p>
                 </div>
-                <div style={{ background: cardBg, borderRadius: 22, padding: '16px 20px', flex: 1, minWidth: 120 }}>
-                  <p style={{ fontSize: 12, color: t2, marginBottom: 6 }}>테이크아웃</p>
+                <div className={dark ? 'glass-card light-sweep' : 'glass-card-light'} style={{ padding: '18px 20px', flex: 1, minWidth: 120 }}>
+                  <p style={{ fontSize: 12, color: t2, marginBottom: 8 }}>테이크아웃</p>
                   <p style={{ fontSize: 18, fontWeight: 700, color: t1 }}>{S(d.consumers.takeoutRatio || '-')}</p>
                 </div>
               </div>
@@ -1004,16 +1005,16 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
           </FadeUpToss>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 32 }}>
             <FadeUpToss inView={true} delay={0.1}>
-              <div style={{ background: cardBg, borderRadius: 22, padding: 20 }}>
+              <div className={dark ? 'glass-card light-sweep' : 'glass-card-light'} style={{ padding: 20 }}>
                 <p style={{ fontSize: 12, color: t3 }}>유동인구</p>
-                <p style={{ fontSize: 28, fontWeight: 800, color: t1, marginTop: 8 }}>{totalPop > 0 ? totalPop.toLocaleString() : '-'}</p>
+                <p style={{ fontSize: 28, fontWeight: 800, color: t1, marginTop: 8, fontVariantNumeric: 'tabular-nums' }}>{totalPop > 0 ? totalPop.toLocaleString() : '-'}</p>
                 <p style={{ fontSize: 11, color: t3, marginTop: 4 }}>명/일 평균</p>
               </div>
             </FadeUpToss>
             <FadeUpToss inView={true} delay={0.2}>
-              <div style={{ background: cardBg, borderRadius: 22, padding: 20 }}>
+              <div className={dark ? 'glass-card light-sweep' : 'glass-card-light'} style={{ padding: 20 }}>
                 <p style={{ fontSize: 12, color: t3 }}>방문고객</p>
-                <p style={{ fontSize: 28, fontWeight: 800, color: blue, marginTop: 8 }}>{totalVst > 0 ? totalVst.toLocaleString() : '-'}</p>
+                <p className="gradient-text" style={{ fontSize: 28, fontWeight: 800, marginTop: 8, fontVariantNumeric: 'tabular-nums' }}>{totalVst > 0 ? totalVst.toLocaleString() : '-'}</p>
                 <p style={{ fontSize: 11, color: t3, marginTop: 4 }}>명/일 평균</p>
               </div>
             </FadeUpToss>
@@ -1026,9 +1027,10 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
 
       {/* ━━━ 3. 프랜차이즈 현황 ━━━ */}
       {franchiseData.length > 0 && (
-        <div ref={r3} style={sec}>
+        <div ref={r3} style={{ ...sec, position: 'relative', overflow: 'hidden' }}>
+          <div className="bg-blob bg-blob-blue" style={{ width: 160, height: 160, top: '10%', right: '-8%', opacity: 0.06 }} />
           <FadeUpToss inView={v3}>
-            <p style={secLabel}>프랜차이즈 현황</p>
+            <p className="gradient-text" style={{ ...secLabel, color: undefined }}>프랜차이즈 현황</p>
             <h2 style={secTitle}>카페 경쟁 분석</h2>
             {cd?.nearbyTotalCafes > 0 && (
               <p style={{ fontSize: 13, color: t3, marginTop: 4 }}>
@@ -1080,9 +1082,9 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
               const displayPrice = fdb?.아메리카노 ? `아메 ${fdb.아메리카노.toLocaleString()}원` : (f.royalty || '');
 
               return (
-                <div key={i} style={{ padding: '14px 0', borderBottom: i < d.franchise.length - 1 ? `1px solid ${divColor}` : 'none' }}>
+                <div key={i} className="list-slide-in" style={{ padding: '14px 0', borderBottom: i < d.franchise.length - 1 ? `1px solid ${divColor}` : 'none', animationDelay: `${i * 0.08}s` }}>
                   <div style={{ display: 'flex', alignItems: 'center', marginBottom: f.feedback || displayPrice ? 8 : 0 }}>
-                    <div style={{ width: 12, height: 12, borderRadius: 4, background: TOSS_COLORS[i % TOSS_COLORS.length], marginRight: 14, flexShrink: 0 }} />
+                    <div style={{ width: 12, height: 12, borderRadius: 4, background: TOSS_COLORS[i % TOSS_COLORS.length], marginRight: 14, flexShrink: 0, boxShadow: `0 0 8px ${TOSS_COLORS[i % TOSS_COLORS.length]}40` }} />
                     <span style={{ fontSize: 17, color: t1, flex: 1, fontWeight: 500 }}>{S(fName)}</span>
                     <span style={{ fontSize: 14, color: t2, fontWeight: 600 }}>{S(displayCount)}</span>
                   </div>
