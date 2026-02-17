@@ -6397,10 +6397,14 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
          summary.push(`소비연령: ${d.map(x => `${x.age?.replace('M','')}대 ${x.pipcnt?.toLocaleString()}명(${total>0?(x.pipcnt/total*100).toFixed(1):'?'}%)`).join(', ')}`);
        }
        
-       // 점포수 (cfrStcnt)
+       // 점포수 (cfrStcnt) - 주의: 이것은 음식업 전체 점포수(카페+음식점+기타)
        if (apis.cfrStcnt?.data) {
          const d = apis.cfrStcnt.data;
-         summary.push(`음식업 점포수: ${d.stcnt || 0}개 (${d.crtrYm || ''})`);
+         summary.push(`행정동 음식업 전체 점포수: ${d.stcnt || 0}개 (카페만이 아닌 전체 음식업 포함, ${d.crtrYm || ''})`);
+       }
+       // ★ 실제 카페 수는 storeRadius 500m 반경 데이터 사용
+       if (collectedData.nearbyTotalCafes > 0) {
+         summary.push(`★ 반경 500m 실측 카페 수: ${collectedData.nearbyTotalCafes}개 (프랜차이즈 ${collectedData.nearbyTotalCafes - (collectedData.nearbyIndependentCafes || 0)}개 + 개인 ${collectedData.nearbyIndependentCafes || 0}개) - 이 숫자를 카페 수로 사용하세요`);
        }
        
        // 배달 (baeminTpbiz)
@@ -6531,8 +6535,14 @@ ${JSON.stringify(collectedData.apis, null, 2)}
 위 수집된 데이터를 기반으로 "${query}" 지역의 카페 창업 상권 분석을 수행해주세요.
 ${hasApiData ? '중요: 수집된 GIS API 데이터의 실제 숫자를 반드시 추출하여 사용하세요. rads 배열의 합계나 평균을 계산해서 구체적인 수치로 표현하세요.' : '신뢰할 수 있는 출처의 데이터를 기반으로 분석해주세요.'}
 
+[★★★ 카페 수 관련 절대 규칙 ★★★]
+- "카페 수"에는 반드시 "반경 500m 실측 카페 수"(storeRadius API)를 사용하세요.
+- cfrStcnt의 "행정동 음식업 전체 점포수"는 카페+음식점+모든 음식업 합계이므로 절대 카페 수로 쓰지 마세요.
+- overview.cafeCount에 반드시 반경 500m 데이터를 넣으세요.
+- bruFeedback에서도 카페 수 언급 시 반경 500m 데이터만 사용하세요.
+
 [필수 분석 항목 - 모든 항목 반드시 채워야 함]
-1. 상권 개요: 카페 수, 개업/폐업 현황, 유동인구, 상주인구 (수치+출처 필수)
+1. 상권 개요: 카페 수(반경 500m 실측), 개업/폐업 현황, 유동인구, 상주인구 (수치+출처 필수)
 2. 주요 소비층: 연령대, 직업군, 소비 패턴, 피크 타임
 3. 프랜차이즈 현황: 주요 브랜드 매장 수 추정
 4. 임대료/권리금: 평균 임대료, 보증금, 권리금, 전년 대비 변동
@@ -6973,12 +6983,19 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
          data.overview.cafeCount = String(_mainCafe);
          console.log(`카페 수 override: ${_mainCafe}개 (메인 동)`);
        }
-       // cfrStcnt API 직접 override (salesAvg에 카페 항목이 없을 때)
+       // cfrStcnt API fallback - 주의: cfrStcnt는 음식업 전체이므로 카페 수가 아님
+       // storeRadius 500m 반경 데이터를 우선 사용
        if (_mainCafe === 0 && data.overview) {
-         const cfrData = collectedData.apis?.cfrStcnt?.data;
-         if (cfrData?.stcnt && cfrData.stcnt > 0) {
-           data.overview.cafeCount = String(cfrData.stcnt);
-           console.log(`카페 수 cfrStcnt override: ${cfrData.stcnt}개`);
+         if (collectedData.nearbyTotalCafes > 0) {
+           data.overview.cafeCount = String(collectedData.nearbyTotalCafes);
+           console.log(`카페 수 storeRadius override: ${collectedData.nearbyTotalCafes}개 (500m 반경)`);
+         } else {
+           const cfrData = collectedData.apis?.cfrStcnt?.data;
+           if (cfrData?.stcnt && cfrData.stcnt > 0) {
+             // 음식업 전체 점포수이므로 표기 주의
+             data.overview.cafeCount = String(cfrData.stcnt) + ' (음식업 전체)';
+             console.log(`카페 수 cfrStcnt fallback: ${cfrData.stcnt}개 (음식업 전체)`);
+           }
          }
        }
        if (_mainCafeSalesAmt > 0 && data.overview) {
