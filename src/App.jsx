@@ -384,11 +384,11 @@ const MiniBarChart = ({ data = [], maxValue = null, height = 120, theme = 'dark'
               <span className={colors.textSecondary}>{(item.value || 0).toLocaleString()}{item.suffix || ''}</span>
             </div>
             <div className={`h-2 rounded-full overflow-hidden ${theme === 'dark' ? 'bg-[#2C2C35]' : 'bg-[#E5E8EB]'}`}>
-              <div 
-                className="h-full rounded-full transition-all duration-700 ease-out"
-                style={{ 
+              <div
+                className="h-full rounded-full progress-bar-animated"
+                style={{
                   width: `${percent}%`,
-                  backgroundColor: item.color || '#3b82f6'
+                  transitionDelay: `${index * 0.08}s`,
                 }}
               />
             </div>
@@ -951,20 +951,19 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             <div className="chart-glow" style={{ width: '100%', height: 280 }}>
               <ResponsiveContainer>
                 <BarChart data={ageBarData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="blueGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#6366F1" stopOpacity={1} />
+                      <stop offset="100%" stopColor="#3182F6" stopOpacity={1} />
+                    </linearGradient>
+                  </defs>
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: t3, fontSize: 13 }} />
                   <YAxis hide />
                   <Tooltip
-                    contentStyle={{ background: dark ? '#21212A' : '#FFF', border: 'none', borderRadius: 14, color: t1, fontSize: 14, boxShadow: '0 8px 28px rgba(0,0,0,0.12)', backdropFilter: 'blur(20px)' }}
+                    contentStyle={{ background: dark ? '#21212A' : '#FFF', border: 'none', borderRadius: 14, color: t1, fontSize: 14, boxShadow: '0 8px 28px rgba(0,0,0,0.12)' }}
                     formatter={(v) => [isCafeSpecificAge ? `${v}%` : sortedCstData.length > 0 ? `${v.toLocaleString()}만원` : `${v.toLocaleString()}명`, isCafeSpecificAge ? '카페 결제 비중' : sortedCstData.length > 0 ? '소비금액' : '방문자']}
                   />
-                  <Bar dataKey="count" fill="url(#blueGradient)" radius={[8, 8, 0, 0]} barSize={36}>
-                    <defs>
-                      <linearGradient id="blueGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#6366F1" />
-                        <stop offset="100%" stopColor="#3182F6" />
-                      </linearGradient>
-                    </defs>
-                  </Bar>
+                  <Bar dataKey="count" fill="url(#blueGradient)" radius={[8, 8, 0, 0]} barSize={36} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -1177,13 +1176,19 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             <div style={{ width: '100%', height: 260 }}>
               <ResponsiveContainer>
                 <BarChart data={topSalesBarData} layout="vertical" margin={{ top: 0, right: 30, left: 20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="salesGradient" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#3182F6" stopOpacity={1} />
+                      <stop offset="100%" stopColor="#6366F1" stopOpacity={1} />
+                    </linearGradient>
+                  </defs>
                   <XAxis type="number" hide />
                   <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} tick={{ fill: t2, fontSize: 13 }} width={80} />
-                  <Tooltip 
-                    contentStyle={{ background: dark ? '#21212A' : '#FFF', border: 'none', borderRadius: 14, color: t1, fontSize: 14 }} 
-                    formatter={(v) => [`${v.toLocaleString()}만원`, '월 매출']} 
+                  <Tooltip
+                    contentStyle={{ background: dark ? '#21212A' : '#FFF', border: 'none', borderRadius: 14, color: t1, fontSize: 14, boxShadow: '0 8px 28px rgba(0,0,0,0.12)' }}
+                    formatter={(v) => [`${v.toLocaleString()}만원`, '월 매출']}
                   />
-                  <Bar dataKey="sales" fill={blue} radius={[0, 8, 8, 0]} barSize={28} />
+                  <Bar dataKey="sales" fill="url(#salesGradient)" radius={[0, 8, 8, 0]} barSize={28} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
