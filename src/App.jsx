@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+﻿import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { firebase, database } from './firebase';
 import {
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer,
@@ -133,34 +133,34 @@ const DARK_MODE_BACKGROUNDS = [];
 
 const THEME_COLORS = {
   light: {
-    bg: 'bg-neutral-100',
-    bgGradient: 'bg-gradient-to-br from-neutral-50 via-neutral-100 to-neutral-200',
-    card: 'bg-white/70 backdrop-blur-xl border-white/50',
-    cardSolid: 'bg-white border-neutral-200',
-    text: 'text-neutral-900',
-    textSecondary: 'text-neutral-600',
-    textMuted: 'text-neutral-400',
-    border: 'border-neutral-200',
-    input: 'bg-white border-neutral-300 text-neutral-900 placeholder-neutral-400',
-    button: 'bg-neutral-900 text-white hover:bg-neutral-800',
-    buttonSecondary: 'bg-neutral-200 text-neutral-800 hover:bg-neutral-300',
-    hover: 'hover:bg-neutral-100',
-    glass: 'bg-white/60 backdrop-blur-xl border border-white/40 shadow-lg',
+    bg: 'bg-[#F9FAFB]',
+    bgGradient: 'bg-[#F9FAFB]',
+    card: 'bg-white/80 backdrop-blur-xl border-[#E5E8EB]',
+    cardSolid: 'bg-white border-[#E5E8EB]',
+    text: 'text-[#191F28]',
+    textSecondary: 'text-[#6B7684]',
+    textMuted: 'text-[#B0B8C1]',
+    border: 'border-[#E5E8EB]',
+    input: 'bg-white border-[#D1D6DB] text-[#191F28] placeholder-[#B0B8C1]',
+    button: 'bg-[#3182F6] text-white hover:bg-[#2272EB]',
+    buttonSecondary: 'bg-[#F2F4F6] text-[#4E5968] hover:bg-[#E5E8EB]',
+    hover: 'hover:bg-[#F2F4F6]',
+    glass: 'bg-white/70 backdrop-blur-xl border border-[#E5E8EB]/60 shadow-sm',
   },
   dark: {
-    bg: 'bg-neutral-900',
-    bgGradient: 'bg-gradient-to-br from-neutral-900 via-neutral-800 to-neutral-900',
-    card: 'bg-white/5 backdrop-blur-xl border-white/10',
-    cardSolid: 'bg-neutral-800 border-neutral-700',
-    text: 'text-white',
-    textSecondary: 'text-neutral-300',
-    textMuted: 'text-neutral-500',
-    border: 'border-neutral-700',
-    input: 'bg-neutral-800 border-neutral-600 text-white placeholder-neutral-500',
-    button: 'bg-white text-neutral-900 hover:bg-neutral-100',
-    buttonSecondary: 'bg-neutral-700 text-white hover:bg-neutral-600',
-    hover: 'hover:bg-neutral-800',
-    glass: 'bg-white/5 backdrop-blur-xl border border-white/10 shadow-lg',
+    bg: 'bg-[#17171C]',
+    bgGradient: 'bg-[#17171C]',
+    card: 'bg-[#21212A]/80 backdrop-blur-xl border-white/[0.08]',
+    cardSolid: 'bg-[#21212A] border-white/[0.08]',
+    text: 'text-[#ECECEF]',
+    textSecondary: 'text-[#8C8C96]',
+    textMuted: 'text-[#56565F]',
+    border: 'border-white/[0.08]',
+    input: 'bg-[#2C2C35] border-white/[0.08] text-[#ECECEF] placeholder-[#56565F]',
+    button: 'bg-[#3182F6] text-white hover:bg-[#2272EB]',
+    buttonSecondary: 'bg-[#2C2C35] text-[#ECECEF] hover:bg-[#35353F]',
+    hover: 'hover:bg-[#2C2C35]',
+    glass: 'bg-[#21212A]/60 backdrop-blur-xl border border-white/[0.08] shadow-lg',
   }
 };
 
@@ -228,22 +228,22 @@ const Accordion = ({ title, children, defaultOpen = false, icon = null, badge = 
   const colors = THEME_COLORS[theme];
   
   return (
-    <div className={`rounded-xl border overflow-hidden transition-all duration-300 ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-neutral-200 shadow-sm'}`}>
+    <div className={`rounded-xl border overflow-hidden transition-all duration-300 ${theme === 'dark' ? 'bg-[#21212A] border-white/[0.08]' : 'bg-white border-[#E5E8EB] shadow-sm'}`}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full p-4 flex items-center justify-between text-left transition-colors ${theme === 'dark' ? 'hover:bg-neutral-700/50' : 'hover:bg-neutral-50'}`}
+        className={`w-full p-4 flex items-center justify-between text-left transition-colors ${theme === 'dark' ? 'hover:bg-[#2C2C35]/50' : 'hover:bg-[#F9FAFB]'}`}
       >
         <div className="flex items-center gap-3">
           {icon && <span className="text-lg">{icon}</span>}
           <span className={`font-bold ${colors.text}`}>{title}</span>
           {badge && (
-            <span className={`px-2 py-0.5 text-xs rounded-full ${theme === 'dark' ? 'bg-white/10 text-white' : 'bg-neutral-100 text-neutral-700'}`}>
+            <span className={`px-2 py-0.5 text-xs rounded-full ${theme === 'dark' ? 'bg-white/10 text-white' : 'bg-[#F2F4F6] text-[#4E5968]'}`}>
               {badge}
             </span>
           )}
         </div>
         <svg 
-          className={`w-5 h-5 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''} ${theme === 'dark' ? 'text-gray-400' : 'text-neutral-500'}`}
+          className={`w-5 h-5 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''} ${theme === 'dark' ? 'text-[#B0B8C1]' : 'text-[#56565F]'}`}
           fill="none" 
           viewBox="0 0 24 24" 
           stroke="currentColor"
@@ -254,7 +254,7 @@ const Accordion = ({ title, children, defaultOpen = false, icon = null, badge = 
       <div 
         className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}
       >
-        <div className={`p-4 pt-0 border-t ${theme === 'dark' ? 'border-neutral-700' : 'border-neutral-200'}`}>
+        <div className={`p-4 pt-0 border-t ${theme === 'dark' ? 'border-white/[0.08]' : 'border-[#E5E8EB]'}`}>
           {children}
         </div>
       </div>
@@ -275,7 +275,7 @@ const ProgressBar = ({ value, max = 100, color = 'bg-white', label = '', showPer
           {showPercent && <span className={colors.textSecondary}>{Math.round(percentage)}%</span>}
         </div>
       )}
-      <div className={`h-2 rounded-full overflow-hidden ${theme === 'dark' ? 'bg-neutral-700' : 'bg-neutral-200'}`}>
+      <div className={`h-2 rounded-full overflow-hidden ${theme === 'dark' ? 'bg-[#2C2C35]' : 'bg-[#E5E8EB]'}`}>
         <div 
           className={`h-full ${color} rounded-full transition-all duration-1000 ease-out ${animated ? 'animate-pulse' : ''}`}
           style={{ width: `${percentage}%` }}
@@ -298,13 +298,13 @@ const Skeleton = ({ className = '', variant = 'default', theme = 'dark' }) => {
   };
   
   return (
-    <div className={`animate-pulse rounded ${theme === 'dark' ? 'bg-neutral-700' : 'bg-neutral-300'} ${variants[variant]} ${className}`} />
+    <div className={`animate-pulse rounded ${theme === 'dark' ? 'bg-[#2C2C35]' : 'bg-[#D1D6DB]'} ${variants[variant]} ${className}`} />
   );
 };
 
 // 스켈레톤 카드 (영업모드용, 테마 대응)
 const SkeletonCard = ({ lines = 3, theme = 'dark' }) => (
-  <div className={`p-5 rounded-xl border space-y-4 ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-neutral-200'}`}>
+  <div className={`p-5 rounded-xl border space-y-4 ${theme === 'dark' ? 'bg-[#21212A] border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
     <div className="flex items-center gap-3">
       <Skeleton variant="avatar" className="w-6 h-6" theme={theme} />
       <Skeleton variant="title" theme={theme} />
@@ -362,7 +362,7 @@ const MiniDonutChart = ({ data = [], size = 80, strokeWidth = 8, theme = 'dark' 
       </svg>
       {/* 중앙 텍스트 */}
       <div className="absolute inset-0 flex items-center justify-center">
-        <span className={`text-xs font-bold ${theme === 'dark' ? 'text-white' : 'text-neutral-900'}`}>{total > 0 ? total.toLocaleString() : '-'}</span>
+        <span className={`text-xs font-bold ${theme === 'dark' ? 'text-white' : 'text-[#191F28]'}`}>{total > 0 ? total.toLocaleString() : '-'}</span>
       </div>
     </div>
   );
@@ -383,7 +383,7 @@ const MiniBarChart = ({ data = [], maxValue = null, height = 120, theme = 'dark'
               <span className={colors.textSecondary}>{item.label}</span>
               <span className={colors.textSecondary}>{(item.value || 0).toLocaleString()}{item.suffix || ''}</span>
             </div>
-            <div className={`h-2 rounded-full overflow-hidden ${theme === 'dark' ? 'bg-neutral-700' : 'bg-neutral-200'}`}>
+            <div className={`h-2 rounded-full overflow-hidden ${theme === 'dark' ? 'bg-[#2C2C35]' : 'bg-[#E5E8EB]'}`}>
               <div 
                 className="h-full rounded-full transition-all duration-700 ease-out"
                 style={{ 
@@ -500,8 +500,9 @@ const useCountUpToss = (end, duration = 1200, start = 0, trigger = true) => {
 const FadeUpToss = ({ children, delay = 0, inView }) => (
   <div style={{
     opacity: inView ? 1 : 0,
-    transform: inView ? 'translateY(0)' : 'translateY(50px)',
-    transition: `all 0.8s cubic-bezier(0.16, 1, 0.3, 1) ${delay}s`,
+    transform: inView ? 'translateY(0) scale(1)' : 'translateY(40px) scale(0.98)',
+    transition: `opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1) ${delay}s, transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) ${delay}s`,
+    willChange: 'transform, opacity',
   }}>
     {children}
   </div>
@@ -549,15 +550,16 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
   const cd = result.collectedData || {};
   const dark = theme === 'dark';
   
-  const bg = dark ? '#0E0E0E' : '#FFFFFF';
-  const cardBg = dark ? '#1B1B1B' : '#F4F4F6';
-  const t1 = dark ? '#FFFFFF' : '#191F28';
-  const t2 = dark ? '#8B95A1' : '#8B95A1';
-  const t3 = dark ? '#4E5968' : '#B0B8C1';
-  const divColor = dark ? '#2B2B2B' : '#ECEEF1';
+  const bg = dark ? '#17171C' : '#F9FAFB';
+  const cardBg = dark ? '#21212A' : '#FFFFFF';
+  const t1 = dark ? '#ECECEF' : '#191F28';
+  const t2 = dark ? '#8C8C96' : '#6B7684';
+  const t3 = dark ? '#56565F' : '#B0B8C1';
+  const divColor = dark ? 'rgba(255,255,255,0.08)' : '#E5E8EB';
   const blue = '#3182F6';
   const red = '#F04452';
-  const green = '#00C853';
+  const green = '#03B26C';
+  const elevatedBg = dark ? '#2C2C35' : '#F2F4F6';
   
   // 브루 피드백 말풍선 컴포넌트
   const BruBubble = ({ text, summary, delay = 0.5 }) => {
@@ -567,22 +569,22 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
     return (
       <FadeUpToss inView={true} delay={delay}>
         <div style={{ marginTop: 16, position: 'relative' }}>
-          <div style={{ 
-            position: 'absolute', top: -6, left: 20, width: 12, height: 12, 
-            background: `${blue}12`, transform: 'rotate(45deg)', borderRadius: 2 
+          <div style={{
+            position: 'absolute', top: -6, left: 20, width: 12, height: 12,
+            background: `${blue}0F`, transform: 'rotate(45deg)', borderRadius: 3
           }} />
-          <div style={{ 
-            background: `${blue}12`, borderRadius: 16, padding: '14px 18px',
-            borderLeft: `3px solid ${blue}40`,
+          <div style={{
+            background: `${blue}0F`, borderRadius: 18, padding: '16px 20px',
+            borderLeft: `3px solid ${blue}35`,
           }}>
-            <p style={{ fontSize: 13, color: blue, fontWeight: 700, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ display: 'inline-block', width: 20, height: 20, borderRadius: '50%', background: blue, color: '#fff', fontSize: 11, fontWeight: 900, textAlign: 'center', lineHeight: '20px' }}>B</span>
+            <p style={{ fontSize: 13, color: blue, fontWeight: 700, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: '50%', background: `linear-gradient(135deg, ${blue}, #6366F1)`, color: '#fff', fontSize: 11, fontWeight: 900 }}>B</span>
               브루의 한마디
             </p>
-            <p style={{ fontSize: 14, color: t1, lineHeight: 1.65 }}>{safeText}</p>
+            <p style={{ fontSize: 14.5, color: t1, lineHeight: 1.7, letterSpacing: '-0.01em' }}>{safeText}</p>
             {safeSummary && (
-              <div style={{ marginTop: 10, padding: '8px 12px', background: `${blue}08`, borderRadius: 10 }}>
-                <p style={{ fontSize: 13, color: blue, fontWeight: 600, lineHeight: 1.5 }}>💡 {safeSummary}</p>
+              <div style={{ marginTop: 12, padding: '10px 14px', background: `${blue}0A`, borderRadius: 14, border: `1px solid ${blue}15` }}>
+                <p style={{ fontSize: 13, color: blue, fontWeight: 600, lineHeight: 1.55 }}>💡 {safeSummary}</p>
               </div>
             )}
           </div>
@@ -809,38 +811,40 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
     boxSizing: 'border-box',
   };
   
-  const heroNum = { fontSize: 72, fontWeight: 800, letterSpacing: '-0.04em', lineHeight: 1.0, color: t1 };
-  const heroUnit = { fontSize: 24, fontWeight: 500, color: t2, marginLeft: 4 };
-  const secTitle = { fontSize: 36, fontWeight: 800, letterSpacing: '-0.04em', lineHeight: 1.2, color: t1, marginBottom: 8 };
-  const secLabel = { fontSize: 14, fontWeight: 500, color: t2, marginBottom: 8 };
-  const secSub = { fontSize: 16, color: t2, marginBottom: 40, lineHeight: 1.5 };
+  const heroNum = { fontSize: 80, fontWeight: 800, letterSpacing: '-0.05em', lineHeight: 1.0, color: t1, fontVariantNumeric: 'tabular-nums', fontFeatureSettings: "'tnum' on" };
+  const heroUnit = { fontSize: 22, fontWeight: 500, color: t2, marginLeft: 6, letterSpacing: '-0.02em' };
+  const secTitle = { fontSize: 34, fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1.25, color: t1, marginBottom: 10 };
+  const secLabel = { fontSize: 13, fontWeight: 600, color: t2, marginBottom: 10, letterSpacing: '0.02em', textTransform: 'none' };
+  const secSub = { fontSize: 15.5, color: t2, marginBottom: 36, lineHeight: 1.6, letterSpacing: '-0.01em' };
   
   return (
     <div style={{
       background: bg,
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Pretendard", "Segoe UI", sans-serif',
+      fontFamily: '"Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", sans-serif',
       color: t1,
       overflowY: 'auto',
       scrollSnapType: 'y mandatory',
       height: 'calc(100vh - 130px)',
       WebkitOverflowScrolling: 'touch',
-      borderRadius: 16,
+      borderRadius: 22,
+      WebkitFontSmoothing: 'antialiased',
+      MozOsxFontSmoothing: 'grayscale',
     }}>
       {/* ━━━ 0. 브루 인사 (1문단: 꽉 채운 카드) ━━━ */}
       <div style={{ ...sec, minHeight: '70vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
         <FadeUpToss inView={true} delay={0}>
           <div style={{
-            width: 80, height: 80, borderRadius: '50%',
+            width: 88, height: 88, borderRadius: 28,
             background: 'linear-gradient(135deg, #3182F6, #6366F1)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            marginBottom: 32, boxShadow: '0 8px 32px rgba(49,130,246,0.25)',
-            overflow: 'hidden'
+            marginBottom: 36, boxShadow: '0 12px 40px rgba(49,130,246,0.3)',
+            overflow: 'hidden',
           }}>
-            <img src="/logo.png" alt="BeanCraft" style={{ width: 56, height: 56, objectFit: 'contain' }} />
+            <img src="/logo.png" alt="BeanCraft" style={{ width: 60, height: 60, objectFit: 'contain' }} />
           </div>
         </FadeUpToss>
         <FadeUpToss inView={true} delay={0.2}>
-          <h1 style={{ fontSize: 36, fontWeight: 900, color: t1, letterSpacing: '-0.04em', lineHeight: 1.4 }}>
+          <h1 style={{ fontSize: 34, fontWeight: 800, color: t1, letterSpacing: '-0.03em', lineHeight: 1.35 }}>
             안녕하세요 사장님 :)
           </h1>
         </FadeUpToss>
@@ -939,7 +943,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: t3, fontSize: 13 }} />
                   <YAxis hide />
                   <Tooltip 
-                    contentStyle={{ background: dark ? '#2B2B2B' : '#FFF', border: 'none', borderRadius: 12, color: t1, fontSize: 14, boxShadow: '0 4px 24px rgba(0,0,0,0.2)' }} 
+                    contentStyle={{ background: dark ? '#21212A' : '#FFF', border: 'none', borderRadius: 14, color: t1, fontSize: 14, boxShadow: '0 4px 24px rgba(0,0,0,0.2)' }} 
                     formatter={(v) => [isCafeSpecificAge ? `${v}%` : sortedCstData.length > 0 ? `${v.toLocaleString()}만원` : `${v.toLocaleString()}명`, isCafeSpecificAge ? '카페 결제 비중' : sortedCstData.length > 0 ? '소비금액' : '방문자']}
                   />
                   <Bar dataKey="count" fill={blue} radius={[8, 8, 0, 0]} barSize={36} />
@@ -950,11 +954,11 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
           {d.consumers?.peakTime && (
             <FadeUpToss inView={v2} delay={0.35}>
               <div style={{ display: 'flex', gap: 16, marginTop: 32, flexWrap: 'wrap' }}>
-                <div style={{ background: cardBg, borderRadius: 16, padding: '16px 20px', flex: 1, minWidth: 120 }}>
+                <div style={{ background: cardBg, borderRadius: 22, padding: '16px 20px', flex: 1, minWidth: 120 }}>
                   <p style={{ fontSize: 12, color: t2, marginBottom: 6 }}>피크 시간</p>
                   <p style={{ fontSize: 18, fontWeight: 700, color: t1 }}>{S(d.consumers.peakTime)}</p>
                 </div>
-                <div style={{ background: cardBg, borderRadius: 16, padding: '16px 20px', flex: 1, minWidth: 120 }}>
+                <div style={{ background: cardBg, borderRadius: 22, padding: '16px 20px', flex: 1, minWidth: 120 }}>
                   <p style={{ fontSize: 12, color: t2, marginBottom: 6 }}>테이크아웃</p>
                   <p style={{ fontSize: 18, fontWeight: 700, color: t1 }}>{S(d.consumers.takeoutRatio || '-')}</p>
                 </div>
@@ -983,14 +987,14 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
           </FadeUpToss>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 32 }}>
             <FadeUpToss inView={true} delay={0.1}>
-              <div style={{ background: cardBg, borderRadius: 16, padding: 20 }}>
+              <div style={{ background: cardBg, borderRadius: 22, padding: 20 }}>
                 <p style={{ fontSize: 12, color: t3 }}>유동인구</p>
                 <p style={{ fontSize: 28, fontWeight: 800, color: t1, marginTop: 8 }}>{totalPop > 0 ? totalPop.toLocaleString() : '-'}</p>
                 <p style={{ fontSize: 11, color: t3, marginTop: 4 }}>명/일 평균</p>
               </div>
             </FadeUpToss>
             <FadeUpToss inView={true} delay={0.2}>
-              <div style={{ background: cardBg, borderRadius: 16, padding: 20 }}>
+              <div style={{ background: cardBg, borderRadius: 22, padding: 20 }}>
                 <p style={{ fontSize: 12, color: t3 }}>방문고객</p>
                 <p style={{ fontSize: 28, fontWeight: 800, color: blue, marginTop: 8 }}>{totalVst > 0 ? totalVst.toLocaleString() : '-'}</p>
                 <p style={{ fontSize: 11, color: t3, marginTop: 4 }}>명/일 평균</p>
@@ -1077,7 +1081,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
           </FadeUpToss>
           {d.franchiseCommonRisks?.length > 0 && (
             <FadeUpToss inView={v3} delay={0.45}>
-              <div style={{ background: `${red}15`, borderRadius: 16, padding: 20, marginTop: 24 }}>
+              <div style={{ background: `${red}15`, borderRadius: 22, padding: 20, marginTop: 24 }}>
                 <p style={{ fontSize: 14, color: red, fontWeight: 700, marginBottom: 12 }}>공통 리스크</p>
                 {d.franchiseCommonRisks.map((r, i) => (
                   <p key={i} style={{ fontSize: 14, color: t1, lineHeight: 1.6, marginBottom: 4 }}>• {S(r)}</p>
@@ -1103,7 +1107,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
           {/* 매출 요약 (있으면 표시) */}
           {avgMonthlySales > 0 && (
             <FadeUpToss inView={v3b} delay={0.1}>
-              <div style={{ background: `${blue}12`, borderRadius: 12, padding: '12px 16px', marginTop: 12 }}>
+              <div style={{ background: `${blue}12`, borderRadius: 14, padding: '12px 16px', marginTop: 12 }}>
                 <p style={{ fontSize: 13, color: t2, lineHeight: 1.5 }}>
                   이 지역 카페 평균 매출 <span style={{ fontWeight: 700, color: t1 }}>{avgMonthlySales.toLocaleString()}만원</span>/월
                 </p>
@@ -1157,7 +1161,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
                   <XAxis type="number" hide />
                   <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} tick={{ fill: t2, fontSize: 13 }} width={80} />
                   <Tooltip 
-                    contentStyle={{ background: dark ? '#2B2B2B' : '#FFF', border: 'none', borderRadius: 12, color: t1, fontSize: 14 }} 
+                    contentStyle={{ background: dark ? '#21212A' : '#FFF', border: 'none', borderRadius: 14, color: t1, fontSize: 14 }} 
                     formatter={(v) => [`${v.toLocaleString()}만원`, '월 매출']} 
                   />
                   <Bar dataKey="sales" fill={blue} radius={[0, 8, 8, 0]} barSize={28} />
@@ -1212,7 +1216,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             </FadeUpToss>
           )) : (
             <FadeUpToss inView={true} delay={0.1}>
-              <div style={{ background: cardBg, borderRadius: 16, padding: 20, marginBottom: 16 }}>
+              <div style={{ background: cardBg, borderRadius: 22, padding: 20, marginBottom: 16 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                   <div>
                     <p style={{ fontSize: 12, color: t3 }}>일 유동인구</p>
@@ -1275,7 +1279,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
           </FadeUpToss>
           {d.rent && (
             <FadeUpToss inView={v5} delay={0.4}>
-              <div style={{ background: cardBg, borderRadius: 20, padding: 24, marginTop: 24 }}>
+              <div style={{ background: cardBg, borderRadius: 22, padding: 24, marginTop: 24 }}>
                 <p style={{ fontSize: 14, color: t2, fontWeight: 600, marginBottom: 8 }}>임대료 정보</p>
                 {d.rent.primaryDong && <p style={{ fontSize: 12, color: t3, marginBottom: 12 }}>{S(d.rent.primaryDong)} 기준 · 소규모 상가 {S(d.rent.dongCount)}</p>}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
@@ -1294,7 +1298,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
                 </div>
                 {/* 주변 동 비교 */}
                 {d.rentDetail && d.rentDetail.length > 1 && (
-                  <div style={{ marginTop: 14, background: `${blue}08`, borderRadius: 12, padding: '10px 14px' }}>
+                  <div style={{ marginTop: 14, background: `${blue}08`, borderRadius: 14, padding: '10px 14px' }}>
                     <p style={{ fontSize: 12, color: t3, marginBottom: 8 }}>주변 동별 월세 비교</p>
                     {d.rentDetail.slice(0, 5).map((rd, rdi) => (
                       <div key={rdi} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 0' }}>
@@ -1336,7 +1340,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
           
           {d.opportunities?.length > 0 && (
             <FadeUpToss inView={v6} delay={0.1}>
-              <div style={{ background: cardBg, borderRadius: 24, padding: 24, marginBottom: 16 }}>
+              <div style={{ background: cardBg, borderRadius: 22, padding: 24, marginBottom: 16 }}>
                 <p style={{ fontSize: 14, color: green, fontWeight: 700, marginBottom: 16 }}>기회 요인</p>
                 {d.opportunities.map((o, i) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'flex-start', marginBottom: i < d.opportunities.length - 1 ? 14 : 0 }}>
@@ -1353,7 +1357,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
           
           {d.risks?.length > 0 && (
             <FadeUpToss inView={v6} delay={0.25}>
-              <div style={{ background: cardBg, borderRadius: 24, padding: 24 }}>
+              <div style={{ background: cardBg, borderRadius: 22, padding: 24 }}>
                 <p style={{ fontSize: 14, color: red, fontWeight: 700, marginBottom: 16 }}>리스크 요인</p>
                 {d.risks.map((r, i) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'flex-start', marginBottom: i < d.risks.length - 1 ? 14 : 0 }}>
@@ -1384,7 +1388,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
               const cafeRank = allData.findIndex(d => (d.baeminTpbizClsfNm || '').includes('카페') || (d.baeminTpbizClsfNm || '').includes('커피') || (d.baeminTpbizClsfNm || '').includes('음료'));
               const cafeItem = cafeRank >= 0 ? allData[cafeRank] : null;
               return cafeItem ? (
-                <div style={{ background: `${blue}12`, borderRadius: 12, padding: '10px 14px', marginTop: 8, marginBottom: 8 }}>
+                <div style={{ background: `${blue}12`, borderRadius: 14, padding: '10px 14px', marginTop: 8, marginBottom: 8 }}>
                   <p style={{ fontSize: 13, color: t2 }}>카페/음료 배달 순위: <span style={{ fontWeight: 700, color: t1 }}>{cafeRank + 1}위</span> · {(cafeItem.cnt || 0).toLocaleString()}건</p>
                 </div>
               ) : (
@@ -1418,7 +1422,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             <FadeUpToss inView={true} delay={0.15}>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 24 }}>
                 {cd.apis.snsTrend.data.popularKeywords.map((kw, i) => (
-                  <span key={i} style={{ padding: '6px 14px', borderRadius: 20, fontSize: 13, fontWeight: 600, background: i === 0 ? blue : cardBg, color: i === 0 ? '#fff' : t1 }}>
+                  <span key={i} style={{ padding: '6px 14px', borderRadius: 22, fontSize: 13, fontWeight: 600, background: i === 0 ? blue : cardBg, color: i === 0 ? '#fff' : t1 }}>
                     #{S(typeof kw === 'string' ? kw : kw.keyword || kw)}
                   </span>
                 ))}
@@ -1427,7 +1431,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
           )}
           {cd.apis.snsTrend.data.sentiment && (
             <FadeUpToss inView={true} delay={0.25}>
-              <div style={{ background: cardBg, borderRadius: 16, padding: 20 }}>
+              <div style={{ background: cardBg, borderRadius: 22, padding: 20 }}>
                 <p style={{ fontSize: 13, color: t2, marginBottom: 8 }}>전체 반응</p>
                 <div style={{ display: 'flex', gap: 16 }}>
                   <div><span style={{ color: green, fontWeight: 800, fontSize: 20 }}>{cd.apis.snsTrend.data.sentiment.positive || 0}%</span><p style={{ fontSize: 11, color: t3 }}>긍정</p></div>
@@ -1537,7 +1541,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
         
         {d.beancraftFeedback && (
           <FadeUpToss inView={v7} delay={0.2}>
-            <div style={{ background: `${blue}15`, borderRadius: 24, padding: 28 }}>
+            <div style={{ background: `${blue}15`, borderRadius: 22, padding: 28 }}>
               <p style={{ fontSize: 16, color: blue, fontWeight: 800, marginBottom: 20 }}>빈크래프트 컨설팅 포인트</p>
               
               {d.beancraftFeedback.priority?.length > 0 && (
@@ -1573,7 +1577,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
       {/* ━━━ 8. 출처 + 빈크래프트 CTA ━━━ */}
       <div ref={r8} style={{ ...sec, minHeight: 'auto', paddingBottom: 80 }}>
         <FadeUpToss inView={v8}>
-          <div style={{ background: cardBg, borderRadius: 20, padding: 24, marginBottom: 24 }}>
+          <div style={{ background: cardBg, borderRadius: 22, padding: 24, marginBottom: 24 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
               <p style={{ fontSize: 14, color: t2, fontWeight: 600 }}>데이터 출처</p>
               <div style={{ padding: '4px 12px', borderRadius: 8, background: result?.hasApiData ? `${green}20` : `${red}20` }}>
@@ -1593,7 +1597,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
         <FadeUpToss inView={v8} delay={0.15}>
           <div style={{
             background: `linear-gradient(135deg, ${blue}, #1B64DA)`,
-            borderRadius: 24,
+            borderRadius: 22,
             padding: 32,
             textAlign: 'center',
           }}>
@@ -1653,7 +1657,7 @@ const DataCard = ({
         : 'bg-white/70 backdrop-blur-xl border-white/50 shadow-md hover:shadow-lg'
     }`}>
       <div className="flex items-start justify-between mb-2">
-        <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-neutral-500'}`}>{title}</p>
+        <p className={`text-xs ${theme === 'dark' ? 'text-[#B0B8C1]' : 'text-[#56565F]'}`}>{title}</p>
         {icon && <span className="text-lg opacity-60">{icon}</span>}
       </div>
       <div className="flex items-baseline gap-2">
@@ -1670,7 +1674,7 @@ const DataCard = ({
           </span>
         )}
       </div>
-      {subtitle && <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-gray-500' : 'text-neutral-400'}`}>{subtitle}</p>}
+      {subtitle && <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-gray-500' : 'text-[#B0B8C1]'}`}>{subtitle}</p>}
     </div>
   );
 };
@@ -3186,18 +3190,18 @@ const UI = {
   },
   text: {
     primary: '${t.text}',
-    secondary: 'text-neutral-500',
-    muted: 'text-neutral-400'
+    secondary: 'text-[#56565F]',
+    muted: 'text-[#B0B8C1]'
   },
   btn: {
-    black: 'px-4 py-2 bg-neutral-900 text-white rounded-lg font-medium hover:bg-neutral-800 transition-all',
-    white: 'px-4 py-2 bg-white ${t.text} border border-neutral-200 rounded-lg font-medium hover:bg-neutral-50 transition-all',
-    outline: 'px-4 py-2 bg-transparent text-neutral-700 border border-neutral-200 rounded-lg font-medium hover:bg-neutral-50 transition-all'
+    black: 'px-4 py-2 bg-[#191F28] text-white rounded-lg font-medium hover:bg-[#21212A] transition-all',
+    white: 'px-4 py-2 bg-white ${t.text} border border-[#E5E8EB] rounded-lg font-medium hover:bg-[#F9FAFB] transition-all',
+    outline: 'px-4 py-2 bg-transparent text-[#4E5968] border border-[#E5E8EB] rounded-lg font-medium hover:bg-[#F9FAFB] transition-all'
   },
-  input: 'w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all',
-  card: 'bg-white border border-neutral-200 rounded-2xl',
+  input: 'w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all',
+  card: 'bg-white border border-[#E5E8EB] rounded-2xl',
   sidebar: {
-    bg: 'bg-neutral-900',
+    bg: 'bg-[#191F28]',
     text: 'text-white',
     active: 'bg-white/10',
     hover: 'hover:bg-white/5'
@@ -3263,14 +3267,14 @@ const LocationAnalysisModal = ({ data, onClose, onDetailAnalysis, generateAIFeed
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className={`rounded-2xl max-w-lg w-full max-h-[90vh] overflow-hidden flex flex-col ${theme === 'dark' ? 'bg-neutral-900' : 'bg-white'}`}>
+      <div className={`rounded-2xl max-w-lg w-full max-h-[90vh] overflow-hidden flex flex-col ${theme === 'dark' ? 'bg-[#191F28]' : 'bg-white'}`}>
         {/* 헤더 */}
-        <div className={`p-4 border-b flex items-center justify-between ${theme === 'dark' ? 'border-neutral-700 bg-neutral-900' : 'border-neutral-200 bg-white'}`}>
+        <div className={`p-4 border-b flex items-center justify-between ${theme === 'dark' ? 'border-white/[0.08] bg-[#191F28]' : 'border-[#E5E8EB] bg-white'}`}>
           <div>
             <h2 className={`text-lg font-bold ${t.text}`}>선택 지역 분석</h2>
             <p className={`text-sm ${t.textMuted}`}>{location?.address || '주소 없음'} (반경 500m)</p>
           </div>
-          <button onClick={onClose} className={`w-8 h-8 flex items-center justify-center ${theme === 'dark' ? 'text-gray-400 hover:text-gray-300' : 'text-neutral-500 hover:text-neutral-700'}`}>
+          <button onClick={onClose} className={`w-8 h-8 flex items-center justify-center ${theme === 'dark' ? 'text-[#B0B8C1] hover:text-[#8C8C96]' : 'text-[#56565F] hover:text-[#4E5968]'}`}>
             <span className="text-xl">×</span>
           </button>
         </div>
@@ -3279,11 +3283,11 @@ const LocationAnalysisModal = ({ data, onClose, onDetailAnalysis, generateAIFeed
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           
           {/* 업종 현황 */}
-          <div className={`border rounded-xl p-4 ${theme === 'dark' ? 'bg-neutral-900 border-neutral-700' : 'bg-white border-neutral-200'}`}>
+          <div className={`border rounded-xl p-4 ${theme === 'dark' ? 'bg-[#17171C] border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
             <h3 className={`text-sm font-bold mb-3 ${t.text}`}>반경 500m 업종 현황</h3>
             
             {/* 카페 (경쟁 강도 표시) */}
-            <div className={`mb-3 p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-800' : 'bg-neutral-100'}`}>
+            <div className={`mb-3 p-3 rounded-lg ${theme === 'dark' ? 'bg-[#21212A]' : 'bg-[#F2F4F6]'}`}>
               <div className="flex items-center justify-between mb-1">
                 <span className={`text-sm font-medium ${t.text}`}>카페/디저트</span>
                 <div className="flex items-center gap-2">
@@ -3293,7 +3297,7 @@ const LocationAnalysisModal = ({ data, onClose, onDetailAnalysis, generateAIFeed
                   </span>
                 </div>
               </div>
-              <div className={`w-full h-2 rounded-full overflow-hidden ${theme === 'dark' ? 'bg-neutral-600' : 'bg-neutral-200'}`}>
+              <div className={`w-full h-2 rounded-full overflow-hidden ${theme === 'dark' ? 'bg-neutral-600' : 'bg-[#E5E8EB]'}`}>
                 <div 
                   className={`h-full ${cafeCount > 50 ? 'bg-red-500' : cafeCount > 35 ? 'bg-orange-500' : cafeCount > 20 ? 'bg-yellow-500' : 'bg-green-500'}`}
                   style={{ width: `${Math.min(cafeCount / 60 * 100, 100)}%` }}
@@ -3320,23 +3324,23 @@ const LocationAnalysisModal = ({ data, onClose, onDetailAnalysis, generateAIFeed
           </div>
           
           {/* 상권 지표 */}
-          <div className={`border rounded-xl p-4 ${theme === 'dark' ? 'bg-neutral-900 border-neutral-700' : 'bg-white border-neutral-200'}`}>
+          <div className={`border rounded-xl p-4 ${theme === 'dark' ? 'bg-[#17171C] border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
             <h3 className={`text-sm font-bold mb-3 ${t.text}`}>상권 지표</h3>
             <div className="grid grid-cols-2 gap-3">
               {commercialMetrics?.avgMonthlySales && (
-                <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-800' : 'bg-neutral-100'}`}>
+                <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-[#21212A]' : 'bg-[#F2F4F6]'}`}>
                   <p className={`text-xs mb-1 ${t.textMuted}`}>월 평균 매출 (카페)</p>
                   <p className={`text-lg font-bold ${t.text}`}>{Math.round(commercialMetrics.avgMonthlySales / 10000).toLocaleString()}만원</p>
                 </div>
               )}
               {commercialMetrics?.floatingPop && (
-                <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-800' : 'bg-neutral-100'}`}>
+                <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-[#21212A]' : 'bg-[#F2F4F6]'}`}>
                   <p className={`text-xs mb-1 ${t.textMuted}`}>일 평균 유동인구</p>
                   <p className={`text-lg font-bold ${t.text}`}>{commercialMetrics.floatingPop.toLocaleString()}명</p>
                 </div>
               )}
               {commercialMetrics?.workerPop && (
-                <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-800' : 'bg-neutral-100'}`}>
+                <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-[#21212A]' : 'bg-[#F2F4F6]'}`}>
                   <p className={`text-xs mb-1 ${t.textMuted}`}>직장인구</p>
                   <p className={`text-lg font-bold ${t.text}`}>{commercialMetrics.workerPop.toLocaleString()}명</p>
                   {commercialMetrics.workerRatio && (
@@ -3345,7 +3349,7 @@ const LocationAnalysisModal = ({ data, onClose, onDetailAnalysis, generateAIFeed
                 </div>
               )}
               {commercialMetrics?.residentPop && (
-                <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-800' : 'bg-neutral-100'}`}>
+                <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-[#21212A]' : 'bg-[#F2F4F6]'}`}>
                   <p className={`text-xs mb-1 ${t.textMuted}`}>주거인구</p>
                   <p className={`text-lg font-bold ${t.text}`}>{commercialMetrics.residentPop.toLocaleString()}명</p>
                   {commercialMetrics.residentRatio && (
@@ -3358,7 +3362,7 @@ const LocationAnalysisModal = ({ data, onClose, onDetailAnalysis, generateAIFeed
           
           {/* 고객층 분석 - API 데이터가 있을 때만 표시 */}
           {customerData ? (
-          <div className={`border rounded-xl p-4 ${theme === 'dark' ? 'bg-neutral-900 border-neutral-700' : 'bg-white border-neutral-200'}`}>
+          <div className={`border rounded-xl p-4 ${theme === 'dark' ? 'bg-[#17171C] border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
             <div className="flex items-center justify-between mb-3">
               <h3 className={`text-sm font-bold ${t.text}`}>고객층 분석</h3>
               <span className={`text-xs px-2 py-0.5 rounded-full ${customerData?.isActualData ? 'bg-green-100 text-green-600' : 'bg-yellow-100 text-yellow-600'}`}>
@@ -3372,8 +3376,8 @@ const LocationAnalysisModal = ({ data, onClose, onDetailAnalysis, generateAIFeed
                 return (
                   <div key={age} className="flex items-center gap-2">
                     <span className={`text-sm w-16 ${t.textSecondary}`}>{age}</span>
-                    <div className={`flex-1 h-4 rounded-full overflow-hidden ${theme === 'dark' ? 'bg-neutral-700' : 'bg-neutral-200'}`}>
-                      <div className={`h-full ${theme === 'dark' ? 'bg-neutral-500' : 'bg-neutral-400'}`} style={{ width: `${value}%` }}></div>
+                    <div className={`flex-1 h-4 rounded-full overflow-hidden ${theme === 'dark' ? 'bg-[#2C2C35]' : 'bg-[#E5E8EB]'}`}>
+                      <div className={`h-full ${theme === 'dark' ? 'bg-[#F9FAFB]0' : 'bg-[#B0B8C1]'}`} style={{ width: `${value}%` }}></div>
                     </div>
                     <span className={`text-sm font-medium w-12 text-right ${t.text}`}>{value}%</span>
                   </div>
@@ -3388,14 +3392,14 @@ const LocationAnalysisModal = ({ data, onClose, onDetailAnalysis, generateAIFeed
             <p className={`text-xs mt-2 ${t.textMuted}`}>출처: {customerData?.source}</p>
           </div>
           ) : (
-          <div className={`border rounded-xl p-4 ${theme === 'dark' ? 'bg-neutral-900 border-neutral-700' : 'bg-white border-neutral-200'}`}>
+          <div className={`border rounded-xl p-4 ${theme === 'dark' ? 'bg-[#17171C] border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
             <h3 className={`text-sm font-bold mb-2 ${t.text}`}>고객층 분석</h3>
             <p className={`text-sm ${t.textMuted}`}>해당 지역의 고객층 데이터를 수집하지 못했습니다.</p>
           </div>
           )}
           
           {/* 개폐업 동향 */}
-          <div className={`border rounded-xl p-4 ${theme === 'dark' ? 'bg-neutral-900 border-neutral-700' : 'bg-white border-neutral-200'}`}>
+          <div className={`border rounded-xl p-4 ${theme === 'dark' ? 'bg-[#17171C] border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
             <h3 className={`text-sm font-bold mb-3 ${t.text}`}>개폐업 동향 ({openCloseData?.period || '최근 1년'})</h3>
             <div className="flex items-center justify-around">
               <div className="text-center">
@@ -3418,18 +3422,18 @@ const LocationAnalysisModal = ({ data, onClose, onDetailAnalysis, generateAIFeed
           
           {/* 임대료 정보 */}
           {rentData && (
-            <div className={`border rounded-xl p-4 ${theme === 'dark' ? 'bg-neutral-900 border-neutral-700' : 'bg-white border-neutral-200'}`}>
+            <div className={`border rounded-xl p-4 ${theme === 'dark' ? 'bg-[#17171C] border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
               <h3 className={`text-sm font-bold mb-3 ${t.text}`}>임대료 시세 ({rentData.regionName})</h3>
               <div className="grid grid-cols-3 gap-3">
-                <div className={`text-center p-2 rounded-lg ${theme === 'dark' ? 'bg-neutral-800' : 'bg-neutral-100'}`}>
+                <div className={`text-center p-2 rounded-lg ${theme === 'dark' ? 'bg-[#21212A]' : 'bg-[#F2F4F6]'}`}>
                   <p className={`text-xs mb-1 ${t.textMuted}`}>평균 임대료</p>
                   <p className={`text-lg font-bold ${t.text}`}>{rentData.avgRent}만/m2</p>
                 </div>
-                <div className={`text-center p-2 rounded-lg ${theme === 'dark' ? 'bg-neutral-800' : 'bg-neutral-100'}`}>
+                <div className={`text-center p-2 rounded-lg ${theme === 'dark' ? 'bg-[#21212A]' : 'bg-[#F2F4F6]'}`}>
                   <p className={`text-xs mb-1 ${t.textMuted}`}>공실률</p>
                   <p className={`text-lg font-bold ${t.text}`}>{rentData.vacancyRate}%</p>
                 </div>
-                <div className={`text-center p-2 rounded-lg ${theme === 'dark' ? 'bg-neutral-800' : 'bg-neutral-100'}`}>
+                <div className={`text-center p-2 rounded-lg ${theme === 'dark' ? 'bg-[#21212A]' : 'bg-[#F2F4F6]'}`}>
                   <p className={`text-xs mb-1 ${t.textMuted}`}>전년대비</p>
                   <p className={`text-lg font-bold ${rentData.yoyChange >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                     {rentData.yoyChange >= 0 ? '+' : ''}{rentData.yoyChange}%
@@ -3441,18 +3445,18 @@ const LocationAnalysisModal = ({ data, onClose, onDetailAnalysis, generateAIFeed
           )}
           
           {/* AI 피드백 */}
-          <div className={`border rounded-xl p-4 ${theme === 'dark' ? 'bg-neutral-900 border-neutral-700' : 'bg-white border-neutral-200'}`}>
+          <div className={`border rounded-xl p-4 ${theme === 'dark' ? 'bg-[#17171C] border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
             <h3 className={`text-sm font-bold mb-3 ${t.text}`}>AI 피드백</h3>
             
             {aiFeedbackLoading ? (
               <div className="flex items-center justify-center py-8">
-                <div className={`w-8 h-8 border-3 rounded-full animate-spin ${theme === 'dark' ? 'border-neutral-700 border-t-white' : 'border-neutral-200 border-t-neutral-800'}`}></div>
+                <div className={`w-8 h-8 border-3 rounded-full animate-spin ${theme === 'dark' ? 'border-white/[0.08] border-t-white' : 'border-[#E5E8EB] border-t-neutral-800'}`}></div>
                 <span className={`ml-3 ${t.textMuted}`}>분석 중...</span>
               </div>
             ) : aiFeedback ? (
               <div className="space-y-4">
                 {/* 요약 */}
-                <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-800' : 'bg-neutral-100'}`}>
+                <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-[#21212A]' : 'bg-[#F2F4F6]'}`}>
                   <p className={`text-sm ${t.text}`}>{aiFeedback.summary}</p>
                 </div>
                 
@@ -3471,7 +3475,7 @@ const LocationAnalysisModal = ({ data, onClose, onDetailAnalysis, generateAIFeed
                       {aiFeedback.overallRating === '추천' ? '[추천]' : aiFeedback.overallRating === '주의' ? '[주의 필요]' : '[비추천]'}
                     </span>
                   </div>
-                  <p className={`text-sm ${theme === 'dark' ? 'text-neutral-700' : 'text-neutral-700'}`}>{aiFeedback.ratingReason}</p>
+                  <p className={`text-sm ${theme === 'dark' ? 'text-[#4E5968]' : 'text-[#4E5968]'}`}>{aiFeedback.ratingReason}</p>
                 </div>
                 
                 {/* 추천 컨셉 */}
@@ -3496,7 +3500,7 @@ const LocationAnalysisModal = ({ data, onClose, onDetailAnalysis, generateAIFeed
                     <p className={`text-xs mb-1 ${t.textMuted}`}>핵심 메뉴 구성</p>
                     <div className="flex flex-wrap gap-1">
                       {aiFeedback.coreMenu.map((menu, i) => (
-                        <span key={i} className={`text-xs px-2 py-1 rounded-full ${theme === 'dark' ? 'bg-neutral-700 text-white' : 'bg-neutral-200 text-neutral-700'}`}>{menu}</span>
+                        <span key={i} className={`text-xs px-2 py-1 rounded-full ${theme === 'dark' ? 'bg-[#2C2C35] text-white' : 'bg-[#E5E8EB] text-[#4E5968]'}`}>{menu}</span>
                       ))}
                     </div>
                   </div>
@@ -3532,7 +3536,7 @@ const LocationAnalysisModal = ({ data, onClose, onDetailAnalysis, generateAIFeed
                     <p className={`text-xs mb-2 ${t.textMuted}`}>주변 업종 기반 추천 전략</p>
                     <div className="space-y-2">
                       {aiFeedback.topBusinessAnalysis.map((item, i) => (
-                        <div key={i} className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-800' : 'bg-neutral-100'}`}>
+                        <div key={i} className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-[#21212A]' : 'bg-[#F2F4F6]'}`}>
                           <div className="flex items-center justify-between mb-1">
                             <span className={`text-sm font-medium ${t.text}`}>{item.business} {item.count}개</span>
                           </div>
@@ -3568,10 +3572,10 @@ const LocationAnalysisModal = ({ data, onClose, onDetailAnalysis, generateAIFeed
         </div>
         
         {/* 하단 버튼 */}
-        <div className={`p-4 border-t ${theme === 'dark' ? 'border-neutral-700 bg-neutral-800' : 'border-neutral-200 bg-white'}`}>
+        <div className={`p-4 border-t ${theme === 'dark' ? 'border-white/[0.08] bg-[#21212A]' : 'border-[#E5E8EB] bg-white'}`}>
           <button
             onClick={() => onDetailAnalysis(location)}
-            className={`w-full py-3 rounded-xl font-medium transition-all ${theme === 'dark' ? 'bg-white text-neutral-900 hover:bg-neutral-100' : 'bg-neutral-900 text-white hover:bg-neutral-800'}`}
+            className={`w-full py-3 rounded-xl font-medium transition-all ${theme === 'dark' ? 'bg-white text-[#191F28] hover:bg-[#F2F4F6]' : 'bg-[#191F28] text-white hover:bg-[#21212A]'}`}
           >
             이 위치로 상세 분석
           </button>
@@ -3596,7 +3600,7 @@ const LocationAnalysisModal = ({ data, onClose, onDetailAnalysis, generateAIFeed
          React.createElement('p', { style: { fontSize: 14, color: '#888', marginBottom: 20 } }, String(this.state.error?.message || '')),
          React.createElement('button', { 
            onClick: () => { this.setState({ hasError: false, error: null }); window.location.reload(); },
-           style: { padding: '12px 24px', borderRadius: 12, background: '#3182F6', color: '#fff', border: 'none', fontSize: 15, cursor: 'pointer' }
+           style: { padding: '12px 24px', borderRadius: 14, background: '#3182F6', color: '#fff', border: 'none', fontSize: 15, cursor: 'pointer' }
          }, '다시 시도')
        );
      }
@@ -7858,10 +7862,10 @@ ${crossData.dynPopForTime || '유동인구 데이터 수집됨'}${crossData.dynA
  const btn = buttonRef.current;
  const original = btn.innerText;
  btn.innerText = '';
- btn.classList.add('text-neutral-700');
+ btn.classList.add('text-[#4E5968]');
  setTimeout(() => {
  btn.innerText = original;
- btn.classList.remove('text-neutral-700');
+ btn.classList.remove('text-[#4E5968]');
  }, 1500);
  }
  };
@@ -13470,7 +13474,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
    };
    
    return (
-     <div className={`min-h-screen flex items-center justify-center p-4 overflow-hidden ${theme === 'dark' ? 'bg-neutral-900' : 'bg-gradient-to-br from-neutral-50 via-neutral-100 to-neutral-200'}`}>
+     <div className={`min-h-screen flex items-center justify-center p-4 overflow-hidden ${theme === 'dark' ? 'bg-[#191F28]' : 'bg-gradient-to-br from-neutral-50 via-neutral-100 to-neutral-200'}`}>
        <div className="w-full max-w-md relative" style={{minHeight: '500px'}}>
          
          {/* 명언 - quote일 때만 보임 */}
@@ -13483,7 +13487,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
              pointerEvents: loginPhase === 'quote' ? 'auto' : 'none'
            }}
          >
-           <p className={`text-sm sm:text-base font-normal leading-relaxed max-w-xs sm:max-w-sm mx-auto text-center ${theme === 'dark' ? 'text-neutral-300' : 'text-neutral-700'}`} style={{wordBreak: 'keep-all'}}>"{loginQuote}"</p>
+           <p className={`text-sm sm:text-base font-normal leading-relaxed max-w-xs sm:max-w-sm mx-auto text-center ${theme === 'dark' ? 'text-[#8C8C96]' : 'text-[#4E5968]'}`} style={{wordBreak: 'keep-all'}}>"{loginQuote}"</p>
          </div>
          
          {/* 로고만 - logo일 때 보임 */}
@@ -13498,7 +13502,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
          >
            <div className="text-center">
              <img src="/logo.png" alt="BEANCRAFT" className="w-72 h-72 sm:w-96 sm:h-96 mx-auto mb-4 object-contain" />
-             <p className={`text-lg sm:text-xl tracking-widest font-semibold ${theme === 'dark' ? 'text-white' : 'text-neutral-900'}`}>빈크래프트 영업관리</p>
+             <p className={`text-lg sm:text-xl tracking-widest font-semibold ${theme === 'dark' ? 'text-white' : 'text-[#191F28]'}`}>빈크래프트 영업관리</p>
            </div>
          </div>
          
@@ -13514,19 +13518,19 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
          >
            <div className="text-center mb-6">
              <img src="/logo.png" alt="BEANCRAFT" className="w-56 h-56 sm:w-72 sm:h-72 mx-auto mb-3 object-contain" />
-             <p className={`text-base sm:text-lg tracking-widest font-semibold ${theme === 'dark' ? 'text-white' : 'text-neutral-900'}`}>빈크래프트 영업관리</p>
+             <p className={`text-base sm:text-lg tracking-widest font-semibold ${theme === 'dark' ? 'text-white' : 'text-[#191F28]'}`}>빈크래프트 영업관리</p>
            </div>
            <div className="text-center mb-5 px-4">
-             <p className={`text-xs sm:text-sm font-normal leading-relaxed max-w-xs sm:max-w-sm mx-auto ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-600'}`} style={{wordBreak: 'keep-all'}}>"{loginQuote}"</p>
+             <p className={`text-xs sm:text-sm font-normal leading-relaxed max-w-xs sm:max-w-sm mx-auto ${theme === 'dark' ? 'text-[#B0B8C1]' : 'text-[#6B7684]'}`} style={{wordBreak: 'keep-all'}}>"{loginQuote}"</p>
            </div>
            <div className={`rounded-2xl p-4 sm:p-6 shadow-xl backdrop-blur-xl ${theme === 'dark' ? 'bg-white/10 border border-white/20' : 'bg-white/80 border border-white/50'}`}>
-             <input type="text" placeholder="아이디" value={id} onChange={e => setId(e.target.value)} className={`w-full p-2.5 sm:p-3 rounded-xl mb-2 sm:mb-3 outline-none focus:ring-2 text-sm font-medium transition-all ${theme === 'dark' ? 'bg-white/10 text-white placeholder-neutral-400 focus:ring-white/30 border border-white/10' : 'bg-white text-neutral-900 placeholder-neutral-400 focus:ring-neutral-300 border border-neutral-200'}`} />
-             <input type="password" placeholder="비밀번호" value={pw} onChange={e => setPw(e.target.value)} onKeyPress={e => e.key === 'Enter' && login()} className={`w-full p-2.5 sm:p-3 rounded-xl mb-2 sm:mb-3 outline-none focus:ring-2 text-sm font-medium transition-all ${theme === 'dark' ? 'bg-white/10 text-white placeholder-neutral-400 focus:ring-white/30 border border-white/10' : 'bg-white text-neutral-900 placeholder-neutral-400 focus:ring-neutral-300 border border-neutral-200'}`} />
-             <label className={`flex items-center gap-2 text-sm mb-4 cursor-pointer ${theme === 'dark' ? 'text-neutral-300' : 'text-neutral-700'}`}>
+             <input type="text" placeholder="아이디" value={id} onChange={e => setId(e.target.value)} className={`w-full p-2.5 sm:p-3 rounded-xl mb-2 sm:mb-3 outline-none focus:ring-2 text-sm font-medium transition-all ${theme === 'dark' ? 'bg-white/10 text-white placeholder-[#B0B8C1] focus:ring-white/30 border border-white/10' : 'bg-white text-[#191F28] placeholder-[#B0B8C1] focus:ring-neutral-300 border border-[#E5E8EB]'}`} />
+             <input type="password" placeholder="비밀번호" value={pw} onChange={e => setPw(e.target.value)} onKeyPress={e => e.key === 'Enter' && login()} className={`w-full p-2.5 sm:p-3 rounded-xl mb-2 sm:mb-3 outline-none focus:ring-2 text-sm font-medium transition-all ${theme === 'dark' ? 'bg-white/10 text-white placeholder-[#B0B8C1] focus:ring-white/30 border border-white/10' : 'bg-white text-[#191F28] placeholder-[#B0B8C1] focus:ring-neutral-300 border border-[#E5E8EB]'}`} />
+             <label className={`flex items-center gap-2 text-sm mb-4 cursor-pointer ${theme === 'dark' ? 'text-[#8C8C96]' : 'text-[#4E5968]'}`}>
                <input type="checkbox" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)} className="w-4 h-4 rounded accent-neutral-700" />
                로그인 상태 유지
              </label>
-             <button type="button" onClick={login} className={`w-full p-3 rounded-xl font-semibold transition-all text-sm ${theme === 'dark' ? 'bg-white text-neutral-900 hover:bg-neutral-100' : 'bg-neutral-900 text-white hover:bg-neutral-800'}`}>로그인</button>
+             <button type="button" onClick={login} className={`w-full p-3 rounded-xl font-semibold transition-all text-sm ${theme === 'dark' ? 'bg-white text-[#191F28] hover:bg-[#F2F4F6]' : 'bg-[#191F28] text-white hover:bg-[#21212A]'}`}>로그인</button>
            </div>
          </div>
          
@@ -13567,14 +13571,14 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
            <div className="w-full max-w-sm space-y-2">
              <button
                onClick={() => { setSalesModeTarget('broker'); setSalesModeScreen('main'); }}
-               className={`w-full py-6 rounded-2xl border-2 transition-all ${theme === 'dark' ? 'border-neutral-700 hover:border-white hover:bg-neutral-800' : 'border-neutral-200 hover:border-neutral-400 hover:bg-neutral-50'}`}
+               className={`w-full py-6 rounded-2xl border-2 transition-all ${theme === 'dark' ? 'border-white/[0.08] hover:border-white hover:bg-[#21212A]' : 'border-[#E5E8EB] hover:border-[#8B95A1] hover:bg-[#F9FAFB]'}`}
              >
                <span className={`text-xl font-bold ${t.text}`}>중개사</span>
                <p className={`text-sm mt-1 ${t.textSecondary}`}>부동산 중개사 미팅용</p>
              </button>
              <button
                onClick={() => { setSalesModeTarget('client'); setSalesModeScreen('main'); }}
-               className={`w-full py-6 rounded-2xl border-2 transition-all ${theme === 'dark' ? 'border-neutral-700 hover:border-white hover:bg-neutral-800' : 'border-neutral-200 hover:border-neutral-400 hover:bg-neutral-50'}`}
+               className={`w-full py-6 rounded-2xl border-2 transition-all ${theme === 'dark' ? 'border-white/[0.08] hover:border-white hover:bg-[#21212A]' : 'border-[#E5E8EB] hover:border-[#8B95A1] hover:bg-[#F9FAFB]'}`}
              >
                <span className={`text-xl font-bold ${t.text}`}>의뢰인</span>
                <p className={`text-sm mt-1 ${t.textSecondary}`}>카페 창업 의뢰인용</p>
@@ -13597,7 +13601,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
          >
            <img src="/logo.png" alt="BEANCRAFT" className="w-40 h-40 object-contain mb-8 opacity-80" onError={(e) => { e.target.style.display = 'none'; }} />
            <p className={`text-sm mb-4 ${t.textMuted}`}>화면을 터치하여 잠금 해제</p>
-           <div className={`w-48 h-1 rounded-full overflow-hidden ${theme === 'dark' ? 'bg-white/20' : 'bg-neutral-300'}`}>
+           <div className={`w-48 h-1 rounded-full overflow-hidden ${theme === 'dark' ? 'bg-white/20' : 'bg-[#D1D6DB]'}`}>
              <div className={`h-full w-1/3 animate-pulse ${theme === 'dark' ? 'bg-white/60' : 'bg-neutral-600'}`}></div>
            </div>
          </div>
@@ -13612,7 +13616,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
              {[0, 1, 2, 3].map(i => (
                <div
                  key={i}
-                 className={`w-4 h-4 rounded-full transition-all ${salesModePinInput.length > i ? (theme === 'dark' ? 'bg-white' : 'bg-neutral-900') : (theme === 'dark' ? 'bg-neutral-700' : 'bg-neutral-300')}`}
+                 className={`w-4 h-4 rounded-full transition-all ${salesModePinInput.length > i ? (theme === 'dark' ? 'bg-white' : 'bg-[#191F28]') : (theme === 'dark' ? 'bg-[#2C2C35]' : 'bg-[#D1D6DB]')}`}
                />
              ))}
            </div>
@@ -13627,8 +13631,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                  disabled={digit === ''}
                  className={`w-16 h-16 rounded-full text-2xl font-bold transition-all ${
                    digit === '' ? 'invisible' :
-                   digit === 'del' ? 'text-gray-300 hover:bg-neutral-800' :
-                   'bg-neutral-800 hover:bg-neutral-700 text-white'
+                   digit === 'del' ? 'text-[#8C8C96] hover:bg-[#21212A]' :
+                   'bg-[#21212A] hover:bg-[#2C2C35] text-white'
                  }`}
                >
                  {digit === 'del' ? '⌫' : digit}
@@ -13648,10 +13652,10 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        {salesModeScreen === 'main' && (
          <div className="min-h-screen flex flex-col">
            {/* 상단 헤더 - 로고 + 타겟 배지 */}
-           <div className={`px-4 py-3 flex justify-between items-center sticky top-0 z-50 backdrop-blur-xl border-b ${theme === 'dark' ? 'bg-neutral-900/95 border-neutral-800' : 'bg-white/95 border-neutral-200'}`}>
+           <div className={`px-4 py-3 flex justify-between items-center sticky top-0 z-50 backdrop-blur-xl border-b ${theme === 'dark' ? 'bg-[#17171C]/95 border-white/[0.06]' : 'bg-white/95 border-[#E5E8EB]'}`}>
              <button
                onClick={exitSalesMode}
-               className={`px-3 py-1.5 text-sm font-medium rounded-lg border transition-all ${theme === 'dark' ? 'text-gray-300 hover:text-white border-neutral-700 hover:bg-neutral-800' : 'text-neutral-600 hover:text-neutral-900 border-neutral-300 hover:bg-neutral-100'}`}
+               className={`px-3 py-1.5 text-sm font-medium rounded-xl border transition-all ${theme === 'dark' ? 'text-[#8C8C96] hover:text-[#ECECEF] border-white/[0.08] hover:bg-[#2C2C35]' : 'text-[#6B7684] hover:text-[#191F28] border-[#E5E8EB] hover:bg-[#F2F4F6]'}`}
              >
                관리자
              </button>
@@ -13668,23 +13672,23 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
            </div>
 
            {/* 탭 네비게이션 */}
-           <div className={`flex border-b ${theme === 'dark' ? 'bg-neutral-900 border-neutral-700' : 'bg-white border-neutral-200'}`}>
+           <div className={`flex border-b ${theme === 'dark' ? 'bg-[#17171C] border-white/[0.06]' : 'bg-white border-[#E5E8EB]'}`}>
              <button
                onClick={() => { setSalesModeTab('analysis'); updateSalesModeActivity(); }}
-               className={`flex-1 py-4 text-center font-bold transition-all ${
-                 salesModeTab === 'analysis' 
-                   ? 'text-white border-b-2 border-white bg-neutral-800' 
-                   : 'text-gray-400 hover:text-white hover:bg-neutral-800/50'
+               className={`flex-1 py-3.5 text-center font-bold text-[15px] transition-all ${
+                 salesModeTab === 'analysis'
+                   ? (theme === 'dark' ? 'text-[#ECECEF] border-b-2 border-[#3182F6]' : 'text-[#191F28] border-b-2 border-[#3182F6]')
+                   : (theme === 'dark' ? 'text-[#56565F] hover:text-[#8C8C96]' : 'text-[#B0B8C1] hover:text-[#6B7684]')
                }`}
              >
                분석
              </button>
              <button
                onClick={() => { setSalesModeTab('homepage'); updateSalesModeActivity(); }}
-               className={`flex-1 py-4 text-center font-bold transition-all ${
-                 salesModeTab === 'homepage' 
-                   ? 'text-white border-b-2 border-white bg-neutral-800' 
-                   : 'text-gray-400 hover:text-white hover:bg-neutral-800/50'
+               className={`flex-1 py-3.5 text-center font-bold text-[15px] transition-all ${
+                 salesModeTab === 'homepage'
+                   ? (theme === 'dark' ? 'text-[#ECECEF] border-b-2 border-[#3182F6]' : 'text-[#191F28] border-b-2 border-[#3182F6]')
+                   : (theme === 'dark' ? 'text-[#56565F] hover:text-[#8C8C96]' : 'text-[#B0B8C1] hover:text-[#6B7684]')
                }`}
              >
                홈페이지
@@ -13692,7 +13696,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
            </div>
 
            {/* 탭 콘텐츠 */}
-           <div className={`flex-1 overflow-y-auto ${theme === 'dark' ? 'bg-neutral-900' : 'bg-neutral-50'}`}>
+           <div className={`flex-1 overflow-y-auto ${theme === 'dark' ? 'bg-[#17171C]' : 'bg-[#F9FAFB]'}`}>
              {/* 분석 탭 */}
              {salesModeTab === 'analysis' && (
                <div className="p-4 space-y-2">
@@ -13711,12 +13715,13 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                      }}
                      onFocus={() => { if (salesModeSearchQuery.length >= 1) setSalesAutoCompleteOpen(true); }}
                      placeholder="지역을 검색하세요 (예: 강남역, 판교)"
-                     className={`w-full px-4 py-3 rounded-xl border focus:outline-none transition-all ${theme === 'dark' ? 'border-neutral-700 bg-neutral-800 focus:border-white text-white placeholder-gray-500' : 'border-neutral-200 bg-white focus:border-neutral-400 text-neutral-900 placeholder-neutral-400'}`}
+                     className={`w-full px-4 py-3.5 rounded-2xl border-[1.5px] focus:outline-none transition-all text-[15px] ${theme === 'dark' ? 'border-white/[0.08] bg-[#2C2C35] focus:border-[#3182F6] text-[#ECECEF] placeholder-[#56565F]' : 'border-[#E5E8EB] bg-white focus:border-[#3182F6] text-[#191F28] placeholder-[#B0B8C1]'}`}
+                     style={{ boxShadow: 'none' }}
                    />
                    <button
                      onClick={() => { setSalesAutoCompleteOpen(false); searchSalesModeRegion(salesModeSearchQuery); }}
                      disabled={salesModeSearchLoading}
-                     className={`absolute right-2 top-1/2 -translate-y-1/2 px-5 py-2.5 rounded-xl text-sm font-bold disabled:opacity-50 transition-all ${theme === 'dark' ? 'bg-white text-black hover:bg-gray-100' : 'bg-neutral-900 text-white hover:bg-neutral-800'}`}
+                     className={`absolute right-2 top-1/2 -translate-y-1/2 px-5 py-2.5 rounded-xl text-sm font-bold disabled:opacity-50 transition-all bg-[#3182F6] text-white hover:bg-[#2272EB]`}
                    >
                      {salesModeSearchLoading ? '분석중...' : '검색'}
                    </button>
@@ -13737,21 +13742,22 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                      return (
                        <div style={{
                          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
-                         marginTop: 4, borderRadius: 12, overflow: 'hidden',
-                         background: theme === 'dark' ? '#2B2B2B' : '#FFF',
-                         border: `1px solid ${theme === 'dark' ? '#444' : '#E5E5E5'}`,
-                         boxShadow: '0 8px 32px rgba(0,0,0,0.15)'
+                         marginTop: 4, borderRadius: 14, overflow: 'hidden',
+                         background: theme === 'dark' ? '#21212A' : '#FFF',
+                         border: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.08)' : '#E5E8EB'}`,
+                         boxShadow: '0 8px 28px rgba(0,0,0,0.12)'
                        }}>
                          {filtered.map((spot, i) => (
                            <div key={i}
                              onClick={() => { setSalesModeSearchQuery(spot); setSalesAutoCompleteOpen(false); searchSalesModeRegion(spot); }}
                              style={{
                                padding: '10px 16px', cursor: 'pointer', fontSize: 14,
-                               color: theme === 'dark' ? '#DDD' : '#333',
-                               borderBottom: i < filtered.length - 1 ? `1px solid ${theme === 'dark' ? '#333' : '#F0F0F0'}` : 'none',
+                               color: theme === 'dark' ? '#ECECEF' : '#191F28',
+                               borderBottom: i < filtered.length - 1 ? `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.06)' : '#F2F4F6'}` : 'none',
                                display: 'flex', alignItems: 'center', gap: 8,
+                               transition: 'background 0.15s ease',
                              }}
-                             onMouseOver={(e) => e.currentTarget.style.background = theme === 'dark' ? '#333' : '#F7F7F7'}
+                             onMouseOver={(e) => e.currentTarget.style.background = theme === 'dark' ? '#2C2C35' : '#F2F4F6'}
                              onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
                            >
                              <span style={{ color: theme === 'dark' ? '#888' : '#BBB', fontSize: 12 }}>📍</span>
@@ -13774,7 +13780,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                    className={`w-full py-3 rounded-xl border text-sm font-medium transition-all ${
                      locationSelectMode 
                        ? 'border-white bg-white text-black' 
-                       : 'border-neutral-700 bg-neutral-800 text-gray-300 hover:bg-neutral-700'
+                       : 'border-white/[0.08] bg-[#21212A] text-[#8C8C96] hover:bg-[#2C2C35]'
                    }`}
                  >
                    {locationSelectMode ? '지도를 탭하여 위치를 선택하세요' : '지도에서 직접 위치 선택 (반경 500m 분석)'}
@@ -13783,7 +13789,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                  {/* 지역 선택 모드 안내 */}
                  {locationSelectMode && (
                    <div className="space-y-3">
-                     <div className={`p-3 ${theme === 'dark' ? 'bg-neutral-800' : 'bg-neutral-100'} rounded-xl`}>
+                     <div className={`p-3 ${theme === 'dark' ? 'bg-[#21212A]' : 'bg-[#F2F4F6]'} rounded-xl`}>
                        <p className={`text-sm text-center ${t.textSecondary}`}>지도를 탭하면 해당 위치의 반경 500m 업종 분석을 시작합니다</p>
                        <button
                          onClick={exitLocationSelectMode}
@@ -13795,7 +13801,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                      {/* 위치 선택용 지도 */}
                      <div 
                        ref={salesModeSelectMapContainerRef}
-                       className={`h-[60vh] ${theme === 'dark' ? 'bg-neutral-700' : 'bg-neutral-200'} rounded-xl overflow-hidden`}
+                       className={`h-[60vh] ${theme === 'dark' ? 'bg-[#2C2C35]' : 'bg-[#E5E8EB]'} rounded-xl overflow-hidden`}
                        style={{ minHeight: '400px' }}
                      />
                    </div>
@@ -13804,9 +13810,9 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                  {/* 검색 결과 - 토스 스타일 */}
                  {/* 중복 지역 선택 드롭다운 */}
                 {showDuplicateSelector && duplicateRegionOptions.length > 0 && (
-                  <div className={`mt-3 rounded-xl overflow-hidden border ${theme === 'dark' ? 'border-neutral-700 bg-neutral-800' : 'border-neutral-200 bg-white'}`}>
-                    <div className={`px-4 py-2.5 ${theme === 'dark' ? 'bg-neutral-750' : 'bg-neutral-50'}`}>
-                      <p className={`text-xs font-semibold ${theme === 'dark' ? 'text-neutral-300' : 'text-neutral-600'}`}>
+                  <div className={`mt-3 rounded-xl overflow-hidden border ${theme === 'dark' ? 'border-white/[0.08] bg-[#21212A]' : 'border-[#E5E8EB] bg-white'}`}>
+                    <div className={`px-4 py-2.5 ${theme === 'dark' ? 'bg-neutral-750' : 'bg-[#F9FAFB]'}`}>
+                      <p className={`text-xs font-semibold ${theme === 'dark' ? 'text-[#8C8C96]' : 'text-[#6B7684]'}`}>
                         같은 이름의 지역이 있어요. 분석할 지역을 선택해주세요.
                       </p>
                     </div>
@@ -13821,15 +13827,15 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                         }}
                         className={`w-full text-left px-4 py-3 flex items-center justify-between transition-all ${
                           theme === 'dark' 
-                            ? 'hover:bg-neutral-700 border-t border-neutral-700' 
-                            : 'hover:bg-neutral-50 border-t border-neutral-100'
+                            ? 'hover:bg-[#2C2C35] border-t border-white/[0.08]' 
+                            : 'hover:bg-[#F9FAFB] border-t border-[#F2F4F6]'
                         }`}
                       >
                         <div>
-                          <p className={`text-sm font-semibold ${theme === 'dark' ? 'text-white' : 'text-neutral-900'}`}>{opt.label}</p>
-                          <p className={`text-xs mt-0.5 ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>{opt.description}</p>
+                          <p className={`text-sm font-semibold ${theme === 'dark' ? 'text-white' : 'text-[#191F28]'}`}>{opt.label}</p>
+                          <p className={`text-xs mt-0.5 ${theme === 'dark' ? 'text-[#B0B8C1]' : 'text-[#56565F]'}`}>{opt.description}</p>
                         </div>
-                        <svg className={`w-4 h-4 ${theme === 'dark' ? 'text-neutral-500' : 'text-neutral-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                        <svg className={`w-4 h-4 ${theme === 'dark' ? 'text-[#56565F]' : 'text-[#B0B8C1]'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                       </button>
                     ))}
                   </div>
@@ -13927,41 +13933,41 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
              {salesModeTab === 'homepage' && (
                <div className="h-[calc(100vh-120px)] flex flex-col">
                  {/* 카테고리 메뉴 */}
-                 <div className={`p-3 border-b ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-gray-100'}`}>
+                 <div className={`p-3 border-b ${theme === 'dark' ? 'bg-[#21212A] border-white/[0.08]' : 'bg-white border-gray-100'}`}>
                    <div className="flex gap-2 overflow-x-auto">
                      <button 
                        onClick={() => setSalesModeHomepageUrl('https://www.beancraft.co.kr')}
-                       className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium ${salesModeHomepageUrl === 'https://www.beancraft.co.kr' ? 'bg-neutral-900 text-white' : 'bg-gray-100 text-gray-300 hover:bg-gray-200'}`}
+                       className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium ${salesModeHomepageUrl === 'https://www.beancraft.co.kr' ? 'bg-[#191F28] text-white' : 'bg-[#F2F4F6] text-[#8C8C96] hover:bg-[#E5E8EB]'}`}
                      >
                        홈
                      </button>
                      <button 
                        onClick={() => setSalesModeHomepageUrl('https://www.beancraft.co.kr/%EC%B0%BD%EC%97%85%EC%95%88%EB%82%B4')}
-                       className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium ${salesModeHomepageUrl?.includes('창업안내') ? 'bg-neutral-900 text-white' : 'bg-gray-100 text-gray-300 hover:bg-gray-200'}`}
+                       className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium ${salesModeHomepageUrl?.includes('창업안내') ? 'bg-[#191F28] text-white' : 'bg-[#F2F4F6] text-[#8C8C96] hover:bg-[#E5E8EB]'}`}
                      >
                        창업안내
                      </button>
                      <button 
                        onClick={() => setSalesModeHomepageUrl('https://www.beancraft.co.kr/%EC%9D%B8%ED%85%8C%EB%A6%AC%EC%96%B4')}
-                       className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium ${salesModeHomepageUrl?.includes('인테리어') ? 'bg-neutral-900 text-white' : 'bg-gray-100 text-gray-300 hover:bg-gray-200'}`}
+                       className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium ${salesModeHomepageUrl?.includes('인테리어') ? 'bg-[#191F28] text-white' : 'bg-[#F2F4F6] text-[#8C8C96] hover:bg-[#E5E8EB]'}`}
                      >
                        인테리어
                      </button>
                      <button 
                        onClick={() => setSalesModeHomepageUrl('https://www.beancraft.co.kr/%EA%B8%B0%EA%B8%B0%EC%84%A4%EC%B9%98')}
-                       className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium ${salesModeHomepageUrl?.includes('기기설치') ? 'bg-neutral-900 text-white' : 'bg-gray-100 text-gray-300 hover:bg-gray-200'}`}
+                       className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium ${salesModeHomepageUrl?.includes('기기설치') ? 'bg-[#191F28] text-white' : 'bg-[#F2F4F6] text-[#8C8C96] hover:bg-[#E5E8EB]'}`}
                      >
                        기기설치
                      </button>
                      <button 
                        onClick={() => setSalesModeHomepageUrl('https://www.beancraft.co.kr/%EB%A9%94%EB%89%B4%EA%B0%9C%EB%B0%9C')}
-                       className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium ${salesModeHomepageUrl?.includes('메뉴개발') ? 'bg-neutral-900 text-white' : 'bg-gray-100 text-gray-300 hover:bg-gray-200'}`}
+                       className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium ${salesModeHomepageUrl?.includes('메뉴개발') ? 'bg-[#191F28] text-white' : 'bg-[#F2F4F6] text-[#8C8C96] hover:bg-[#E5E8EB]'}`}
                      >
                        메뉴개발
                      </button>
                      <button 
                        onClick={() => setSalesModeHomepageUrl('https://www.beancraft.co.kr/%EC%9A%B4%EC%98%81%EA%B5%90%EC%9C%A1')}
-                       className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium ${salesModeHomepageUrl?.includes('운영교육') ? 'bg-neutral-900 text-white' : 'bg-gray-100 text-gray-300 hover:bg-gray-200'}`}
+                       className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium ${salesModeHomepageUrl?.includes('운영교육') ? 'bg-[#191F28] text-white' : 'bg-[#F2F4F6] text-[#8C8C96] hover:bg-[#E5E8EB]'}`}
                      >
                        운영교육
                      </button>
@@ -13969,7 +13975,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                  </div>
                  
                  {/* iframe으로 홈페이지 직접 표시 */}
-                 <div className={`flex-1 relative ${theme === 'dark' ? 'bg-neutral-900' : 'bg-white'}`}>
+                 <div className={`flex-1 relative ${theme === 'dark' ? 'bg-[#191F28]' : 'bg-white'}`}>
                    <iframe
                      src={salesModeHomepageUrl || 'https://www.beancraft.co.kr'}
                      className="w-full h-full border-0"
@@ -13982,10 +13988,10 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
            </div>
 
            {/* 하단 종료 버튼 */}
-           <div className={`border-t p-4 sticky bottom-0 ${theme === 'dark' ? 'bg-neutral-900 border-neutral-800' : 'bg-white border-neutral-200'}`}>
+           <div className={`border-t p-4 sticky bottom-0 ${theme === 'dark' ? 'bg-[#191F28] border-white/[0.06]' : 'bg-white border-[#E5E8EB]'}`}>
              <button
                onClick={() => setSalesModeScreen('locked')}
-               className={`w-full py-3 rounded-xl font-medium transition-all ${theme === 'dark' ? 'bg-neutral-800 text-gray-300 hover:bg-neutral-700' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'}`}
+               className={`w-full py-3 rounded-xl font-medium transition-all ${theme === 'dark' ? 'bg-[#21212A] text-[#8C8C96] hover:bg-[#2C2C35]' : 'bg-[#F2F4F6] text-[#6B7684] hover:bg-[#E5E8EB]'}`}
              >
                화면 잠금
              </button>
@@ -14014,8 +14020,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        {/* 지역 선택 로딩 오버레이 */}
        {locationAnalysisLoading && (
          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-           <div className={`rounded-2xl p-8 flex flex-col items-center ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur' : 'bg-white'}`}>
-             <div className={`w-12 h-12 border-4 rounded-full animate-spin mb-4 ${theme === 'dark' ? 'border-neutral-600 border-t-white' : 'border-neutral-200 border-t-neutral-800'}`}></div>
+           <div className={`rounded-2xl p-8 flex flex-col items-center ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur' : 'bg-white'}`}>
+             <div className={`w-12 h-12 border-4 rounded-full animate-spin mb-4 ${theme === 'dark' ? 'border-neutral-600 border-t-white' : 'border-[#E5E8EB] border-t-neutral-800'}`}></div>
              <p className={`font-medium ${t.text}`}>반경 500m 분석 중</p>
              <p className={`text-sm mt-1 ${t.textMuted}`}>데이터를 수집하고 있습니다</p>
            </div>
@@ -14031,38 +14037,38 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  return (
  <div className={`flex h-screen ${t.bgGradient}`}>
  {/* 좌측 사이드바 (PC 전용) - Store OS 스타일 */}
- <aside className={`hidden md:flex w-56 flex-col relative z-10 ${theme === 'dark' ? 'bg-neutral-900/95 backdrop-blur-xl' : 'bg-white/90 backdrop-blur-xl border-r border-neutral-200'}`}>
- <div className={`p-5 border-b ${theme === 'dark' ? 'border-neutral-800' : 'border-neutral-200'}`}>
+ <aside className={`hidden md:flex w-56 flex-col relative z-10 ${theme === 'dark' ? 'bg-[#191F28]/95 backdrop-blur-xl' : 'bg-white/90 backdrop-blur-xl border-r border-[#E5E8EB]'}`}>
+ <div className={`p-5 border-b ${theme === 'dark' ? 'border-white/[0.06]' : 'border-[#E5E8EB]'}`}>
  <img src="/logo.png" alt="BEANCRAFT" className="h-12 w-auto object-contain" onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'block'; }} />
- <h1 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-neutral-900'}`} style={{display: 'none'}}>BEANCRAFT</h1>
- <p className={`text-xs mt-0.5 ${theme === 'dark' ? 'text-neutral-500' : 'text-neutral-400'}`}>영업관리</p>
+ <h1 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-[#191F28]'}`} style={{display: 'none'}}>BEANCRAFT</h1>
+ <p className={`text-xs mt-0.5 ${theme === 'dark' ? 'text-[#56565F]' : 'text-[#B0B8C1]'}`}>영업관리</p>
  </div>
  <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
  {tabs.map(tabItem => (
  <button 
  key={tabItem.key} 
  onClick={() => navigateToTab(tabItem.key)} 
- className={`w-full flex items-center justify-between px-3 py-2.5 text-left text-sm font-medium rounded-lg transition-all ${tab === tabItem.key ? (theme === 'dark' ? 'bg-white/12 text-white' : 'bg-neutral-900 text-white') : (theme === 'dark' ? 'text-neutral-400 hover:bg-white/8 hover:text-neutral-200' : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900')}`}
+ className={`w-full flex items-center justify-between px-3 py-2.5 text-left text-sm font-medium rounded-lg transition-all ${tab === tabItem.key ? (theme === 'dark' ? 'bg-white/12 text-white' : 'bg-[#191F28] text-white') : (theme === 'dark' ? 'text-[#B0B8C1] hover:bg-white/8 hover:text-[#ECECEF]' : 'text-[#6B7684] hover:bg-[#F2F4F6] hover:text-[#191F28]')}`}
  >
  <span>{tabItem.label}</span>
  </button>
  ))}
  </nav>
- <div className={`p-4 border-t ${theme === 'dark' ? 'border-neutral-800' : 'border-neutral-200'}`}>
+ <div className={`p-4 border-t ${theme === 'dark' ? 'border-white/[0.06]' : 'border-[#E5E8EB]'}`}>
  <div className="flex items-center justify-between">
  <div>
- <p className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-neutral-900'}`}>{managers.find(m => m.id === user?.managerId)?.name || user?.name}</p>
- <p className={`text-xs ${theme === 'dark' ? 'text-neutral-500' : 'text-neutral-400'}`}>{user?.role === 'super' ? '관리자' : '영업담당'}</p>
+ <p className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-[#191F28]'}`}>{managers.find(m => m.id === user?.managerId)?.name || user?.name}</p>
+ <p className={`text-xs ${theme === 'dark' ? 'text-[#56565F]' : 'text-[#B0B8C1]'}`}>{user?.role === 'super' ? '관리자' : '영업담당'}</p>
  </div>
  <div className="flex items-center gap-2">
  <button
    onClick={toggleTheme}
-   className={`p-1.5 rounded-lg transition-all ${theme === 'dark' ? 'hover:bg-white/10 text-neutral-400 hover:text-white' : 'hover:bg-neutral-100 text-neutral-500 hover:text-neutral-900'}`}
+   className={`p-1.5 rounded-lg transition-all ${theme === 'dark' ? 'hover:bg-white/10 text-[#B0B8C1] hover:text-white' : 'hover:bg-[#F2F4F6] text-[#56565F] hover:text-[#191F28]'}`}
    title={theme === 'dark' ? '라이트 모드' : '다크 모드'}
  >
    {theme === 'dark' ? '☀️' : '🌙'}
  </button>
- <button type="button" onClick={logout} className={`text-xs font-medium transition-colors ${theme === 'dark' ? 'text-neutral-500 hover:text-white' : 'text-neutral-500 hover:text-neutral-900'}`}>로그아웃</button>
+ <button type="button" onClick={logout} className={`text-xs font-medium transition-colors ${theme === 'dark' ? 'text-[#56565F] hover:text-white' : 'text-[#56565F] hover:text-[#191F28]'}`}>로그아웃</button>
  </div>
  </div>
  </div>
@@ -14071,27 +14077,27 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* 우측 메인 영역 */}
  <div className="flex-1 flex flex-col min-h-screen overflow-hidden">
  {/* 모바일 상단 헤더 */}
- <div className={`md:hidden px-4 py-3 flex justify-between items-center sticky top-0 z-50 backdrop-blur-xl ${theme === 'dark' ? 'bg-neutral-900/90 border-b border-neutral-800' : 'bg-white/90 border-b border-neutral-200 shadow-sm'}`}>
+ <div className={`md:hidden px-4 py-3 flex justify-between items-center sticky top-0 z-50 backdrop-blur-xl ${theme === 'dark' ? 'bg-[#191F28]/90 border-b border-white/[0.06]' : 'bg-white/90 border-b border-[#E5E8EB] shadow-sm'}`}>
  <div className="flex items-center gap-2">
  <img src="/logo.png" alt="BEANCRAFT" className="w-8 h-8 object-contain" />
- <span className={`font-semibold text-sm ${theme === 'dark' ? 'text-white' : 'text-neutral-900'}`}>BEANCRAFT</span>
+ <span className={`font-semibold text-sm ${theme === 'dark' ? 'text-white' : 'text-[#191F28]'}`}>BEANCRAFT</span>
  </div>
  <div className="flex items-center gap-2">
  {isAdmin && pendingRequests.length > 0 && <span className="bg-rose-500 text-white text-xs px-2 py-1 rounded-full font-bold">{pendingRequests.length}</span>}
- <span className={`text-sm px-2 py-1 rounded-lg font-medium ${theme === 'dark' ? 'text-neutral-300 bg-neutral-800' : 'text-neutral-700 bg-neutral-100'}`}>{managers.find(m => m.id === user?.managerId)?.name || user?.name}</span>
+ <span className={`text-sm px-2 py-1 rounded-lg font-medium ${theme === 'dark' ? 'text-[#8C8C96] bg-[#21212A]' : 'text-[#4E5968] bg-[#F2F4F6]'}`}>{managers.find(m => m.id === user?.managerId)?.name || user?.name}</span>
  <button
    onClick={toggleTheme}
-   className={`p-1.5 rounded-lg transition-all ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}
+   className={`p-1.5 rounded-lg transition-all ${theme === 'dark' ? 'text-[#B0B8C1]' : 'text-[#56565F]'}`}
  >
    {theme === 'dark' ? '☀️' : '🌙'}
  </button>
- <button type="button" onClick={logout} className={`text-sm font-medium transition-colors ${theme === 'dark' ? 'text-neutral-400 hover:text-white' : 'text-neutral-500 hover:text-neutral-900'}`}>나가기</button>
+ <button type="button" onClick={logout} className={`text-sm font-medium transition-colors ${theme === 'dark' ? 'text-[#B0B8C1] hover:text-white' : 'text-[#56565F] hover:text-[#191F28]'}`}>나가기</button>
  </div>
  </div>
  {/* 모바일 탭 (모바일 전용) */}
- <div className={`md:hidden border-b tabs-container scrollbar-hide ${theme === 'dark' ? 'bg-neutral-800/50 border-neutral-700' : 'bg-neutral-100 border-neutral-200'}`}>
+ <div className={`md:hidden border-b tabs-container scrollbar-hide ${theme === 'dark' ? 'bg-[#21212A]/50 border-white/[0.08]' : 'bg-[#F2F4F6] border-[#E5E8EB]'}`}>
  <div className="flex justify-start min-w-max px-2 gap-2 py-2">
- {tabs.map(tabItem => (<button key={tabItem.key} onClick={() => navigateToTab(tabItem.key)} className={`px-4 py-2 text-sm font-medium rounded-lg transition-all whitespace-nowrap ${tab === tabItem.key ? (theme === 'dark' ? 'bg-white/10 text-white' : 'bg-white text-neutral-900 shadow-sm border border-neutral-200') : (theme === 'dark' ? 'text-neutral-400 hover:text-white hover:bg-white/5' : 'text-neutral-500 hover:text-neutral-900 hover:bg-white/50')}`}>{tabItem.label}</button>))}
+ {tabs.map(tabItem => (<button key={tabItem.key} onClick={() => navigateToTab(tabItem.key)} className={`px-4 py-2 text-sm font-medium rounded-lg transition-all whitespace-nowrap ${tab === tabItem.key ? (theme === 'dark' ? 'bg-white/10 text-white' : 'bg-white text-[#191F28] shadow-sm border border-[#E5E8EB]') : (theme === 'dark' ? 'text-[#B0B8C1] hover:text-white hover:bg-white/5' : 'text-[#56565F] hover:text-[#191F28] hover:bg-white/50')}`}>{tabItem.label}</button>))}
  </div>
  </div>
  
@@ -14099,9 +14105,9 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <main className="flex-1 overflow-auto pb-6">
  {/* 오늘 연락할 곳 알림 배너 */}
  {todayContactAlert && (
- <div className={`px-4 py-3 flex items-center justify-between border-b ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`px-4 py-3 flex items-center justify-between border-b ${theme === 'dark' ? 'bg-[#21212A] border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
    <div className="flex items-center gap-3">
-     <div className="w-8 h-8 bg-neutral-100 rounded-full flex items-center justify-center">
+     <div className="w-8 h-8 bg-[#F2F4F6] rounded-full flex items-center justify-center">
        <span className={`text-lg ${t.textSecondary}`}></span>
      </div>
      <div>
@@ -14112,13 +14118,13 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
    <div className="flex items-center gap-2">
      <button 
        onClick={() => { navigateToTab('calendar'); setTodayContactAlert(null); }}
-       className="px-3 py-1.5 bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold rounded-lg transition-all"
+       className="px-3 py-1.5 bg-[#191F28] hover:bg-[#21212A] text-white text-xs font-bold rounded-lg transition-all"
      >
        캘린더 보기
      </button>
      <button 
        onClick={() => setTodayContactAlert(null)}
-       className={`w-6 h-6 flex items-center justify-center transition-colors ${theme === 'dark' ? 'text-neutral-500 hover:text-white' : 'text-neutral-400 hover:text-neutral-600'}`}
+       className={`w-6 h-6 flex items-center justify-center transition-colors ${theme === 'dark' ? 'text-[#56565F] hover:text-white' : 'text-[#B0B8C1] hover:text-[#6B7684]'}`}
      >
        
      </button>
@@ -14127,9 +14133,9 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  )}
  {/* 미완료 동선 알림 배너 */}
  {incompleteRouteAlert && (
- <div className={`px-4 py-3 flex items-center justify-between border-b ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`px-4 py-3 flex items-center justify-between border-b ${theme === 'dark' ? 'bg-[#21212A] border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
    <div className="flex items-center gap-3">
-     <div className="w-8 h-8 bg-neutral-100 rounded-full flex items-center justify-center">
+     <div className="w-8 h-8 bg-[#F2F4F6] rounded-full flex items-center justify-center">
        <span className={`text-lg ${t.textSecondary}`}></span>
      </div>
      <div>
@@ -14140,13 +14146,13 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
    <div className="flex items-center gap-2">
      <button 
        onClick={() => { navigateToTab('calendar'); setIncompleteRouteAlert(null); }}
-       className="px-3 py-1.5 bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold rounded-lg transition-all"
+       className="px-3 py-1.5 bg-[#191F28] hover:bg-[#21212A] text-white text-xs font-bold rounded-lg transition-all"
      >
        확인하기
      </button>
      <button 
        onClick={() => setIncompleteRouteAlert(null)}
-       className={`w-6 h-6 flex items-center justify-center transition-colors ${theme === 'dark' ? 'text-neutral-500 hover:text-white' : 'text-neutral-400 hover:text-neutral-600'}`}
+       className={`w-6 h-6 flex items-center justify-center transition-colors ${theme === 'dark' ? 'text-[#56565F] hover:text-white' : 'text-[#B0B8C1] hover:text-[#6B7684]'}`}
      >
        
      </button>
@@ -14155,9 +14161,9 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  )}
  {/* 주소 오류 알림 배너 (담당자 본인만) */}
  {addressIssueAlert && (
- <div className={`px-4 py-3 flex items-center justify-between border-b ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`px-4 py-3 flex items-center justify-between border-b ${theme === 'dark' ? 'bg-[#21212A] border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
    <div className="flex items-center gap-3">
-     <div className="w-8 h-8 bg-neutral-100 rounded-full flex items-center justify-center">
+     <div className="w-8 h-8 bg-[#F2F4F6] rounded-full flex items-center justify-center">
        <span className={`text-lg ${t.textSecondary}`}></span>
      </div>
      <div>
@@ -14171,13 +14177,13 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
          const firstIssue = addressIssueAlert.companies[0];
          alert(`[주소 수정 필요]\n\n${addressIssueAlert.companies.map((c, i) => `${i+1}. ${c.name}\n   현재: ${c.address || '없음'}\n   문제: ${c.issue}`).join('\n\n')}\n\n업체 탭에서 해당 업체 주소를 수정해주세요.`);
        }}
-       className="px-3 py-1.5 bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold rounded-lg transition-all"
+       className="px-3 py-1.5 bg-[#191F28] hover:bg-[#21212A] text-white text-xs font-bold rounded-lg transition-all"
      >
        확인하기
      </button>
      <button 
        onClick={() => setAddressIssueAlert(null)}
-       className={`w-6 h-6 flex items-center justify-center transition-colors ${theme === 'dark' ? 'text-neutral-500 hover:text-white' : 'text-neutral-400 hover:text-neutral-600'}`}
+       className={`w-6 h-6 flex items-center justify-center transition-colors ${theme === 'dark' ? 'text-[#56565F] hover:text-white' : 'text-[#B0B8C1] hover:text-[#6B7684]'}`}
      >
        
      </button>
@@ -14194,7 +14200,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="flex gap-2">
  {isAdmin ? (
  <select 
- className={`w-full px-3 py-2 rounded-lg focus:outline-none transition-all text-sm ${theme === 'dark' ? 'bg-neutral-700 border-neutral-600 text-white focus:border-neutral-500' : 'bg-white border-neutral-200 text-neutral-900 focus:border-neutral-400'}`}
+ className={`w-full px-3 py-2 rounded-lg focus:outline-none transition-all text-sm ${theme === 'dark' ? 'bg-[#2C2C35] border-neutral-600 text-white focus:border-neutral-500' : 'bg-white border-[#E5E8EB] text-[#191F28] focus:border-[#3182F6]'}`}
  value={reportViewManager || 'all'}
  onChange={(e) => {
    const newValue = e.target.value === 'all' ? null : e.target.value;
@@ -14235,21 +14241,21 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="flex gap-2">
  <button 
  onClick={() => setReportViewManager(user?.id)}
- className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ${!reportViewManager || reportViewManager === user?.id ? (theme === 'dark' ? 'bg-white text-neutral-900' : 'bg-neutral-900 text-white') : (theme === 'dark' ? 'bg-neutral-700 text-neutral-300 hover:bg-neutral-600' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200')}`}
+ className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ${!reportViewManager || reportViewManager === user?.id ? (theme === 'dark' ? 'bg-white text-[#191F28]' : 'bg-[#191F28] text-white') : (theme === 'dark' ? 'bg-[#2C2C35] text-[#8C8C96] hover:bg-neutral-600' : 'bg-[#F2F4F6] text-[#4E5968] hover:bg-[#E5E8EB]')}`}
  >내 보고서</button>
  <button 
  onClick={() => setReportViewManager('all')}
- className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ${reportViewManager === 'all' ? (theme === 'dark' ? 'bg-white text-neutral-900' : 'bg-neutral-900 text-white') : (theme === 'dark' ? 'bg-neutral-700 text-neutral-300 hover:bg-neutral-600' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200')}`}
+ className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ${reportViewManager === 'all' ? (theme === 'dark' ? 'bg-white text-[#191F28]' : 'bg-[#191F28] text-white') : (theme === 'dark' ? 'bg-[#2C2C35] text-[#8C8C96] hover:bg-neutral-600' : 'bg-[#F2F4F6] text-[#4E5968] hover:bg-[#E5E8EB]')}`}
  >전체 보고서</button>
  </div>
  )}
  </div>
  </div>
  {/* 기본/AI 모드 전환 */}
- <div className={`flex gap-2 p-1 rounded-xl w-fit ${theme === 'dark' ? 'bg-neutral-800' : 'bg-white'}`}>
+ <div className={`flex gap-2 p-1 rounded-xl w-fit ${theme === 'dark' ? 'bg-[#21212A]' : 'bg-white'}`}>
  <button 
  onClick={() => setReportMode('basic')}
- className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ${reportMode === 'basic' ? (theme === 'dark' ? 'bg-white text-neutral-900' : 'bg-neutral-900 text-white') : (theme === 'dark' ? 'text-neutral-400 hover:text-white' : 'text-neutral-500 hover:text-neutral-800')}`}
+ className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ${reportMode === 'basic' ? (theme === 'dark' ? 'bg-white text-[#191F28]' : 'bg-[#191F28] text-white') : (theme === 'dark' ? 'text-[#B0B8C1] hover:text-white' : 'text-[#56565F] hover:text-[#333D4B]')}`}
  >기본 보고서</button>
  <button 
  onClick={() => {
@@ -14281,7 +14287,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  });
  }
  }}
- className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ${reportMode === 'ai' ? (theme === 'dark' ? 'bg-white text-neutral-900' : 'bg-neutral-900 text-white') : (theme === 'dark' ? 'text-neutral-400 hover:text-white' : 'text-neutral-500 hover:text-neutral-800')}`}
+ className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ${reportMode === 'ai' ? (theme === 'dark' ? 'bg-white text-[#191F28]' : 'bg-[#191F28] text-white') : (theme === 'dark' ? 'text-[#B0B8C1] hover:text-white' : 'text-[#56565F] hover:text-[#333D4B]')}`}
  >AI 분석</button>
  </div>
  </div>
@@ -14420,45 +14426,45 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="lg:col-span-2 space-y-2">
  {/* 통계 카드 */}
  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
- <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <div className={`text-xs mb-1 ${t.textMuted}`}>방문</div>
  <div className={`text-2xl font-bold ${t.text}`}>{thisVisits}<span className={`text-sm ml-1 ${t.textMuted}`}>건</span></div>
- <div className={`text-xs mt-1 ${visitChange >= 0 ? 'text-neutral-700' : 'text-white'}`}>
+ <div className={`text-xs mt-1 ${visitChange >= 0 ? 'text-[#4E5968]' : 'text-white'}`}>
  {visitChange >= 0 ? '▲' : '▼'} {Math.abs(visitChange)}%
  </div>
  </div>
- <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <div className={`text-xs mb-1 ${t.textMuted}`}>신규 업체</div>
  <div className={`text-2xl font-bold ${t.text}`}>{thisNewCompanies}<span className={`text-sm ml-1 ${t.textMuted}`}>개</span></div>
- <div className={`text-xs mt-1 ${companyChange >= 0 ? 'text-neutral-700' : 'text-white'}`}>
+ <div className={`text-xs mt-1 ${companyChange >= 0 ? 'text-[#4E5968]' : 'text-white'}`}>
  {companyChange >= 0 ? '▲' : '▼'} {Math.abs(companyChange)}%
  </div>
  </div>
- <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <div className={`text-xs mb-1 ${t.textMuted}`}>완료 상담</div>
  <div className={`text-2xl font-bold ${t.text}`}>{thisConsults}<span className={`text-sm ml-1 ${t.textMuted}`}>건</span></div>
- <div className={`text-xs mt-1 ${consultChange >= 0 ? 'text-neutral-700' : 'text-white'}`}>
+ <div className={`text-xs mt-1 ${consultChange >= 0 ? 'text-[#4E5968]' : 'text-white'}`}>
  {consultChange >= 0 ? '▲' : '▼'} {Math.abs(consultChange)}%
  </div>
  </div>
- <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <div className={`text-xs mb-1 ${t.textMuted}`}>긍정 반응</div>
  <div className={`text-2xl font-bold ${t.text}`}>{positiveRate}<span className={`text-sm ml-1 ${t.textMuted}`}>%</span></div>
- <div className={`text-xs mt-1 ${positiveChange >= 0 ? 'text-neutral-700' : 'text-white'}`}>
+ <div className={`text-xs mt-1 ${positiveChange >= 0 ? 'text-[#4E5968]' : 'text-white'}`}>
  {positiveChange >= 0 ? '▲' : '▼'} {Math.abs(positiveChange)}%p
  </div>
  </div>
  </div>
 
  {/* 월별 추이 그래프 */}
- <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <h3 className={`font-bold mb-4 ${t.text}`}>월별 방문 추이</h3>
  <div className="flex items-end gap-4 h-32">
  {chartData.map((d, i) => (
  <div key={i} className="flex-1 flex flex-col items-center">
  <div className={`text-xs mb-1 ${t.textMuted}`}>{d.visits}건</div>
  <div 
- className="w-full rounded-t transition-all duration-500 bg-neutral-200"
+ className="w-full rounded-t transition-all duration-500 bg-[#E5E8EB]"
  style={{ 
  height: `${Math.max((d.visits / maxVisit) * 100, 8)}%`,
  background: i === chartData.length - 1 ? '#475569' : '#334155'
@@ -14471,7 +14477,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
 
  {/* 반응 분포 */}
- <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <h3 className={`font-bold mb-4 ${t.text}`}>업체 반응 분포</h3>
  <div className="grid grid-cols-4 gap-3">
  {[
@@ -14480,7 +14486,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  { key: 'neutral', label: '보통', count: targetCompanies.filter(c => c.reaction === 'neutral').length },
  { key: 'missed', label: '부재', count: targetCompanies.filter(c => c.reaction === 'missed').length }
  ].map(item => (
- <div key={item.key} className="text-center p-3 rounded-xl border border-neutral-200">
+ <div key={item.key} className="text-center p-3 rounded-xl border border-[#E5E8EB]">
  <div className={`text-xl font-bold ${t.text}`}>{item.count}</div>
  <div className={`text-xs ${t.textMuted}`}>{item.label}</div>
  </div>
@@ -14492,7 +14498,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* 오른쪽: 사이드바 */}
  <div className="space-y-2">
  {/* AI 분석 리포트 */}
- <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <div className="flex items-center justify-between mb-3">
  <h3 className={`font-bold ${t.text}`}>AI 분석</h3>
  <button
@@ -14521,44 +14527,44 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  });
  }}
  disabled={aiReportLoading}
- className="text-xs px-2 py-1 rounded-full border border-neutral-200 text-neutral-500 hover:border-slate-500 disabled:opacity-50"
+ className="text-xs px-2 py-1 rounded-full border border-[#E5E8EB] text-[#56565F] hover:border-slate-500 disabled:opacity-50"
  >다시 분석</button>
  </div>
  {aiReportLoading ? (
  <div className="flex flex-col items-center justify-center py-8 gap-2">
- <div className="animate-spin w-6 h-6 border-2 border-neutral-300 border-t-transparent rounded-full"></div>
+ <div className="animate-spin w-6 h-6 border-2 border-[#D1D6DB] border-t-transparent rounded-full"></div>
  <span className={`text-sm ${t.textMuted}`}>AI 분석 중...</span>
- {aiErrorMessage && <span className="text-neutral-700 text-xs">{aiErrorMessage}</span>}
+ {aiErrorMessage && <span className="text-[#4E5968] text-xs">{aiErrorMessage}</span>}
  </div>
  ) : aiErrorMessage && !aiReportResult ? (
  <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/30">
  <p className={`${t.text} text-sm font-medium mb-2`}>분석 오류</p>
- <p className="text-neutral-700 text-sm">{aiErrorMessage}</p>
+ <p className="text-[#4E5968] text-sm">{aiErrorMessage}</p>
  <button 
    onClick={() => setAiErrorMessage(null)}
-   className={`mt-2 text-xs text-neutral-500 hover:${t.text}`}
+   className={`mt-2 text-xs text-[#56565F] hover:${t.text}`}
  >닫기</button>
  </div>
  ) : aiReportResult ? (
  <div className="space-y-3 text-sm">
  <p className={`${t.text}`}>{cleanJsonText(aiReportResult.comment)}</p>
  {aiReportResult.analysis && <p className={`text-xs ${t.textMuted}`}>{cleanJsonText(aiReportResult.analysis)}</p>}
- <div className="pt-2 border-t border-neutral-200">
+ <div className="pt-2 border-t border-[#E5E8EB]">
  <p className={`text-xs ${t.textMuted}`}>{cleanJsonText(aiReportResult.suggestion)}</p>
  </div>
  {aiReportResult.encouragement && (
-   <div className="pt-2 border-t border-neutral-200">
-     <p className="text-neutral-600 text-xs font-medium">{cleanJsonText(aiReportResult.encouragement)}</p>
+   <div className="pt-2 border-t border-[#E5E8EB]">
+     <p className="text-[#6B7684] text-xs font-medium">{cleanJsonText(aiReportResult.encouragement)}</p>
    </div>
  )}
  {aiReportResult.focus && (
-   <div className="pt-2 border-t border-neutral-200 bg-blue-50 -mx-4 -mb-4 p-4 rounded-b-2xl">
+   <div className="pt-2 border-t border-[#E5E8EB] bg-blue-50 -mx-4 -mb-4 p-4 rounded-b-2xl">
      <p className={`text-xs ${t.text} font-medium`}>이번 주 집중 포인트</p>
      <p className="text-sm text-blue-800 mt-1">{cleanJsonText(aiReportResult.focus)}</p>
    </div>
  )}
  {aiLastUpdateTime && (
-   <p className={`text-xs pt-2 border-t ${theme === 'dark' ? 'border-neutral-700' : 'border-neutral-200'} ${t.textMuted}`}>
+   <p className={`text-xs pt-2 border-t ${theme === 'dark' ? 'border-white/[0.08]' : 'border-[#E5E8EB]'} ${t.textMuted}`}>
      마지막 분석: {aiLastUpdateTime.toLocaleString('ko-KR')}
    </p>
  )}
@@ -14567,7 +14573,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="space-y-3 text-sm">
  <p className={`${t.text}`}>{aiComment.comment}</p>
  {aiComment.analysis && <p className={`text-xs ${t.textMuted}`}>{aiComment.analysis}</p>}
- <div className="pt-2 border-t border-neutral-200">
+ <div className="pt-2 border-t border-[#E5E8EB]">
  <p className={`text-xs ${t.textMuted}`}>{aiComment.suggestion}</p>
  </div>
  </div>
@@ -14576,7 +14582,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
  {/* 팀원별 분석 */}
  {isAdmin && (!reportViewManager || reportViewManager === 'all') && teamStats.length > 0 && (
- <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <h3 className={`font-bold mb-3 ${t.text}`}>팀 분석</h3>
  <div className="space-y-2">
  {teamStats.slice(0, 5).map((m, idx) => {
@@ -14588,7 +14594,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
    const mPositiveRate = mCompanies.length > 0 ? Math.round(((mPositive + mSpecial) / mCompanies.length) * 100) : 0;
    
    return (
-   <div key={m.id} className="p-3 rounded-lg border border-neutral-200 hover:border-neutral-400 cursor-pointer transition-all"
+   <div key={m.id} className="p-3 rounded-lg border border-[#E5E8EB] hover:border-[#8B95A1] cursor-pointer transition-all"
      onClick={() => setReportViewManager(String(m.id))}>
    <div className="flex items-center justify-between mb-2">
      <div className="flex items-center gap-2">
@@ -14622,9 +14628,9 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="columns-1 md:columns-2 lg:columns-3 gap-4 space-y-2">
  
  {/* AI 지역 검색 섹션 - 중개사 영업용 */}
- <div className={`rounded-2xl p-4 break-inside-avoid mb-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-2xl p-4 break-inside-avoid mb-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
    <h3 className={`font-bold mb-3 ${t.text}`}>지역 검색</h3>
-   <p className="text-xs text-neutral-500 mb-3">지역명을 입력하면 중개사 영업에 필요한 정보를 정리해드립니다.</p>
+   <p className="text-xs text-[#56565F] mb-3">지역명을 입력하면 중개사 영업에 필요한 정보를 정리해드립니다.</p>
    <div className="flex gap-2 mb-3">
      <input
        type="text"
@@ -14632,12 +14638,12 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        onChange={e => setAiKeywordSearch(e.target.value)}
        onKeyPress={e => e.key === 'Enter' && callGeminiKeywordSearch(aiKeywordSearch)}
        placeholder="예: 판교, 강남역, 홍대입구..."
-       className="flex-1 px-4 py-3 rounded-lg bg-neutral-50 border border-neutral-200 text-neutral-800 placeholder-neutral-400 focus:outline-none focus:border-neutral-400 text-sm"
+       className="flex-1 px-4 py-3 rounded-lg bg-[#F9FAFB] border border-[#E5E8EB] text-[#333D4B] placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] text-sm"
      />
      <button
        onClick={() => callGeminiKeywordSearch(aiKeywordSearch)}
        disabled={aiKeywordLoading || !aiKeywordSearch.trim()}
-       className={`px-5 py-3 bg-neutral-800 ${t.text} rounded-lg font-medium hover:bg-neutral-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm`}
+       className={`px-5 py-3 bg-[#21212A] ${t.text} rounded-lg font-medium hover:bg-[#2C2C35] transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm`}
      >
        {aiKeywordLoading ? '검색 중...' : '검색'}
      </button>
@@ -14653,7 +14659,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
            callGeminiKeywordSearch(region);
          }}
          disabled={aiKeywordLoading}
-         className="px-3 py-1.5 rounded-full bg-neutral-100 text-neutral-600 text-xs hover:bg-neutral-200 transition-all disabled:opacity-50"
+         className="px-3 py-1.5 rounded-full bg-[#F2F4F6] text-[#6B7684] text-xs hover:bg-[#E5E8EB] transition-all disabled:opacity-50"
        >
          {region}
        </button>
@@ -14663,7 +14669,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
    {/* 로딩 */}
    {aiKeywordLoading && (
      <div className="flex flex-col items-center justify-center py-6 gap-2">
-       <div className="animate-spin w-5 h-5 border-2 border-neutral-300 border-t-neutral-600 rounded-full"></div>
+       <div className="animate-spin w-5 h-5 border-2 border-[#D1D6DB] border-t-neutral-600 rounded-full"></div>
        <span className={`text-sm ${t.textMuted}`}>{aiKeywordSearch} 지역 분석 중...</span>
      </div>
    )}
@@ -14677,7 +14683,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
    
    {/* 결과 - 새 구조 */}
    {aiKeywordResult && !aiKeywordLoading && (
-     <div className="space-y-4 mt-4 pt-4 border-t border-neutral-200">
+     <div className="space-y-4 mt-4 pt-4 border-t border-[#E5E8EB]">
        <div className="flex items-center justify-between">
          <h4 className={`font-bold ${t.text}`}>{aiKeywordResult.keyword} 지역 브리핑</h4>
          <span className={`text-xs ${t.textMuted}`}>
@@ -14687,14 +14693,14 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        
        {/* 지역 브리핑 */}
        {aiKeywordResult.regionBrief && (
-         <div className="p-4 rounded-lg bg-neutral-50 border border-neutral-200">
+         <div className="p-4 rounded-lg bg-[#F9FAFB] border border-[#E5E8EB]">
            <p className={`text-sm leading-relaxed ${t.text}`}>{cleanJsonText(aiKeywordResult.regionBrief)}</p>
          </div>
        )}
        
        {/* 중개사 공감 */}
        {aiKeywordResult.brokerEmpathy && (
-         <div className="p-4 rounded-lg bg-neutral-50 border border-neutral-200">
+         <div className="p-4 rounded-lg bg-[#F9FAFB] border border-[#E5E8EB]">
            <p className={`text-xs font-medium mb-2 ${t.textMuted}`}>중개사님, 이런 경험 있으시죠?</p>
            <p className={`text-sm leading-relaxed ${t.text}`}>{cleanJsonText(aiKeywordResult.brokerEmpathy)}</p>
          </div>
@@ -14702,7 +14708,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        
        {/* 제휴 가치 */}
        {aiKeywordResult.partnershipValue && (
-         <div className="p-4 rounded-lg bg-neutral-50 border border-neutral-200">
+         <div className="p-4 rounded-lg bg-[#F9FAFB] border border-[#E5E8EB]">
            <p className={`text-xs font-medium mb-2 ${t.textMuted}`}>저희랑 제휴하시면요</p>
            <p className={`text-sm leading-relaxed ${t.text}`}>{cleanJsonText(aiKeywordResult.partnershipValue)}</p>
          </div>
@@ -14710,15 +14716,15 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        
        {/* 대화 가이드 */}
        {aiKeywordResult.talkScript && (
-         <div className={`p-4 rounded-lg bg-neutral-800 ${t.text}`}>
-           <p className="text-xs text-neutral-300 font-medium mb-2">이렇게 말씀해보세요</p>
+         <div className={`p-4 rounded-lg bg-[#21212A] ${t.text}`}>
+           <p className="text-xs text-[#8C8C96] font-medium mb-2">이렇게 말씀해보세요</p>
            <p className="text-sm leading-relaxed">"{cleanJsonText(aiKeywordResult.talkScript)}"</p>
          </div>
        )}
        
        {/* 연관 지역 */}
        {aiKeywordResult.relatedRegions?.length > 0 && (
-         <div className="pt-3 border-t border-neutral-200">
+         <div className="pt-3 border-t border-[#E5E8EB]">
            <p className={`text-xs mb-2 ${t.textMuted}`}>함께 영업하면 좋을 인근 지역</p>
            <div className="flex flex-wrap gap-2">
              {aiKeywordResult.relatedRegions.map(region => (
@@ -14728,7 +14734,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                    setAiKeywordSearch(region);
                    callGeminiKeywordSearch(region);
                  }}
-                 className="px-3 py-1.5 rounded-full bg-neutral-100 text-neutral-600 text-xs hover:bg-neutral-200 transition-all"
+                 className="px-3 py-1.5 rounded-full bg-[#F2F4F6] text-[#6B7684] text-xs hover:bg-[#E5E8EB] transition-all"
                >
                  {region}
                </button>
@@ -15006,13 +15012,13 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  return (
  <div className="space-y-2">
  {/* 반응 기반 AI 분석 - 그래프 포함 */}
- <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <h3 className={`font-bold ${t.text} mb-4 flex items-center gap-2 text-lg`}>
  <span className="text-xl"></span> 업체 반응 현황 분석 리포트
  </h3>
  
  {/* 통합 도넛 그래프 */}
- <div className="bg-transparent rounded-xl p-4 mb-4 border border-neutral-200">
+ <div className="bg-transparent rounded-xl p-4 mb-4 border border-[#E5E8EB]">
  <div className="flex items-center justify-center gap-8">
  {/* 도넛 차트 */}
  <div className="relative w-32 h-32">
@@ -15066,12 +15072,12 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
  {/* 핵심 지표 테이블 */}
  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
- <div className="text-center p-3 rounded-lg border border-neutral-300 bg-emerald-500/5">
- <div className="text-xl sm:text-2xl font-bold text-neutral-700">{positiveCompanies.length}</div>
+ <div className="text-center p-3 rounded-lg border border-[#D1D6DB] bg-emerald-500/5">
+ <div className="text-xl sm:text-2xl font-bold text-[#4E5968]">{positiveCompanies.length}</div>
  <div className={`text-xs ${t.textMuted}`}>긍정 반응</div>
  
  </div>
- <div className="text-center p-3 rounded-lg border border-neutral-300 bg-rose-500/5">
+ <div className="text-center p-3 rounded-lg border border-[#D1D6DB] bg-rose-500/5">
  <div className={`text-xl sm:text-2xl font-bold ${t.text}`}>{specialCompanies.length}</div>
  <div className={`text-xs ${t.textMuted}`}>특별관리</div>
  
@@ -15081,8 +15087,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className={`text-xs ${t.textMuted}`}>보통</div>
  
  </div>
- <div className="text-center p-3 rounded-lg border border-neutral-300 bg-yellow-500/5">
- <div className="text-xl sm:text-2xl font-bold text-neutral-700">{missedCompanies.length}</div>
+ <div className="text-center p-3 rounded-lg border border-[#D1D6DB] bg-yellow-500/5">
+ <div className="text-xl sm:text-2xl font-bold text-[#4E5968]">{missedCompanies.length}</div>
  <div className={`text-xs ${t.textMuted}`}>부재</div>
  
  </div>
@@ -15092,67 +15098,67 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="space-y-3">
  {aiReportLoading ? (
  <div className="flex flex-col items-center justify-center py-6 gap-2">
- <div className="animate-spin w-6 h-6 border-2 border-neutral-300 border-t-transparent rounded-full"></div>
+ <div className="animate-spin w-6 h-6 border-2 border-[#D1D6DB] border-t-transparent rounded-full"></div>
  <span className={`text-sm ${t.textMuted}`}>AI 분석 중...</span>
- {aiErrorMessage && <span className="text-neutral-700 text-xs">{aiErrorMessage}</span>}
+ {aiErrorMessage && <span className="text-[#4E5968] text-xs">{aiErrorMessage}</span>}
  </div>
  ) : aiErrorMessage && !aiReportResult ? (
  <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/30">
    <p className={`${t.text} text-sm font-medium mb-2`}>분석 오류</p>
-   <p className="text-neutral-700 text-sm">{aiErrorMessage}</p>
+   <p className="text-[#4E5968] text-sm">{aiErrorMessage}</p>
    <button 
      onClick={() => setAiErrorMessage(null)}
-     className={`mt-2 text-xs text-neutral-500 hover:${t.text}`}
+     className={`mt-2 text-xs text-[#56565F] hover:${t.text}`}
    >닫기</button>
  </div>
  ) : aiReportResult ? (
  <>
- <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'border-neutral-700/30 bg-white/5' : 'border-neutral-200/30 bg-white/30'}`}>
+ <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'border-white/[0.08]/30 bg-white/5' : 'border-[#E5E8EB]/30 bg-white/30'}`}>
  <p className={`text-sm leading-relaxed ${t.text}`}>{cleanJsonText(aiReportResult.comment)}</p>
  </div>
  {aiReportResult.analysis && (
- <div className="p-3 rounded-lg border border-neutral-300 bg-blue-500/5">
+ <div className="p-3 rounded-lg border border-[#D1D6DB] bg-blue-500/5">
  <p className={`text-xs mb-1 font-semibold ${t.text}`}>AI피드백</p>
  <p className={`text-sm ${t.text}`}>{cleanJsonText(aiReportResult.analysis)}</p>
  </div>
  )}
- <div className="p-3 rounded-lg border border-neutral-200/30 bg-neutral-800/5">
+ <div className="p-3 rounded-lg border border-[#E5E8EB]/30 bg-[#21212A]/5">
  <p className={`text-xs mb-1 font-semibold ${t.text}`}>AI 전략 제안</p>
  <p className={`text-sm ${t.text}`}>{cleanJsonText(aiReportResult.suggestion)}</p>
  </div>
  {aiReportResult.encouragement && (
- <div className="p-3 rounded-lg border border-neutral-300 bg-emerald-500/5">
+ <div className="p-3 rounded-lg border border-[#D1D6DB] bg-emerald-500/5">
  <p className={`text-sm font-medium ${t.text}`}>{cleanJsonText(aiReportResult.encouragement)}</p>
  </div>
  )}
  {aiReportResult.focus && (
  <div className="p-3 rounded-lg border border-neutral-500 bg-blue-50">
- <p className="text-xs text-neutral-600 mb-1 font-semibold">이번 주 집중 포인트</p>
+ <p className="text-xs text-[#6B7684] mb-1 font-semibold">이번 주 집중 포인트</p>
  <p className="text-sm text-blue-800">{cleanJsonText(aiReportResult.focus)}</p>
  </div>
  )}
  {aiLastUpdateTime && (
-   <p className={`text-xs pt-2 border-t ${theme === 'dark' ? 'border-neutral-700' : 'border-neutral-200'} ${t.textMuted}`}>
+   <p className={`text-xs pt-2 border-t ${theme === 'dark' ? 'border-white/[0.08]' : 'border-[#E5E8EB]'} ${t.textMuted}`}>
      마지막 분석: {aiLastUpdateTime.toLocaleString('ko-KR')}
    </p>
  )}
  </>
  ) : (
  <>
- <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'border-neutral-700/30 bg-white/5' : 'border-neutral-200/30 bg-white/30'}`}>
+ <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'border-white/[0.08]/30 bg-white/5' : 'border-[#E5E8EB]/30 bg-white/30'}`}>
  <p className={`text-sm leading-relaxed ${t.text}`}>{aiComment.main}</p>
  </div>
  {aiComment.analysis && (
- <div className="p-3 rounded-lg border border-neutral-300 bg-blue-500/5">
+ <div className="p-3 rounded-lg border border-[#D1D6DB] bg-blue-500/5">
  <p className={`text-xs mb-1 font-semibold ${t.text}`}>데이터 기반 분석</p>
  <p className={`text-sm ${t.text}`}>{aiComment.analysis}</p>
  </div>
  )}
- <div className="p-3 rounded-lg border border-neutral-200/30 bg-neutral-800/5">
+ <div className="p-3 rounded-lg border border-[#E5E8EB]/30 bg-[#21212A]/5">
  <p className={`text-xs mb-1 font-semibold ${t.text}`}>제안</p>
  <p className={`text-sm ${t.text}`}>{aiComment.suggestion}</p>
  </div>
- <div className="p-3 rounded-lg border border-neutral-300 bg-emerald-500/5">
+ <div className="p-3 rounded-lg border border-[#D1D6DB] bg-emerald-500/5">
  <p className={`text-sm font-medium ${t.text}`}>{aiComment.encouragement}</p>
  </div>
  </>
@@ -15162,17 +15168,17 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
  {/* 메모 분석 */}
  {allMemos.length > 0 && (
- <div className={`rounded-2xl p-4 border border-l-4 ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700 border-l-neutral-400' : 'bg-white border-neutral-200 border-l-neutral-500'}`}>
+ <div className={`rounded-2xl p-4 border border-l-4 ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08] border-l-neutral-400' : 'bg-white border-[#E5E8EB] border-l-neutral-500'}`}>
  <h3 className={`font-bold ${t.text} mb-3 flex items-center gap-2`}>
  <span className="text-xl"></span> 메모 분석 ({allMemos.length}건)
  </h3>
  <div className="grid grid-cols-2 gap-3">
- <div className={`text-center p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-800' : 'bg-white'}`}>
+ <div className={`text-center p-3 rounded-lg ${theme === 'dark' ? 'bg-[#21212A]' : 'bg-white'}`}>
  <div className={`text-lg sm:text-xl font-bold ${t.text}`}>{positiveMemoCount}</div>
  <div className={`text-xs ${t.textMuted}`}>긍정 키워드</div>
  </div>
- <div className="text-center p-3 rounded-lg bg-neutral-50">
- <div className="text-lg sm:text-xl font-bold text-neutral-500">{negativeMemoCount}</div>
+ <div className="text-center p-3 rounded-lg bg-[#F9FAFB]">
+ <div className="text-lg sm:text-xl font-bold text-[#56565F]">{negativeMemoCount}</div>
  <div className={`text-xs ${t.textMuted}`}>부정 키워드</div>
  </div>
  </div>
@@ -15180,7 +15186,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* AI 영업 피드백 */}
  <div className="mt-4 space-y-3">
  {/* 반응별 업체 현황 */}
- <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-[#21212A] border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <p className={`text-xs font-semibold mb-2 ${t.text}`}>반응별 업체 현황</p>
  <div className="space-y-2">
  {(() => {
@@ -15208,7 +15214,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  
  {/* 팔로업 주기 안내 */}
- <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-600' : 'bg-white border-neutral-300'}`}>
+ <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-[#21212A] border-neutral-600' : 'bg-white border-[#D1D6DB]'}`}>
  <p className={`text-xs font-semibold mb-2 ${t.text}`}>팔로업 주기 가이드</p>
  <div className="space-y-2 text-sm">
  <div className="flex items-start gap-2">
@@ -15228,9 +15234,9 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  
  {/* 긍정 반응 업체 팔로업 */}
  {positiveMemoCount > 0 && (
- <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-600' : 'bg-white border-neutral-300'}`}>
+ <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-[#21212A] border-neutral-600' : 'bg-white border-[#D1D6DB]'}`}>
  <p className={`text-xs font-semibold mb-2 ${t.text}`}>긍정 반응 업체 관리 방법</p>
- <p className="text-sm text-neutral-700 mb-2">긍정 반응 업체는 재방문 우선순위가 높습니다. 다음 액션을 권장합니다:</p>
+ <p className="text-sm text-[#4E5968] mb-2">긍정 반응 업체는 재방문 우선순위가 높습니다. 다음 액션을 권장합니다:</p>
  <ul className={`text-sm space-y-1 ${t.text}`}>
  <li>• 1주일 내 지역 카페 시장 이슈 공유 문자 발송</li>
  <li>• 2주 후 재방문하여 관계 강화</li>
@@ -15241,7 +15247,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  
  {/* 지역 이슈 활용 팁 */}
  {regionRec && (
- <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-600' : 'bg-white border-neutral-300'}`}>
+ <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-[#21212A] border-neutral-600' : 'bg-white border-[#D1D6DB]'}`}>
  <p className={`text-xs font-semibold mb-2 ${t.text}`}>팔로업 시 활용할 지역 이슈</p>
  <p className={`text-sm ${t.text}`}>{regionRec.issue || '지역 이슈 정보가 없습니다.'}</p>
  <p className={`text-xs mt-2 ${t.textMuted}`}>→ 이 내용을 1주일 후 팔로업 문자에 활용하세요.</p>
@@ -15252,21 +15258,21 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  )}
 
  {/* 지역 추천 - 영업자 조력 시스템 */}
- <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/50 backdrop-blur border-neutral-700' : 'bg-white/80 border-neutral-200'}`}>
+ <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-[#21212A]/50 backdrop-blur border-white/[0.08]' : 'bg-white/80 border-[#E5E8EB]'}`}>
  <div className="flex justify-between items-center mb-4">
  <h3 className={`font-bold ${t.text} flex items-center gap-2 text-lg`}>
  <span className="text-xl"></span> AI 지역 추천
- <span className="px-2 py-0.5 rounded-full bg-neutral-600 text-neutral-700 text-xs font-medium ml-2">영업 조력</span>
- <span className="px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-500 text-xs font-normal ml-1">2024년 기준</span>
+ <span className="px-2 py-0.5 rounded-full bg-neutral-600 text-[#4E5968] text-xs font-medium ml-2">영업 조력</span>
+ <span className="px-2 py-0.5 rounded-full bg-[#F2F4F6] text-[#56565F] text-xs font-normal ml-1">2024년 기준</span>
  </h3>
- <div className={`flex gap-1 p-1 rounded-lg ${theme === 'dark' ? 'bg-neutral-800' : 'bg-white'}`}>
+ <div className={`flex gap-1 p-1 rounded-lg ${theme === 'dark' ? 'bg-[#21212A]' : 'bg-white'}`}>
  <button 
  onClick={() => setAiRegionViewMode('single')}
- className={`px-3 py-1 rounded text-xs font-medium transition-all ${aiRegionViewMode === 'single' ? (theme === 'dark' ? 'bg-white text-neutral-900' : 'bg-neutral-900 text-white') : 'text-neutral-500 hover:text-white'}`}
+ className={`px-3 py-1 rounded text-xs font-medium transition-all ${aiRegionViewMode === 'single' ? (theme === 'dark' ? 'bg-white text-[#191F28]' : 'bg-[#191F28] text-white') : 'text-[#56565F] hover:text-white'}`}
  >상세</button>
  <button 
  onClick={() => setAiRegionViewMode('list')}
- className={`px-3 py-1 rounded text-xs font-medium transition-all ${aiRegionViewMode === 'list' ? (theme === 'dark' ? 'bg-white text-neutral-900' : 'bg-neutral-900 text-white') : 'text-neutral-500 hover:text-white'}`}
+ className={`px-3 py-1 rounded text-xs font-medium transition-all ${aiRegionViewMode === 'list' ? (theme === 'dark' ? 'bg-white text-[#191F28]' : 'bg-[#191F28] text-white') : 'text-[#56565F] hover:text-white'}`}
  >목록</button>
  </div>
  </div>
@@ -15279,7 +15285,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                     placeholder="지역 검색 (예: 강남구, 분당, 해운대)"
                     value={aiRegionSearch}
                     onChange={e => setAiRegionSearch(e.target.value)}
-                    className={`w-full px-3 py-2 rounded-lg placeholder-neutral-400 focus:outline-none transition-all flex-1 text-sm ${theme === 'dark' ? 'bg-neutral-700 border-neutral-600 text-white focus:border-neutral-500' : 'bg-white border-neutral-200 text-neutral-900 focus:border-neutral-400'}`}
+                    className={`w-full px-3 py-2 rounded-lg placeholder-[#B0B8C1] focus:outline-none transition-all flex-1 text-sm ${theme === 'dark' ? 'bg-[#2C2C35] border-neutral-600 text-white focus:border-neutral-500' : 'bg-white border-[#E5E8EB] text-[#191F28] focus:border-[#3182F6]'}`}
                   />
                   <button
                     onClick={() => {
@@ -15294,7 +15300,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                         alert('해당 지역 데이터가 없습니다.');
                       }
                     }}
-                    className="px-4 py-2 bg-neutral-900 rounded-lg font-medium hover:bg-neutral-800 transition-all text-white px-4"
+                    className="px-4 py-2 bg-[#191F28] rounded-lg font-medium hover:bg-[#21212A] transition-all text-white px-4"
                   >검색</button>
                 </div>
               </div>
@@ -15302,40 +15308,40 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {aiRegionViewMode === 'single' ? (
  <div className="space-y-2">
  {/* 지역 헤더 */}
- <div className="border border-neutral-200/30 rounded-xl p-4 bg-transparent">
+ <div className="border border-[#E5E8EB]/30 rounded-xl p-4 bg-transparent">
  <div className="flex items-center justify-between mb-3">
  <div className="flex items-center gap-2">
- <span className="px-2 py-1 rounded text-xs font-bold bg-neutral-800/20 text-neutral-700">{regionRec.category}</span>
+ <span className="px-2 py-1 rounded text-xs font-bold bg-[#21212A]/20 text-[#4E5968]">{regionRec.category}</span>
  <span className={`text-lg sm:text-xl font-bold ${t.text}`}>{regionRec.region}</span>
  </div>
  <span className={`text-xs ${t.textMuted}`}>{regionRec.currentIndex}/{regionRec.totalCount}</span>
  </div>
  
  {/* AI 추천 근거 */}
- <div className="p-3 rounded-lg bg-neutral-800/10 border border-neutral-200/30 mb-3">
+ <div className="p-3 rounded-lg bg-[#21212A]/10 border border-[#E5E8EB]/30 mb-3">
  <p className={`text-xs font-semibold mb-2 ${t.text}`}>AI가 이 지역을 추천하는 이유</p>
  <div className="flex flex-wrap gap-2">
  {regionRec.aiReason && regionRec.aiReason.map((reason, idx) => (
- <span key={idx} className="px-2 py-1 rounded-full bg-neutral-800/20 text-neutral-700 text-xs">{reason}</span>
+ <span key={idx} className="px-2 py-1 rounded-full bg-[#21212A]/20 text-[#4E5968] text-xs">{reason}</span>
  ))}
  </div>
  </div>
  
  {/* 핵심 데이터 그리드 */}
  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
- <div className="text-center p-3 rounded-lg bg-transparent border border-neutral-200/30">
+ <div className="text-center p-3 rounded-lg bg-transparent border border-[#E5E8EB]/30">
  <div className={`text-lg font-bold ${t.text}`}>{regionRec.cafeCount || '-'}개</div>
  <div className={`text-xs ${t.textMuted}`}>카페 점포 수</div>
  </div>
- <div className="text-center p-3 rounded-lg bg-transparent border border-neutral-200/30">
+ <div className="text-center p-3 rounded-lg bg-transparent border border-[#E5E8EB]/30">
  <div className={`text-lg font-bold ${t.text}`}>{regionRec.startupTrend || '-'}</div>
  <div className={`text-xs ${t.textMuted}`}>창업 증가율</div>
  </div>
- <div className="text-center p-3 rounded-lg bg-transparent border border-neutral-200/30">
+ <div className="text-center p-3 rounded-lg bg-transparent border border-[#E5E8EB]/30">
  <div className={`text-lg font-bold ${t.text}`}>{regionRec.avgRent || '-'}</div>
  <div className={`text-xs ${t.textMuted}`}>평균 임대료</div>
  </div>
- <div className="text-center p-3 rounded-lg bg-transparent border border-neutral-200/30">
+ <div className="text-center p-3 rounded-lg bg-transparent border border-[#E5E8EB]/30">
  <div className={`text-lg font-bold ${t.text}`}>{regionRec.competition || '-'}</div>
  <div className={`text-xs ${t.textMuted}`}>프랜차이즈 경쟁</div>
  </div>
@@ -15344,7 +15350,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* 팀 데이터 */}
  {(regionRec.teamTotal > 0 || regionRec.teamPositive > 0) && (
  <div 
-                className={`p-3 rounded-lg mb-3 cursor-pointer transition-all border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-600 hover:bg-neutral-700' : 'bg-white border-neutral-300 hover:bg-neutral-50'}`}
+                className={`p-3 rounded-lg mb-3 cursor-pointer transition-all border ${theme === 'dark' ? 'bg-[#21212A] border-neutral-600 hover:bg-[#2C2C35]' : 'bg-white border-[#D1D6DB] hover:bg-[#F9FAFB]'}`}
                 onClick={() => setShowManagerCompaniesModal(regionRec.region)}
               >
                 <p className={`text-xs font-semibold mb-2 ${t.text}`}>우리 팀 데이터 <span className={`${t.textMuted}`}>(클릭하여 업체 보기)</span></p>
@@ -15370,7 +15376,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
  {/* 지역 이슈 */}
  {regionRec.issue && (
- <div className="p-4 rounded-xl border border-neutral-300 bg-yellow-500/5">
+ <div className="p-4 rounded-xl border border-[#D1D6DB] bg-yellow-500/5">
  <p className={`text-xs font-semibold mb-2 ${t.text}`}>지역 이슈 (영업 시 언급)</p>
  <p className={`text-sm ${t.text}`}>{regionRec.issue}</p>
  </div>
@@ -15378,7 +15384,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
  {/* 타겟 고객층 */}
  {regionRec.targetCustomer && (
- <div className="p-4 rounded-xl border border-neutral-300 bg-blue-500/5">
+ <div className="p-4 rounded-xl border border-[#D1D6DB] bg-blue-500/5">
  <p className={`text-xs font-semibold mb-2 ${t.text}`}>주요 창업자 타겟</p>
  <p className={`text-sm ${t.text}`}>{regionRec.targetCustomer}</p>
  </div>
@@ -15386,7 +15392,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
 
  {regionRec.brokerMent && (
- <div className="p-4 rounded-xl border border-neutral-300 bg-emerald-500/5">
+ <div className="p-4 rounded-xl border border-[#D1D6DB] bg-emerald-500/5">
  <div className="flex items-center justify-between mb-2">
  <p className={`text-xs font-semibold ${t.text}`}>중개사 대화 예시</p>
  <button 
@@ -15394,10 +15400,10 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  const btn = e.currentTarget;
  navigator.clipboard.writeText(aiRegionResult?.brokerMent || regionRec.brokerMent);
  btn.innerText = '';
- btn.classList.add('text-neutral-700');
- setTimeout(() => { btn.innerText = '복사'; btn.classList.remove('text-neutral-700'); }, 1500);
+ btn.classList.add('text-[#4E5968]');
+ setTimeout(() => { btn.innerText = '복사'; btn.classList.remove('text-[#4E5968]'); }, 1500);
  }}
- className={`px-2 py-1 rounded text-xs ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 hover:bg-neutral-600' : (theme === 'dark' ? 'bg-neutral-700 text-neutral-300 hover:bg-neutral-600' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200')}`}
+ className={`px-2 py-1 rounded text-xs ${theme === 'dark' ? 'bg-[#2C2C35] text-neutral-200 hover:bg-neutral-600' : (theme === 'dark' ? 'bg-[#2C2C35] text-[#8C8C96] hover:bg-neutral-600' : 'bg-[#F2F4F6] text-[#4E5968] hover:bg-[#E5E8EB]')}`}
  >복사</button>
  </div>
  <p className={`text-sm leading-relaxed ${t.text}`}>"{aiRegionResult?.brokerMent || regionRec.brokerMent}"</p>
@@ -15413,7 +15419,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  href={regionRec.sourceUrl} 
  target="_blank" 
  rel="noopener" 
- className="flex items-center justify-between p-3 rounded-xl border border-neutral-200/30 hover:bg-neutral-800/10 transition-all"
+ className="flex items-center justify-between p-3 rounded-xl border border-[#E5E8EB]/30 hover:bg-[#21212A]/10 transition-all"
  >
  <div className="flex items-center gap-2">
  <span className={`${t.text}`}></span>
@@ -15426,7 +15432,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* 다음 지역 버튼 */}
  <button 
  onClick={() => setAiRegionIndex(prev => prev + 1)}
- className="w-full py-3 rounded-xl bg-neutral-800/20 hover:bg-neutral-800/30 border border-neutral-200 text-neutral-700 font-medium transition-all"
+ className="w-full py-3 rounded-xl bg-[#21212A]/20 hover:bg-[#21212A]/30 border border-[#E5E8EB] text-[#4E5968] font-medium transition-all"
  >다음 지역 추천 보기 →</button>
  </div>
  ) : (
@@ -15439,12 +15445,12 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  return (
  <div key={idx} 
  onClick={() => { setAiRegionIndex(idx); setAiRegionViewMode('single'); }}
- className="p-3 rounded-lg border border-neutral-200/30 hover:border-neutral-200 bg-transparent cursor-pointer transition-all"
+ className="p-3 rounded-lg border border-[#E5E8EB]/30 hover:border-[#E5E8EB] bg-transparent cursor-pointer transition-all"
  >
  <div className="flex items-center justify-between">
  <div className="flex items-center gap-2">
- <span className="px-2 py-0.5 rounded text-xs bg-neutral-800/20 text-neutral-700">{category}</span>
- <span className="text-sm font-medium text-neutral-800">{region}</span>
+ <span className="px-2 py-0.5 rounded text-xs bg-[#21212A]/20 text-[#4E5968]">{category}</span>
+ <span className="text-sm font-medium text-[#333D4B]">{region}</span>
  </div>
  <span className={`${t.textMuted}`}>→</span>
  </div>
@@ -15456,24 +15462,24 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
 
  {/* 시장 이슈 */}
- <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <h3 className={`font-bold ${t.text} mb-3 flex items-center gap-2`}>
  <span className="text-xl"></span> 시장 이슈 ({marketIssues.length}건)
  </h3>
  {marketIssues.length === 0 ? (
- <div className="text-center py-4 sm:py-6 text-neutral-500">
+ <div className="text-center py-4 sm:py-6 text-[#56565F]">
  <p className="mb-2">아직 수집된 이슈가 없습니다.</p>
  <p className="text-xs">이슈 수집 확장 프로그램을 사용해 정보를 수집하세요.</p>
  </div>
  ) : (
  <div className="space-y-2 max-h-60 overflow-y-auto">
  {marketIssues.slice(0, 10).map((issue, idx) => (
- <div key={issue.id || idx} className="p-3 rounded-lg bg-transparent hover:bg-neutral-50 transition-all">
+ <div key={issue.id || idx} className="p-3 rounded-lg bg-transparent hover:bg-[#F9FAFB] transition-all">
  <div className="flex items-center gap-2 mb-1">
- <span className="px-2 py-0.5 rounded text-xs bg-neutral-600 text-neutral-700">{issue.지역 || issue.region || '전국'}</span>
- <span className="px-2 py-0.5 rounded text-xs bg-neutral-200 text-neutral-700">{issue.유형 || issue.type || '일반'}</span>
+ <span className="px-2 py-0.5 rounded text-xs bg-neutral-600 text-[#4E5968]">{issue.지역 || issue.region || '전국'}</span>
+ <span className="px-2 py-0.5 rounded text-xs bg-[#E5E8EB] text-[#4E5968]">{issue.유형 || issue.type || '일반'}</span>
  </div>
- <p className="text-sm text-neutral-800 font-medium">{issue.제목 || issue.title}</p>
+ <p className="text-sm text-[#333D4B] font-medium">{issue.제목 || issue.title}</p>
  <p className={`text-xs mt-1 ${t.textMuted}`}>{issue.출처 || issue.source} · {issue.수집일 || issue.date}</p>
  </div>
  ))}
@@ -15482,59 +15488,59 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
 
  {/* 트렌드 분석 - 영업팀 관점 */}
- <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <h3 className={`font-bold ${t.text} mb-4 text-lg`}>
  트렌드 분석
- <span className="text-xs text-neutral-500 ml-2 font-normal">영업 시 활용 포인트</span>
+ <span className="text-xs text-[#56565F] ml-2 font-normal">영업 시 활용 포인트</span>
  </h3>
  <div className="space-y-3">
  {/* 트렌드 1: 폐업률 증가 - 영업 기회 */}
- <div className="p-4 rounded-2xl border border-neutral-200 hover:border-slate-500">
+ <div className="p-4 rounded-2xl border border-[#E5E8EB] hover:border-slate-500">
  <div className="flex items-center justify-between mb-2">
  <p className={`text-sm font-medium ${t.text}`}>카페 폐업률 14.1% (치킨집보다 높음)</p>
  <a href="https://www.sisajournal.com/news/articleView.html?idxno=195110" target="_blank" rel="noopener" className={`text-xs hover:underline ${t.text}`}>출처 →</a>
  </div>
  <p className={`text-xs ${t.textMuted}`}>폐업 매장 52.6%가 3년 미만 운영</p>
- <div className={`mt-3 p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-600' : 'bg-white border-neutral-300'}`}>
+ <div className={`mt-3 p-3 rounded-lg border ${theme === 'dark' ? 'bg-[#21212A] border-neutral-600' : 'bg-white border-[#D1D6DB]'}`}>
  <p className={`text-xs font-semibold mb-1 ${t.text}`}>영업 활용 포인트</p>
  <p className={`text-sm ${t.text}`}>"폐업률이 높다"만 말하면 안 됩니다. "그래서 저희처럼 전문가와 함께 시작하시는 분들이 늘고 있습니다"로 연결하세요.</p>
  </div>
  </div>
  
  {/* 트렌드 2: 저가 프랜차이즈 포화 */}
- <div className="p-4 rounded-2xl border border-neutral-200 hover:border-slate-500">
+ <div className="p-4 rounded-2xl border border-[#E5E8EB] hover:border-slate-500">
  <div className="flex items-center justify-between mb-2">
  <p className={`text-sm font-medium ${t.text}`}>저가 프랜차이즈 가맹점 2만개 돌파</p>
  <a href="https://franchise.ftc.go.kr" target="_blank" rel="noopener" className={`text-xs hover:underline ${t.text}`}>출처 →</a>
  </div>
  <p className={`text-xs ${t.textMuted}`}>메가커피 3,200개+, 컴포즈 2,500개+ 등 경쟁 치열</p>
- <div className={`mt-3 p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-600' : 'bg-white border-neutral-300'}`}>
+ <div className={`mt-3 p-3 rounded-lg border ${theme === 'dark' ? 'bg-[#21212A] border-neutral-600' : 'bg-white border-[#D1D6DB]'}`}>
  <p className={`text-xs font-semibold mb-1 ${t.text}`}>영업 활용 포인트</p>
  <p className={`text-sm ${t.text}`}>"프랜차이즈 생각하시는 분들 많은데, 로열티 월 15~50만원이면 5년에 최소 900만원입니다. 저희는 로열티 0원이에요."</p>
  </div>
  </div>
  
  {/* 트렌드 3: 개인카페 차별화 성공 사례 */}
- <div className="p-4 rounded-2xl border border-neutral-200 hover:border-slate-500">
+ <div className="p-4 rounded-2xl border border-[#E5E8EB] hover:border-slate-500">
  <div className="flex items-center justify-between mb-2">
- <p className="text-sm font-medium text-neutral-700">차별화된 개인카페 생존율 높음</p>
+ <p className="text-sm font-medium text-[#4E5968]">차별화된 개인카페 생존율 높음</p>
  <a href="https://www.kbfg.com/kbresearch/report/reportView.do?reportId=1003869" target="_blank" rel="noopener" className={`text-xs hover:underline ${t.text}`}>출처 →</a>
  </div>
  <p className={`text-xs ${t.textMuted}`}>KB경영연구소: 콘셉트 차별화 + 상권 맞춤 전략 필수</p>
- <div className={`mt-3 p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-600' : 'bg-white border-neutral-300'}`}>
+ <div className={`mt-3 p-3 rounded-lg border ${theme === 'dark' ? 'bg-[#21212A] border-neutral-600' : 'bg-white border-[#D1D6DB]'}`}>
  <p className={`text-xs font-semibold mb-1 ${t.text}`}>영업 활용 포인트</p>
  <p className={`text-sm ${t.text}`}>"저희가 상권에 맞는 콘셉트, 메뉴 구성, 인테리어 방향까지 잡아드립니다. 프랜차이즈처럼 정해진 틀이 없어서 자유롭게 운영 가능하세요."</p>
  </div>
  </div>
  
  {/* 트렌드 4: 창업 비용 부담 증가 */}
- <div className="p-4 rounded-2xl border border-neutral-200 hover:border-slate-500">
+ <div className="p-4 rounded-2xl border border-[#E5E8EB] hover:border-slate-500">
  <div className="flex items-center justify-between mb-2">
- <p className="text-sm font-medium text-neutral-700">카페 창업 비용 평균 1억원 돌파</p>
+ <p className="text-sm font-medium text-[#4E5968]">카페 창업 비용 평균 1억원 돌파</p>
  <a href="https://www.sisain.co.kr/news/articleView.html?idxno=52312" target="_blank" rel="noopener" className={`text-xs hover:underline ${t.text}`}>출처 →</a>
  </div>
  <p className={`text-xs ${t.textMuted}`}>인테리어, 기기, 인건비 상승으로 초기 자금 부담 증가</p>
- <div className={`mt-3 p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-600' : 'bg-white border-neutral-300'}`}>
+ <div className={`mt-3 p-3 rounded-lg border ${theme === 'dark' ? 'bg-[#21212A] border-neutral-600' : 'bg-white border-[#D1D6DB]'}`}>
  <p className={`text-xs font-semibold mb-1 ${t.text}`}>영업 활용 포인트</p>
  <p className={`text-sm ${t.text}`}>"비용 걱정하시는 분들 많으신데, 저희 컨설팅 받으시면 불필요한 비용 줄이고 꼭 필요한 곳에만 투자하실 수 있습니다."</p>
  </div>
@@ -15542,7 +15548,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  
  {/* AI 피드백 */}
- <div className={`mt-4 p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-600' : 'bg-white border-neutral-300'}`}>
+ <div className={`mt-4 p-3 rounded-lg border ${theme === 'dark' ? 'bg-[#21212A] border-neutral-600' : 'bg-white border-[#D1D6DB]'}`}>
  <p className={`text-xs font-semibold mb-2 ${t.text}`}>AI 영업 피드백</p>
  <p className={`text-sm ${t.text}`}>이 트렌드들을 "문제 제기"로만 사용하면 효과 없습니다. 반드시 "그래서 저희가 해결해드립니다"로 연결하세요. 숫자와 출처를 함께 말하면 신뢰도가 올라갑니다.</p>
  </div>
@@ -15565,22 +15571,22 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                     <div className="modal-content max-w-lg" onClick={e => e.stopPropagation()}>
                       <div className="flex justify-between items-center mb-4">
                         <h3 className={`text-lg font-bold ${t.text}`}>{regionKeyword} 지역 업체 ({regionCompanies.length}개)</h3>
-                        <button type="button" onClick={() => { setShowManagerCompaniesModal(null); setManagerCompanySearch(''); }} className={`text-neutral-500 hover:${t.text} text-xl`}>×</button>
+                        <button type="button" onClick={() => { setShowManagerCompaniesModal(null); setManagerCompanySearch(''); }} className={`text-[#56565F] hover:${t.text} text-xl`}>×</button>
                       </div>
                       <input
                         type="text"
                         placeholder="업체명/주소 검색"
                         value={managerCompanySearch}
                         onChange={e => setManagerCompanySearch(e.target.value)}
-                        className={`w-full px-3 py-2 rounded-lg placeholder-neutral-400 focus:outline-none transition-all mb-4 ${theme === 'dark' ? 'bg-neutral-700 border-neutral-600 text-white focus:border-neutral-500' : 'bg-white border-neutral-200 text-neutral-900 focus:border-neutral-400'}`}
+                        className={`w-full px-3 py-2 rounded-lg placeholder-[#B0B8C1] focus:outline-none transition-all mb-4 ${theme === 'dark' ? 'bg-[#2C2C35] border-neutral-600 text-white focus:border-neutral-500' : 'bg-white border-[#E5E8EB] text-[#191F28] focus:border-[#3182F6]'}`}
                       />
                       <div className="max-h-80 overflow-y-auto space-y-2">
                         {searchFiltered.length === 0 ? (
-                          <p className="text-center text-neutral-500 py-4">해당 지역 업체가 없습니다.</p>
+                          <p className="text-center text-[#56565F] py-4">해당 지역 업체가 없습니다.</p>
                         ) : searchFiltered.map(c => {
                           const reaction = REACTION_COLORS[c.reaction] || REACTION_COLORS.neutral;
                           return (
-                            <div key={c.id} className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-neutral-200'}`}>
+                            <div key={c.id} className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-[#21212A] border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
                               <div className="flex justify-between items-start">
                                 <div>
                                   <p className={`font-medium ${t.text}`}>{c.name}</p>
@@ -15588,7 +15594,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                                 </div>
                                 <span className="px-2 py-1 rounded text-xs" style={{ backgroundColor: reaction.bg + '30', color: reaction.bg }}>{reaction.label}</span>
                               </div>
-                              {c.memo && <p className="text-xs text-neutral-500 mt-2 truncate">메모: {c.memo}</p>}
+                              {c.memo && <p className="text-xs text-[#56565F] mt-2 truncate">메모: {c.memo}</p>}
                             </div>
                           );
                         })}
@@ -15600,20 +15606,20 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
 {showTrendModal && (
  <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setShowTrendModal(null)}>
- <div className={`rounded-2xl max-w-[95vw] sm:max-w-2xl w-full max-h-[80vh] overflow-y-auto border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-neutral-200'}`} onClick={e => e.stopPropagation()}>
- <div className={`sticky top-0 p-4 border-b flex justify-between items-center ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-2xl max-w-[95vw] sm:max-w-2xl w-full max-h-[80vh] overflow-y-auto border ${theme === 'dark' ? 'bg-[#21212A] border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`} onClick={e => e.stopPropagation()}>
+ <div className={`sticky top-0 p-4 border-b flex justify-between items-center ${theme === 'dark' ? 'bg-[#21212A] border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <h3 className={`font-bold text-lg ${t.text}`}>
  {showTrendModal === 'specialty' && '스페셜티 커피 시장 분석'}
  {showTrendModal === 'lowcost' && '저가 프랜차이즈 시장 분석'}
  {showTrendModal === 'differentiation' && '차별화 전략 가이드'}
  {showTrendModal === 'delivery' && '배달/테이크아웃 시장 분석'}
  </h3>
- <button type="button" onClick={() => setShowTrendModal(null)} className={`text-neutral-500 hover:${t.text} text-2xl`}>×</button>
+ <button type="button" onClick={() => setShowTrendModal(null)} className={`text-[#56565F] hover:${t.text} text-2xl`}>×</button>
  </div>
  <div className="p-4 space-y-2">
  {showTrendModal === 'specialty' && (
  <div className="space-y-2">
- <div className="p-4 rounded-lg border border-neutral-200/30 bg-transparent">
+ <div className="p-4 rounded-lg border border-[#E5E8EB]/30 bg-transparent">
  <h4 className={`${t.text} font-semibold mb-2`}>스페셜티 커피란?</h4>
  <ul className={`text-sm space-y-2 ${t.text}`}>
  <li>• SCA(스페셜티커피협회) 기준 80점 이상 등급의 고품질 원두</li>
@@ -15621,7 +15627,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <li>• 일반 커피 대비 높은 가격대 (아메리카노 기준 5,000~8,000원)</li>
  </ul>
  </div>
- <div className="p-4 rounded-lg border border-neutral-200/30 bg-transparent">
+ <div className="p-4 rounded-lg border border-[#E5E8EB]/30 bg-transparent">
  <h4 className={`font-semibold mb-2 ${t.text}`}>특징</h4>
  <ul className={`text-sm space-y-2 ${t.text}`}>
  <li>• 로스터리 카페 형태로 직접 로스팅하는 경우 많음</li>
@@ -15629,7 +15635,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <li>• 원두 판매, 커핑 클래스 등 부가 수익 가능</li>
  </ul>
  </div>
- <div className="p-4 rounded-lg border border-neutral-300 bg-yellow-500/5">
+ <div className="p-4 rounded-lg border border-[#D1D6DB] bg-yellow-500/5">
  <h4 className={`font-semibold mb-2 ${t.text}`}>참고 자료</h4>
  <p className={`text-xs ${t.textMuted}`}>구체적인 시장 규모, 성장률 등은 아래 자료를 참고하세요:</p>
  <ul className={`text-xs mt-2 space-y-1 ${t.textMuted}`}>
@@ -15642,7 +15648,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  )}
  {showTrendModal === 'lowcost' && (
  <div className="space-y-2">
- <div className="p-4 rounded-lg border border-neutral-200/30 bg-transparent">
+ <div className="p-4 rounded-lg border border-[#E5E8EB]/30 bg-transparent">
  <h4 className={`${t.text} font-semibold mb-2`}>저가 커피 프랜차이즈</h4>
  <ul className={`text-sm space-y-2 ${t.text}`}>
  <li>• 아메리카노 1,500~2,000원대 가격 경쟁력</li>
@@ -15650,7 +15656,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <li>• 대표 브랜드: 메가커피, 컴포즈커피, 빽다방 등</li>
  </ul>
  </div>
- <div className="p-4 rounded-lg border border-neutral-200/30 bg-transparent">
+ <div className="p-4 rounded-lg border border-[#E5E8EB]/30 bg-transparent">
  <h4 className={`${t.text} font-semibold mb-2`}>고려사항</h4>
  <ul className={`text-sm space-y-2 ${t.text}`}>
  <li>• 동일 브랜드 근접 출점 여부 확인 필요</li>
@@ -15658,7 +15664,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <li>• 가맹본부 정보공개서 반드시 확인</li>
  </ul>
  </div>
- <div className="p-4 rounded-lg border border-neutral-300 bg-yellow-500/5">
+ <div className="p-4 rounded-lg border border-[#D1D6DB] bg-yellow-500/5">
  <h4 className={`font-semibold mb-2 ${t.text}`}>참고 자료</h4>
  <p className={`text-xs ${t.textMuted}`}>가맹점 수, 평균 매출 등 정확한 정보:</p>
  <ul className={`text-xs mt-2 space-y-1 ${t.textMuted}`}>
@@ -15670,7 +15676,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  )}
  {showTrendModal === 'differentiation' && (
  <div className="space-y-2">
- <div className="p-4 rounded-lg border border-neutral-200/30 bg-transparent">
+ <div className="p-4 rounded-lg border border-[#E5E8EB]/30 bg-transparent">
  <h4 className={`font-semibold mb-2 ${t.text}`}>차별화 요소</h4>
  <ul className={`text-sm space-y-2 ${t.text}`}>
  <li>• 시그니처 메뉴 개발 (음료, 디저트)</li>
@@ -15678,7 +15684,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <li>• 지역 커뮤니티 연계</li>
  </ul>
  </div>
- <div className="p-4 rounded-lg border border-neutral-200/30 bg-transparent">
+ <div className="p-4 rounded-lg border border-[#E5E8EB]/30 bg-transparent">
  <h4 className={`font-semibold mb-2 ${t.text}`}>운영 전략</h4>
  <ul className={`text-sm space-y-2 ${t.text}`}>
  <li>• SNS 마케팅 (인스타그램, 네이버 플레이스)</li>
@@ -15690,7 +15696,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  )}
  {showTrendModal === 'delivery' && (
  <div className="space-y-2">
- <div className="p-4 rounded-lg border border-neutral-200/30 bg-transparent">
+ <div className="p-4 rounded-lg border border-[#E5E8EB]/30 bg-transparent">
  <h4 className={`${t.text} font-semibold mb-2`}>배달/테이크아웃</h4>
  <ul className={`text-sm space-y-2 ${t.text}`}>
  <li>• 배달앱: 배달의민족, 쿠팡이츠, 요기요 등</li>
@@ -15698,7 +15704,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <li>• 테이크아웃 전용 창구 운영 고려</li>
  </ul>
  </div>
- <div className="p-4 rounded-lg border border-neutral-200/30 bg-transparent">
+ <div className="p-4 rounded-lg border border-[#E5E8EB]/30 bg-transparent">
  <h4 className={`font-semibold mb-2 ${t.text}`}>운영 고려사항</h4>
  <ul className={`text-sm space-y-2 ${t.text}`}>
  <li>• 배달 적합 메뉴 선정 (아이스 음료 품질 관리)</li>
@@ -15719,7 +15725,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* ═══════════════════════════════════════════════════════════════════════════════
  카페 창업 핵심 통계 (영업 데이터) - 출처 URL 포함
  ═══════════════════════════════════════════════════════════════════════════════ */}
- <div className={`rounded-2xl p-4 border-2 ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-600' : 'bg-white border-neutral-300'}`}>
+ <div className={`rounded-2xl p-4 border-2 ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-neutral-600' : 'bg-white border-[#D1D6DB]'}`}>
  <h3 className={`font-bold ${t.text} mb-4 flex items-center gap-2 text-lg`}>
  <span className="text-xl"></span> 영업 필수 데이터 (클릭하여 멘트 확인)
  </h3>
@@ -15728,7 +15734,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* 폐업률 66.2% */}
  <div 
  onClick={() => setAiExpandedData(aiExpandedData === 'closure' ? null : 'closure')}
- className="p-4 rounded-xl border border-neutral-300 bg-transparent cursor-pointer hover:border-neutral-200 transition-all"
+ className="p-4 rounded-xl border border-[#D1D6DB] bg-transparent cursor-pointer hover:border-[#E5E8EB] transition-all"
  >
  <div className="flex items-center justify-between">
  <div>
@@ -15741,18 +15747,18 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <p className={`text-xs mt-2 ${t.text}`}>"폐업 매장 절반이 3년 미만 운영 후 문 닫습니다"</p>
  </div>
  {aiExpandedData === 'closure' && (
- <div className="p-4 rounded-xl border border-neutral-200/30 bg-transparent space-y-3 animate-fadeIn">
- <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-600' : 'bg-white border-neutral-300'}`}>
+ <div className="p-4 rounded-xl border border-[#E5E8EB]/30 bg-transparent space-y-3 animate-fadeIn">
+ <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-[#21212A] border-neutral-600' : 'bg-white border-[#D1D6DB]'}`}>
  <div className="flex items-center justify-between mb-1">
  <p className={`text-xs font-semibold ${t.text}`}>중개사 영업 멘트</p>
- <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('선생님, 카페 창업 문의 많이 받으시죠? 저희 빈크래프트는 개인카페 창업 컨설팅 업체입니다. 고객분께서 카페 창업 관심 있으시면 저희 연결해주세요. 중개 수수료 외에 소개비도 따로 드립니다.'); btn.innerText = ''; btn.classList.add('text-neutral-700'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-neutral-700'); }, 1500); }} className={`px-2 py-1 rounded text-xs ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 hover:bg-neutral-600' : (theme === 'dark' ? 'bg-neutral-700 text-neutral-300 hover:bg-neutral-600' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200')}`}></button>
+ <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('선생님, 카페 창업 문의 많이 받으시죠? 저희 빈크래프트는 개인카페 창업 컨설팅 업체입니다. 고객분께서 카페 창업 관심 있으시면 저희 연결해주세요. 중개 수수료 외에 소개비도 따로 드립니다.'); btn.innerText = ''; btn.classList.add('text-[#4E5968]'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-[#4E5968]'); }, 1500); }} className={`px-2 py-1 rounded text-xs ${theme === 'dark' ? 'bg-[#2C2C35] text-neutral-200 hover:bg-neutral-600' : (theme === 'dark' ? 'bg-[#2C2C35] text-[#8C8C96] hover:bg-neutral-600' : 'bg-[#F2F4F6] text-[#4E5968] hover:bg-[#E5E8EB]')}`}></button>
  </div>
  <p className={`text-sm ${t.text}`}>"선생님, 카페 창업 문의 많이 받으시죠? 저희 <span className={`font-semibold ${t.text}`}>빈크래프트</span>는 개인카페 창업 컨설팅 업체입니다. 고객분께서 카페 창업 관심 있으시면 저희 연결해주세요. <span className={`font-semibold ${t.text}`}>중개 수수료 외에 소개비</span>도 따로 드립니다."</p>
  </div>
- <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-600' : 'bg-white border-neutral-300'}`}>
+ <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-[#21212A] border-neutral-600' : 'bg-white border-[#D1D6DB]'}`}>
  <div className="flex items-center justify-between mb-1">
  <p className={`text-xs font-semibold ${t.text}`}>빈크래프트 차별점</p>
- <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('가맹비/로열티 0원으로 프랜차이즈 대비 초기 비용 절감, 메뉴/인테리어 자유롭게 결정 가능, 입지 선정부터 운영까지 전문 컨설팅 지원'); btn.innerText = ''; btn.classList.add('text-neutral-700'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-neutral-700'); }, 1500); }} className={`px-2 py-1 rounded text-xs ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 hover:bg-neutral-600' : (theme === 'dark' ? 'bg-neutral-700 text-neutral-300 hover:bg-neutral-600' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200')}`}></button>
+ <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('가맹비/로열티 0원으로 프랜차이즈 대비 초기 비용 절감, 메뉴/인테리어 자유롭게 결정 가능, 입지 선정부터 운영까지 전문 컨설팅 지원'); btn.innerText = ''; btn.classList.add('text-[#4E5968]'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-[#4E5968]'); }, 1500); }} className={`px-2 py-1 rounded text-xs ${theme === 'dark' ? 'bg-[#2C2C35] text-neutral-200 hover:bg-neutral-600' : (theme === 'dark' ? 'bg-[#2C2C35] text-[#8C8C96] hover:bg-neutral-600' : 'bg-[#F2F4F6] text-[#4E5968] hover:bg-[#E5E8EB]')}`}></button>
  </div>
  <p className={`text-sm ${t.text}`}><span className={`font-semibold ${t.text}`}>가맹비/로열티 0원</span>으로 프랜차이즈 대비 초기 비용 절감, 메뉴/인테리어 자유롭게 결정 가능, 입지 선정부터 운영까지 전문 컨설팅 지원</p>
  </div>
@@ -15765,7 +15771,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  <p className={`text-xs mt-2 ${t.textMuted}`}>출처: 통계청 기업생멸행정통계, 시사저널</p>
  </div>
- <a href="https://www.sisajournal.com/news/articleView.html?idxno=195110" target="_blank" rel="noopener" className="flex items-center gap-2 px-3 py-2 rounded-lg border border-neutral-200 hover:bg-neutral-800/10 text-neutral-700 text-sm transition-all">
+ <a href="https://www.sisajournal.com/news/articleView.html?idxno=195110" target="_blank" rel="noopener" className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[#E5E8EB] hover:bg-[#21212A]/10 text-[#4E5968] text-sm transition-all">
  시사저널: 카페 폐업률 14%, 치킨집보다 높아 →
  </a>
  </div>
@@ -15774,13 +15780,13 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* 생존율 비교 */}
  <div 
  onClick={() => setAiExpandedData(aiExpandedData === 'survival' ? null : 'survival')}
- className="p-4 rounded-xl border border-neutral-300 bg-transparent cursor-pointer hover:border-neutral-200 transition-all"
+ className="p-4 rounded-xl border border-[#D1D6DB] bg-transparent cursor-pointer hover:border-[#E5E8EB] transition-all"
  >
  <div className="flex items-center justify-between">
  <div>
  <span className={`font-bold ${t.text}`}>카페 평균 영업이익</span>
- <span className="text-lg font-bold text-neutral-700 ml-2">연 1,050만원</span>
- <span className="text-neutral-500 mx-2">(10곳 중 1곳 적자)</span>
+ <span className="text-lg font-bold text-[#4E5968] ml-2">연 1,050만원</span>
+ <span className="text-[#56565F] mx-2">(10곳 중 1곳 적자)</span>
  </div>
  <span className={`text-lg ${t.textMuted}`}>{aiExpandedData === 'survival' ? '▲' : '▼'}</span>
  </div>
@@ -15788,31 +15794,31 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <p className={`text-xs mt-2 ${t.text}`}>"상권분석 없이 뛰어들면 적자 각오해야 합니다"</p>
  </div>
  {aiExpandedData === 'survival' && (
- <div className="p-4 rounded-xl border border-neutral-200/30 bg-transparent space-y-3 animate-fadeIn">
- <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-600' : 'bg-white border-neutral-300'}`}>
+ <div className="p-4 rounded-xl border border-[#E5E8EB]/30 bg-transparent space-y-3 animate-fadeIn">
+ <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-[#21212A] border-neutral-600' : 'bg-white border-[#D1D6DB]'}`}>
  <div className="flex items-center justify-between mb-1">
  <p className={`text-xs font-semibold ${t.text}`}>중개사 영업 멘트</p>
- <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('선생님, 카페 평균 영업이익이 연 1,050만원입니다. 월 87만원이에요. 이게 현실입니다. 저희 고객분들은 상권분석부터 받고 오시는데, 이 서비스 있다고만 말씀하셔도 관심 가지실 겁니다.'); btn.innerText = ''; btn.classList.add('text-neutral-700'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-neutral-700'); }, 1500); }} className={`px-2 py-1 rounded text-xs ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 hover:bg-neutral-600' : (theme === 'dark' ? 'bg-neutral-700 text-neutral-300 hover:bg-neutral-600' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200')}`}></button>
+ <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('선생님, 카페 평균 영업이익이 연 1,050만원입니다. 월 87만원이에요. 이게 현실입니다. 저희 고객분들은 상권분석부터 받고 오시는데, 이 서비스 있다고만 말씀하셔도 관심 가지실 겁니다.'); btn.innerText = ''; btn.classList.add('text-[#4E5968]'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-[#4E5968]'); }, 1500); }} className={`px-2 py-1 rounded text-xs ${theme === 'dark' ? 'bg-[#2C2C35] text-neutral-200 hover:bg-neutral-600' : (theme === 'dark' ? 'bg-[#2C2C35] text-[#8C8C96] hover:bg-neutral-600' : 'bg-[#F2F4F6] text-[#4E5968] hover:bg-[#E5E8EB]')}`}></button>
  </div>
  <p className={`text-sm ${t.text}`}>"선생님, 카페 평균 영업이익이 <span className={`font-semibold ${t.text}`}>연 1,050만원</span>입니다. 월 87만원이에요. 이게 현실입니다. 저희 고객분들은 <span className={`font-semibold ${t.text}`}>상권분석부터</span> 받고 오시는데, 이 서비스 있다고만 말씀하셔도 관심 가지실 겁니다."</p>
  </div>
- <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-600' : 'bg-white border-neutral-300'}`}>
+ <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-[#21212A] border-neutral-600' : 'bg-white border-[#D1D6DB]'}`}>
  <div className="flex items-center justify-between mb-1">
  <p className={`text-xs font-semibold ${t.text}`}>창업자 영업 멘트</p>
- <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('사장님, 카페 평균 영업이익이 연 1,050만원입니다. 직장인 연봉 3,475만원의 1/3이에요. 수익 구조 모르고 시작하면 적자입니다. 저희가 해당 상권 경쟁 현황, 유동인구 분석해드립니다.'); btn.innerText = ''; btn.classList.add('text-neutral-700'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-neutral-700'); }, 1500); }} className={`px-2 py-1 rounded text-xs ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 hover:bg-neutral-600' : (theme === 'dark' ? 'bg-neutral-700 text-neutral-300 hover:bg-neutral-600' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200')}`}></button>
+ <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('사장님, 카페 평균 영업이익이 연 1,050만원입니다. 직장인 연봉 3,475만원의 1/3이에요. 수익 구조 모르고 시작하면 적자입니다. 저희가 해당 상권 경쟁 현황, 유동인구 분석해드립니다.'); btn.innerText = ''; btn.classList.add('text-[#4E5968]'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-[#4E5968]'); }, 1500); }} className={`px-2 py-1 rounded text-xs ${theme === 'dark' ? 'bg-[#2C2C35] text-neutral-200 hover:bg-neutral-600' : (theme === 'dark' ? 'bg-[#2C2C35] text-[#8C8C96] hover:bg-neutral-600' : 'bg-[#F2F4F6] text-[#4E5968] hover:bg-[#E5E8EB]')}`}></button>
  </div>
  <p className={`text-sm ${t.text}`}>"사장님, 카페 평균 영업이익이 <span className={`font-semibold ${t.text}`}>연 1,050만원</span>입니다. 직장인 연봉 3,475만원의 1/3이에요. 수익 구조 모르고 시작하면 적자입니다. 저희가 해당 상권 <span className={`font-semibold ${t.text}`}>경쟁 현황, 유동인구</span> 분석해드립니다."</p>
  </div>
- <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-600' : 'bg-white border-neutral-300'}`}>
+ <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-[#21212A] border-neutral-600' : 'bg-white border-[#D1D6DB]'}`}>
  <p className={`text-xs font-semibold mb-2 ${t.text}`}>빈크래프트 상권분석 제공 항목</p>
- <div className="grid grid-cols-2 gap-2 text-xs text-neutral-700">
+ <div className="grid grid-cols-2 gap-2 text-xs text-[#4E5968]">
  <span>• 반경 500m 카페 점포 수</span>
  <span>• 유동인구 데이터</span>
  <span>• 경쟁 업체 현황</span>
  <span>• 상권 특성 분석</span>
  </div>
  </div>
- <a href="https://www.sisain.co.kr/news/articleView.html?idxno=52312" target="_blank" rel="noopener" className="flex items-center gap-2 px-3 py-2 rounded-lg border border-neutral-200 hover:bg-neutral-800/10 text-neutral-700 text-sm transition-all">
+ <a href="https://www.sisain.co.kr/news/articleView.html?idxno=52312" target="_blank" rel="noopener" className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[#E5E8EB] hover:bg-[#21212A]/10 text-[#4E5968] text-sm transition-all">
  시사IN: 위기 경고 깜빡이는 카페 자영업 →
  </a>
  </div>
@@ -15821,12 +15827,12 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* 프랜차이즈 비용 비교 */}
  <div 
  onClick={() => setAiExpandedData(aiExpandedData === 'royalty' ? null : 'royalty')}
- className="p-4 rounded-xl border border-neutral-300 bg-transparent cursor-pointer hover:border-neutral-200 transition-all"
+ className="p-4 rounded-xl border border-[#D1D6DB] bg-transparent cursor-pointer hover:border-[#E5E8EB] transition-all"
  >
  <div className="flex items-center justify-between">
  <div>
  <span className={`font-bold ${t.text}`}>프랜차이즈 초기 비용</span>
- <span className="text-2xl font-black text-neutral-700 ml-3">6,900만~1.3억원</span>
+ <span className="text-2xl font-black text-[#4E5968] ml-3">6,900만~1.3억원</span>
  </div>
  <span className={`text-lg ${t.textMuted}`}>{aiExpandedData === 'royalty' ? '▲' : '▼'}</span>
  </div>
@@ -15834,24 +15840,24 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <p className={`text-xs mt-2 ${t.text}`}>"저희는 매물 조건 제한이 없습니다"</p>
  </div>
  {aiExpandedData === 'royalty' && (
- <div className="p-4 rounded-xl border border-neutral-200/30 bg-transparent space-y-3 animate-fadeIn">
- <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-600' : 'bg-white border-neutral-300'}`}>
+ <div className="p-4 rounded-xl border border-[#E5E8EB]/30 bg-transparent space-y-3 animate-fadeIn">
+ <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-[#21212A] border-neutral-600' : 'bg-white border-[#D1D6DB]'}`}>
  <div className="flex items-center justify-between mb-1">
  <p className={`text-xs font-semibold ${t.text}`}>중개사 영업 멘트</p>
- <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('선생님, 프랜차이즈는 매물 조건이 까다롭습니다. 1층 15평 이상, 유동인구 기준 있어요. 저희는 선생님 매물 조건 그대로 됩니다. 창업자분들이 프랜차이즈 조건 안 맞아서 저희 찾는 경우 많습니다.'); btn.innerText = ''; btn.classList.add('text-neutral-700'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-neutral-700'); }, 1500); }} className={`px-2 py-1 rounded text-xs ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 hover:bg-neutral-600' : (theme === 'dark' ? 'bg-neutral-700 text-neutral-300 hover:bg-neutral-600' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200')}`}></button>
+ <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('선생님, 프랜차이즈는 매물 조건이 까다롭습니다. 1층 15평 이상, 유동인구 기준 있어요. 저희는 선생님 매물 조건 그대로 됩니다. 창업자분들이 프랜차이즈 조건 안 맞아서 저희 찾는 경우 많습니다.'); btn.innerText = ''; btn.classList.add('text-[#4E5968]'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-[#4E5968]'); }, 1500); }} className={`px-2 py-1 rounded text-xs ${theme === 'dark' ? 'bg-[#2C2C35] text-neutral-200 hover:bg-neutral-600' : (theme === 'dark' ? 'bg-[#2C2C35] text-[#8C8C96] hover:bg-neutral-600' : 'bg-[#F2F4F6] text-[#4E5968] hover:bg-[#E5E8EB]')}`}></button>
  </div>
  <p className={`text-sm ${t.text}`}>"선생님, 프랜차이즈는 매물 조건이 까다롭습니다. <span className={`font-semibold ${t.text}`}>1층 15평 이상, 유동인구 기준</span> 있어요. 저희는 선생님 매물 조건 그대로 됩니다. 창업자분들이 프랜차이즈 조건 안 맞아서 저희 찾는 경우 많습니다."</p>
  </div>
- <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-600' : 'bg-white border-neutral-300'}`}>
+ <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-[#21212A] border-neutral-600' : 'bg-white border-[#D1D6DB]'}`}>
  <div className="flex items-center justify-between mb-1">
  <p className={`text-xs font-semibold ${t.text}`}>창업자 영업 멘트</p>
- <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('사장님, 프랜차이즈 가맹비만 6,900만~1.3억원입니다. 공정위 정보공개서에 다 나와있어요. 저희는 매물 조건 제한 없이 상권분석부터 운영까지 도와드립니다.'); btn.innerText = ''; btn.classList.add('text-neutral-700'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-neutral-700'); }, 1500); }} className={`px-2 py-1 rounded text-xs ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 hover:bg-neutral-600' : (theme === 'dark' ? 'bg-neutral-700 text-neutral-300 hover:bg-neutral-600' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200')}`}></button>
+ <button type="button" onClick={(e) => { e.stopPropagation(); const btn = e.currentTarget; navigator.clipboard.writeText('사장님, 프랜차이즈 가맹비만 6,900만~1.3억원입니다. 공정위 정보공개서에 다 나와있어요. 저희는 매물 조건 제한 없이 상권분석부터 운영까지 도와드립니다.'); btn.innerText = ''; btn.classList.add('text-[#4E5968]'); setTimeout(() => { btn.innerText = ''; btn.classList.remove('text-[#4E5968]'); }, 1500); }} className={`px-2 py-1 rounded text-xs ${theme === 'dark' ? 'bg-[#2C2C35] text-neutral-200 hover:bg-neutral-600' : (theme === 'dark' ? 'bg-[#2C2C35] text-[#8C8C96] hover:bg-neutral-600' : 'bg-[#F2F4F6] text-[#4E5968] hover:bg-[#E5E8EB]')}`}></button>
  </div>
  <p className={`text-sm ${t.text}`}>"사장님, 프랜차이즈 가맹비만 <span className={`font-semibold ${t.text}`}>6,900만~1.3억원</span>입니다. 공정위 정보공개서에 다 나와있어요. 저희는 매물 조건 제한 없이 상권분석부터 운영까지 도와드립니다."</p>
  </div>
- <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-600' : 'bg-white border-neutral-300'}`}>
+ <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-[#21212A] border-neutral-600' : 'bg-white border-[#D1D6DB]'}`}>
  <p className={`text-xs font-semibold mb-2 ${t.text}`}>프랜차이즈 비용 (공정위 정보공개서 기준)</p>
- <div className="grid grid-cols-2 gap-2 text-xs text-neutral-700">
+ <div className="grid grid-cols-2 gap-2 text-xs text-[#4E5968]">
  <span>• 메가커피 가맹비: 6,900만원</span>
  <span>• 메가커피 로열티: 월 15만원</span>
  <span>• 이디야 가맹비: 1.3억원</span>
@@ -15867,7 +15873,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* ═══════════════════════════════════════════════════════════════════════════════
  프랜차이즈 vs 빈크래프트 비용 비교표 (상세페이지 스타일)
  ═══════════════════════════════════════════════════════════════════════════════ */}
- <div className={`rounded-2xl p-4 break-inside-avoid mb-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-2xl p-4 break-inside-avoid mb-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <h3 className={`font-bold ${t.text} mb-4 text-lg`}>
  프랜차이즈 vs 빈크래프트 비용 비교
  </h3>
@@ -15879,10 +15885,10 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
      value={franchiseSearch}
      onChange={e => setFranchiseSearch(e.target.value)}
      placeholder="업체 검색"
-     className="w-full px-4 py-3 rounded-lg bg-neutral-50 border border-neutral-200 text-neutral-800 placeholder-neutral-400 focus:outline-none focus:border-neutral-400 text-sm"
+     className="w-full px-4 py-3 rounded-lg bg-[#F9FAFB] border border-[#E5E8EB] text-[#333D4B] placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] text-sm"
    />
    {franchiseSearch && (
-     <div className={`mt-2 max-h-48 overflow-y-auto rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-neutral-200'}`}>
+     <div className={`mt-2 max-h-48 overflow-y-auto rounded-lg border ${theme === 'dark' ? 'bg-[#21212A] border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
        {Object.keys(FRANCHISE_DATA)
          .filter(name => name.toLowerCase().includes(franchiseSearch.toLowerCase()))
          .slice(0, 10)
@@ -15890,13 +15896,13 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
            <button
              key={name}
              onClick={() => { setSelectedFranchise(name); setFranchiseSearch(''); }}
-             className="w-full text-left px-4 py-2 hover:bg-neutral-50 text-sm text-neutral-800 border-b border-neutral-100 last:border-b-0"
+             className="w-full text-left px-4 py-2 hover:bg-[#F9FAFB] text-sm text-[#333D4B] border-b border-[#F2F4F6] last:border-b-0"
            >
              {name} <span className={`text-xs ${t.textMuted}`}>({FRANCHISE_DATA[name].카테고리})</span>
            </button>
          ))}
        {Object.keys(FRANCHISE_DATA).filter(name => name.toLowerCase().includes(franchiseSearch.toLowerCase())).length === 0 && (
-         <p className="px-4 py-2 text-sm text-neutral-400">검색 결과가 없습니다</p>
+         <p className="px-4 py-2 text-sm text-[#B0B8C1]">검색 결과가 없습니다</p>
        )}
      </div>
    )}
@@ -15904,10 +15910,10 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
  {/* 선택된 프랜차이즈 비교 테이블 */}
  {selectedFranchise && FRANCHISE_DATA[selectedFranchise] && (
-   <div className="mb-4 p-4 border border-neutral-300 rounded-xl bg-neutral-50">
+   <div className="mb-4 p-4 border border-[#D1D6DB] rounded-xl bg-[#F9FAFB]">
      <div className="flex items-center justify-between mb-3">
        <h4 className={`font-bold ${t.text}`}>{selectedFranchise} vs 빈크래프트</h4>
-       <button onClick={() => setSelectedFranchise(null)} className="text-neutral-400 hover:text-neutral-600 text-sm">닫기</button>
+       <button onClick={() => setSelectedFranchise(null)} className="text-[#B0B8C1] hover:text-[#6B7684] text-sm">닫기</button>
      </div>
      
      {/* 검증 데이터 기준 안내 */}
@@ -15919,39 +15925,39 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
      
      <table className="w-full text-sm">
        <thead>
-         <tr className="border-b border-neutral-200">
-           <th className="py-2 px-2 text-left text-neutral-500">항목</th>
-           <th className="py-2 px-2 text-center text-neutral-800">{selectedFranchise}</th>
+         <tr className="border-b border-[#E5E8EB]">
+           <th className="py-2 px-2 text-left text-[#56565F]">항목</th>
+           <th className="py-2 px-2 text-center text-[#333D4B]">{selectedFranchise}</th>
            <th className="py-2 px-2 text-center text-[#1e3a5f]">빈크래프트</th>
          </tr>
        </thead>
        <tbody>
-         <tr className="border-b border-neutral-100">
+         <tr className="border-b border-[#F2F4F6]">
            <td className="py-2 px-2">가맹비</td>
            <td className="py-2 px-2 text-center">{FRANCHISE_DATA[selectedFranchise].가맹비 !== null ? `${FRANCHISE_DATA[selectedFranchise].가맹비}만원` : <span className={`${t.textMuted}`}>미확인</span>}</td>
            <td className="py-2 px-2 text-center font-bold text-[#1e3a5f]">0원</td>
          </tr>
-         <tr className="border-b border-neutral-100">
+         <tr className="border-b border-[#F2F4F6]">
            <td className="py-2 px-2">교육비</td>
            <td className="py-2 px-2 text-center">{FRANCHISE_DATA[selectedFranchise].교육비 !== null ? `${FRANCHISE_DATA[selectedFranchise].교육비}만원` : <span className={`${t.textMuted}`}>미확인</span>}</td>
            <td className="py-2 px-2 text-center text-[#1e3a5f]">컨설팅 포함</td>
          </tr>
-         <tr className="border-b border-neutral-100">
+         <tr className="border-b border-[#F2F4F6]">
            <td className="py-2 px-2">보증금</td>
            <td className="py-2 px-2 text-center">{FRANCHISE_DATA[selectedFranchise].보증금 !== null ? `${FRANCHISE_DATA[selectedFranchise].보증금}만원` : <span className={`${t.textMuted}`}>미확인</span>}</td>
            <td className="py-2 px-2 text-center text-[#1e3a5f]">없음</td>
          </tr>
-         <tr className="border-b border-neutral-100">
+         <tr className="border-b border-[#F2F4F6]">
            <td className="py-2 px-2">로열티 (월)</td>
            <td className="py-2 px-2 text-center">{FRANCHISE_DATA[selectedFranchise].로열티월 !== null ? `${FRANCHISE_DATA[selectedFranchise].로열티월}만원` : <span className={`${t.textMuted}`}>미확인</span>}</td>
            <td className="py-2 px-2 text-center font-bold text-[#1e3a5f]">0원</td>
          </tr>
-         <tr className="border-b border-neutral-100">
+         <tr className="border-b border-[#F2F4F6]">
            <td className="py-2 px-2">광고분담금 (월)</td>
            <td className="py-2 px-2 text-center">{FRANCHISE_DATA[selectedFranchise].광고비월 !== null ? `${FRANCHISE_DATA[selectedFranchise].광고비월}만원` : <span className={`${t.textMuted}`}>미확인</span>}</td>
            <td className="py-2 px-2 text-center font-bold text-[#1e3a5f]">자율 선택</td>
          </tr>
-         <tr className="border-b border-neutral-100">
+         <tr className="border-b border-[#F2F4F6]">
            <td className="py-2 px-2">인테리어 (10평)</td>
            <td className="py-2 px-2 text-center">{FRANCHISE_DATA[selectedFranchise].인테리어 !== null ? `${FRANCHISE_DATA[selectedFranchise].인테리어}만원` : <span className={`${t.textMuted}`}>미확인</span>}</td>
            <td className="py-2 px-2 text-center text-[#1e3a5f]">400만원+별도</td>
@@ -15966,8 +15972,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
      
      {/* 추가 검증 데이터 표시 */}
      {(FRANCHISE_DATA[selectedFranchise].폐업률 !== null || FRANCHISE_DATA[selectedFranchise].연평균매출) && (
-       <div className={`mt-3 p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-neutral-200'}`}>
-         <h5 className="font-medium text-sm text-neutral-700 mb-2">검증된 실적 데이터</h5>
+       <div className={`mt-3 p-3 rounded-lg border ${theme === 'dark' ? 'bg-[#21212A] border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
+         <h5 className="font-medium text-sm text-[#4E5968] mb-2">검증된 실적 데이터</h5>
          <div className="grid grid-cols-2 gap-2 text-sm">
            {FRANCHISE_DATA[selectedFranchise].폐업률 !== null && (
              <div>
@@ -16001,18 +16007,18 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
      
      {/* 이슈 정보 */}
      {FRANCHISE_DATA[selectedFranchise].이슈 && (
-       <div className={`mt-3 p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-neutral-200'}`}>
+       <div className={`mt-3 p-3 rounded-lg border ${theme === 'dark' ? 'bg-[#21212A] border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
          <button 
            onClick={() => setFranchiseIssueExpanded(prev => ({...prev, [selectedFranchise]: !prev[selectedFranchise]}))}
            className="w-full flex items-center justify-between text-sm"
          >
-           <span className="font-medium text-neutral-700">검토 필요 사항</span>
+           <span className="font-medium text-[#4E5968]">검토 필요 사항</span>
            <span className={`${t.textMuted}`}>{franchiseIssueExpanded[selectedFranchise] ? '접기' : '펼치기'}</span>
          </button>
          {franchiseIssueExpanded[selectedFranchise] && (
            <ul className="mt-2 space-y-1">
              {FRANCHISE_DATA[selectedFranchise].이슈.map((issue, idx) => (
-               <li key={idx} className="text-sm text-neutral-600">{issue}</li>
+               <li key={idx} className="text-sm text-[#6B7684]">{issue}</li>
              ))}
            </ul>
          )}
@@ -16032,59 +16038,59 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="overflow-x-auto">
  <table className="w-full text-sm">
  <thead>
- <tr className="border-b border-neutral-200">
- <th className="py-3 px-2 text-left text-neutral-500 font-medium">항목</th>
- <th className="py-3 px-2 text-center text-neutral-900 font-medium">저가 프랜차이즈</th>
+ <tr className="border-b border-[#E5E8EB]">
+ <th className="py-3 px-2 text-left text-[#56565F] font-medium">항목</th>
+ <th className="py-3 px-2 text-center text-[#191F28] font-medium">저가 프랜차이즈</th>
  <th className="py-3 px-2 text-center text-[#1e3a5f] font-medium">빈크래프트</th>
  </tr>
  </thead>
  <tbody className={`${t.text}`}>
- <tr className="border-b border-neutral-200">
+ <tr className="border-b border-[#E5E8EB]">
  <td className="py-3 px-2 font-medium">가맹비</td>
  <td className={`py-3 px-2 text-center ${t.text}`}>500~1,500만원</td>
  <td className="py-3 px-2 text-center text-[#1e3a5f] font-bold">0원</td>
  </tr>
- <tr className="border-b border-neutral-200">
+ <tr className="border-b border-[#E5E8EB]">
  <td className="py-3 px-2 font-medium">교육비</td>
  <td className={`py-3 px-2 text-center ${t.text}`}>100~300만원</td>
  <td className="py-3 px-2 text-center text-[#1e3a5f]">컨설팅 포함</td>
  </tr>
- <tr className="border-b border-neutral-200">
+ <tr className="border-b border-[#E5E8EB]">
  <td className="py-3 px-2 font-medium">컨설팅</td>
  <td className={`py-3 px-2 text-center ${t.text}`}>-</td>
  <td className="py-3 px-2 text-center text-[#1e3a5f]">1,000만원</td>
  </tr>
- <tr className="border-b border-neutral-200">
+ <tr className="border-b border-[#E5E8EB]">
  <td className="py-3 px-2 font-medium">로열티 (월)</td>
  <td className={`py-3 px-2 text-center ${t.text}`}>15~50만원</td>
  <td className="py-3 px-2 text-center text-[#1e3a5f] font-bold">0원</td>
  </tr>
- <tr className="border-b border-neutral-200">
+ <tr className="border-b border-[#E5E8EB]">
  <td className="py-3 px-2 font-medium">로열티 (5년)</td>
  <td className={`py-3 px-2 text-center ${t.text}`}>900~3,000만원</td>
  <td className="py-3 px-2 text-center text-[#1e3a5f] font-bold">0원</td>
  </tr>
- <tr className="border-b border-neutral-200">
+ <tr className="border-b border-[#E5E8EB]">
  <td className="py-3 px-2 font-medium">광고분담금 (월)</td>
  <td className={`py-3 px-2 text-center ${t.text}`}>10~30만원</td>
  <td className="py-3 px-2 text-center text-[#1e3a5f] font-bold">0원</td>
  </tr>
- <tr className="border-b border-neutral-200">
+ <tr className="border-b border-[#E5E8EB]">
  <td className="py-3 px-2 font-medium">인테리어</td>
  <td className={`py-3 px-2 text-center ${t.text}`}>본사 지정업체</td>
  <td className="py-3 px-2 text-center text-[#1e3a5f]">400만원+견적 별도</td>
  </tr>
- <tr className="border-b border-neutral-200">
+ <tr className="border-b border-[#E5E8EB]">
  <td className="py-3 px-2 font-medium">기기설비</td>
  <td className={`py-3 px-2 text-center ${t.text}`}>본사 지정업체</td>
  <td className="py-3 px-2 text-center text-[#1e3a5f]">400만원+견적 별도</td>
  </tr>
- <tr className="border-b border-neutral-200">
+ <tr className="border-b border-[#E5E8EB]">
  <td className="py-3 px-2 font-medium">원두공급</td>
  <td className={`py-3 px-2 text-center ${t.text}`}>본사 지정 (강제)</td>
  <td className="py-3 px-2 text-center text-[#1e3a5f]">공급가 납품 (선택)</td>
  </tr>
- <tr className="border-b border-neutral-200">
+ <tr className="border-b border-[#E5E8EB]">
  <td className="py-3 px-2 font-medium">메뉴개발</td>
  <td className={`py-3 px-2 text-center ${t.text}`}>본사 고정메뉴</td>
  <td className="py-3 px-2 text-center text-[#1e3a5f]">400만원 (15가지)</td>
@@ -16101,33 +16107,33 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  
  {/* 업체별 최종 창업비용 - 검색 및 펼쳐보기 */}
  <div className="mt-4">
- <p className="text-sm text-neutral-700 font-semibold mb-3">주요 프랜차이즈 창업비용 ({Object.keys(FRANCHISE_DATA).length}개 브랜드)</p>
+ <p className="text-sm text-[#4E5968] font-semibold mb-3">주요 프랜차이즈 창업비용 ({Object.keys(FRANCHISE_DATA).length}개 브랜드)</p>
  <div className="space-y-2 max-h-64 overflow-y-auto">
  {Object.entries(FRANCHISE_DATA)
    .sort((a, b) => (b[1].매장수 || 0) - (a[1].매장수 || 0))
    .slice(0, 10)
    .map(([name, data]) => (
-   <div key={name} className={`rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-neutral-200'}`}>
+   <div key={name} className={`rounded-lg border ${theme === 'dark' ? 'bg-[#21212A] border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
      <button
        onClick={() => setFranchiseIssueExpanded(prev => ({...prev, [name]: !prev[name]}))}
-       className="w-full flex items-center justify-between p-3 hover:bg-neutral-50"
+       className="w-full flex items-center justify-between p-3 hover:bg-[#F9FAFB]"
      >
        <div className="flex items-center gap-3 text-left">
          <span className={`font-medium ${t.text}`}>{name}</span>
          <span className={`text-xs ${t.textMuted}`}>가맹비 {data.가맹비}만 + 교육비 {data.교육비}만 + 인테리어/기기</span>
        </div>
        <div className="flex items-center gap-2">
-         <span className="text-neutral-700 font-bold text-sm">{data.총비용}</span>
+         <span className="text-[#4E5968] font-bold text-sm">{data.총비용}</span>
          <span className={`text-xs ${t.textMuted}`}>{franchiseIssueExpanded[name] ? '접기' : '펼치기'}</span>
        </div>
      </button>
      {franchiseIssueExpanded[name] && (
-       <div className="px-3 pb-3 border-t border-neutral-100">
+       <div className="px-3 pb-3 border-t border-[#F2F4F6]">
          <div className="pt-2 space-y-1">
            <p className={`text-xs ${t.textMuted}`}>매장수: 약 {data.매장수?.toLocaleString()}개 / 로열티: 월 {data.로열티월}만원 / 광고비: 월 {data.광고비월}만원</p>
            {data.이슈 && (
              <div className="mt-2">
-               <p className="text-xs text-neutral-600 font-medium mb-1">최근 이슈:</p>
+               <p className="text-xs text-[#6B7684] font-medium mb-1">최근 이슈:</p>
                {data.이슈.map((issue, idx) => (
                  <p key={idx} className={`text-xs ${t.textMuted}`}>- {issue}</p>
                ))}
@@ -16145,10 +16151,10 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
    </div>
  ))}
  </div>
- <a href="https://franchise.ftc.go.kr/mnu/00013/program/userRqst/list.do" target="_blank" rel="noopener" className="flex items-center justify-center gap-2 mt-3 p-3 rounded-lg border border-neutral-300/50 bg-neutral-800/10 hover:bg-neutral-800/20 transition-all">
+ <a href="https://franchise.ftc.go.kr/mnu/00013/program/userRqst/list.do" target="_blank" rel="noopener" className="flex items-center justify-center gap-2 mt-3 p-3 rounded-lg border border-[#D1D6DB]/50 bg-[#21212A]/10 hover:bg-[#21212A]/20 transition-all">
  <span className={`text-sm font-medium ${t.text}`}>공정위 가맹사업정보제공시스템에서 상세 정보 확인</span>
  </a>
- <p className="text-xs text-neutral-500 mt-3 text-center">* 최종 창업비용은 점포 크기, 위치, 인테리어 범위에 따라 달라집니다.</p>
+ <p className="text-xs text-[#56565F] mt-3 text-center">* 최종 창업비용은 점포 크기, 위치, 인테리어 범위에 따라 달라집니다.</p>
  </div>
 
 
@@ -16156,20 +16162,20 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
 
  {/* 팀 피드백 자동 학습 시스템 */}
- <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <div className="flex items-center justify-between mb-4">
  <h3 className={`font-bold ${t.text} flex items-center gap-2`}>
  <span className="text-xl"></span> 팀 피드백 자동 학습
- <span className="text-xs bg-neutral-600 text-neutral-700 px-2 py-0.5 rounded-full">자동</span>
+ <span className="text-xs bg-neutral-600 text-[#4E5968] px-2 py-0.5 rounded-full">자동</span>
  </h3>
  </div>
- <p className="text-sm text-neutral-500 mb-4">멘트 사용 후 결과를 공유하면 AI가 분석하여 모든 팀원에게 개선된 멘트를 제공합니다.</p>
+ <p className="text-sm text-[#56565F] mb-4">멘트 사용 후 결과를 공유하면 AI가 분석하여 모든 팀원에게 개선된 멘트를 제공합니다.</p>
  
  {/* 피드백 입력 */}
- <div className="p-4 rounded-xl bg-transparent border border-neutral-200 mb-4">
- <p className="text-sm text-neutral-700 font-semibold mb-3">오늘 사용한 멘트 결과 공유</p>
+ <div className="p-4 rounded-xl bg-transparent border border-[#E5E8EB] mb-4">
+ <p className="text-sm text-[#4E5968] font-semibold mb-3">오늘 사용한 멘트 결과 공유</p>
  <div className="space-y-3">
- <select value={teamFeedbackSituation} onChange={e => setTeamFeedbackSituation(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-neutral-100 border border-neutral-200 text-neutral-800 text-sm">
+ <select value={teamFeedbackSituation} onChange={e => setTeamFeedbackSituation(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[#F2F4F6] border border-[#E5E8EB] text-[#333D4B] text-sm">
  <option value="">어떤 상황이었나요?</option>
  <option value="broker">중개사 첫 방문</option>
  <option value="broker-followup">중개사 재방문</option>
@@ -16179,16 +16185,16 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  placeholder="사용한 멘트와 상대방 반응을 적어주세요.
 
 예시: 빈크래프트 서비스 소개했더니 관심 보이셨어요. 명함 교환하고 나왔습니다."
- className="w-full px-3 py-3 rounded-lg bg-neutral-100 border border-neutral-200 text-neutral-800 text-sm resize-none h-24"
+ className="w-full px-3 py-3 rounded-lg bg-[#F2F4F6] border border-[#E5E8EB] text-[#333D4B] text-sm resize-none h-24"
  ></textarea>
  <div className="flex gap-2">
  <button 
                       onClick={() => setTeamFeedbackResult('success')}
-                      className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${teamFeedbackResult === 'success' ? 'bg-emerald-500 text-white' : 'bg-neutral-600 text-neutral-700 border border-neutral-300 hover:bg-emerald-500/30'}`}
+                      className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${teamFeedbackResult === 'success' ? 'bg-emerald-500 text-white' : 'bg-neutral-600 text-[#4E5968] border border-[#D1D6DB] hover:bg-emerald-500/30'}`}
                     > 효과 있었어요</button>
  <button 
                       onClick={() => setTeamFeedbackResult('fail')}
-                      className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${teamFeedbackResult === 'fail' ? 'bg-rose-500 text-white' : 'bg-neutral-600 text-white border border-neutral-300 hover:bg-rose-500/30'}`}
+                      className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${teamFeedbackResult === 'fail' ? 'bg-rose-500 text-white' : 'bg-neutral-600 text-white border border-[#D1D6DB] hover:bg-rose-500/30'}`}
                     > 별로였어요</button>
  </div>
                 <button type="button" onClick={() => {
@@ -16210,7 +16216,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                       setTeamFeedbackMemo('');
                       setTeamFeedbackResult(null);
                       alert('피드백이 공유되었습니다!');
-                    }} className={`w-full px-4 py-3 rounded-lg bg-neutral-800 ${t.text} font-semibold hover:bg-neutral-800/80 transition-all`}>
+                    }} className={`w-full px-4 py-3 rounded-lg bg-[#21212A] ${t.text} font-semibold hover:bg-[#21212A]/80 transition-all`}>
  피드백 공유하기
  </button>
  </div>
@@ -16218,36 +16224,36 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
  {/* 팀 피드백 현황 */}
  <div className="space-y-3">
- <p className="text-sm text-neutral-700 font-semibold">팀 피드백 현황 (최근 7일)</p>
+ <p className="text-sm text-[#4E5968] font-semibold">팀 피드백 현황 (최근 7일)</p>
  
  {/* 실제 팀 피드백 데이터 표시 */}
  {teamFeedbacksAll && teamFeedbacksAll.length > 0 ? (
  teamFeedbacksAll.slice(0, 5).map((fb, idx) => (
- <div key={idx} className={`p-3 rounded-lg ${fb.result === 'success' ? 'bg-white border border-neutral-300' : 'bg-white border border-neutral-300'}`}>
+ <div key={idx} className={`p-3 rounded-lg ${fb.result === 'success' ? 'bg-white border border-[#D1D6DB]' : 'bg-white border border-[#D1D6DB]'}`}>
  <div className="flex items-start justify-between">
  <div>
- <p className={`text-xs font-semibold ${fb.result === 'success' ? 'text-neutral-700' : 'text-white'}`}>
+ <p className={`text-xs font-semibold ${fb.result === 'success' ? 'text-[#4E5968]' : 'text-white'}`}>
  {fb.result === 'success' ? '효과 있던 멘트' : '개선 필요 멘트'}
  </p>
- <p className="text-sm text-neutral-800 mt-1">{fb.situation === 'broker' ? '중개사 첫 방문' : fb.situation === 'broker-followup' ? '중개사 재방문' : fb.situation === 'franchise' ? '프랜차이즈 비교 질문 대응' : fb.situation || '상황 미입력'}</p>
+ <p className="text-sm text-[#333D4B] mt-1">{fb.situation === 'broker' ? '중개사 첫 방문' : fb.situation === 'broker-followup' ? '중개사 재방문' : fb.situation === 'franchise' ? '프랜차이즈 비교 질문 대응' : fb.situation || '상황 미입력'}</p>
  <p className={`text-xs mt-1 ${t.textMuted}`}>{fb.memo || '메모 없음'}</p>
  </div>
- <span className={`text-xs px-2 py-1 rounded ${fb.result === 'success' ? 'bg-neutral-600 text-neutral-700' : 'bg-neutral-600 text-white'}`}>
+ <span className={`text-xs px-2 py-1 rounded ${fb.result === 'success' ? 'bg-neutral-600 text-[#4E5968]' : 'bg-neutral-600 text-white'}`}>
  {fb.result === 'success' ? '성공' : '실패'}
  </span>
  </div>
  </div>
  ))
  ) : (
- <div className={`p-4 rounded-lg border text-center ${theme === 'dark' ? 'bg-white/5 border-neutral-700' : 'bg-white/30 border-neutral-200'}`}>
+ <div className={`p-4 rounded-lg border text-center ${theme === 'dark' ? 'bg-white/5 border-white/[0.08]' : 'bg-white/30 border-[#E5E8EB]'}`}>
  <p className={`text-sm ${t.textMuted}`}>아직 공유된 피드백이 없습니다.</p>
- <p className="text-neutral-500 text-xs mt-1">위에서 멘트 결과를 공유해주세요.</p>
+ <p className="text-[#56565F] text-xs mt-1">위에서 멘트 결과를 공유해주세요.</p>
  </div>
  )}
  
  {/* AI 분석 인사이트 - 피드백이 있을 때만 표시 */}
  {teamFeedbacksAll && teamFeedbacksAll.length >= 3 && (
- <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-600' : 'bg-white border-neutral-300'}`}>
+ <div className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-[#21212A] border-neutral-600' : 'bg-white border-[#D1D6DB]'}`}>
  <p className={`text-xs font-semibold mb-2 ${t.text}`}>AI 분석 인사이트</p>
  <p className={`text-sm ${t.text}`}>• 피드백 데이터를 분석 중입니다...</p>
  <p className={`text-xs mt-2 ${t.textMuted}`}>피드백이 5개 이상 쌓이면 AI가 패턴을 분석해드립니다.</p>
@@ -16264,23 +16270,23 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {tab === 'calendar' && (
  <div className="space-y-2">
  <h2 className={`font-bold ${t.text} text-xl`}>일정 캘린더</h2>
- <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <div className="flex justify-between items-center mb-4">
  <button
  onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1))}
- className={`w-10 h-10 rounded-lg font-bold border ${theme === 'dark' ? 'bg-neutral-700 border-neutral-600 text-white hover:bg-neutral-600' : 'bg-neutral-100 border-neutral-200 text-neutral-700 hover:bg-neutral-200'}`}
+ className={`w-10 h-10 rounded-lg font-bold border ${theme === 'dark' ? 'bg-[#2C2C35] border-neutral-600 text-white hover:bg-neutral-600' : 'bg-[#F2F4F6] border-[#E5E8EB] text-[#4E5968] hover:bg-[#E5E8EB]'}`}
  >&lt;</button>
  <h3 className={`font-bold ${t.text} text-lg`}>
  {calendarMonth.getFullYear()}년 {calendarMonth.getMonth() + 1}월
  </h3>
  <button
  onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1))}
- className={`w-10 h-10 rounded-lg font-bold border ${theme === 'dark' ? 'bg-neutral-700 border-neutral-600 text-white hover:bg-neutral-600' : 'bg-neutral-100 border-neutral-200 text-neutral-700 hover:bg-neutral-200'}`}
+ className={`w-10 h-10 rounded-lg font-bold border ${theme === 'dark' ? 'bg-[#2C2C35] border-neutral-600 text-white hover:bg-neutral-600' : 'bg-[#F2F4F6] border-[#E5E8EB] text-[#4E5968] hover:bg-[#E5E8EB]'}`}
  >&gt;</button>
  </div>
  <div className="grid grid-cols-7 gap-0.5 sm:gap-1 mb-2">
  {['일', '월', '화', '수', '목', '금', '토'].map((day, i) => (
- <div key={day} className={`text-center text-sm font-bold py-2 ${i === 0 ? 'text-white' : i === 6 ? 'text-primary-600' : 'text-neutral-800'}`}>
+ <div key={day} className={`text-center text-sm font-bold py-2 ${i === 0 ? 'text-white' : i === 6 ? 'text-primary-600' : 'text-[#333D4B]'}`}>
  {day}
  </div>
  ))}
@@ -16307,7 +16313,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  cells.push(
  <div
  key={d}
- className={`h-24 sm:h-28 p-1 border rounded-lg overflow-hidden cursor-pointer transition-all hover:shadow-md ${isToday ? 'bg-neutral-100 border-primary-300' : 'border-neutral-200 hover:border-primary-300'}`}
+ className={`h-24 sm:h-28 p-1 border rounded-lg overflow-hidden cursor-pointer transition-all hover:shadow-md ${isToday ? 'bg-[#F2F4F6] border-primary-300' : 'border-[#E5E8EB] hover:border-primary-300'}`}
  onClick={() => {
  setSelectedCalendarDate(dateStr);
  setCalendarEventInput({ title: '', time: '09:00', memo: '' });
@@ -16315,7 +16321,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  setShowCalendarModal(true);
  }}
  >
- <div className={`text-sm font-bold mb-1 ${dayOfWeek === 0 ? 'text-white' : dayOfWeek === 6 ? 'text-primary-600' : 'text-neutral-800'}`}>
+ <div className={`text-sm font-bold mb-1 ${dayOfWeek === 0 ? 'text-white' : dayOfWeek === 6 ? 'text-primary-600' : 'text-[#333D4B]'}`}>
  {d}
  </div>
  <div className="space-y-0.5 overflow-y-auto max-h-14">
@@ -16360,7 +16366,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  })()}
  </div>
  </div>
- <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <p className={`font-bold mb-3 ${t.text}`}>이번 주 일정</p>
  {(() => {
  const today = new Date();
@@ -16394,7 +16400,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div
  key={`r-${item.id}`}
  onClick={() => setSelectedSchedule(item)}
- className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all hover:shadow-md ${isCompleted ? 'bg-emerald-900/30' : 'bg-neutral-100'}`}
+ className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all hover:shadow-md ${isCompleted ? 'bg-emerald-900/30' : 'bg-[#F2F4F6]'}`}
  >
  <div className="text-center min-w-[40px]">
  <p className={`text-xs ${t.text}`}>{new Date(item.date).toLocaleDateString('ko-KR', { weekday: 'short' })}</p>
@@ -16446,13 +16452,13 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div>
  <div className="space-y-2">
  <h2 className={`font-bold ${t.text} text-xl`}>동선 관리</h2>
- <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <div className="flex justify-between items-center mb-3">
  <p className={`text-sm font-bold ${t.text}`}>
  {editingRouteId ? '동선 수정' : '일정 정보'}
  </p>
  {editingRouteId && (
- <span className="text-xs text-primary-600 bg-neutral-100 px-2 py-1 rounded">수정 중</span>
+ <span className="text-xs text-primary-600 bg-[#F2F4F6] px-2 py-1 rounded">수정 중</span>
  )}
  </div>
  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
@@ -16461,7 +16467,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  placeholder="일정명 (예: 이태원 영업)"
  value={routeName}
  onChange={e => setRouteName(e.target.value)}
- className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm col-span-2`}
+ className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm col-span-2`}
  />
  <div className="relative" onClick={() => document.getElementById('routeDateInput').showPicker?.()}>
  <input
@@ -16469,7 +16475,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  type="date"
  value={routeDate}
  onChange={e => setRouteDate(e.target.value)}
- className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm w-full cursor-pointer`}
+ className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm w-full cursor-pointer`}
  />
  </div>
  <div className="relative" onClick={() => document.getElementById('routeTimeInput').showPicker?.()}>
@@ -16478,22 +16484,22 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  type="time"
  value={routeTime}
  onChange={e => setRouteTime(e.target.value)}
- className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm w-full cursor-pointer`}
+ className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm w-full cursor-pointer`}
  />
  </div>
  </div>
  <div className="grid grid-cols-1 gap-2">
- <select value={routeManager || ''} onChange={e => setRouteManager(Number(e.target.value) || null)} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} focus:outline-none focus:border-neutral-400 transition-all text-sm`}>
+ <select value={routeManager || ''} onChange={e => setRouteManager(Number(e.target.value) || null)} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} focus:outline-none focus:border-[#3182F6] transition-all text-sm`}>
  <option value="">담당자 선택</option>
  {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
  </select>
  </div>
  </div>
- <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <div className="flex justify-between items-center mb-3">
  <p className={`font-bold ${t.text}`}>직접 검색</p>
  </div>
- <div className="bg-neutral-100 rounded-xl p-3">
+ <div className="bg-[#F2F4F6] rounded-xl p-3">
  <div className="flex gap-2">
  <div className="flex gap-2 flex-1">
  <input
@@ -16502,7 +16508,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  value={placeSearchQuery}
  onChange={e => setPlaceSearchQuery(e.target.value)}
  onKeyPress={e => e.key === 'Enter' && searchAndMoveMap()}
- className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm`}
+ className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm`}
  style={{flex: 6}}
  />
  <input
@@ -16511,20 +16517,20 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  value={placeCustomName}
  onChange={e => setPlaceCustomName(e.target.value)}
  onKeyPress={e => e.key === 'Enter' && searchAndMoveMap()}
- className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm`}
+ className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm`}
  style={{flex: 4}}
  />
  </div>
  <button
  onClick={searchAndMoveMap}
  disabled={isSearchingPlaces}
- className={`px-4 py-2 bg-neutral-200 rounded-lg font-medium hover:bg-neutral-300 transition-all ${t.text} text-sm px-4`}
+ className={`px-4 py-2 bg-[#E5E8EB] rounded-lg font-medium hover:bg-[#D1D6DB] transition-all ${t.text} text-sm px-4`}
  >
  {isSearchingPlaces ? '...' : '검색'}
  </button>
  </div>
  {searchedPlaces.length > 0 && (
- <div className="mt-2 p-2 bg-neutral-100 rounded-lg border border-primary-300">
+ <div className="mt-2 p-2 bg-[#F2F4F6] rounded-lg border border-primary-300">
  <div className="flex justify-between items-center mb-2">
  <p className="text-xs text-primary-600 font-bold">검색 목록 ({searchedPlaces.length}/10)</p>
  <div className="flex gap-2">
@@ -16538,8 +16544,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  <div className="space-y-1 max-h-32 overflow-y-auto">
  {searchedPlaces.map((place, idx) => (
- <div key={place.id} className="flex items-center justify-between bg-neutral-100 rounded px-2 py-1">
- <span className="text-xs text-neutral-800 truncate flex-1">{idx + 1}. {place.name}</span>
+ <div key={place.id} className="flex items-center justify-between bg-[#F2F4F6] rounded px-2 py-1">
+ <span className="text-xs text-[#333D4B] truncate flex-1">{idx + 1}. {place.name}</span>
  <button
  onClick={() => removeSearchedPlace(place.id)}
  className={`ml-2 ${t.text} hover:${t.text} text-xs`}
@@ -16560,14 +16566,14 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <p className={`text-xs mt-2 ${t.text}`}>주소 검색 후 업체명을 입력하면 동선에 업체명으로 표시됩니다</p>
  </div>
  </div>
- <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <p className={`font-bold mb-3 ${t.text}`}>중개사 검색</p>
  <div className="space-y-3">
  <div className="grid grid-cols-2 gap-2">
  <select
  value={routeSearchRegion}
  onChange={e => setRouteSearchRegion(e.target.value)}
- className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} focus:outline-none focus:border-neutral-400 transition-all text-sm`}
+ className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} focus:outline-none focus:border-[#3182F6] transition-all text-sm`}
  >
  <option value="">지역 선택</option>
  <optgroup label="서울특별시">
@@ -16871,7 +16877,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  placeholder="목표 (예: 10)"
  value={routeSearchTarget}
  onChange={e => setRouteSearchTarget(e.target.value)}
- className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm`}
+ className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm`}
  min="1"
  max="50"
  />
@@ -16881,7 +16887,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  placeholder="또는 지역/업체명 직접 입력 (예: 강남구, 신내동, OO부동산)"
  value={routeSearchText}
  onChange={e => { setRouteSearchText(e.target.value); if (e.target.value) setRouteSearchRegion(''); }}
- className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm`}
+ className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm`}
  />
  <button
  onClick={() => {
@@ -16933,14 +16939,14 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  alert('' + newStops.length + '개 중개사를 동선에 추가했습니다!');
  }}
  disabled={(!routeSearchRegion && !routeSearchText) || !routeSearchTarget}
- className="w-full px-4 py-3 bg-neutral-900 text-white rounded-lg font-bold hover:bg-neutral-800 transition-all disabled:opacity-50"
+ className="w-full px-4 py-3 bg-[#191F28] text-white rounded-lg font-bold hover:bg-[#21212A] transition-all disabled:opacity-50"
  >
  동선에 추가
  </button>
  <p className={`text-xs ${t.textMuted}`}>* 미방문 업체만, 매물 많은 순으로 추가됩니다</p>
  </div>
  </div>
- <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <div className="flex justify-between items-center mb-3">
  <div>
  <p className={`font-bold ${t.text}`}>방문 순서 ({routeStops.length}곳)</p>
@@ -16951,8 +16957,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="flex gap-2">
  {routeStops.length >= 2 && (
  <>
- <button type="button" onClick={optimizeRouteOrder} className={`text-xs px-3 py-1.5 rounded-lg font-bold border ${theme === 'dark' ? 'bg-neutral-700 text-white hover:bg-neutral-600 border-neutral-600' : 'bg-neutral-100 text-neutral-900 hover:bg-neutral-200 border-neutral-300'}`}>최적화</button>
- <button type="button" onClick={reverseRouteOrder} className={`text-xs px-3 py-1.5 rounded-lg font-bold border ${theme === 'dark' ? 'bg-neutral-700 text-white hover:bg-neutral-600 border-neutral-600' : 'bg-neutral-100 text-neutral-900 hover:bg-neutral-200 border-neutral-300'}`}>반대로</button>
+ <button type="button" onClick={optimizeRouteOrder} className={`text-xs px-3 py-1.5 rounded-lg font-bold border ${theme === 'dark' ? 'bg-[#2C2C35] text-white hover:bg-neutral-600 border-neutral-600' : 'bg-[#F2F4F6] text-[#191F28] hover:bg-[#E5E8EB] border-[#D1D6DB]'}`}>최적화</button>
+ <button type="button" onClick={reverseRouteOrder} className={`text-xs px-3 py-1.5 rounded-lg font-bold border ${theme === 'dark' ? 'bg-[#2C2C35] text-white hover:bg-neutral-600 border-neutral-600' : 'bg-[#F2F4F6] text-[#191F28] hover:bg-[#E5E8EB] border-[#D1D6DB]'}`}>반대로</button>
  </>
  )}
  {routeStops.length > 0 && (
@@ -16961,7 +16967,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  </div>
  {routeStops.length === 0 ? (
- <div className="text-center py-4 sm:py-6 text-neutral-800">
+ <div className="text-center py-4 sm:py-6 text-[#333D4B]">
  <p className="text-2xl mb-2"></p>
  <p className="text-sm">업체/장소를 추가해주세요</p>
  </div>
@@ -16977,8 +16983,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  
  return (
  <div key={stop.id}>
- <div className="flex items-center gap-2 p-2 bg-neutral-100 border border-neutral-200 rounded-lg">
- <div className={`w-7 h-7 rounded-full bg-neutral-700 ${t.text} flex items-center justify-center font-bold text-xs shadow flex-shrink-0`}>
+ <div className="flex items-center gap-2 p-2 bg-[#F2F4F6] border border-[#E5E8EB] rounded-lg">
+ <div className={`w-7 h-7 rounded-full bg-[#2C2C35] ${t.text} flex items-center justify-center font-bold text-xs shadow flex-shrink-0`}>
  {idx + 1}
  </div>
  <div className="flex-1 min-w-0">
@@ -16990,8 +16996,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {stop.phone && <p className={`text-xs ${t.textMuted}`}>{stop.phone}</p>}
  </div>
  <div className="flex gap-1 flex-shrink-0">
- {idx > 0 && <button type="button" onClick={() => moveRouteStop(idx, -1)} className={`w-6 h-6 rounded text-xs ${theme === 'dark' ? 'bg-neutral-700 text-white' : 'bg-neutral-200 text-neutral-800'}`}>↑</button>}
- {idx < routeStops.length - 1 && <button type="button" onClick={() => moveRouteStop(idx, 1)} className={`w-6 h-6 rounded text-xs ${theme === 'dark' ? 'bg-neutral-700 text-white' : 'bg-neutral-200 text-neutral-800'}`}>↓</button>}
+ {idx > 0 && <button type="button" onClick={() => moveRouteStop(idx, -1)} className={`w-6 h-6 rounded text-xs ${theme === 'dark' ? 'bg-[#2C2C35] text-white' : 'bg-[#E5E8EB] text-[#333D4B]'}`}>↑</button>}
+ {idx < routeStops.length - 1 && <button type="button" onClick={() => moveRouteStop(idx, 1)} className={`w-6 h-6 rounded text-xs ${theme === 'dark' ? 'bg-[#2C2C35] text-white' : 'bg-[#E5E8EB] text-[#333D4B]'}`}>↓</button>}
  <button type="button" onClick={() => removeRouteStop(stop.id)} className="w-6 h-6 rounded bg-rose-100 text-white text-xs"></button>
  </div>
  </div>
@@ -17005,32 +17011,32 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  )}
  {(routeStops.length > 0 || editingRouteId) && (
- <div className="mt-3 pt-3 border-t border-neutral-200">
+ <div className="mt-3 pt-3 border-t border-[#E5E8EB]">
  {editingRouteId ? (
  <div className="flex gap-2">
- <button type="button" onClick={cancelEditRoute} className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all py-3 font-bold border ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 border-neutral-600 hover:bg-neutral-600' : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50'}`}>
+ <button type="button" onClick={cancelEditRoute} className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all py-3 font-bold border ${theme === 'dark' ? 'bg-[#2C2C35] text-neutral-200 border-neutral-600 hover:bg-neutral-600' : 'bg-white text-[#4E5968] border-[#E5E8EB] hover:bg-[#F9FAFB]'}`}>
  취소
  </button>
- <button type="button" onClick={registerSchedule} className="flex-1 px-4 py-2 bg-neutral-900 text-white rounded-lg font-medium hover:bg-neutral-800 transition-all py-3 font-bold">
+ <button type="button" onClick={registerSchedule} className="flex-1 px-4 py-2 bg-[#191F28] text-white rounded-lg font-medium hover:bg-[#21212A] transition-all py-3 font-bold">
  수정 완료
  </button>
  </div>
  ) : (
- <button type="button" onClick={registerSchedule} className="w-full px-4 py-2 bg-neutral-900 text-white rounded-lg font-medium hover:bg-neutral-800 transition-all py-3 font-bold">
+ <button type="button" onClick={registerSchedule} className="w-full px-4 py-2 bg-[#191F28] text-white rounded-lg font-medium hover:bg-[#21212A] transition-all py-3 font-bold">
  동선 등록
  </button>
  )}
  </div>
  )}
  </div>
- <div className={`rounded-2xl overflow-hidden border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
- <div className="p-3 border-b border-neutral-200">
+ <div className={`rounded-2xl overflow-hidden border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
+ <div className="p-3 border-b border-[#E5E8EB]">
  {routeStops.length > 0 && (
  <div className="flex items-center gap-2">
  <button type="button"
  onClick={() => slideToStop(currentSlideIndex - 1)}
  disabled={currentSlideIndex <= 0}
- className={`w-8 h-8 rounded disabled:opacity-30 ${theme === 'dark' ? 'bg-neutral-700 text-white' : 'bg-neutral-200 text-neutral-800'}`}
+ className={`w-8 h-8 rounded disabled:opacity-30 ${theme === 'dark' ? 'bg-[#2C2C35] text-white' : 'bg-[#E5E8EB] text-[#333D4B]'}`}
  >←</button>
  <div className="flex-1 overflow-hidden">
  <div className="flex gap-2 transition-transform" style={{ transform: `translateX(-${currentSlideIndex * 100}%)` }}>
@@ -17038,7 +17044,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <button
  key={stop.id}
  onClick={() => focusStopOnRouteMap(stop, idx)}
- className={`flex-shrink-0 w-full px-3 py-2 rounded-lg text-sm font-bold transition-all ${currentSlideIndex === idx ? 'bg-neutral-100 text-white' : 'bg-gray-100 text-neutral-800'}`}
+ className={`flex-shrink-0 w-full px-3 py-2 rounded-lg text-sm font-bold transition-all ${currentSlideIndex === idx ? 'bg-[#F2F4F6] text-white' : 'bg-[#F2F4F6] text-[#333D4B]'}`}
  >
  {idx + 1}. {stop.name}
  </button>
@@ -17048,7 +17054,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <button type="button"
  onClick={() => slideToStop(currentSlideIndex + 1)}
  disabled={currentSlideIndex >= routeStops.length - 1}
- className={`w-8 h-8 rounded disabled:opacity-30 ${theme === 'dark' ? 'bg-neutral-700 text-white' : 'bg-neutral-200 text-neutral-800'}`}
+ className={`w-8 h-8 rounded disabled:opacity-30 ${theme === 'dark' ? 'bg-[#2C2C35] text-white' : 'bg-[#E5E8EB] text-[#333D4B]'}`}
  >→</button>
  </div>
  )}
@@ -17058,7 +17064,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="absolute top-3 right-3 flex flex-col gap-2 z-10">
  <button
  onClick={toggleGps}
- className={`w-10 h-10 rounded-full shadow-lg flex items-center justify-center transition-all ${gpsEnabled ? 'bg-primary-500 text-white' : 'bg-neutral-200 text-neutral-800'}`}
+ className={`w-10 h-10 rounded-full shadow-lg flex items-center justify-center transition-all ${gpsEnabled ? 'bg-primary-500 text-white' : 'bg-[#E5E8EB] text-[#333D4B]'}`}
  title={gpsEnabled ? 'GPS 끄기' : 'GPS 켜기'}
  >
 
@@ -17066,7 +17072,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {gpsEnabled && currentLocation && (
  <button
  onClick={centerToMyLocation}
- className="w-10 h-10 rounded-full bg-neutral-200 shadow-lg flex items-center justify-center text-primary-600"
+ className="w-10 h-10 rounded-full bg-[#E5E8EB] shadow-lg flex items-center justify-center text-primary-600"
  title="내 위치로 이동"
  >
 
@@ -17075,7 +17081,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  </div>
  </div>
- <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <div className="flex justify-between items-center mb-3">
  <p className={`font-bold ${t.text}`}>등록된 동선</p>
  {routes.length > 0 && (
@@ -17091,13 +17097,13 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  setRouteDeleteMode(false);
  alert('선택한 동선이 삭제되었습니다.');
  }}
- className={`px-3 py-1 bg-neutral-200 ${t.text} rounded text-xs font-bold`}
+ className={`px-3 py-1 bg-[#E5E8EB] ${t.text} rounded text-xs font-bold`}
  >
  {selectedRoutesForDelete.length}개 삭제
  </button>
  <button
  onClick={() => { setRouteDeleteMode(false); setSelectedRoutesForDelete([]); }}
- className={`px-3 py-1 rounded text-xs font-bold ${theme === 'dark' ? 'bg-neutral-700 text-neutral-300' : 'bg-neutral-200 text-neutral-600'}`}
+ className={`px-3 py-1 rounded text-xs font-bold ${theme === 'dark' ? 'bg-[#2C2C35] text-[#8C8C96]' : 'bg-[#E5E8EB] text-[#6B7684]'}`}
  >
  취소
  </button>
@@ -17114,7 +17120,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  )}
  </div>
  {routes.length === 0 ? (
- <div className="text-center py-4 sm:py-6 text-neutral-800">
+ <div className="text-center py-4 sm:py-6 text-[#333D4B]">
  <p className="text-sm">등록된 동선이 없습니다</p>
  </div>
  ) : (
@@ -17134,10 +17140,10 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  const isExpanded = expandedRouteMonths[month] ?? false;
  const completedCount = monthRoutes.filter(r => r.status === 'completed').length;
  return (
- <div key={month} className="border border-neutral-200 rounded-lg overflow-hidden">
+ <div key={month} className="border border-[#E5E8EB] rounded-lg overflow-hidden">
  <button
  onClick={() => setExpandedRouteMonths(prev => ({ ...prev, [month]: !prev[month] }))}
- className="w-full px-4 py-3 bg-neutral-50 flex items-center justify-between hover:bg-neutral-100 transition-colors"
+ className="w-full px-4 py-3 bg-[#F9FAFB] flex items-center justify-between hover:bg-[#F2F4F6] transition-colors"
  >
  <div className="flex items-center gap-3">
  <span className={`text-sm font-bold ${t.text}`}>{month}</span>
@@ -17147,7 +17153,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <span className={`${t.textMuted}`}>{isExpanded ? '▲' : '▼'}</span>
  </button>
  {isExpanded && (
- <div className={`p-2 space-y-2 ${theme === 'dark' ? 'bg-neutral-800' : 'bg-white'}`}>
+ <div className={`p-2 space-y-2 ${theme === 'dark' ? 'bg-[#21212A]' : 'bg-white'}`}>
  {monthRoutes.map(route => {
  const manager = managers.find(m => m.id === route.managerId);
  const completedStops = (route.stops || []).filter(s => s.visited).length;
@@ -17155,7 +17161,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  const isCompleted = route.status === 'completed';
  const isSelected = selectedRoutesForDelete.includes(route.id);
  return (
- <div key={route.id} className={`p-3 rounded-lg ${isCompleted ? 'bg-emerald-50' : 'bg-neutral-50'} ${routeDeleteMode && isSelected ? 'ring-2 ring-rose-400' : ''}`}>
+ <div key={route.id} className={`p-3 rounded-lg ${isCompleted ? 'bg-emerald-50' : 'bg-[#F9FAFB]'} ${routeDeleteMode && isSelected ? 'ring-2 ring-rose-400' : ''}`}>
  <div className="flex items-start gap-3">
  {routeDeleteMode && (
  <input
@@ -17171,12 +17177,12 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  className="w-5 h-5 mt-1 accent-rose-500"
  />
  )}
- <div className={`w-9 h-9 rounded-lg text-white flex items-center justify-center font-bold text-sm flex-shrink-0 ${isCompleted ? 'bg-emerald-500' : 'bg-neutral-400'}`}>
+ <div className={`w-9 h-9 rounded-lg text-white flex items-center justify-center font-bold text-sm flex-shrink-0 ${isCompleted ? 'bg-emerald-500' : 'bg-[#B0B8C1]'}`}>
  {isCompleted ? '' : '○'}
  </div>
  <div className="flex-1 min-w-0">
  <p className={`font-bold ${t.text} text-sm break-words leading-snug`}>{route.name || route.date}</p>
- <p className="text-xs text-neutral-600">{route.date} {route.time || ''} · {completedStops}/{totalStops}곳</p>
+ <p className="text-xs text-[#6B7684]">{route.date} {route.time || ''} · {completedStops}/{totalStops}곳</p>
  {manager && (
  <span className={`inline-block mt-1 px-2 py-0.5 rounded text-xs font-bold ${t.text}`} style={{ background: manager.color }}>
  {manager.name}
@@ -17185,10 +17191,10 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  </div>
  {!routeDeleteMode && (
- <div className="flex justify-end gap-2 mt-2 pt-2 border-t border-neutral-200">
- <button type="button" onClick={() => editRoute(route)} className={`px-3 py-1 rounded text-xs font-medium border ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 border-neutral-600' : 'bg-white text-neutral-700 border-neutral-200'}`}>수정</button>
- <button type="button" onClick={() => setSelectedSchedule(route)} className={`px-3 py-1 rounded text-xs font-medium border ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 border-neutral-600' : 'bg-white text-neutral-700 border-neutral-200'}`}>상세</button>
- <button onClick={() => viewRouteOnMapDirect(route)} className={`px-3 py-1 rounded text-xs font-medium border ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 border-neutral-600' : 'bg-white text-neutral-700 border-neutral-200'}`}>동선</button>
+ <div className="flex justify-end gap-2 mt-2 pt-2 border-t border-[#E5E8EB]">
+ <button type="button" onClick={() => editRoute(route)} className={`px-3 py-1 rounded text-xs font-medium border ${theme === 'dark' ? 'bg-[#2C2C35] text-neutral-200 border-neutral-600' : 'bg-white text-[#4E5968] border-[#E5E8EB]'}`}>수정</button>
+ <button type="button" onClick={() => setSelectedSchedule(route)} className={`px-3 py-1 rounded text-xs font-medium border ${theme === 'dark' ? 'bg-[#2C2C35] text-neutral-200 border-neutral-600' : 'bg-white text-[#4E5968] border-[#E5E8EB]'}`}>상세</button>
+ <button onClick={() => viewRouteOnMapDirect(route)} className={`px-3 py-1 rounded text-xs font-medium border ${theme === 'dark' ? 'bg-[#2C2C35] text-neutral-200 border-neutral-600' : 'bg-white text-[#4E5968] border-[#E5E8EB]'}`}>동선</button>
  {!isCompleted && (
  <button onClick={() => handleCompleteRoute(route)} className="px-3 py-1 bg-emerald-100 rounded text-xs text-white font-medium">완료</button>
  )}
@@ -17213,14 +17219,14 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {tab === 'map' && (
  <div>
  <div className="space-y-2">
- <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
- <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-3 mb-4">
+ <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
+ <div className="bg-[#F9FAFB] border border-[#E5E8EB] rounded-xl p-3 mb-4">
  <p className="text-amber-800 font-bold text-sm mb-2">지도 표시 현황</p>
  <div className="flex flex-wrap gap-3 text-sm">
  <span className={`${t.text}`}>전체 업체: <b>{companies.length}</b></span>
  <span className={`${t.text}`}>지도 표시: <b>{companies.filter(c => c.lat && c.lng).length}</b></span>
  <span
- className="text-neutral-800 cursor-pointer hover:text-primary-600"
+ className="text-[#333D4B] cursor-pointer hover:text-primary-600"
  onClick={() => companies.filter(c => !c.lat || !c.lng).length > 0 && setShowUnmappedModal(true)}
  >
  미표시: <b className="underline">{companies.filter(c => !c.lat || !c.lng).length}</b>
@@ -17228,11 +17234,11 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  </div>
  <div className="grid grid-cols-2 gap-2 mb-3">
- <select value={filterManager} onChange={e => setFilterManager(e.target.value)} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} focus:outline-none focus:border-neutral-400 transition-all text-sm`}>
+ <select value={filterManager} onChange={e => setFilterManager(e.target.value)} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} focus:outline-none focus:border-[#3182F6] transition-all text-sm`}>
  <option value="all">전체 영업자</option>
  {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
  </select>
- <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} focus:outline-none focus:border-neutral-400 transition-all text-sm`}>
+ <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} focus:outline-none focus:border-[#3182F6] transition-all text-sm`}>
  <option value="all">전체 반응</option>
  <option value="special">특별</option>
  <option value="positive">긍정</option>
@@ -17242,11 +17248,11 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </select>
  </div>
  <div className="flex gap-2">
- <input type="text" placeholder="장소/주소 검색 (예: 남영역, 강남구)" value={searchRegion} onChange={e => setSearchRegion(e.target.value)} onKeyPress={e => e.key === 'Enter' && searchOrHighlight()} className={`w-full px-3 py-2 rounded-lg placeholder-neutral-400 focus:outline-none transition-all flex-1 text-sm ${theme === 'dark' ? 'bg-neutral-700 border-neutral-600 text-white focus:border-neutral-500' : 'bg-white border-neutral-200 text-neutral-900 focus:border-neutral-400'}`} />
- <button type="button" onClick={searchOrHighlight} className="px-4 py-2 bg-neutral-900 text-white rounded-lg font-medium hover:bg-neutral-800 transition-all text-sm"></button>
+ <input type="text" placeholder="장소/주소 검색 (예: 남영역, 강남구)" value={searchRegion} onChange={e => setSearchRegion(e.target.value)} onKeyPress={e => e.key === 'Enter' && searchOrHighlight()} className={`w-full px-3 py-2 rounded-lg placeholder-[#B0B8C1] focus:outline-none transition-all flex-1 text-sm ${theme === 'dark' ? 'bg-[#2C2C35] border-neutral-600 text-white focus:border-neutral-500' : 'bg-white border-[#E5E8EB] text-[#191F28] focus:border-[#3182F6]'}`} />
+ <button type="button" onClick={searchOrHighlight} className="px-4 py-2 bg-[#191F28] text-white rounded-lg font-medium hover:bg-[#21212A] transition-all text-sm"></button>
  </div>
- <div className="border-t border-neutral-200 mt-4 pt-4">
- <p className="text-sm text-neutral-800 mb-2 font-bold">핀 색상 안내</p>
+ <div className="border-t border-[#E5E8EB] mt-4 pt-4">
+ <p className="text-sm text-[#333D4B] mb-2 font-bold">핀 색상 안내</p>
  <div className="flex flex-wrap gap-2 text-xs">
  <span className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-rose-600 special-blink"></div> 특별</span>
  <span className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-emerald-500"></div> 긍정</span>
@@ -17257,7 +17263,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <p className={`text-xs mt-2 ${t.text}`}>핀을 클릭하면 업체 정보를 확인할 수 있습니다</p>
  </div>
  </div>
- <div className={`rounded-2xl overflow-hidden border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`} style={{height: 'calc(100vh - 200px)', minHeight: '500px'}}><div ref={mapRef} className="map-container" style={{height: '100%', width: '100%'}}></div></div>
+ <div className={`rounded-2xl overflow-hidden border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`} style={{height: 'calc(100vh - 200px)', minHeight: '500px'}}><div ref={mapRef} className="map-container" style={{height: '100%', width: '100%'}}></div></div>
  </div>
  </div>
  )}
@@ -17265,7 +17271,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="space-y-2">
  <div className="flex justify-between items-center">
  <h2 className={`font-bold ${t.text} text-xl`}>영업팀 현황</h2>
- <button type="button" onClick={() => setShowSaleModal(true)} className="px-4 py-2 bg-neutral-900 text-white rounded-lg text-sm font-medium hover:bg-neutral-800">매출 등록</button>
+ <button type="button" onClick={() => setShowSaleModal(true)} className="px-4 py-2 bg-[#191F28] text-white rounded-lg text-sm font-medium hover:bg-[#21212A]">매출 등록</button>
  </div>
  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
  {managers.map(m => {
@@ -17320,7 +17326,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  r.date !== todayStr
  );
  return (
- <div key={m.id} className={`rounded-2xl p-5 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div key={m.id} className={`rounded-2xl p-5 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <div className="flex items-center gap-3 sm:gap-4 mb-4">
  <div className={`px-3 py-2 rounded-lg ${t.text} font-bold text-sm`} style={{ background: m.color }}>{m.name}</div>
  <div className="flex-1">
@@ -17341,29 +17347,29 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  </div>
  </div>
- <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-4 mb-4">
- <p className="font-bold text-neutral-800 text-sm mb-3">업체 현황</p>
+ <div className="bg-[#F9FAFB] border border-[#E5E8EB] rounded-xl p-4 mb-4">
+ <p className="font-bold text-[#333D4B] text-sm mb-3">업체 현황</p>
  <div className="grid grid-cols-4 gap-2">
- <div className="bg-neutral-100 rounded-lg p-2 text-center border border-red-200">
+ <div className="bg-[#F2F4F6] rounded-lg p-2 text-center border border-red-200">
  <p className={`text-lg font-bold ${t.text}`}>{specialCompanies.length}</p>
  <p className={`text-xs ${t.text}`}>특별</p>
  </div>
- <div className="bg-neutral-100 rounded-lg p-2 text-center border border-green-200">
+ <div className="bg-[#F2F4F6] rounded-lg p-2 text-center border border-green-200">
  <p className={`text-lg font-bold ${t.text}`}>{positiveCompanies.length}</p>
  <p className={`text-xs ${t.text}`}>긍정</p>
  </div>
- <div className="bg-neutral-100 rounded-lg p-2 text-center border border-neutral-200">
+ <div className="bg-[#F2F4F6] rounded-lg p-2 text-center border border-[#E5E8EB]">
  <p className={`text-lg font-bold ${t.text}`}>{neutralCompanies.length}</p>
  <p className={`text-xs ${t.text}`}>양호</p>
  </div>
- <div className="bg-neutral-100 rounded-lg p-2 text-center border border-neutral-200">
- <p className="text-lg font-bold text-neutral-800">{negativeCompanies.length}</p>
+ <div className="bg-[#F2F4F6] rounded-lg p-2 text-center border border-[#E5E8EB]">
+ <p className="text-lg font-bold text-[#333D4B]">{negativeCompanies.length}</p>
  <p className={`text-xs ${t.text}`}>부정</p>
  </div>
  </div>
  </div>
  {(todayEvents.length > 0 || todayRoutes.length > 0) && (
- <div className="bg-neutral-100 border border-neutral-200 rounded-xl p-3 mb-4">
+ <div className="bg-[#F2F4F6] border border-[#E5E8EB] rounded-xl p-3 mb-4">
  <p className="font-bold text-primary-600 text-sm mb-2">오늘 일정</p>
  <div className="space-y-1">
  {todayRoutes.map(r => (
@@ -17391,7 +17397,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {needsFollow.slice(0, 10).map(c => (
  <div
  key={c.id}
- className="flex items-center justify-between bg-neutral-100 p-2 rounded-lg border border-neutral-500 cursor-pointer hover:bg-rose-900/30"
+ className="flex items-center justify-between bg-[#F2F4F6] p-2 rounded-lg border border-neutral-500 cursor-pointer hover:bg-rose-900/30"
  onClick={() => { setShowCompanyEditModal(c); }}
  >
  <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -17418,7 +17424,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {missedCompanies.slice(0, 10).map(c => (
  <div
  key={c.id}
- className="flex items-center justify-between bg-neutral-100 p-2 rounded-lg border border-amber-200 cursor-pointer hover:bg-amber-900/30"
+ className="flex items-center justify-between bg-[#F2F4F6] p-2 rounded-lg border border-amber-200 cursor-pointer hover:bg-amber-900/30"
  onClick={() => { setShowCompanyEditModal(c); }}
  >
  <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -17428,13 +17434,13 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <span className={`text-xs ${t.text} flex-shrink-0 ml-2`}>{c.daysPassed}일</span>
  </div>
  ))}
- {missedCompanies.length > 10 && <p className="text-xs text-neutral-700 text-center">+{missedCompanies.length - 10}개</p>}
+ {missedCompanies.length > 10 && <p className="text-xs text-[#4E5968] text-center">+{missedCompanies.length - 10}개</p>}
  </div>
  </div>
  )}
  {(weekEvents.length > 0 || weekRoutes.length > 0) && (
  <details className="mb-4">
- <summary className="bg-neutral-100 border border-primary-300 rounded-xl p-3 cursor-pointer">
+ <summary className="bg-[#F2F4F6] border border-primary-300 rounded-xl p-3 cursor-pointer">
  <span className="font-bold text-primary-600 text-sm">이번 주 일정 ({weekEvents.length + weekRoutes.length})</span>
  <span className="text-xs text-primary-600 ml-2">클릭하여 펼치기</span>
  </summary>
@@ -17442,9 +17448,9 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {[...weekRoutes.map(r => ({ ...r, type: 'route' })), ...weekEvents.map(e => ({ ...e, type: 'event' }))]
  .sort((a, b) => a.date.localeCompare(b.date) || (a.time || '').localeCompare(b.time || ''))
  .map((item, idx) => (
- <div key={idx} className="flex items-center gap-2 text-sm bg-neutral-100 p-2 rounded-lg border border-primary-200">
+ <div key={idx} className="flex items-center gap-2 text-sm bg-[#F2F4F6] p-2 rounded-lg border border-primary-200">
  <span className="text-primary-600">{item.type === 'route' ? '' : ''}</span>
- <span className="text-xs text-neutral-700 font-bold">{item.date.slice(5)}</span>
+ <span className="text-xs text-[#4E5968] font-bold">{item.date.slice(5)}</span>
  <span className="text-blue-800 truncate">{item.time || ''} {item.type === 'route' ? item.name : item.title}</span>
  </div>
  ))}
@@ -17452,19 +17458,19 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </details>
  )}
  <div className="mb-4">
- <div className="bg-neutral-100 rounded-xl p-3 mb-2">
- <span className="font-bold text-neutral-800 text-sm">홍보물 수량</span>
+ <div className="bg-[#F2F4F6] rounded-xl p-3 mb-2">
+ <span className="font-bold text-[#333D4B] text-sm">홍보물 수량</span>
  {canEdit && (
  <button type="button" onClick={() => { setShowPromoRequestModal(m); setPromoRequest({ '명함': false, '브로셔': false, '전단지': false, '쿠폰': false }); }} className="ml-3 px-3 py-1 bg-rose-500 rounded-lg font-bold text-xs text-white"><span className="blink-text">요청</span></button>
  )}
  </div>
- <div className="bg-neutral-100 rounded-xl p-4">
+ <div className="bg-[#F2F4F6] rounded-xl p-4">
  <div className="grid grid-cols-4 gap-2">
  {PROMO_ITEMS.map(item => (
  <div key={item} className="text-center">
  <p className={`text-xs mb-1 ${t.text}`}>{item}</p>
  {canEdit ? (
- <input type="number" value={m.promo?.[item] || 0} onChange={e => updateManagerPromo(m.id, item, e.target.value)} className={`w-full text-center p-2 border rounded-lg text-sm font-bold ${theme === 'dark' ? 'bg-neutral-700 text-white border-neutral-600' : 'bg-white text-slate-900 border-neutral-200'}`} />
+ <input type="number" value={m.promo?.[item] || 0} onChange={e => updateManagerPromo(m.id, item, e.target.value)} className={`w-full text-center p-2 border rounded-lg text-sm font-bold ${theme === 'dark' ? 'bg-[#2C2C35] text-white border-neutral-600' : 'bg-white text-slate-900 border-[#E5E8EB]'}`} />
  ) : (<p className={`font-bold ${t.text}`}>{m.promo?.[item] || 0}</p>)}
  </div>
  ))}
@@ -17484,7 +17490,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {tab === 'sales' && (
  <div className="space-y-2">
  {/* 상단 - 빈크래프트 홈페이지 링크 */}
- <div className="bg-neutral-800 rounded-xl p-4 shadow-lg">
+ <div className="bg-[#21212A] rounded-xl p-4 shadow-lg">
    <div className="flex items-center justify-between">
      <div className="flex items-center gap-3">
        <img src="/logo.png" alt="BEANCRAFT" className="w-10 h-10 object-contain" />
@@ -17497,7 +17503,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        href="https://www.beancraft.co.kr" 
        target="_blank" 
        rel="noopener noreferrer"
-       className={`px-4 py-2 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${theme === 'dark' ? 'bg-neutral-700 text-white hover:bg-neutral-600' : 'bg-white text-neutral-700 hover:bg-blue-50'}`}
+       className={`px-4 py-2 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${theme === 'dark' ? 'bg-[#2C2C35] text-white hover:bg-neutral-600' : 'bg-white text-[#4E5968] hover:bg-blue-50'}`}
      >
        홈페이지 방문
      </a>
@@ -17535,7 +17541,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
    return (
      <>
      {/* 지역 검색 */}
-     <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+     <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
        <h3 className={`font-bold ${t.text} mb-3 flex items-center gap-2`}>
          지역 검색
        </h3>
@@ -17545,7 +17551,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
            value={salesSearchQuery}
            onChange={(e) => setSalesSearchQuery(e.target.value)}
            placeholder="지역명 입력 (예: 강남구, 분당, 해운대)"
-           className={`flex-1 px-4 py-3 rounded-lg bg-neutral-100 border border-neutral-200 ${t.text} placeholder-slate-400 focus:outline-none focus:border-neutral-500`}
+           className={`flex-1 px-4 py-3 rounded-lg bg-[#F2F4F6] border border-[#E5E8EB] ${t.text} placeholder-slate-400 focus:outline-none focus:border-neutral-500`}
          />
          <button
            onClick={() => {
@@ -17570,7 +17576,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                setSalesSelectedRegion(region);
                setShowSalesIssue(true);
              }}
-             className="px-3 py-1.5 bg-neutral-100 text-neutral-700 rounded-full text-sm hover:bg-neutral-200 transition-all"
+             className="px-3 py-1.5 bg-[#F2F4F6] text-[#4E5968] rounded-full text-sm hover:bg-[#E5E8EB] transition-all"
            >
              {region}
            </button>
@@ -17580,14 +17586,14 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
      {/* 선택된 지역 정보 */}
      {showSalesIssue && salesSelectedRegion && (
-       <div className={`rounded-2xl p-4 border border-l-4 ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700 border-l-neutral-400' : 'bg-white border-neutral-200 border-l-neutral-500'}`}>
+       <div className={`rounded-2xl p-4 border border-l-4 ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08] border-l-neutral-400' : 'bg-white border-[#E5E8EB] border-l-neutral-500'}`}>
          <div className="flex items-center justify-between mb-3">
            <h3 className={`font-bold ${t.text} text-lg flex items-center gap-2`}>
              {salesSelectedRegion} 지역 정보
            </h3>
            <button
              onClick={() => setShowSalesIssue(false)}
-             className="text-neutral-500 hover:text-neutral-800"
+             className="text-[#56565F] hover:text-[#333D4B]"
            >
              
            </button>
@@ -17598,15 +17604,15 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
            const stats = getRegionStats(salesSelectedRegion);
            return (
              <div className="grid grid-cols-3 gap-3 mb-4">
-               <div className="bg-neutral-50 rounded-lg p-3 text-center">
+               <div className="bg-[#F9FAFB] rounded-lg p-3 text-center">
                  <p className={`text-2xl font-bold ${t.text}`}>{stats.realtorCount}</p>
                  <p className={`text-xs ${t.textMuted}`}>수집 중개사</p>
                </div>
-               <div className="bg-neutral-50 rounded-lg p-3 text-center">
+               <div className="bg-[#F9FAFB] rounded-lg p-3 text-center">
                  <p className={`text-2xl font-bold ${t.text}`}>{stats.companyCount}</p>
                  <p className={`text-xs ${t.textMuted}`}>등록 업체</p>
                </div>
-               <div className="bg-neutral-50 rounded-lg p-3 text-center">
+               <div className="bg-[#F9FAFB] rounded-lg p-3 text-center">
                  <p className={`text-2xl font-bold ${t.text}`}>{stats.totalListings.toLocaleString()}</p>
                  <p className={`text-xs ${t.textMuted}`}>총 매물</p>
                </div>
@@ -17619,9 +17625,9 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
            const issue = findRegionIssue(salesSelectedRegion);
            if (issue) {
              return (
-               <div className={`rounded-lg p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-600' : 'bg-white border-neutral-300'}`}>
+               <div className={`rounded-lg p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-neutral-600' : 'bg-white border-[#D1D6DB]'}`}>
                  <p className={`text-xs font-semibold mb-2 ${t.text}`}>지역 이슈</p>
-                 <p className="text-neutral-800 font-medium mb-1">{issue.title}</p>
+                 <p className="text-[#333D4B] font-medium mb-1">{issue.title}</p>
                  <p className={`text-sm ${t.text}`}>{issue.content}</p>
                  {issue.source && <p className={`text-xs mt-2 ${t.textMuted}`}>출처: {issue.source}</p>}
                </div>
@@ -17641,7 +17647,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
              const defaultIssue = defaultIssues[salesSelectedRegion] || 
                '해당 지역의 상세 이슈 정보가 준비 중입니다. 직접 상담을 통해 최신 정보를 안내해드립니다.';
              return (
-               <div className={`rounded-lg p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-600' : 'bg-white border-neutral-300'}`}>
+               <div className={`rounded-lg p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-neutral-600' : 'bg-white border-[#D1D6DB]'}`}>
                  <p className={`text-xs font-semibold mb-2 ${t.text}`}>지역 특성</p>
                  <p className={`text-sm ${t.text}`}>{defaultIssue}</p>
                </div>
@@ -17655,7 +17661,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  })()}
 
  {/* 프랜차이즈 vs 빈크래프트 비교표 */}
- <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
    <h3 className={`font-bold ${t.text} mb-4 flex items-center gap-2 text-lg`}>
      프랜차이즈 vs 빈크래프트 비용 비교
    </h3>
@@ -17663,92 +17669,92 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
    <div className="overflow-x-auto">
      <table className="w-full text-sm">
        <thead>
-         <tr className="border-b border-neutral-200">
-           <th className="py-3 px-2 text-left text-neutral-500 font-medium">항목</th>
+         <tr className="border-b border-[#E5E8EB]">
+           <th className="py-3 px-2 text-left text-[#56565F] font-medium">항목</th>
            <th className={`py-3 px-2 text-center ${t.text} font-medium`}>저가 프랜차이즈</th>
-           <th className="py-3 px-2 text-center text-neutral-700 font-medium">빈크래프트</th>
+           <th className="py-3 px-2 text-center text-[#4E5968] font-medium">빈크래프트</th>
          </tr>
        </thead>
        <tbody className={`${t.text}`}>
-         <tr className="border-b border-neutral-200">
+         <tr className="border-b border-[#E5E8EB]">
            <td className="py-3 px-2 font-medium">가맹비</td>
            <td className={`py-3 px-2 text-center ${t.text}`}>500~1,500만원</td>
            <td className="py-3 px-2 text-center text-[#1e3a5f] font-bold">0원</td>
          </tr>
-         <tr className="border-b border-neutral-200">
+         <tr className="border-b border-[#E5E8EB]">
            <td className="py-3 px-2 font-medium">교육비</td>
            <td className={`py-3 px-2 text-center ${t.text}`}>100~300만원</td>
            <td className="py-3 px-2 text-center text-[#1e3a5f]">컨설팅 포함</td>
          </tr>
-         <tr className="border-b border-neutral-200">
+         <tr className="border-b border-[#E5E8EB]">
            <td className="py-3 px-2 font-medium">컨설팅비</td>
            <td className={`py-3 px-2 text-center ${t.text}`}>-</td>
            <td className="py-3 px-2 text-center text-[#1e3a5f]">1,000만원</td>
          </tr>
-         <tr className="border-b border-neutral-200">
+         <tr className="border-b border-[#E5E8EB]">
            <td className="py-3 px-2 font-medium">로열티 (월)</td>
            <td className={`py-3 px-2 text-center ${t.text}`}>15~50만원</td>
            <td className="py-3 px-2 text-center text-[#1e3a5f] font-bold">0원</td>
          </tr>
-         <tr className="border-b border-neutral-200">
+         <tr className="border-b border-[#E5E8EB]">
            <td className="py-3 px-2 font-medium">로열티 (5년)</td>
            <td className={`py-3 px-2 text-center ${t.text}`}>900~3,000만원</td>
            <td className="py-3 px-2 text-center text-[#1e3a5f] font-bold">0원</td>
          </tr>
-         <tr className="border-b border-neutral-200">
+         <tr className="border-b border-[#E5E8EB]">
            <td className="py-3 px-2 font-medium">광고분담금 (월)</td>
            <td className={`py-3 px-2 text-center ${t.text}`}>10~30만원</td>
            <td className="py-3 px-2 text-center text-[#1e3a5f] font-bold">0원</td>
          </tr>
-         <tr className="border-b border-neutral-200">
+         <tr className="border-b border-[#E5E8EB]">
            <td className="py-3 px-2 font-medium">인테리어</td>
            <td className={`py-3 px-2 text-center ${t.text}`}>본사 지정업체</td>
            <td className="py-3 px-2 text-center text-[#1e3a5f]">400만원+견적 별도</td>
          </tr>
-         <tr className="border-b border-neutral-200">
+         <tr className="border-b border-[#E5E8EB]">
            <td className="py-3 px-2 font-medium">기기설비</td>
            <td className={`py-3 px-2 text-center ${t.text}`}>본사 지정업체</td>
            <td className="py-3 px-2 text-center text-[#1e3a5f]">400만원+견적 별도</td>
          </tr>
-         <tr className="border-b border-neutral-200">
+         <tr className="border-b border-[#E5E8EB]">
            <td className="py-3 px-2 font-medium">원두공급</td>
            <td className={`py-3 px-2 text-center ${t.text}`}>본사 지정 (강제)</td>
            <td className="py-3 px-2 text-center text-[#1e3a5f]">공급가 납품 (선택)</td>
          </tr>
-         <tr className="border-b border-neutral-200">
+         <tr className="border-b border-[#E5E8EB]">
            <td className="py-3 px-2 font-medium">메뉴 구성</td>
            <td className={`py-3 px-2 text-center ${t.text}`}>본사 통제</td>
            <td className="py-3 px-2 text-center text-[#1e3a5f]">자유롭게 결정</td>
          </tr>
-         <tr className="border-b border-neutral-200">
+         <tr className="border-b border-[#E5E8EB]">
            <td className="py-3 px-2 font-medium">매물 조건</td>
            <td className={`py-3 px-2 text-center ${t.text}`}>1층/15평 이상</td>
            <td className="py-3 px-2 text-center text-[#1e3a5f]">제한 없음</td>
          </tr>
-         <tr className="bg-neutral-100/30">
+         <tr className="bg-[#F2F4F6]/30">
            <td className={`py-3 px-2 font-bold ${t.text}`}>총 비용 (5년)</td>
            <td className={`py-3 px-2 text-center ${t.text} font-bold`}>1,500~4,500만원+</td>
-           <td className="py-3 px-2 text-center text-neutral-700 font-bold">1,800만원+</td>
+           <td className="py-3 px-2 text-center text-[#4E5968] font-bold">1,800만원+</td>
          </tr>
        </tbody>
      </table>
    </div>
    
-   <div className={`mt-4 p-3 rounded-lg border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-600' : 'bg-white border-neutral-300'}`}>
-     <p className="text-sm text-neutral-700 font-semibold mb-1">빈크래프트 핵심 장점</p>
+   <div className={`mt-4 p-3 rounded-lg border ${theme === 'dark' ? 'bg-[#21212A] border-neutral-600' : 'bg-white border-[#D1D6DB]'}`}>
+     <p className="text-sm text-[#4E5968] font-semibold mb-1">빈크래프트 핵심 장점</p>
      <p className={`text-sm ${t.text}`}>로열티/가맹비 0원으로 5년간 <span className={`font-bold ${t.text}`}>약 900만원~3,000만원</span> 절감 가능. 메뉴/인테리어/원두 자유롭게 선택 가능.</p>
      <p className={`text-xs mt-1 ${t.textMuted}`}>※ 로열티 월 15~50만원 × 60개월 기준 계산</p>
    </div>
  </div>
 
  {/* 빈크래프트 서비스 안내 */}
- <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
    <h3 className={`font-bold ${t.text} mb-4 flex items-center gap-2 text-lg`}>
      빈크래프트 서비스 안내
    </h3>
    
    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-     <div className={`border rounded-xl p-4 ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-neutral-50 border-neutral-200'}`}>
+     <div className={`border rounded-xl p-4 ${theme === 'dark' ? 'bg-[#21212A] border-white/[0.08]' : 'bg-[#F9FAFB] border-[#E5E8EB]'}`}>
        <div className="flex items-center gap-3 mb-3">
          
          <div>
@@ -17763,7 +17769,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        </ul>
      </div>
      
-     <div className={`border rounded-xl p-4 ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-neutral-50 border-neutral-200'}`}>
+     <div className={`border rounded-xl p-4 ${theme === 'dark' ? 'bg-[#21212A] border-white/[0.08]' : 'bg-[#F9FAFB] border-[#E5E8EB]'}`}>
        <div className="flex items-center gap-3 mb-3">
          <span className="text-3xl"></span>
          <div>
@@ -17778,7 +17784,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        </ul>
      </div>
      
-     <div className={`border rounded-xl p-4 ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-neutral-50 border-neutral-200'}`}>
+     <div className={`border rounded-xl p-4 ${theme === 'dark' ? 'bg-[#21212A] border-white/[0.08]' : 'bg-[#F9FAFB] border-[#E5E8EB]'}`}>
        <div className="flex items-center gap-3 mb-3">
          <span className="text-3xl"></span>
          <div>
@@ -17793,7 +17799,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        </ul>
      </div>
      
-     <div className={`border rounded-xl p-4 ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-neutral-50 border-neutral-200'}`}>
+     <div className={`border rounded-xl p-4 ${theme === 'dark' ? 'bg-[#21212A] border-white/[0.08]' : 'bg-[#F9FAFB] border-[#E5E8EB]'}`}>
        <div className="flex items-center gap-3 mb-3">
          <span className="text-3xl"></span>
          <div>
@@ -17811,7 +17817,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
 
  {/* 중개사 현황 (간략) */}
- <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
    <h3 className={`font-bold ${t.text} mb-3 flex items-center gap-2 text-lg`}>
      전국 중개사 현황
    </h3>
@@ -17876,9 +17882,9 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
            <p className={`text-xs mb-2 ${t.textMuted}`}>지역별 중개사 분포</p>
            <div className="flex flex-wrap gap-2">
              {sortedRegions.slice(0, 10).map(([region, data]) => (
-               <div key={region} className="px-3 py-2 bg-neutral-50 rounded-lg">
+               <div key={region} className="px-3 py-2 bg-[#F9FAFB] rounded-lg">
                  <span className={`font-medium ${t.text}`}>{region}</span>
-                 <span className="text-neutral-500 text-sm ml-2">{data.count}개</span>
+                 <span className="text-[#56565F] text-sm ml-2">{data.count}개</span>
                </div>
              ))}
            </div>
@@ -17889,9 +17895,9 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
 
  {/* 하단 CTA */}
- <div className="bg-neutral-100 border border-neutral-200 rounded-xl p-6 text-center">
+ <div className="bg-[#F2F4F6] border border-[#E5E8EB] rounded-xl p-6 text-center">
    <h3 className={`text-xl font-bold ${t.text} mb-2`}>카페 창업, 빈크래프트와 함께하세요</h3>
-   <p className="text-neutral-700 mb-4">AI피드백가 상담해드립니다</p>
+   <p className="text-[#4E5968] mb-4">AI피드백가 상담해드립니다</p>
    <div className="flex justify-center gap-3">
      <a 
        href="https://www.beancraft.co.kr" 
@@ -18203,7 +18209,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  return (
  <>
  {/* 통계 */}
- <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <div className="flex flex-wrap items-center gap-4 sm:gap-6">
  <div className="text-center">
  <p className="text-2xl sm:text-3xl font-bold text-teal-600">{realtorsLoading ? '로딩 중...' : validRealtors.length}</p>
@@ -18219,16 +18225,16 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  
  {/* 검색/필터/정렬 */}
- <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <div className="flex flex-wrap gap-2 mb-3">
  <input
  type="text"
  placeholder="지역(강남구) 또는 업체명 검색..."
  value={realtorSearchQuery}
  onChange={e => setRealtorSearchQuery(e.target.value)}
- className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all flex-1 min-w-[150px]`}
+ className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all flex-1 min-w-[150px]`}
  />
- <select value={realtorRegionFilter} onChange={e => setRealtorRegionFilter(e.target.value)} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} focus:outline-none focus:border-neutral-400 transition-all`}>
+ <select value={realtorRegionFilter} onChange={e => setRealtorRegionFilter(e.target.value)} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} focus:outline-none focus:border-[#3182F6] transition-all`}>
  <option value="">전체 지역</option>
  {sortedCitiesForFilter.map(city => (
  <optgroup key={city} label={`${CITY_SHORT[city] || city}`}>
@@ -18238,7 +18244,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </optgroup>
  ))}
  </select>
- <select value={realtorSortMode} onChange={e => setRealtorSortMode(e.target.value)} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} focus:outline-none focus:border-neutral-400 transition-all`}>
+ <select value={realtorSortMode} onChange={e => setRealtorSortMode(e.target.value)} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} focus:outline-none focus:border-[#3182F6] transition-all`}>
  <option value="listings">매물 많은 순</option>
  <option value="recent">최근 수집 순</option>
  <option value="name">이름 순</option>
@@ -18249,7 +18255,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  
  {/* 중개사 목록 */}
  {validRealtors.length === 0 ? (
- <div className={`rounded-2xl p-8 text-center border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700 text-neutral-400' : 'bg-white border-neutral-200 text-neutral-500'}`}>
+ <div className={`rounded-2xl p-8 text-center border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08] text-[#B0B8C1]' : 'bg-white border-[#E5E8EB] text-[#56565F]'}`}>
  <p className="text-4xl mb-2"></p>
  <p>수집된 중개사가 없습니다</p>
  <p className="text-xs mt-2">Chrome 확장프로그램으로 네이버부동산에서 수집하세요</p>
@@ -18316,7 +18322,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  const displayCities = CITY_ORDER.filter(city => byCityDistrict[city]);
  
  if (displayCities.length === 0) {
- return <div className={`rounded-2xl p-4 text-center border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700 text-neutral-400' : 'bg-white border-neutral-200 text-neutral-500'}`}>검색 결과가 없습니다</div>;
+ return <div className={`rounded-2xl p-4 text-center border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08] text-[#B0B8C1]' : 'bg-white border-[#E5E8EB] text-[#56565F]'}`}>검색 결과가 없습니다</div>;
  }
  
  return displayCities.map(city => {
@@ -18325,20 +18331,20 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  const sortedDistricts = Object.keys(districts).sort();
  
  return (
- <details key={city} className={`rounded-2xl overflow-hidden border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`} open={displayCities.length === 1}>
- <summary className={`p-4 cursor-pointer flex justify-between items-center font-bold ${theme === 'dark' ? 'bg-neutral-800 text-white hover:bg-neutral-700' : 'bg-white text-neutral-800 hover:bg-neutral-100'}`}>
+ <details key={city} className={`rounded-2xl overflow-hidden border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`} open={displayCities.length === 1}>
+ <summary className={`p-4 cursor-pointer flex justify-between items-center font-bold ${theme === 'dark' ? 'bg-[#21212A] text-white hover:bg-[#2C2C35]' : 'bg-white text-[#333D4B] hover:bg-[#F2F4F6]'}`}>
  <span>{CITY_SHORT[city] || city} ({cityTotal}개)</span>
  <span className={`text-xs ${t.textMuted}`}>{sortedDistricts.length}개 구/군</span>
  </summary>
- <div className="border-t border-neutral-200">
+ <div className="border-t border-[#E5E8EB]">
  {sortedDistricts.map(district => {
  const realtors = districts[district];
  return (
- <details key={district} className="border-b border-neutral-200">
- <summary className="p-3 pl-6 cursor-pointer hover:bg-neutral-100 flex justify-between items-center text-neutral-700">
+ <details key={district} className="border-b border-[#E5E8EB]">
+ <summary className="p-3 pl-6 cursor-pointer hover:bg-[#F2F4F6] flex justify-between items-center text-[#4E5968]">
  <span className="font-bold">{district} ({realtors.length}개)</span>
  </summary>
- <div className="max-h-80 overflow-y-auto bg-neutral-50">
+ <div className="max-h-80 overflow-y-auto bg-[#F9FAFB]">
  {realtors.map((realtor, idx) => {
  const officeName = getOfficeName(realtor);
  const listingCount = getListingCount(realtor);
@@ -18377,7 +18383,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {assignedManager ? (
    <span className={`px-1.5 py-0.5 text-xs rounded-full ${t.text} font-bold`} style={{backgroundColor: assignedManager.color}}>{assignedManager.name}</span>
  ) : (
-   <span className="px-1.5 py-0.5 text-xs rounded-full bg-neutral-200 text-neutral-700 font-bold">미배정</span>
+   <span className="px-1.5 py-0.5 text-xs rounded-full bg-[#E5E8EB] text-[#4E5968] font-bold">미배정</span>
  )}
  </div>
  <span className={`text-sm ${t.textMuted}`}>›</span>
@@ -18387,7 +18393,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  );
  })}
  {realtors.length > 50 && (
- <p className="text-center text-xs text-neutral-500 py-2">...외 {realtors.length - 50}개</p>
+ <p className="text-center text-xs text-[#56565F] py-2">...외 {realtors.length - 50}개</p>
  )}
  </div>
  </details>
@@ -18409,7 +18415,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
  {/* 오른쪽: 업체 등록 */}
  <div className="lg:col-span-1 lg:order-2">
- <div className={`rounded-2xl p-4 sticky top-20 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-2xl p-4 sticky top-20 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <div className="flex justify-between items-center mb-3">
  <h3 className={`font-bold ${t.text}`}>업체 등록</h3>
  <div className="relative">
@@ -18431,27 +18437,27 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  />
  <button
  onClick={() => setShowRegisterMenu(!showRegisterMenu)}
- className="px-3 py-1 rounded-full border border-neutral-200 text-xs text-neutral-700 hover:border-slate-500"
+ className="px-3 py-1 rounded-full border border-[#E5E8EB] text-xs text-[#4E5968] hover:border-slate-500"
  >
  + 등록 방법
  </button>
  {showRegisterMenu && (
- <div className={`absolute right-0 top-full mt-1 rounded-lg shadow-lg z-50 min-w-[120px] border ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`absolute right-0 top-full mt-1 rounded-lg shadow-lg z-50 min-w-[120px] border ${theme === 'dark' ? 'bg-[#21212A] border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <button
  onClick={() => { setShowRegisterMenu(false); setTimeout(() => ocrFileInputRef.current?.click(), 100); }}
- className={`w-full px-3 py-2 text-left text-xs border-b ${theme === 'dark' ? 'text-neutral-300 hover:bg-neutral-700 border-neutral-700' : 'text-neutral-700 hover:bg-neutral-100 border-neutral-200'}`}
+ className={`w-full px-3 py-2 text-left text-xs border-b ${theme === 'dark' ? 'text-[#8C8C96] hover:bg-[#2C2C35] border-white/[0.08]' : 'text-[#4E5968] hover:bg-[#F2F4F6] border-[#E5E8EB]'}`}
  >
  명함 촬영
  </button>
  <button
  onClick={() => { setShowRegisterMenu(false); setTimeout(() => bulkOcrFileInputRef.current?.click(), 100); }}
- className={`w-full px-3 py-2 text-left text-xs border-b ${theme === 'dark' ? 'text-neutral-300 hover:bg-neutral-700 border-neutral-700' : 'text-neutral-700 hover:bg-neutral-100 border-neutral-200'}`}
+ className={`w-full px-3 py-2 text-left text-xs border-b ${theme === 'dark' ? 'text-[#8C8C96] hover:bg-[#2C2C35] border-white/[0.08]' : 'text-[#4E5968] hover:bg-[#F2F4F6] border-[#E5E8EB]'}`}
  >
  명함 일괄
  </button>
  <button
  onClick={() => { setShowBulkAddModal(true); setShowRegisterMenu(false); }}
- className="w-full px-3 py-2 text-left text-xs text-neutral-700 hover:bg-neutral-100"
+ className="w-full px-3 py-2 text-left text-xs text-[#4E5968] hover:bg-[#F2F4F6]"
  >
  일괄 등록
  </button>
@@ -18460,28 +18466,28 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  </div>
  <div className="space-y-2">
- <input type="text" placeholder="업체명" value={companyForm.name} onChange={e => setCompanyForm({ ...companyForm, name: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm w-full`} />
- <input type="text" placeholder="담당자" value={companyForm.contact} onChange={e => setCompanyForm({ ...companyForm, contact: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm w-full`} />
- <input type="text" placeholder="연락처" value={companyForm.phone} onChange={e => setCompanyForm({ ...companyForm, phone: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm w-full`} />
- <input type="text" placeholder="주소" value={companyForm.address} onChange={e => setCompanyForm({ ...companyForm, address: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm w-full`} />
+ <input type="text" placeholder="업체명" value={companyForm.name} onChange={e => setCompanyForm({ ...companyForm, name: e.target.value })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm w-full`} />
+ <input type="text" placeholder="담당자" value={companyForm.contact} onChange={e => setCompanyForm({ ...companyForm, contact: e.target.value })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm w-full`} />
+ <input type="text" placeholder="연락처" value={companyForm.phone} onChange={e => setCompanyForm({ ...companyForm, phone: e.target.value })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm w-full`} />
+ <input type="text" placeholder="주소" value={companyForm.address} onChange={e => setCompanyForm({ ...companyForm, address: e.target.value })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm w-full`} />
  {isAdmin ? (
- <select value={companyForm.managerId || ''} onChange={e => setCompanyForm({ ...companyForm, managerId: Number(e.target.value) || null })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} focus:outline-none focus:border-neutral-400 transition-all text-sm w-full`}>
+ <select value={companyForm.managerId || ''} onChange={e => setCompanyForm({ ...companyForm, managerId: Number(e.target.value) || null })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} focus:outline-none focus:border-[#3182F6] transition-all text-sm w-full`}>
  <option value="">영업자 선택</option>
  {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
  </select>
  ) : (
- <div className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm flex items-center text-neutral-500`}>
+ <div className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm flex items-center text-[#56565F]`}>
  {user?.name || '나'} (자동)
  </div>
  )}
- <input type="text" placeholder="메모" value={companyForm.memo} onChange={e => setCompanyForm({ ...companyForm, memo: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm w-full`} />
+ <input type="text" placeholder="메모" value={companyForm.memo} onChange={e => setCompanyForm({ ...companyForm, memo: e.target.value })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm w-full`} />
  </div>
  <div className="flex flex-wrap gap-1 mt-3">
  {Object.entries(REACTION_COLORS).map(([key, val]) => (
  <button key={key} onClick={() => setCompanyForm({ ...companyForm, reaction: key })} className={`px-2 py-1 rounded-full text-xs text-white transition-all ${companyForm.reaction === key ? 'ring-1 ring-offset-1 ring-white' : 'opacity-50'}`} style={{ background: val.bg }}>{val.label}</button>
  ))}
  </div>
- <label className="flex items-center gap-2 mt-3 text-xs text-neutral-500 cursor-pointer">
+ <label className="flex items-center gap-2 mt-3 text-xs text-[#56565F] cursor-pointer">
  <input 
  type="checkbox" 
  checked={companyForm.isReregistered || false}
@@ -18490,13 +18496,13 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  />
  재등록 (신규 집계 제외)
  </label>
- <button type="button" onClick={handleSaveCompany} className="w-full mt-3 py-2 rounded-full border border-neutral-200 text-neutral-700 text-sm hover:border-slate-500">등록</button>
+ <button type="button" onClick={handleSaveCompany} className="w-full mt-3 py-2 rounded-full border border-[#E5E8EB] text-[#4E5968] text-sm hover:border-slate-500">등록</button>
  </div>
  </div>
  
  {/* 왼쪽: 업체 목록 */}
  <div className="lg:col-span-2 lg:order-1">
- <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <div className="flex justify-between items-center mb-3">
  <h3 className={`font-bold ${t.text}`}>업체 목록 ({filteredCompanies.length})</h3>
  </div>
@@ -18510,20 +18516,20 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  };
  return (
  <div className="grid grid-cols-4 gap-2 mb-4">
- <div className="text-center p-2 rounded-xl border border-neutral-200">
+ <div className="text-center p-2 rounded-xl border border-[#E5E8EB]">
  <p className={`text-lg font-bold ${t.text}`}>{stats.special}</p>
  <p className={`text-xs ${t.textMuted}`}>특별</p>
  </div>
- <div className="text-center p-2 rounded-xl border border-neutral-200">
+ <div className="text-center p-2 rounded-xl border border-[#E5E8EB]">
  <p className={`text-lg font-bold ${t.text}`}>{stats.positive}</p>
  <p className={`text-xs ${t.textMuted}`}>긍정</p>
  </div>
- <div className="text-center p-2 rounded-xl border border-neutral-200">
+ <div className="text-center p-2 rounded-xl border border-[#E5E8EB]">
  <p className={`text-lg font-bold ${t.text}`}>{stats.neutral}</p>
  <p className={`text-xs ${t.textMuted}`}>양호</p>
  </div>
- <div className="text-center p-2 rounded-xl border border-neutral-200">
- <p className="text-lg font-bold text-neutral-500">{stats.negative}</p>
+ <div className="text-center p-2 rounded-xl border border-[#E5E8EB]">
+ <p className="text-lg font-bold text-[#56565F]">{stats.negative}</p>
  <p className={`text-xs ${t.textMuted}`}>부정</p>
  </div>
  </div>
@@ -18531,12 +18537,12 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  })()}
  {/* 검색/필터 */}
  <div className="grid grid-cols-3 gap-2 mb-4">
- <input type="text" placeholder="업체명 검색" value={companySearch} onChange={e => setCompanySearch(e.target.value)} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm`} />
- <select value={companyManagerFilter} onChange={e => setCompanyManagerFilter(e.target.value)} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} focus:outline-none focus:border-neutral-400 transition-all text-sm`}>
+ <input type="text" placeholder="업체명 검색" value={companySearch} onChange={e => setCompanySearch(e.target.value)} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm`} />
+ <select value={companyManagerFilter} onChange={e => setCompanyManagerFilter(e.target.value)} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} focus:outline-none focus:border-[#3182F6] transition-all text-sm`}>
  <option value="all">전체 담당자</option>
  {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
  </select>
- <select value={companyReactionFilter} onChange={e => setCompanyReactionFilter(e.target.value)} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} focus:outline-none focus:border-neutral-400 transition-all text-sm`}>
+ <select value={companyReactionFilter} onChange={e => setCompanyReactionFilter(e.target.value)} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} focus:outline-none focus:border-[#3182F6] transition-all text-sm`}>
  <option value="all">전체 반응</option>
  {Object.entries(REACTION_COLORS).map(([key, val]) => (
  <option key={key} value={key}>{val.label}</option>
@@ -18567,7 +18573,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <details key={m.id} className="mb-4">
  <summary className="flex items-center gap-2 p-3 rounded-xl cursor-pointer" style={{ background: `${m.color}15` }}>
  <div className="w-5 h-5 rounded-full" style={{ background: m.color }}></div>
- <span className="font-bold text-neutral-800 text-lg">{m.name}</span>
+ <span className="font-bold text-[#333D4B] text-lg">{m.name}</span>
  <span className={`text-sm ${t.text}`}>({mgrCompanies.length}개)</span>
  </summary>
  <div className="mt-2 ml-2">
@@ -18591,21 +18597,21 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="mt-2 ml-3">
  {Object.entries(byRegion).map(([region, regionItems]) => (
  <details key={region} className="mb-2">
- <summary className="text-xs text-neutral-800 font-bold px-2 py-1 cursor-pointer hover:bg-neutral-100 rounded">
+ <summary className="text-xs text-[#333D4B] font-bold px-2 py-1 cursor-pointer hover:bg-[#F2F4F6] rounded">
  {region} ({regionItems.length})
  </summary>
  <div className="space-y-1 mt-1 ml-2">
  {regionItems.map(c => (
  <div
  key={c.id}
- className="flex items-center justify-between p-2 bg-neutral-100 rounded-lg border border-neutral-200 cursor-pointer hover:bg-neutral-100"
+ className="flex items-center justify-between p-2 bg-[#F2F4F6] rounded-lg border border-[#E5E8EB] cursor-pointer hover:bg-[#F2F4F6]"
  onClick={() => setShowCompanyEditModal({ ...c })}
  >
  <div className="flex items-center gap-2 min-w-0 flex-1">
  <span className={`font-bold ${t.text} text-sm truncate`}>{c.name}</span>
  </div>
  <div className="flex gap-2 flex-shrink-0">
- <button type="button" onClick={(e) => { e.stopPropagation(); setShowCompanyEditModal({ ...c }); }} className="text-neutral-800 font-bold text-xs">수정</button>
+ <button type="button" onClick={(e) => { e.stopPropagation(); setShowCompanyEditModal({ ...c }); }} className="text-[#333D4B] font-bold text-xs">수정</button>
  <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteCompany(c); }} className={`${t.text} font-bold text-xs`}>삭제</button>
  </div>
  </div>
@@ -18629,7 +18635,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  if (unassigned.length === 0) return null;
  return (
  <details className="mb-4">
- <summary className="flex items-center gap-2 p-3 rounded-xl bg-gray-100 cursor-pointer">
+ <summary className="flex items-center gap-2 p-3 rounded-xl bg-[#F2F4F6] cursor-pointer">
  <div className="w-5 h-5 rounded-full bg-gray-400"></div>
  <span className={`font-bold ${t.text}`}>미배정</span>
  <span className={`text-sm ${t.text}`}>({unassigned.length})</span>
@@ -18640,7 +18646,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  return (
  <div
  key={c.id}
- className="flex items-center justify-between p-2 bg-neutral-100 rounded-lg border border-neutral-200 cursor-pointer hover:bg-neutral-100"
+ className="flex items-center justify-between p-2 bg-[#F2F4F6] rounded-lg border border-[#E5E8EB] cursor-pointer hover:bg-[#F2F4F6]"
  onClick={() => setShowCompanyEditModal({ ...c })}
  >
  <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -18658,7 +18664,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </details>
  );
  })()}
- {filteredCompanies.length === 0 && <p className="text-neutral-500 text-center py-10">등록된 업체가 없습니다</p>}
+ {filteredCompanies.length === 0 && <p className="text-[#56565F] text-center py-10">등록된 업체가 없습니다</p>}
  </div>
  </div>
  </div>
@@ -18667,24 +18673,24 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
  {/* 왼쪽: 고객 목록 */}
  <div className="lg:col-span-2 space-y-2">
- <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <h3 className={`font-bold ${t.text} mb-4`}>고객 목록</h3>
  {customers.length === 0 ? (
- <p className="text-neutral-500 text-center py-8">등록된 고객이 없습니다</p>
+ <p className="text-[#56565F] text-center py-8">등록된 고객이 없습니다</p>
  ) : (
  <div className="space-y-2">
  {customers.map(c => {
  const mgr = managers.find(m => m.id === c.managerId);
  return (
- <div key={c.id} className="flex items-center justify-between p-3 rounded-xl border border-neutral-200 hover:border-slate-500 cursor-pointer" onClick={() => setShowCustomerEditModal(c)}>
+ <div key={c.id} className="flex items-center justify-between p-3 rounded-xl border border-[#E5E8EB] hover:border-slate-500 cursor-pointer" onClick={() => setShowCustomerEditModal(c)}>
  <div className="flex items-center gap-3">
  <div className={`px-2 py-1 rounded ${t.text} text-xs font-medium`} style={{ background: mgr?.color || '#666' }}>{mgr?.name || '?'}</div>
  <div>
- <p className="font-bold text-neutral-800 text-sm">{c.name}</p>
+ <p className="font-bold text-[#333D4B] text-sm">{c.name}</p>
  <p className={`text-xs ${t.textMuted}`}>{c.phone} · {c.consultDate}</p>
  </div>
  </div>
- <span className={`px-2 py-1 rounded-full text-xs ${c.status === 'completed' ? 'text-neutral-700' : c.status === 'contract' ? 'text-neutral-700' : 'text-neutral-500'}`}>
+ <span className={`px-2 py-1 rounded-full text-xs ${c.status === 'completed' ? 'text-[#4E5968]' : c.status === 'contract' ? 'text-[#4E5968]' : 'text-[#56565F]'}`}>
  {c.status === 'completed' ? '완료' : c.status === 'contract' ? '계약' : '상담'}
  </span>
  </div>
@@ -18697,22 +18703,22 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  
  {/* 오른쪽: 고객 등록 */}
  <div className="lg:col-span-1">
- <div className={`rounded-2xl p-4 sticky top-20 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-2xl p-4 sticky top-20 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <h3 className={`font-bold ${t.text} mb-4`}>고객 등록</h3>
  <div className="space-y-3">
- <select value={customerForm.managerId || ''} onChange={e => setCustomerForm({ ...customerForm, managerId: Number(e.target.value) || null })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} focus:outline-none focus:border-neutral-400 transition-all text-sm`}>
+ <select value={customerForm.managerId || ''} onChange={e => setCustomerForm({ ...customerForm, managerId: Number(e.target.value) || null })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} focus:outline-none focus:border-[#3182F6] transition-all text-sm`}>
  <option value="">영업자 선택</option>
  {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
  </select>
- <input type="text" placeholder="고객명 *" value={customerForm.name} onChange={e => setCustomerForm({ ...customerForm, name: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm`} />
- <input type="text" placeholder="연락처" value={customerForm.phone} onChange={e => setCustomerForm({ ...customerForm, phone: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm`} />
- <input type="text" placeholder="희망 지역" value={customerForm.desiredRegion} onChange={e => setCustomerForm({ ...customerForm, desiredRegion: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm`} />
+ <input type="text" placeholder="고객명 *" value={customerForm.name} onChange={e => setCustomerForm({ ...customerForm, name: e.target.value })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm`} />
+ <input type="text" placeholder="연락처" value={customerForm.phone} onChange={e => setCustomerForm({ ...customerForm, phone: e.target.value })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm`} />
+ <input type="text" placeholder="희망 지역" value={customerForm.desiredRegion} onChange={e => setCustomerForm({ ...customerForm, desiredRegion: e.target.value })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm`} />
  <div>
    <label className={`text-xs mb-1 block ${t.textMuted}`}>희망 날짜</label>
-   <input type="date" value={customerForm.desiredDate} onChange={e => setCustomerForm({ ...customerForm, desiredDate: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} focus:outline-none focus:border-neutral-400 transition-all text-sm`} />
+   <input type="date" value={customerForm.desiredDate} onChange={e => setCustomerForm({ ...customerForm, desiredDate: e.target.value })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} focus:outline-none focus:border-[#3182F6] transition-all text-sm`} />
  </div>
- <input type="text" placeholder="준비 비용 (예: 5000만원)" value={customerForm.budget} onChange={e => setCustomerForm({ ...customerForm, budget: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm`} />
- <input type="text" placeholder="희망 평수 (예: 15평)" value={customerForm.desiredSize} onChange={e => setCustomerForm({ ...customerForm, desiredSize: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm`} />
+ <input type="text" placeholder="준비 비용 (예: 5000만원)" value={customerForm.budget} onChange={e => setCustomerForm({ ...customerForm, budget: e.target.value })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm`} />
+ <input type="text" placeholder="희망 평수 (예: 15평)" value={customerForm.desiredSize} onChange={e => setCustomerForm({ ...customerForm, desiredSize: e.target.value })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm`} />
  
  {/* 창업 희망 구상 (복수 선택) */}
  <div>
@@ -18730,7 +18736,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
              setCustomerForm({ ...customerForm, businessStyle: [...styles, style] });
            }
          }} 
-         className={`px-2.5 py-1.5 rounded-full text-xs transition-all ${(customerForm.businessStyle || []).includes(style) ? 'bg-neutral-900 text-white' : 'border border-neutral-200 text-neutral-500 hover:border-neutral-400'}`}
+         className={`px-2.5 py-1.5 rounded-full text-xs transition-all ${(customerForm.businessStyle || []).includes(style) ? 'bg-[#191F28] text-white' : 'border border-[#E5E8EB] text-[#56565F] hover:border-[#8B95A1]'}`}
        >
          {style}
        </button>
@@ -18756,7 +18762,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                setCustomerForm({ ...customerForm, priorities: [...priorities, item] });
              }
            }} 
-           className={`px-2.5 py-1.5 rounded-full text-xs transition-all ${idx >= 0 ? 'bg-neutral-900 text-white' : 'border border-neutral-200 text-neutral-500 hover:border-neutral-400'}`}
+           className={`px-2.5 py-1.5 rounded-full text-xs transition-all ${idx >= 0 ? 'bg-[#191F28] text-white' : 'border border-[#E5E8EB] text-[#56565F] hover:border-[#8B95A1]'}`}
          >
            {idx >= 0 ? `${idx + 1}. ${item}` : item}
          </button>
@@ -18767,17 +18773,17 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  
  <div>
    <label className={`text-xs mb-1 block ${t.textMuted}`}>상담일</label>
-   <input type="date" value={customerForm.consultDate} onChange={e => setCustomerForm({ ...customerForm, consultDate: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} focus:outline-none focus:border-neutral-400 transition-all text-sm`} />
+   <input type="date" value={customerForm.consultDate} onChange={e => setCustomerForm({ ...customerForm, consultDate: e.target.value })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} focus:outline-none focus:border-[#3182F6] transition-all text-sm`} />
  </div>
  <div className="flex gap-2">
  {['consult', 'contract', 'completed'].map(s => (
- <button key={s} onClick={() => setCustomerForm({ ...customerForm, status: s })} className={`flex-1 px-2 py-2 rounded-full text-xs ${customerForm.status === s ? 'bg-neutral-900 text-white' : 'border border-neutral-200 text-neutral-500'}`}>
+ <button key={s} onClick={() => setCustomerForm({ ...customerForm, status: s })} className={`flex-1 px-2 py-2 rounded-full text-xs ${customerForm.status === s ? 'bg-[#191F28] text-white' : 'border border-[#E5E8EB] text-[#56565F]'}`}>
  {s === 'consult' ? '상담' : s === 'contract' ? '계약' : '완료'}
  </button>
  ))}
  </div>
- <textarea placeholder="메모" value={customerForm.memo} onChange={e => setCustomerForm({ ...customerForm, memo: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm h-20 resize-none`} />
- <button type="button" onClick={handleSaveCustomer} className="w-full py-2 rounded-full border border-neutral-200 text-neutral-700 text-sm hover:border-slate-500">등록</button>
+ <textarea placeholder="메모" value={customerForm.memo} onChange={e => setCustomerForm({ ...customerForm, memo: e.target.value })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm h-20 resize-none`} />
+ <button type="button" onClick={handleSaveCustomer} className="w-full py-2 rounded-full border border-[#E5E8EB] text-[#4E5968] text-sm hover:border-slate-500">등록</button>
  </div>
  </div>
  </div>
@@ -18788,11 +18794,11 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <h2 className={`font-bold ${t.text} text-xl`}>설정</h2>
  
  {/* 설정 서브탭 */}
- <div className={`flex gap-2 p-1 rounded-full border w-fit flex-wrap ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-neutral-200'}`}>
- <button type="button" onClick={() => setSettingsTab('alerts')} className={`px-4 py-2 rounded-full text-sm transition-all ${settingsTab === 'alerts' ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:${t.text}'}`}>나의 알림</button>
- <button type="button" onClick={() => setSettingsTab('salesmode')} className={`px-4 py-2 rounded-full text-sm transition-all ${settingsTab === 'salesmode' ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:${t.text}'}`}>영업모드</button>
- <button type="button" onClick={() => setSettingsTab('account')} className={`px-4 py-2 rounded-full text-sm transition-all ${settingsTab === 'account' ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:${t.text}'}`}>계정</button>
- {isAdmin && <button type="button" onClick={() => setSettingsTab('admin')} className={`px-4 py-2 rounded-full text-sm transition-all ${settingsTab === 'admin' ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:${t.text}'}`}>관리자</button>}
+ <div className={`flex gap-2 p-1 rounded-full border w-fit flex-wrap ${theme === 'dark' ? 'bg-[#21212A] border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
+ <button type="button" onClick={() => setSettingsTab('alerts')} className={`px-4 py-2 rounded-full text-sm transition-all ${settingsTab === 'alerts' ? 'bg-[#191F28] text-white' : 'text-[#56565F] hover:${t.text}'}`}>나의 알림</button>
+ <button type="button" onClick={() => setSettingsTab('salesmode')} className={`px-4 py-2 rounded-full text-sm transition-all ${settingsTab === 'salesmode' ? 'bg-[#191F28] text-white' : 'text-[#56565F] hover:${t.text}'}`}>영업모드</button>
+ <button type="button" onClick={() => setSettingsTab('account')} className={`px-4 py-2 rounded-full text-sm transition-all ${settingsTab === 'account' ? 'bg-[#191F28] text-white' : 'text-[#56565F] hover:${t.text}'}`}>계정</button>
+ {isAdmin && <button type="button" onClick={() => setSettingsTab('admin')} className={`px-4 py-2 rounded-full text-sm transition-all ${settingsTab === 'admin' ? 'bg-[#191F28] text-white' : 'text-[#56565F] hover:${t.text}'}`}>관리자</button>}
  </div>
  
  {/* 나의 알림 탭 */}
@@ -18807,7 +18813,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        !e.completed
      );
      return myEvents.length > 0 ? (
-       <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-500' : 'bg-white border-neutral-500'}`}>
+       <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-neutral-500' : 'bg-white border-neutral-500'}`}>
          <h3 className={`font-bold ${t.text} text-lg mb-3 flex items-center gap-2`}>
            오늘 예정
            <span className="bg-rose-500 text-white text-xs px-2 py-0.5 rounded-full">{myEvents.length}</span>
@@ -18832,8 +18838,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
          </div>
        </div>
      ) : (
-       <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
-         <h3 className="font-bold text-neutral-400 text-lg">오늘 예정된 일정 없음</h3>
+       <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
+         <h3 className="font-bold text-[#B0B8C1] text-lg">오늘 예정된 일정 없음</h3>
        </div>
      );
    })()}
@@ -18861,11 +18867,11 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
      }).sort((a, b) => a.date.localeCompare(b.date));
      
      return myWeekEvents.length > 0 ? (
-       <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
-         <h3 className="font-bold text-neutral-700 text-lg mb-3">이번 주 예정</h3>
+       <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
+         <h3 className="font-bold text-[#4E5968] text-lg mb-3">이번 주 예정</h3>
          <div className="space-y-2">
            {myWeekEvents.map(event => (
-             <div key={event.id} className="flex items-center justify-between p-3 bg-neutral-50 rounded-xl">
+             <div key={event.id} className="flex items-center justify-between p-3 bg-[#F9FAFB] rounded-xl">
                <div className="flex-1">
                  <div className="flex items-center gap-2">
                    <span className={`text-xs ${t.textMuted}`}>{event.date.slice(5).replace('-', '/')} ({['일','월','화','수','목','금','토'][new Date(event.date).getDay()]})</span>
@@ -18878,7 +18884,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                  onClick={() => {
                    saveCalendarEvent({ ...event, completed: true });
                  }}
-                 className="px-3 py-1.5 bg-neutral-200 text-neutral-600 text-sm rounded-lg hover:bg-neutral-300"
+                 className="px-3 py-1.5 bg-[#E5E8EB] text-[#6B7684] text-sm rounded-lg hover:bg-[#D1D6DB]"
                >
                  완료
                </button>
@@ -18897,20 +18903,20 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        .slice(0, 5);
      
      return completedEvents.length > 0 ? (
-       <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
-         <h3 className="font-bold text-neutral-400 text-lg mb-3">최근 완료</h3>
+       <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
+         <h3 className="font-bold text-[#B0B8C1] text-lg mb-3">최근 완료</h3>
          <div className="space-y-2">
            {completedEvents.map(event => (
-             <div key={event.id} className="flex items-center justify-between p-3 bg-neutral-50 rounded-xl opacity-60">
+             <div key={event.id} className="flex items-center justify-between p-3 bg-[#F9FAFB] rounded-xl opacity-60">
                <div className="flex-1">
-                 <p className="font-medium text-neutral-500 line-through">{event.title}</p>
-                 <p className="text-sm text-neutral-400">{event.date.slice(5).replace('-', '/')}</p>
+                 <p className="font-medium text-[#56565F] line-through">{event.title}</p>
+                 <p className="text-sm text-[#B0B8C1]">{event.date.slice(5).replace('-', '/')}</p>
                </div>
                <button
                  onClick={() => {
                    saveCalendarEvent({ ...event, completed: false });
                  }}
-                 className="px-3 py-1.5 bg-neutral-100 text-neutral-400 text-sm rounded-lg hover:bg-neutral-200"
+                 className="px-3 py-1.5 bg-[#F2F4F6] text-[#B0B8C1] text-sm rounded-lg hover:bg-[#E5E8EB]"
                >
                  복원
                </button>
@@ -18925,13 +18931,13 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  
  {/* 영업모드 설정 */}
  {settingsTab === 'salesmode' && (
- <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
    <h3 className={`font-bold ${t.text} text-lg mb-2`}>영업모드</h3>
-   <p className="text-sm text-neutral-700 mb-4">고객 미팅 시 상권 분석 자료를 보여줄 수 있습니다. 영업모드에서는 관리 데이터가 노출되지 않습니다.</p>
+   <p className="text-sm text-[#4E5968] mb-4">고객 미팅 시 상권 분석 자료를 보여줄 수 있습니다. 영업모드에서는 관리 데이터가 노출되지 않습니다.</p>
    <button
      type="button"
      onClick={startSalesMode}
-     className="w-full py-4 bg-neutral-900 hover:bg-neutral-800 text-white font-bold rounded-xl transition-all"
+     className="w-full py-4 bg-[#191F28] hover:bg-[#21212A] text-white font-bold rounded-xl transition-all"
    >
      영업모드 시작
    </button>
@@ -18942,7 +18948,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {settingsTab === 'account' && (
  <div className="space-y-2">
  {/* 테마 설정 */}
- <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
    <h3 className={`font-bold ${t.text} text-lg mb-3`}>테마 설정</h3>
    <div className="flex gap-2">
      {[
@@ -18954,7 +18960,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
          key={t.value}
          type="button"
          onClick={() => setThemeMode(t.value)}
-         className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${themeMode === t.value ? 'bg-neutral-900 text-white' : 'border border-neutral-200 text-neutral-500 hover:border-neutral-400'}`}
+         className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${themeMode === t.value ? 'bg-[#191F28] text-white' : 'border border-[#E5E8EB] text-[#56565F] hover:border-[#8B95A1]'}`}
        >
          {t.label}
        </button>
@@ -18964,14 +18970,14 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
 
  {/* 비밀번호 변경 */}
- <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <h3 className={`font-bold ${t.text} text-lg mb-4`}>내 비밀번호 변경</h3>
  <div className="space-y-3">
- <input type="password" placeholder="새 비밀번호" value={newPassword} onChange={e => setNewPassword(e.target.value)} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
- <input type="password" placeholder="비밀번호 확인" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
- <button type="button" onClick={isAdmin ? changeAdminPassword : changePassword} className="px-4 py-2 bg-neutral-900 text-white rounded-lg font-medium hover:bg-neutral-800 transition-all w-full">비밀번호 변경</button>
+ <input type="password" placeholder="새 비밀번호" value={newPassword} onChange={e => setNewPassword(e.target.value)} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all`} />
+ <input type="password" placeholder="비밀번호 확인" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all`} />
+ <button type="button" onClick={isAdmin ? changeAdminPassword : changePassword} className="px-4 py-2 bg-[#191F28] text-white rounded-lg font-medium hover:bg-[#21212A] transition-all w-full">비밀번호 변경</button>
  </div>
- <p className="text-xs text-neutral-500 mt-3">※ 비밀번호는 4자 이상이어야 합니다. {isAdmin ? '(관리자 계정)' : ''}</p>
+ <p className="text-xs text-[#56565F] mt-3">※ 비밀번호는 4자 이상이어야 합니다. {isAdmin ? '(관리자 계정)' : ''}</p>
  </div>
  </div>
  )}
@@ -18981,17 +18987,17 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="space-y-2">
  
  {/* 전국 상권 데이터 수집 (관리자 전용) */}
- <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
- <h3 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} text-lg mb-3`}>📊 전국 상권 데이터 수집</h3>
- <p className={`text-sm ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'} mb-4`}>선택한 지역의 상권 데이터를 수집하여 Firebase에 저장합니다.</p>
+ <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
+ <h3 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-[#191F28]'} text-lg mb-3`}>📊 전국 상권 데이터 수집</h3>
+ <p className={`text-sm ${theme === 'dark' ? 'text-[#B0B8C1]' : 'text-[#56565F]'} mb-4`}>선택한 지역의 상권 데이터를 수집하여 Firebase에 저장합니다.</p>
  
  <div className="grid grid-cols-2 gap-3 mb-4">
    <div>
-     <label className={`text-xs ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'} mb-1 block`}>시/도</label>
+     <label className={`text-xs ${theme === 'dark' ? 'text-[#B0B8C1]' : 'text-[#56565F]'} mb-1 block`}>시/도</label>
      <select 
        value={apiCollectSido} 
        onChange={(e) => { setApiCollectSido(e.target.value); setApiCollectSigungu(''); }}
-       className={`w-full px-3 py-2 rounded-lg border ${theme === 'dark' ? 'bg-neutral-700 border-neutral-600 text-white' : 'bg-white border-neutral-300 text-neutral-900'}`}
+       className={`w-full px-3 py-2 rounded-lg border ${theme === 'dark' ? 'bg-[#2C2C35] border-neutral-600 text-white' : 'bg-white border-[#D1D6DB] text-[#191F28]'}`}
      >
        <option value="">시도 선택</option>
        <option value="전국">🇰🇷 전국 (모든 시/도)</option>
@@ -19001,12 +19007,12 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
      </select>
    </div>
    <div>
-     <label className={`text-xs ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'} mb-1 block`}>시/군/구</label>
+     <label className={`text-xs ${theme === 'dark' ? 'text-[#B0B8C1]' : 'text-[#56565F]'} mb-1 block`}>시/군/구</label>
      <select 
        value={apiCollectSigungu} 
        onChange={(e) => setApiCollectSigungu(e.target.value)}
        disabled={!apiCollectSido || apiCollectSido === '전국'}
-       className={`w-full px-3 py-2 rounded-lg border ${theme === 'dark' ? 'bg-neutral-700 border-neutral-600 text-white' : 'bg-white border-neutral-300 text-neutral-900'} disabled:opacity-50`}
+       className={`w-full px-3 py-2 rounded-lg border ${theme === 'dark' ? 'bg-[#2C2C35] border-neutral-600 text-white' : 'bg-white border-[#D1D6DB] text-[#191F28]'} disabled:opacity-50`}
      >
        <option value="">
          {apiCollectSido === '전국' ? '전국 수집시 불필요' : apiCollectSido ? '전체 시/군/구' : '시군구 선택'}
@@ -19024,16 +19030,16 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {apiCollectProgress.status && (
    <div className="mb-4">
      <div className="flex justify-between text-xs mb-1">
-       <span className={theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}>{apiCollectProgress.region}</span>
-       <span className={theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}>{apiCollectProgress.current}/{apiCollectProgress.total}</span>
+       <span className={theme === 'dark' ? 'text-[#B0B8C1]' : 'text-[#56565F]'}>{apiCollectProgress.region}</span>
+       <span className={theme === 'dark' ? 'text-[#B0B8C1]' : 'text-[#56565F]'}>{apiCollectProgress.current}/{apiCollectProgress.total}</span>
      </div>
-     <div className={`w-full h-2 rounded-full overflow-hidden ${theme === 'dark' ? 'bg-neutral-700' : 'bg-neutral-200'}`}>
+     <div className={`w-full h-2 rounded-full overflow-hidden ${theme === 'dark' ? 'bg-[#2C2C35]' : 'bg-[#E5E8EB]'}`}>
        <div 
          className="h-full bg-blue-500 transition-all duration-300"
          style={{ width: `${apiCollectProgress.total > 0 ? (apiCollectProgress.current / apiCollectProgress.total) * 100 : 0}%` }}
        />
      </div>
-     <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>{apiCollectProgress.status}</p>
+     <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-[#B0B8C1]' : 'text-[#56565F]'}`}>{apiCollectProgress.status}</p>
    </div>
  )}
  
@@ -19046,7 +19052,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
      {apiCollectProgress.status?.includes('수집') ? '수집 중...' : '🔄 수집 시작'}
    </button>
  </div>
- <p className={`text-xs mt-2 ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>
+ <p className={`text-xs mt-2 ${theme === 'dark' ? 'text-[#B0B8C1]' : 'text-[#56565F]'}`}>
    {apiCollectSido === '전국' 
      ? '※ 전국 수집은 시간이 오래 걸릴 수 있습니다.'
      : '※ 수집된 데이터는 Firebase에 저장되어 영업모드에서 활용됩니다.'}
@@ -19054,9 +19060,9 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  
  {/* 재등록 표시 관리 */}
- <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <h3 className={`font-bold ${t.text} text-lg mb-3`}>재등록 표시 관리</h3>
- <p className="text-sm text-neutral-500 mb-3">재등록 표시된 업체: {companies.filter(c => c.isReregistered).length}개</p>
+ <p className="text-sm text-[#56565F] mb-3">재등록 표시된 업체: {companies.filter(c => c.isReregistered).length}개</p>
  <button 
  onClick={() => {
  const reregisteredCompanies = companies.filter(c => c.isReregistered);
@@ -19077,31 +19083,31 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
 
  {pendingRequests.length > 0 && (
- <div className={`rounded-2xl p-4 border-2 ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-500' : 'bg-white border-neutral-500'}`}>
+ <div className={`rounded-2xl p-4 border-2 ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-neutral-500' : 'bg-white border-neutral-500'}`}>
  <h3 className={`font-bold ${t.text} text-lg mb-4`}>요청 ({pendingRequests.length})</h3>
  <div className="space-y-3">
  {pendingRequests.map(r => (
  <div key={r.id} className="flex items-center justify-between p-4 bg-rose-900/30 rounded-xl">
  <div><p className={`font-bold ${t.text}`}>{r.managerName}</p><p className={`text-sm ${t.text}`}>{r.items?.join(', ')}</p></div>
- <button type="button" onClick={() => confirmRequest(r.id)} className="px-4 py-2 bg-neutral-900 text-white rounded-lg font-medium hover:bg-neutral-800 transition-all text-sm">확인</button>
+ <button type="button" onClick={() => confirmRequest(r.id)} className="px-4 py-2 bg-[#191F28] text-white rounded-lg font-medium hover:bg-[#21212A] transition-all text-sm">확인</button>
  </div>
  ))}
  </div>
  </div>
  )}
- <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <h3 className={`font-bold ${t.text} text-lg mb-4`}>영업자 관리</h3>
  {managers.map(m => {
  const status = userStatus[m.id];
  const isOnline = status?.isOnline && (Date.now() - new Date(status.lastSeen).getTime() < 120000);
  return (
- <div key={m.id} className="flex items-center gap-3 mb-3 p-3 bg-neutral-100 rounded-xl">
+ <div key={m.id} className="flex items-center gap-3 mb-3 p-3 bg-[#F2F4F6] rounded-xl">
  <div className="relative">
  <div className="w-10 h-10 rounded-lg flex-shrink-0" style={{ background: m.color }}></div>
  <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${isOnline ? 'bg-emerald-500' : 'bg-gray-400'}`}></div>
  </div>
  <div className="flex-1 min-w-0">
- <input type="text" value={m.name} onChange={e => saveManager({...m, name: e.target.value})} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all w-full mb-1`} />
+ <input type="text" value={m.name} onChange={e => saveManager({...m, name: e.target.value})} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all w-full mb-1`} />
  <p className={`text-xs ${t.text}`}>
  {isOnline ? '접속중' : `${formatLastSeen(status?.lastSeen)}`} · {m.username}
  </p>
@@ -19121,23 +19127,23 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* 전국 상권 수집 보고서 모달 */}
  {showApiCollectReport && apiCollectResults && (
  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowApiCollectReport(false)}>
-   <div className={`w-full max-w-lg max-h-[80vh] overflow-y-auto rounded-2xl p-6 ${theme === 'dark' ? 'bg-neutral-800' : 'bg-white'}`} onClick={e => e.stopPropagation()}>
+   <div className={`w-full max-w-lg max-h-[80vh] overflow-y-auto rounded-2xl p-6 ${theme === 'dark' ? 'bg-[#21212A]' : 'bg-white'}`} onClick={e => e.stopPropagation()}>
      <div className="flex justify-between items-center mb-4">
-       <h3 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} text-xl`}>📊 수집 보고서</h3>
-       <button onClick={() => setShowApiCollectReport(false)} className={`text-2xl ${theme === 'dark' ? 'text-neutral-400 hover:text-white' : 'text-neutral-400 hover:text-neutral-900'}`}>×</button>
+       <h3 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-[#191F28]'} text-xl`}>📊 수집 보고서</h3>
+       <button onClick={() => setShowApiCollectReport(false)} className={`text-2xl ${theme === 'dark' ? 'text-[#B0B8C1] hover:text-white' : 'text-[#B0B8C1] hover:text-[#191F28]'}`}>×</button>
      </div>
      
-     <div className={`p-4 rounded-xl mb-4 ${theme === 'dark' ? 'bg-neutral-700' : 'bg-neutral-100'}`}>
-       <p className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} mb-2`}>
+     <div className={`p-4 rounded-xl mb-4 ${theme === 'dark' ? 'bg-[#2C2C35]' : 'bg-[#F2F4F6]'}`}>
+       <p className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-[#191F28]'} mb-2`}>
          {apiCollectResults.collectType === 'nationwide' ? '🇰🇷 전국' : 
           apiCollectResults.collectType === 'sido' ? `${apiCollectResults.sido} 전체` :
           `${apiCollectResults.sido || apiCollectResults.region?.sido} ${apiCollectResults.sigungu || apiCollectResults.region?.sigungu}`}
        </p>
-       <p className={`text-xs ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>
+       <p className={`text-xs ${theme === 'dark' ? 'text-[#B0B8C1]' : 'text-[#56565F]'}`}>
          수집 시간: {new Date(apiCollectResults.timestamp).toLocaleString('ko-KR')}
        </p>
        {apiCollectResults.totalRegions > 1 && (
-         <p className={`text-xs ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'} mt-1`}>
+         <p className={`text-xs ${theme === 'dark' ? 'text-[#B0B8C1]' : 'text-[#56565F]'} mt-1`}>
            총 {apiCollectResults.totalRegions}개 지역 수집
          </p>
        )}
@@ -19147,30 +19153,30 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        {/* 수집 요약 (다중 지역) */}
        {apiCollectResults.summary && (
          <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-blue-900/30' : 'bg-blue-50'}`}>
-           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} mb-2`}>📈 수집 요약</p>
+           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-[#191F28]'} mb-2`}>📈 수집 요약</p>
            <div className="grid grid-cols-2 gap-2 text-sm">
-             <p className={theme === 'dark' ? 'text-neutral-300' : 'text-neutral-600'}>성공: {apiCollectResults.summary.success}개 지역</p>
-             <p className={theme === 'dark' ? 'text-neutral-300' : 'text-neutral-600'}>실패: {apiCollectResults.summary.failed}개 지역</p>
-             <p className={theme === 'dark' ? 'text-neutral-300' : 'text-neutral-600'}>총 점포: {apiCollectResults.summary.totalStores?.toLocaleString()}개</p>
-             <p className={theme === 'dark' ? 'text-neutral-300' : 'text-neutral-600'}>총 카페: {apiCollectResults.summary.totalCafes?.toLocaleString()}개</p>
+             <p className={theme === 'dark' ? 'text-[#8C8C96]' : 'text-[#6B7684]'}>성공: {apiCollectResults.summary.success}개 지역</p>
+             <p className={theme === 'dark' ? 'text-[#8C8C96]' : 'text-[#6B7684]'}>실패: {apiCollectResults.summary.failed}개 지역</p>
+             <p className={theme === 'dark' ? 'text-[#8C8C96]' : 'text-[#6B7684]'}>총 점포: {apiCollectResults.summary.totalStores?.toLocaleString()}개</p>
+             <p className={theme === 'dark' ? 'text-[#8C8C96]' : 'text-[#6B7684]'}>총 카페: {apiCollectResults.summary.totalCafes?.toLocaleString()}개</p>
            </div>
          </div>
        )}
        
        {/* 상가정보 (단일 지역) */}
        {apiCollectResults.data?.store && (
-         <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-700/50' : 'bg-blue-50'}`}>
-           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} mb-1`}>🏪 상가정보</p>
-           <p className={`text-sm ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>전체 점포: {apiCollectResults.data.store.total?.toLocaleString() || 0}개</p>
-           <p className={`text-sm ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>카페: {apiCollectResults.data.store.cafeCount?.toLocaleString() || 0}개</p>
+         <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-[#2C2C35]/50' : 'bg-blue-50'}`}>
+           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-[#191F28]'} mb-1`}>🏪 상가정보</p>
+           <p className={`text-sm ${theme === 'dark' ? 'text-[#B0B8C1]' : 'text-[#56565F]'}`}>전체 점포: {apiCollectResults.data.store.total?.toLocaleString() || 0}개</p>
+           <p className={`text-sm ${theme === 'dark' ? 'text-[#B0B8C1]' : 'text-[#56565F]'}`}>카페: {apiCollectResults.data.store.cafeCount?.toLocaleString() || 0}개</p>
          </div>
        )}
        
        {/* 서울시 유동인구 */}
        {(apiCollectResults.data?.seoulFloating || apiCollectResults.summary?.success > 0) && apiCollectResults.sido?.includes('서울') && (
-         <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-700/50' : 'bg-green-50'}`}>
-           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} mb-1`}>👥 서울시 유동인구</p>
-           <p className={`text-sm ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>
+         <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-[#2C2C35]/50' : 'bg-green-50'}`}>
+           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-[#191F28]'} mb-1`}>👥 서울시 유동인구</p>
+           <p className={`text-sm ${theme === 'dark' ? 'text-[#B0B8C1]' : 'text-[#56565F]'}`}>
              {apiCollectResults.data?.seoulFloating?.totalRecords 
                ? `총 레코드: ${apiCollectResults.data.seoulFloating.totalRecords?.toLocaleString()}건`
                : '데이터 수집 완료'}
@@ -19180,17 +19186,17 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        
        {/* 프랜차이즈 */}
        {apiCollectResults.data?.franchise && (
-         <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-700/50' : 'bg-purple-50'}`}>
-           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} mb-1`}>☕ 프랜차이즈 (카페)</p>
-           <p className={`text-sm ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>수집 브랜드: {apiCollectResults.data.franchise.count || 0}개</p>
+         <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-[#2C2C35]/50' : 'bg-purple-50'}`}>
+           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-[#191F28]'} mb-1`}>☕ 프랜차이즈 (카페)</p>
+           <p className={`text-sm ${theme === 'dark' ? 'text-[#B0B8C1]' : 'text-[#56565F]'}`}>수집 브랜드: {apiCollectResults.data.franchise.count || 0}개</p>
          </div>
        )}
        
        {/* 임대료 */}
        {apiCollectResults.data?.rent && (
-         <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-neutral-700/50' : 'bg-yellow-50'}`}>
-           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-neutral-900'} mb-1`}>🏠 임대료</p>
-           <p className={`text-sm ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>한국부동산원 R-ONE 데이터 수집 완료</p>
+         <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-[#2C2C35]/50' : 'bg-yellow-50'}`}>
+           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-[#191F28]'} mb-1`}>🏠 임대료</p>
+           <p className={`text-sm ${theme === 'dark' ? 'text-[#B0B8C1]' : 'text-[#56565F]'}`}>한국부동산원 R-ONE 데이터 수집 완료</p>
          </div>
        )}
        
@@ -19200,7 +19206,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
            ? (theme === 'dark' ? 'bg-emerald-900/30' : 'bg-emerald-50') 
            : (theme === 'dark' ? 'bg-rose-900/30' : 'bg-rose-50')
        }`}>
-         <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-neutral-900'}`}>
+         <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-[#191F28]'}`}>
            {(apiCollectResults.savedToFirebase || apiCollectResults.summary?.success > 0) 
              ? '✅ Firebase 저장 완료' 
              : '❌ Firebase 저장 실패'}
@@ -19212,12 +19218,12 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
          <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-rose-900/30' : 'bg-rose-50'}`}>
            <p className={`font-medium text-rose-500 mb-1`}>⚠️ 수집 중 오류 ({apiCollectResults.errors.length}건)</p>
            {apiCollectResults.errors.slice(0, 5).map((err, idx) => (
-             <p key={idx} className={`text-xs ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>
+             <p key={idx} className={`text-xs ${theme === 'dark' ? 'text-[#B0B8C1]' : 'text-[#56565F]'}`}>
                {err.region || err.api}: {err.message}
              </p>
            ))}
            {apiCollectResults.errors.length > 5 && (
-             <p className={`text-xs ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>
+             <p className={`text-xs ${theme === 'dark' ? 'text-[#B0B8C1]' : 'text-[#56565F]'}`}>
                ... 외 {apiCollectResults.errors.length - 5}건
              </p>
            )}
@@ -19245,10 +19251,10 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <p className={`mb-4 ${t.text}`}>{showPinModal.status === 'confirmed' ? '확정' : '예정'}: {showPinModal.manager?.name}</p>
  <div className="mb-4">
  <label className={`text-sm mb-2 block ${t.text}`}>날짜</label>
- <input type="date" value={showPinModal.date || ''} onChange={e => { updatePinDate(showPinModal.id, e.target.value); setShowPinModal({ ...showPinModal, date: e.target.value }); }} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
+ <input type="date" value={showPinModal.date || ''} onChange={e => { updatePinDate(showPinModal.id, e.target.value); setShowPinModal({ ...showPinModal, date: e.target.value }); }} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all`} />
  </div>
  <div className="flex gap-2">
- <button type="button" onClick={() => setShowPinModal(null)} className={`px-4 py-2 rounded-lg font-medium transition-all border ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 border-neutral-600 hover:bg-neutral-600' : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50'} flex-1`}>확인</button>
+ <button type="button" onClick={() => setShowPinModal(null)} className={`px-4 py-2 rounded-lg font-medium transition-all border ${theme === 'dark' ? 'bg-[#2C2C35] text-neutral-200 border-neutral-600 hover:bg-neutral-600' : 'bg-white text-[#4E5968] border-[#E5E8EB] hover:bg-[#F9FAFB]'} flex-1`}>확인</button>
  {canDeletePin(showPinModal) && <button type="button" onClick={() => deletePin(showPinModal.id)} className="px-4 py-2 bg-rose-500 rounded-lg font-medium hover:bg-rose-600 transition-all text-white flex-1">삭제</button>}
  </div>
  </div>
@@ -19262,25 +19268,25 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <button type="button" onClick={() => setShowRealtorDetailModal(null)} className={`text-2xl ${t.text}`}>×</button>
  </div>
  <div className="space-y-2">
- <div className={`border rounded-xl p-4 ${theme === 'dark' ? 'bg-neutral-800 border-neutral-700' : 'bg-neutral-50 border-neutral-200'}`}>
+ <div className={`border rounded-xl p-4 ${theme === 'dark' ? 'bg-[#21212A] border-white/[0.08]' : 'bg-[#F9FAFB] border-[#E5E8EB]'}`}>
  <p className={`font-bold ${t.text} text-lg mb-1`}>{showRealtorDetailModal.officeName}</p>
  <p className={`text-sm ${t.textMuted}`}>{showRealtorDetailModal.address || '주소 없음'}</p>
  <div className="flex gap-2 mt-2">
  <span className="px-2 py-0.5 text-xs rounded-full bg-teal-100 text-teal-700 font-bold">{showRealtorDetailModal.listingCount}건</span>
  {showRealtorDetailModal.isInRoute && <span className={`px-2 py-0.5 text-xs rounded-full bg-teal-900/300 ${t.text}`}>동선</span>}
- {showRealtorDetailModal.isRegistered && <span className={`px-2 py-0.5 text-xs rounded-full ${theme === 'dark' ? 'bg-white text-neutral-900' : 'bg-neutral-900 text-white'}`}>방문</span>}
+ {showRealtorDetailModal.isRegistered && <span className={`px-2 py-0.5 text-xs rounded-full ${theme === 'dark' ? 'bg-white text-[#191F28]' : 'bg-[#191F28] text-white'}`}>방문</span>}
  </div>
  </div>
  <div className="grid grid-cols-2 gap-3 text-sm">
- <div className={`rounded-lg p-3 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-lg p-3 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <p className={`text-xs mb-1 ${t.textMuted}`}>사무실</p>
  <p className={`font-bold ${t.text}`}>{showRealtorDetailModal.phone || '-'}</p>
  </div>
- <div className={`rounded-lg p-3 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-lg p-3 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <p className={`text-xs mb-1 ${t.textMuted}`}>휴대폰</p>
  <p className={`font-bold ${t.text}`}>{showRealtorDetailModal.cellPhone || '-'}</p>
  </div>
- <div className={`rounded-lg p-3 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-lg p-3 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <p className={`text-xs mb-1 ${t.textMuted}`}>{showRealtorDetailModal.isFromCompany ? '배정 담당자' : '담당자'}</p>
  <p className={`font-bold ${t.text}`}>
    {showRealtorDetailModal.assignedManager 
@@ -19290,23 +19296,23 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        : '미정')}
  </p>
  </div>
- <div className={`rounded-lg p-3 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-lg p-3 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <p className={`text-xs mb-1 ${t.textMuted}`}>{showRealtorDetailModal.isFromCompany ? '등록일' : '수집일'}</p>
  <p className={`font-bold ${t.text}`}>{showRealtorDetailModal.collectedDate || '-'}</p>
  </div>
  {/* 등록 업체인 경우 연락처 담당자 표시 */}
  {showRealtorDetailModal.isFromCompany && showRealtorDetailModal.agentName && (
- <div className={`rounded-lg p-3 col-span-2 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-lg p-3 col-span-2 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <p className={`text-xs mb-1 ${t.textMuted}`}>연락처 담당자</p>
  <p className={`font-bold ${t.text}`}>{showRealtorDetailModal.agentName}</p>
  </div>
  )}
  {/* 등록 업체인 경우 반응 표시 */}
  {showRealtorDetailModal.isFromCompany && showRealtorDetailModal.reaction && (
- <div className={`rounded-lg p-3 col-span-2 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-lg p-3 col-span-2 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <p className={`text-xs mb-1 ${t.textMuted}`}>반응</p>
  <p className={`font-bold ${t.text}`}>
-   {showRealtorDetailModal.reaction === 'negative' && <span className="px-2 py-0.5 rounded bg-neutral-200 text-neutral-700">부정</span>}
+   {showRealtorDetailModal.reaction === 'negative' && <span className="px-2 py-0.5 rounded bg-[#E5E8EB] text-[#4E5968]">부정</span>}
    {showRealtorDetailModal.reaction === 'positive' && <span className="px-2 py-0.5 rounded bg-amber-600 text-white">양호</span>}
    {showRealtorDetailModal.reaction === 'good' && <span className="px-2 py-0.5 rounded bg-green-600 text-white">긍정</span>}
    {showRealtorDetailModal.reaction === 'special' && <span className="px-2 py-0.5 rounded bg-red-600 text-white">특별</span>}
@@ -19316,7 +19322,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  )}
  {/* 등록 업체인 경우 메모 표시 */}
  {showRealtorDetailModal.isFromCompany && showRealtorDetailModal.memo && (
- <div className={`rounded-lg p-3 col-span-2 border ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur border-neutral-700' : 'bg-white border-neutral-200'}`}>
+ <div className={`rounded-lg p-3 col-span-2 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <p className={`text-xs mb-1 ${t.textMuted}`}>메모</p>
  <p className={`text-sm ${t.text}`}>{showRealtorDetailModal.memo}</p>
  </div>
@@ -19324,8 +19330,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  {showRealtorDetailModal.articleCounts && (
  <div className="flex flex-wrap gap-1">
- {showRealtorDetailModal.articleCounts.sale > 0 && <span className="px-2 py-0.5 text-xs rounded bg-neutral-100 text-neutral-900">매매 {showRealtorDetailModal.articleCounts.sale}</span>}
- {showRealtorDetailModal.articleCounts.jeonse > 0 && <span className="px-2 py-0.5 text-xs rounded bg-neutral-100 text-neutral-900">전세 {showRealtorDetailModal.articleCounts.jeonse}</span>}
+ {showRealtorDetailModal.articleCounts.sale > 0 && <span className="px-2 py-0.5 text-xs rounded bg-[#F2F4F6] text-[#191F28]">매매 {showRealtorDetailModal.articleCounts.sale}</span>}
+ {showRealtorDetailModal.articleCounts.jeonse > 0 && <span className="px-2 py-0.5 text-xs rounded bg-[#F2F4F6] text-[#191F28]">전세 {showRealtorDetailModal.articleCounts.jeonse}</span>}
  {showRealtorDetailModal.articleCounts.monthly > 0 && <span className="px-2 py-0.5 text-xs rounded bg-orange-100 text-white">월세 {showRealtorDetailModal.articleCounts.monthly}</span>}
  {showRealtorDetailModal.articleCounts.short > 0 && <span className={`px-2 py-0.5 text-xs rounded bg-purple-100 ${t.text}`}>단기 {showRealtorDetailModal.articleCounts.short}</span>}
  </div>
@@ -19333,11 +19339,11 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {showRealtorDetailModal.regions && Object.keys(showRealtorDetailModal.regions).length > 0 && (
  <div className="flex flex-wrap gap-1">
  {Object.entries(showRealtorDetailModal.regions).sort((a, b) => b[1] - a[1]).map(([gu, count]) => (
- <span key={gu} className="px-2 py-0.5 text-xs rounded bg-neutral-200 text-neutral-700">{gu}: {count}건</span>
+ <span key={gu} className="px-2 py-0.5 text-xs rounded bg-[#E5E8EB] text-[#4E5968]">{gu}: {count}건</span>
  ))}
  </div>
  )}
- <div className="flex flex-wrap gap-2 pt-2 border-t border-neutral-200">
+ <div className="flex flex-wrap gap-2 pt-2 border-t border-[#E5E8EB]">
  {!showRealtorDetailModal.isInRoute && (
  <button type="button" onClick={() => {
  // 주소로 좌표 검색 후 동선 추가
@@ -19372,7 +19378,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  } else {
  addStop(null, null);
  }
- }} className="px-4 py-2 bg-neutral-900 text-white rounded-lg font-medium hover:bg-neutral-800 transition-all text-sm flex-1">+ 동선 추가</button>
+ }} className="px-4 py-2 bg-[#191F28] text-white rounded-lg font-medium hover:bg-[#21212A] transition-all text-sm flex-1">+ 동선 추가</button>
  )}
  {!showRealtorDetailModal.isRegistered && (
  <button type="button" onClick={() => {
@@ -19387,7 +19393,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  });
  setShowRealtorDetailModal(null);
  setTab('companies');
- }} className="px-4 py-2 bg-neutral-900 text-white rounded-lg font-medium hover:bg-neutral-800 transition-all text-sm flex-1">업체 등록</button>
+ }} className="px-4 py-2 bg-[#191F28] text-white rounded-lg font-medium hover:bg-[#21212A] transition-all text-sm flex-1">업체 등록</button>
  )}
  </div>
  </div>
@@ -19417,7 +19423,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {showCompanyMapModal.phone && (
  <div className="flex items-center gap-2">
  <span className={`text-sm w-16 ${t.text}`}>연락처</span>
- <a href={`tel:${showCompanyMapModal.phone}`} className="font-bold text-primary-600 md:pointer-events-none md:text-neutral-800">{showCompanyMapModal.phone}</a>
+ <a href={`tel:${showCompanyMapModal.phone}`} className="font-bold text-primary-600 md:pointer-events-none md:text-[#333D4B]">{showCompanyMapModal.phone}</a>
  </div>
  )}
  {showCompanyMapModal.address && (
@@ -19433,7 +19439,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  )}
  {showCompanyMapModal.memo && (
- <div className="bg-neutral-100 p-3 rounded-lg">
+ <div className="bg-[#F2F4F6] p-3 rounded-lg">
  <p className="text-xs text-primary-600 font-bold mb-1">메모</p>
  <p className="text-sm text-amber-800">{showCompanyMapModal.memo}</p>
  </div>
@@ -19454,11 +19460,11 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  setShowCompanyEditModal({ ...showCompanyMapModal });
  setShowCompanyMapModal(null);
  }}
- className="px-4 py-2 bg-neutral-900 text-white rounded-lg font-medium hover:bg-neutral-800 transition-all flex-1"
+ className="px-4 py-2 bg-[#191F28] text-white rounded-lg font-medium hover:bg-[#21212A] transition-all flex-1"
  >
  수정
  </button>
- <button type="button" onClick={() => setShowCompanyMapModal(null)} className={`px-4 py-2 rounded-lg font-medium transition-all border ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 border-neutral-600 hover:bg-neutral-600' : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50'} flex-1`}>닫기</button>
+ <button type="button" onClick={() => setShowCompanyMapModal(null)} className={`px-4 py-2 rounded-lg font-medium transition-all border ${theme === 'dark' ? 'bg-[#2C2C35] text-neutral-200 border-neutral-600 hover:bg-neutral-600' : 'bg-white text-[#4E5968] border-[#E5E8EB] hover:bg-[#F9FAFB]'} flex-1`}>닫기</button>
  </div>
  </div>
  </div>
@@ -19469,15 +19475,15 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <h3 className={`font-bold ${t.text} text-lg mb-4`}>홍보물 요청</h3>
  <div className="space-y-3 mb-4">
  {PROMO_ITEMS.map(item => (
- <label key={item} className="flex items-center gap-3 p-3 bg-neutral-100 rounded-xl cursor-pointer">
+ <label key={item} className="flex items-center gap-3 p-3 bg-[#F2F4F6] rounded-xl cursor-pointer">
  <input type="checkbox" checked={promoRequest[item]} onChange={e => setPromoRequest({ ...promoRequest, [item]: e.target.checked })} className="w-5 h-5 accent-gold-500" />
  <span className={`font-bold ${t.text}`}>{item}</span>
  </label>
  ))}
  </div>
  <div className="flex gap-2">
- <button type="button" onClick={() => setShowPromoRequestModal(null)} className={`px-4 py-2 rounded-lg font-medium transition-all border ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 border-neutral-600 hover:bg-neutral-600' : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50'} flex-1`}>취소</button>
- <button type="button" onClick={submitPromoRequest} className="px-4 py-2 bg-neutral-900 text-white rounded-lg font-medium hover:bg-neutral-800 transition-all flex-1">요청 보내기</button>
+ <button type="button" onClick={() => setShowPromoRequestModal(null)} className={`px-4 py-2 rounded-lg font-medium transition-all border ${theme === 'dark' ? 'bg-[#2C2C35] text-neutral-200 border-neutral-600 hover:bg-neutral-600' : 'bg-white text-[#4E5968] border-[#E5E8EB] hover:bg-[#F9FAFB]'} flex-1`}>취소</button>
+ <button type="button" onClick={submitPromoRequest} className="px-4 py-2 bg-[#191F28] text-white rounded-lg font-medium hover:bg-[#21212A] transition-all flex-1">요청 보내기</button>
  </div>
  </div>
  </div>
@@ -19490,15 +19496,15 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <button type="button" onClick={() => setShowCompanyEditModal(null)} className={`text-2xl ${t.text}`}>×</button>
  </div>
  <div className="space-y-3">
- <input type="text" placeholder="업체명" value={showCompanyEditModal.name} onChange={e => setShowCompanyEditModal({ ...showCompanyEditModal, name: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
- <input type="text" placeholder="담당자" value={showCompanyEditModal.contact || ''} onChange={e => setShowCompanyEditModal({ ...showCompanyEditModal, contact: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
- <input type="text" placeholder="연락처" value={showCompanyEditModal.phone || ''} onChange={e => setShowCompanyEditModal({ ...showCompanyEditModal, phone: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
- <input type="text" placeholder="주소" value={showCompanyEditModal.address || ''} onChange={e => setShowCompanyEditModal({ ...showCompanyEditModal, address: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
- <select value={showCompanyEditModal.managerId || ''} onChange={e => setShowCompanyEditModal({ ...showCompanyEditModal, managerId: Number(e.target.value) || null })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} focus:outline-none focus:border-neutral-400 transition-all`}>
+ <input type="text" placeholder="업체명" value={showCompanyEditModal.name} onChange={e => setShowCompanyEditModal({ ...showCompanyEditModal, name: e.target.value })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all`} />
+ <input type="text" placeholder="담당자" value={showCompanyEditModal.contact || ''} onChange={e => setShowCompanyEditModal({ ...showCompanyEditModal, contact: e.target.value })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all`} />
+ <input type="text" placeholder="연락처" value={showCompanyEditModal.phone || ''} onChange={e => setShowCompanyEditModal({ ...showCompanyEditModal, phone: e.target.value })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all`} />
+ <input type="text" placeholder="주소" value={showCompanyEditModal.address || ''} onChange={e => setShowCompanyEditModal({ ...showCompanyEditModal, address: e.target.value })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all`} />
+ <select value={showCompanyEditModal.managerId || ''} onChange={e => setShowCompanyEditModal({ ...showCompanyEditModal, managerId: Number(e.target.value) || null })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} focus:outline-none focus:border-[#3182F6] transition-all`}>
  <option value="">영업자 선택</option>
  {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
  </select>
- <input type="text" placeholder="메모" value={showCompanyEditModal.memo || ''} onChange={e => setShowCompanyEditModal({ ...showCompanyEditModal, memo: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
+ <input type="text" placeholder="메모" value={showCompanyEditModal.memo || ''} onChange={e => setShowCompanyEditModal({ ...showCompanyEditModal, memo: e.target.value })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all`} />
  <div className="flex items-center gap-2">
  <span className={`text-sm ${t.text}`}>반응:</span>
  {Object.entries(REACTION_COLORS).map(([key, val]) => (
@@ -19507,8 +19513,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  </div>
  <div className="flex gap-2 mt-4">
- <button type="button" onClick={() => setShowCompanyEditModal(null)} className={`px-4 py-2 rounded-lg font-medium transition-all border ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 border-neutral-600 hover:bg-neutral-600' : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50'} flex-1`}>취소</button>
- <button type="button" onClick={updateCompany} className="px-4 py-2 bg-neutral-900 text-white rounded-lg font-medium hover:bg-neutral-800 transition-all flex-1">완료</button>
+ <button type="button" onClick={() => setShowCompanyEditModal(null)} className={`px-4 py-2 rounded-lg font-medium transition-all border ${theme === 'dark' ? 'bg-[#2C2C35] text-neutral-200 border-neutral-600 hover:bg-neutral-600' : 'bg-white text-[#4E5968] border-[#E5E8EB] hover:bg-[#F9FAFB]'} flex-1`}>취소</button>
+ <button type="button" onClick={updateCompany} className="px-4 py-2 bg-[#191F28] text-white rounded-lg font-medium hover:bg-[#21212A] transition-all flex-1">완료</button>
  </div>
  </div>
  </div>
@@ -19521,19 +19527,19 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <button type="button" onClick={() => setShowCustomerEditModal(null)} className={`text-2xl ${t.text}`}>×</button>
  </div>
  <div className="space-y-3">
- <input type="text" placeholder="고객명" value={showCustomerEditModal.name} onChange={e => setShowCustomerEditModal({ ...showCustomerEditModal, name: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
- <input type="text" placeholder="연락처" value={showCustomerEditModal.phone || ''} onChange={e => setShowCustomerEditModal({ ...showCustomerEditModal, phone: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
- <input type="date" value={showCustomerEditModal.consultDate || ''} onChange={e => setShowCustomerEditModal({ ...showCustomerEditModal, consultDate: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
- <select value={showCustomerEditModal.managerId || ''} onChange={e => setShowCustomerEditModal({ ...showCustomerEditModal, managerId: Number(e.target.value) || null })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} focus:outline-none focus:border-neutral-400 transition-all`}>
+ <input type="text" placeholder="고객명" value={showCustomerEditModal.name} onChange={e => setShowCustomerEditModal({ ...showCustomerEditModal, name: e.target.value })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all`} />
+ <input type="text" placeholder="연락처" value={showCustomerEditModal.phone || ''} onChange={e => setShowCustomerEditModal({ ...showCustomerEditModal, phone: e.target.value })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all`} />
+ <input type="date" value={showCustomerEditModal.consultDate || ''} onChange={e => setShowCustomerEditModal({ ...showCustomerEditModal, consultDate: e.target.value })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all`} />
+ <select value={showCustomerEditModal.managerId || ''} onChange={e => setShowCustomerEditModal({ ...showCustomerEditModal, managerId: Number(e.target.value) || null })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} focus:outline-none focus:border-[#3182F6] transition-all`}>
  <option value="">영업자 선택</option>
  {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
  </select>
  <div>
- <p className="text-sm text-neutral-800 mb-2">상태</p>
+ <p className="text-sm text-[#333D4B] mb-2">상태</p>
  <div className="flex gap-2">
  <button
  onClick={() => setShowCustomerEditModal({ ...showCustomerEditModal, status: 'consult' })}
- className={`px-4 py-2 rounded-full text-sm font-bold ${showCustomerEditModal.status === 'consult' || !showCustomerEditModal.status ? 'bg-primary-500 text-white' : 'bg-neutral-100 text-primary-600'}`}
+ className={`px-4 py-2 rounded-full text-sm font-bold ${showCustomerEditModal.status === 'consult' || !showCustomerEditModal.status ? 'bg-primary-500 text-white' : 'bg-[#F2F4F6] text-primary-600'}`}
  >
  상담
  </button>
@@ -19549,12 +19555,12 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  placeholder="메모"
  value={showCustomerEditModal.memo || ''}
  onChange={e => setShowCustomerEditModal({ ...showCustomerEditModal, memo: e.target.value })}
- className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all h-20`}
+ className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all h-20`}
  />
  </div>
  <div className="flex gap-2 mt-4">
- <button type="button" onClick={() => setShowCustomerEditModal(null)} className={`px-4 py-2 rounded-lg font-medium transition-all border ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 border-neutral-600 hover:bg-neutral-600' : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50'} flex-1`}>취소</button>
- <button type="button" onClick={updateCustomer} className="px-4 py-2 bg-neutral-900 text-white rounded-lg font-medium hover:bg-neutral-800 transition-all flex-1">완료</button>
+ <button type="button" onClick={() => setShowCustomerEditModal(null)} className={`px-4 py-2 rounded-lg font-medium transition-all border ${theme === 'dark' ? 'bg-[#2C2C35] text-neutral-200 border-neutral-600 hover:bg-neutral-600' : 'bg-white text-[#4E5968] border-[#E5E8EB] hover:bg-[#F9FAFB]'} flex-1`}>취소</button>
+ <button type="button" onClick={updateCustomer} className="px-4 py-2 bg-[#191F28] text-white rounded-lg font-medium hover:bg-[#21212A] transition-all flex-1">완료</button>
  </div>
  </div>
  </div>
@@ -19572,7 +19578,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  <div className="space-y-2 max-h-60 overflow-y-auto mb-4">
  {showPinEditModal.pins.map(p => (
- <label key={p.id} className="flex items-center gap-3 p-3 bg-neutral-100 rounded-xl cursor-pointer">
+ <label key={p.id} className="flex items-center gap-3 p-3 bg-[#F2F4F6] rounded-xl cursor-pointer">
  <input type="checkbox" checked={selectedPinsForEdit.includes(p.id)} onChange={e => {
  if (e.target.checked) setSelectedPinsForEdit([...selectedPinsForEdit, p.id]);
  else setSelectedPinsForEdit(selectedPinsForEdit.filter(id => id !== p.id));
@@ -19583,7 +19589,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  {selectedPinsForEdit.length > 0 && (
  <div className="flex gap-2">
- {showPinEditModal.status === 'planned' && <button type="button" onClick={confirmSelectedPins} className="px-4 py-2 bg-neutral-900 text-white rounded-lg font-medium hover:bg-neutral-800 transition-all flex-1">확정으로 변경</button>}
+ {showPinEditModal.status === 'planned' && <button type="button" onClick={confirmSelectedPins} className="px-4 py-2 bg-[#191F28] text-white rounded-lg font-medium hover:bg-[#21212A] transition-all flex-1">확정으로 변경</button>}
  <button type="button" onClick={deleteSelectedPins} className="px-4 py-2 bg-rose-500 rounded-lg font-medium hover:bg-rose-600 transition-all text-white flex-1">삭제</button>
  </div>
  )}
@@ -19593,18 +19599,18 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {showCompanySuccessModal && (
  <div className="modal-overlay" onClick={() => setShowCompanySuccessModal(null)}>
  <div className="modal-content max-w-sm p-0 overflow-hidden" onClick={e => e.stopPropagation()}>
- <div className="bg-neutral-100 border border-neutral-200 p-4 sm:p-6 text-center">
- <div className={`w-14 h-14 backdrop-blur rounded-full flex items-center justify-center mx-auto mb-3 border ${theme === 'dark' ? 'bg-white/10 border-white/20' : 'bg-neutral-100 border-neutral-200'}`}>
- <span className="text-2xl text-neutral-700"></span>
+ <div className="bg-[#F2F4F6] border border-[#E5E8EB] p-4 sm:p-6 text-center">
+ <div className={`w-14 h-14 backdrop-blur rounded-full flex items-center justify-center mx-auto mb-3 border ${theme === 'dark' ? 'bg-white/10 border-white/20' : 'bg-[#F2F4F6] border-[#E5E8EB]'}`}>
+ <span className="text-2xl text-[#4E5968]"></span>
  </div>
- <p className="text-neutral-500 text-xs tracking-widest mb-1">REGISTERED</p>
+ <p className="text-[#56565F] text-xs tracking-widest mb-1">REGISTERED</p>
  <h3 className={`font-bold ${t.text} text-lg`}>{showCompanySuccessModal.companyName}</h3>
  </div>
- <div className={`p-5 ${theme === 'dark' ? 'bg-neutral-800' : 'bg-white'}`}>
- <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-4 mb-4 border-l-4 border-teal-500">
- <p className="text-neutral-700 text-sm leading-relaxed">{showCompanySuccessModal.quote}</p>
+ <div className={`p-5 ${theme === 'dark' ? 'bg-[#21212A]' : 'bg-white'}`}>
+ <div className="bg-[#F9FAFB] border border-[#E5E8EB] rounded-lg p-4 mb-4 border-l-4 border-teal-500">
+ <p className="text-[#4E5968] text-sm leading-relaxed">{showCompanySuccessModal.quote}</p>
  </div>
- <button type="button" onClick={() => setShowCompanySuccessModal(null)} className={`w-full py-3 bg-neutral-800 hover:from-slate-600 hover:to-slate-500 ${t.text} rounded-lg font-medium transition-all border border-slate-500`}>확인</button>
+ <button type="button" onClick={() => setShowCompanySuccessModal(null)} className={`w-full py-3 bg-[#21212A] hover:from-slate-600 hover:to-slate-500 ${t.text} rounded-lg font-medium transition-all border border-slate-500`}>확인</button>
  </div>
  </div>
  </div>
@@ -19617,9 +19623,9 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <button type="button" onClick={() => setShowAdminPwModal(false)} className={`text-2xl ${t.text}`}>×</button>
  </div>
  <div className="space-y-3">
- <input type="password" placeholder="새 비밀번호" value={adminNewPw} onChange={e => setAdminNewPw(e.target.value)} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
- <input type="password" placeholder="비밀번호 확인" value={adminConfirmPw} onChange={e => setAdminConfirmPw(e.target.value)} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
- <button type="button" onClick={changeAdminPassword} className="px-4 py-2 bg-neutral-900 text-white rounded-lg font-medium hover:bg-neutral-800 transition-all w-full">변경</button>
+ <input type="password" placeholder="새 비밀번호" value={adminNewPw} onChange={e => setAdminNewPw(e.target.value)} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all`} />
+ <input type="password" placeholder="비밀번호 확인" value={adminConfirmPw} onChange={e => setAdminConfirmPw(e.target.value)} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all`} />
+ <button type="button" onClick={changeAdminPassword} className="px-4 py-2 bg-[#191F28] text-white rounded-lg font-medium hover:bg-[#21212A] transition-all w-full">변경</button>
  </div>
  </div>
  </div>
@@ -19646,7 +19652,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <h3 className={`font-bold ${t.text} text-lg`}>매출 수정</h3>
  <button type="button" onClick={() => setShowSaleEditModal(null)} className={`text-2xl ${t.text}`}>×</button>
  </div>
- <p className="text-sm text-neutral-800 mb-4">{showSaleEditModal.managerName}님의 매출</p>
+ <p className="text-sm text-[#333D4B] mb-4">{showSaleEditModal.managerName}님의 매출</p>
  <div className="space-y-3">
  {(() => {
  const managerSalesRecords = sales.filter(s => s.managerId === showSaleEditModal.managerId);
@@ -19656,7 +19662,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  return (
  <div className="space-y-2 max-h-60 overflow-y-auto">
  {managerSalesRecords.map(sale => (
- <div key={sale.id} className="flex items-center justify-between p-3 bg-neutral-100 rounded-lg">
+ <div key={sale.id} className="flex items-center justify-between p-3 bg-[#F2F4F6] rounded-lg">
  <div>
  <p className={`font-bold ${t.text}`}>{Number(sale.amount).toLocaleString()}원</p>
  <p className={`text-xs ${t.text}`}>{sale.date}</p>
@@ -19679,7 +19685,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  alert('매출이 삭제되었습니다.');
  }
  }}
- className={`px-2 py-1 bg-neutral-200 ${t.text} rounded text-xs font-bold`}
+ className={`px-2 py-1 bg-[#E5E8EB] ${t.text} rounded text-xs font-bold`}
  >삭제</button>
  </div>
  </div>
@@ -19688,7 +19694,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  );
  })()}
  </div>
- <button type="button" onClick={() => setShowSaleEditModal(null)} className={`px-4 py-2 rounded-lg font-medium transition-all border ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 border-neutral-600 hover:bg-neutral-600' : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50'} w-full mt-4`}>닫기</button>
+ <button type="button" onClick={() => setShowSaleEditModal(null)} className={`px-4 py-2 rounded-lg font-medium transition-all border ${theme === 'dark' ? 'bg-[#2C2C35] text-neutral-200 border-neutral-600 hover:bg-neutral-600' : 'bg-white text-[#4E5968] border-[#E5E8EB] hover:bg-[#F9FAFB]'} w-full mt-4`}>닫기</button>
  </div>
  </div>
  )}
@@ -19700,13 +19706,13 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <button type="button" onClick={() => setShowSaleModal(false)} className={`text-2xl ${t.text}`}>×</button>
  </div>
  <div className="space-y-3">
- <select value={saleForm.managerId || ''} onChange={e => setSaleForm({ ...saleForm, managerId: Number(e.target.value) || null })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} focus:outline-none focus:border-neutral-400 transition-all`}>
+ <select value={saleForm.managerId || ''} onChange={e => setSaleForm({ ...saleForm, managerId: Number(e.target.value) || null })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} focus:outline-none focus:border-[#3182F6] transition-all`}>
  <option value="">영업자 선택 *</option>
  {getAvailableManagersForSale().map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
  </select>
- <input type="number" placeholder="금액 *" value={saleForm.amount} onChange={e => setSaleForm({ ...saleForm, amount: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
- <input type="date" value={saleForm.date} onChange={e => setSaleForm({ ...saleForm, date: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
- <button type="button" onClick={handleSaveSale} className="px-4 py-2 bg-neutral-900 text-white rounded-lg font-medium hover:bg-neutral-800 transition-all w-full">등록</button>
+ <input type="number" placeholder="금액 *" value={saleForm.amount} onChange={e => setSaleForm({ ...saleForm, amount: e.target.value })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all`} />
+ <input type="date" value={saleForm.date} onChange={e => setSaleForm({ ...saleForm, date: e.target.value })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all`} />
+ <button type="button" onClick={handleSaveSale} className="px-4 py-2 bg-[#191F28] text-white rounded-lg font-medium hover:bg-[#21212A] transition-all w-full">등록</button>
  </div>
  </div>
  </div>
@@ -19719,9 +19725,9 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <button type="button" onClick={() => setShowPasswordModal(false)} className={`text-2xl ${t.text}`}>×</button>
  </div>
  <div className="space-y-3">
- <input type="password" placeholder="새 비밀번호" value={newPassword} onChange={e => setNewPassword(e.target.value)} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
- <input type="password" placeholder="비밀번호 확인" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
- <button type="button" onClick={changePassword} className="px-4 py-2 bg-neutral-900 text-white rounded-lg font-medium hover:bg-neutral-800 transition-all w-full">변경</button>
+ <input type="password" placeholder="새 비밀번호" value={newPassword} onChange={e => setNewPassword(e.target.value)} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all`} />
+ <input type="password" placeholder="비밀번호 확인" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all`} />
+ <button type="button" onClick={changePassword} className="px-4 py-2 bg-[#191F28] text-white rounded-lg font-medium hover:bg-[#21212A] transition-all w-full">변경</button>
  </div>
  </div>
  </div>
@@ -19733,12 +19739,12 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <h3 className={`font-bold ${t.text} text-lg`}>업체 일괄등록</h3>
  <button type="button" onClick={() => setShowBulkAddModal(false)} className={`text-2xl ${t.text}`}>×</button>
  </div>
- <div className="bg-neutral-100 rounded-xl p-3 mb-4">
- <p className="text-neutral-800 font-bold mb-1">입력 형식</p>
+ <div className="bg-[#F2F4F6] rounded-xl p-3 mb-4">
+ <p className="text-[#333D4B] font-bold mb-1">입력 형식</p>
  <p className={`text-sm ${t.text}`}>업체명/담당자/연락처/주소/반응</p>
  </div>
- <textarea value={bulkAddText} onChange={e => setBulkAddText(e.target.value)} placeholder="업체명/담당자/연락처/주소/반응" className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all h-32 mb-3`} />
- <select value={bulkAddSales || ''} onChange={e => setBulkAddSales(Number(e.target.value) || null)} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} focus:outline-none focus:border-neutral-400 transition-all mb-3`}>
+ <textarea value={bulkAddText} onChange={e => setBulkAddText(e.target.value)} placeholder="업체명/담당자/연락처/주소/반응" className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all h-32 mb-3`} />
+ <select value={bulkAddSales || ''} onChange={e => setBulkAddSales(Number(e.target.value) || null)} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} focus:outline-none focus:border-[#3182F6] transition-all mb-3`}>
  <option value="">영업자 선택</option>
  {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
  </select>
@@ -19748,7 +19754,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <button key={key} onClick={() => setBulkAddReaction(key)} className={`px-3 py-1.5 rounded-full text-xs text-white font-bold ${bulkAddReaction === key ? 'ring-2 ring-offset-1' : 'opacity-50'}`} style={{ background: val.bg }}>{val.label}</button>
  ))}
  </div>
- <button type="button" onClick={parseBulkText} className="px-4 py-2 bg-neutral-900 text-white rounded-lg font-medium hover:bg-neutral-800 transition-all w-full">일괄 등록</button>
+ <button type="button" onClick={parseBulkText} className="px-4 py-2 bg-[#191F28] text-white rounded-lg font-medium hover:bg-[#21212A] transition-all w-full">일괄 등록</button>
  </div>
  </div>
  )}
@@ -19767,11 +19773,11 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  ) : ocrResult ? (
  <div className="space-y-3">
  <p className={`text-sm font-bold ${t.text}`}>자동 추출 결과 (수정 가능)</p>
- <input type="text" placeholder="업체명" value={companyForm.name} onChange={e => setCompanyForm({ ...companyForm, name: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
- <input type="text" placeholder="담당자" value={companyForm.contact} onChange={e => setCompanyForm({ ...companyForm, contact: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
- <input type="text" placeholder="연락처" value={companyForm.phone} onChange={e => setCompanyForm({ ...companyForm, phone: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
- <input type="text" placeholder="주소" value={companyForm.address} onChange={e => setCompanyForm({ ...companyForm, address: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
- <select value={companyForm.managerId || ''} onChange={e => setCompanyForm({ ...companyForm, managerId: Number(e.target.value) || null })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} focus:outline-none focus:border-neutral-400 transition-all`}>
+ <input type="text" placeholder="업체명" value={companyForm.name} onChange={e => setCompanyForm({ ...companyForm, name: e.target.value })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all`} />
+ <input type="text" placeholder="담당자" value={companyForm.contact} onChange={e => setCompanyForm({ ...companyForm, contact: e.target.value })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all`} />
+ <input type="text" placeholder="연락처" value={companyForm.phone} onChange={e => setCompanyForm({ ...companyForm, phone: e.target.value })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all`} />
+ <input type="text" placeholder="주소" value={companyForm.address} onChange={e => setCompanyForm({ ...companyForm, address: e.target.value })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all`} />
+ <select value={companyForm.managerId || ''} onChange={e => setCompanyForm({ ...companyForm, managerId: Number(e.target.value) || null })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} focus:outline-none focus:border-[#3182F6] transition-all`}>
  <option value="">영업자 선택</option>
  {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
  </select>
@@ -19781,7 +19787,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <button key={key} onClick={() => setCompanyForm({ ...companyForm, reaction: key })} className={`px-3 py-1.5 rounded-full text-xs text-white font-bold ${companyForm.reaction === key ? 'ring-2 ring-offset-1' : 'opacity-50'}`} style={{ background: val.bg }}>{val.label}</button>
  ))}
  </div>
- <input type="text" placeholder="메모" value={companyForm.memo} onChange={e => setCompanyForm({ ...companyForm, memo: e.target.value })} className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`} />
+ <input type="text" placeholder="메모" value={companyForm.memo} onChange={e => setCompanyForm({ ...companyForm, memo: e.target.value })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all`} />
  <div className="flex gap-2">
  <button
  onClick={() => {
@@ -19789,7 +19795,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  setCompanyForm({ name: '', contact: '', phone: '', address: '', managerId: user?.managerId || null, memo: '', reaction: 'neutral' });
  ocrFileInputRef.current?.click();
  }}
- className="flex-1 py-3 border border-neutral-200 rounded-xl font-bold text-neutral-800"
+ className="flex-1 py-3 border border-[#E5E8EB] rounded-xl font-bold text-[#333D4B]"
  >
  재촬영
  </button>
@@ -19799,7 +19805,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  setShowOcrModal(false);
  setOcrResult(null);
  }}
- className="flex-1 px-4 py-2 bg-neutral-900 text-white rounded-lg font-medium hover:bg-neutral-800 transition-all"
+ className="flex-1 px-4 py-2 bg-[#191F28] text-white rounded-lg font-medium hover:bg-[#21212A] transition-all"
  >
  업체 등록
  </button>
@@ -19824,8 +19830,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  ) : (
  <div className="space-y-3 max-h-[60vh] overflow-y-auto">
  {bulkOcrResults.map((result, idx) => (
- <div key={idx} className="bg-neutral-100 rounded-xl p-3 border">
- <p className="font-bold text-neutral-800 text-sm mb-2">명함 #{idx + 1}</p>
+ <div key={idx} className="bg-[#F2F4F6] rounded-xl p-3 border">
+ <p className="font-bold text-[#333D4B] text-sm mb-2">명함 #{idx + 1}</p>
  <div className="grid grid-cols-2 gap-2">
  <input
  type="text"
@@ -19836,7 +19842,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  updated[idx].name = e.target.value;
  setBulkOcrResults(updated);
  }}
- className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm`}
+ className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm`}
  />
  <input
  type="text"
@@ -19847,7 +19853,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  updated[idx].contact = e.target.value;
  setBulkOcrResults(updated);
  }}
- className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm`}
+ className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm`}
  />
  <input
  type="text"
@@ -19858,7 +19864,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  updated[idx].phone = e.target.value;
  setBulkOcrResults(updated);
  }}
- className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm`}
+ className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm`}
  />
  <input
  type="text"
@@ -19869,7 +19875,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  updated[idx].address = e.target.value;
  setBulkOcrResults(updated);
  }}
- className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm`}
+ className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm`}
  />
  </div>
  <div className="flex items-center gap-2 mt-2 flex-wrap">
@@ -19880,7 +19886,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  updated[idx].managerId = Number(e.target.value) || null;
  setBulkOcrResults(updated);
  }}
- className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} focus:outline-none focus:border-neutral-400 transition-all text-sm py-1`}
+ className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} focus:outline-none focus:border-[#3182F6] transition-all text-sm py-1`}
  >
  <option value="">영업자</option>
  {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
@@ -19909,14 +19915,14 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  updated[idx].memo = e.target.value;
  setBulkOcrResults(updated);
  }}
- className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all text-sm mt-2`}
+ className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm mt-2`}
  />
  </div>
  ))}
  {bulkOcrResults.length > 0 && (
  <button
  onClick={saveBulkOcrCompanies}
- className="px-4 py-2 bg-neutral-900 text-white rounded-lg font-medium hover:bg-neutral-800 transition-all w-full"
+ className="px-4 py-2 bg-[#191F28] text-white rounded-lg font-medium hover:bg-[#21212A] transition-all w-full"
  >
  {bulkOcrResults.filter(r => r.name).length}개 업체 등록
  </button>
@@ -19928,7 +19934,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  )}
  {showScheduleAlert && (
  <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[1200] p-4">
- <div className="bg-neutral-100 rounded-2xl p-5 w-full max-w-md shadow-2xl">
+ <div className="bg-[#F2F4F6] rounded-2xl p-5 w-full max-w-md shadow-2xl">
  <div className="text-center mb-4">
  <div className="w-16 h-16 bg-gradient-to-r from-teal-500 to-cyan-600 rounded-full flex items-center justify-center mx-auto mb-3">
  <span className="text-3xl"></span>
@@ -19938,7 +19944,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long' })} 4주차
  </p>
  </div>
- <div className="bg-neutral-100 border border-primary-300 rounded-xl p-4 mb-4">
+ <div className="bg-[#F2F4F6] border border-primary-300 rounded-xl p-4 mb-4">
  <p className="text-blue-800 font-bold text-center text-lg">
  익월 영업 스케줄표를<br/>작성해주세요.
  </p>
@@ -19948,7 +19954,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  <button
  onClick={() => setShowScheduleAlert(false)}
- className="px-4 py-2 bg-neutral-900 text-white rounded-lg font-medium hover:bg-neutral-800 transition-all w-full"
+ className="px-4 py-2 bg-[#191F28] text-white rounded-lg font-medium hover:bg-[#21212A] transition-all w-full"
  >
  확인
  </button>
@@ -19958,7 +19964,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* 미방문 업체 처리 모달 */}
  {showUnvisitedModal && (
  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1200] p-4" onClick={() => setShowUnvisitedModal(null)}>
- <div className="bg-neutral-100 rounded-2xl p-5 w-full max-w-md" onClick={e => e.stopPropagation()}>
+ <div className="bg-[#F2F4F6] rounded-2xl p-5 w-full max-w-md" onClick={e => e.stopPropagation()}>
  <div className="text-center mb-4">
  <div className="w-14 h-14 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-3">
    <span className="text-2xl"></span>
@@ -19969,23 +19975,23 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </p>
  </div>
  
- <div className={`rounded-xl p-3 mb-4 max-h-40 overflow-y-auto ${theme === 'dark' ? 'bg-neutral-800/80 backdrop-blur' : 'bg-white'}`}>
+ <div className={`rounded-xl p-3 mb-4 max-h-40 overflow-y-auto ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur' : 'bg-white'}`}>
  {showUnvisitedModal.unvisitedStops.map((stop, idx) => (
-   <div key={idx} className="flex items-center gap-2 py-2 border-b border-neutral-200 last:border-0">
+   <div key={idx} className="flex items-center gap-2 py-2 border-b border-[#E5E8EB] last:border-0">
      <span className={`w-6 h-6 bg-neutral-600 ${t.text} rounded-full flex items-center justify-center text-xs font-bold`}>{idx + 1}</span>
      <span className={`text-sm ${t.text}`}>{stop.name}</span>
    </div>
  ))}
  </div>
  
- <p className="text-xs text-neutral-700 mb-4 text-center">
+ <p className="text-xs text-[#4E5968] mb-4 text-center">
  미방문 처리 시 해당 업체의 담당자가 미배정으로 변경되어<br/>다른 담당자가 방문할 수 있습니다.
  </p>
  
  <div className="flex gap-2">
  <button
    onClick={() => completeRouteAction(showUnvisitedModal.route, false)}
-   className="flex-1 px-4 py-2 bg-neutral-200 rounded-xl font-bold text-neutral-800 text-sm"
+   className="flex-1 px-4 py-2 bg-[#E5E8EB] rounded-xl font-bold text-[#333D4B] text-sm"
  >
    그냥 완료
  </button>
@@ -20002,7 +20008,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  
  {showDeleteConfirm && (
  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1200] p-4" onClick={() => setShowDeleteConfirm(null)}>
- <div className="bg-neutral-100 rounded-2xl p-5 w-full max-w-sm" onClick={e => e.stopPropagation()}>
+ <div className="bg-[#F2F4F6] rounded-2xl p-5 w-full max-w-sm" onClick={e => e.stopPropagation()}>
  <div className="text-center mb-4">
  <div className="w-14 h-14 bg-rose-100 rounded-full flex items-center justify-center mx-auto mb-3">
  <span className="text-2xl"></span>
@@ -20011,12 +20017,12 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <p className={`text-sm mt-2 ${t.text}`}>
  <b className={`${t.text}`}>{showDeleteConfirm.name}</b>을(를) 삭제하시겠습니까?
  </p>
- <p className="text-xs text-neutral-800 mt-1">삭제된 데이터는 복구할 수 없습니다.</p>
+ <p className="text-xs text-[#333D4B] mt-1">삭제된 데이터는 복구할 수 없습니다.</p>
  </div>
  <div className="flex gap-2">
  <button
  onClick={() => setShowDeleteConfirm(null)}
- className={`flex-1 px-4 py-2 rounded-xl font-bold ${theme === 'dark' ? 'bg-neutral-700 text-neutral-300' : 'bg-neutral-100 text-neutral-600'}`}
+ className={`flex-1 px-4 py-2 rounded-xl font-bold ${theme === 'dark' ? 'bg-[#2C2C35] text-[#8C8C96]' : 'bg-[#F2F4F6] text-[#6B7684]'}`}
  >
  취소
  </button>
@@ -20049,27 +20055,27 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  )}
  {showTodayAlert && todayEvents.length > 0 && (
  <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[1100] p-4">
- <div className="bg-neutral-100 rounded-2xl p-5 w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
+ <div className="bg-[#F2F4F6] rounded-2xl p-5 w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
  <div className="text-center mb-4">
  <div className="w-16 h-16 bg-gradient-to-r from-teal-500 to-cyan-600 rounded-full flex items-center justify-center mx-auto mb-3">
  <span className="text-3xl"></span>
  </div>
  <h3 className={`font-bold ${t.text} text-xl`}>오늘의 일정 알림</h3>
- <p className="text-neutral-800 text-sm mt-1">{new Date().toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}</p>
+ <p className="text-[#333D4B] text-sm mt-1">{new Date().toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}</p>
  </div>
- <div className="bg-neutral-100 border border-neutral-200 rounded-xl p-4 mb-4 max-h-60 overflow-y-auto">
+ <div className="bg-[#F2F4F6] border border-[#E5E8EB] rounded-xl p-4 mb-4 max-h-60 overflow-y-auto">
  <p className="text-primary-600 font-bold text-sm mb-3">{todayEvents.length}개의 일정이 있습니다</p>
  <div className="space-y-2">
  {todayEvents.map((event, idx) => {
  const manager = managers.find(m => m.id === event.managerId);
  return (
- <div key={idx} className="bg-neutral-100 p-3 rounded-lg border border-neutral-200">
+ <div key={idx} className="bg-[#F2F4F6] p-3 rounded-lg border border-[#E5E8EB]">
  <div className="flex items-start gap-2">
  <span className="text-lg">{event.type === 'route' ? '' : ''}</span>
  <div className="flex-1 min-w-0">
  <p className={`font-bold ${t.text} text-sm break-words`}>{event.title}</p>
  {manager && <p className={`text-xs ${t.text}`}>담당: {manager.name}</p>}
- {event.memo && <p className="text-xs text-neutral-800 mt-1 break-words whitespace-pre-wrap">{event.memo}</p>}
+ {event.memo && <p className="text-xs text-[#333D4B] mt-1 break-words whitespace-pre-wrap">{event.memo}</p>}
  </div>
  </div>
  </div>
@@ -20083,13 +20089,13 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  setShowTodayAlert(false);
  setTab('calendar');
  }}
- className="flex-1 px-4 py-2 bg-neutral-900 text-white rounded-lg font-medium hover:bg-neutral-800 transition-all"
+ className="flex-1 px-4 py-2 bg-[#191F28] text-white rounded-lg font-medium hover:bg-[#21212A] transition-all"
  >
  캘린더 확인하기
  </button>
  <button
  onClick={() => setShowTodayAlert(false)}
- className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all border ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 border-neutral-600 hover:bg-neutral-600' : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50'}`}
+ className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all border ${theme === 'dark' ? 'bg-[#2C2C35] text-neutral-200 border-neutral-600 hover:bg-neutral-600' : 'bg-white text-[#4E5968] border-[#E5E8EB] hover:bg-[#F9FAFB]'}`}
  >
  닫기
  </button>
@@ -20099,25 +20105,25 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  )}
  {showUnmappedModal && (
  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowUnmappedModal(false)}>
- <div className="bg-neutral-100 rounded-2xl p-5 w-full max-w-md max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+ <div className="bg-[#F2F4F6] rounded-2xl p-5 w-full max-w-md max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
  <div className="flex justify-between items-center mb-4">
  <h3 className={`font-bold ${t.text} text-lg`}>미표시 업체</h3>
  <button type="button" onClick={() => setShowUnmappedModal(false)} className={`text-2xl ${t.text}`}>×</button>
  </div>
- <p className="text-sm text-neutral-800 mb-3">주소를 수정하면 지도에 표시됩니다.</p>
+ <p className="text-sm text-[#333D4B] mb-3">주소를 수정하면 지도에 표시됩니다.</p>
  <div className="space-y-2 max-h-96 overflow-y-auto">
  {companies.filter(c => !c.lat || !c.lng).map(c => {
  const mgr = managers.find(m => m.id === c.managerId);
  return (
  <div
  key={c.id}
- className="p-3 bg-neutral-100 rounded-xl cursor-pointer hover:bg-neutral-100 border border-neutral-200"
+ className="p-3 bg-[#F2F4F6] rounded-xl cursor-pointer hover:bg-[#F2F4F6] border border-[#E5E8EB]"
  onClick={() => { setShowUnmappedModal(false); setShowCompanyEditModal(c); }}
  >
  <div className="flex items-center justify-between">
  <div className="min-w-0 flex-1">
  <p className={`font-bold ${t.text} truncate`}>{c.name}</p>
- <p className="text-xs text-neutral-800 truncate">{c.address || '주소 없음'}</p>
+ <p className="text-xs text-[#333D4B] truncate">{c.address || '주소 없음'}</p>
  </div>
  <div className="flex-shrink-0 ml-2">
  <span className={`px-2 py-1 rounded text-xs ${t.text} font-bold`} style={{ background: mgr?.color || '#9ca3af' }}>{mgr?.name || '미배정'}</span>
@@ -20135,7 +20141,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  )}
  {selectedCalendarEvent && (
  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setSelectedCalendarEvent(null)}>
- <div className="bg-neutral-100 rounded-2xl p-5 w-full max-w-md" onClick={e => e.stopPropagation()}>
+ <div className="bg-[#F2F4F6] rounded-2xl p-5 w-full max-w-md" onClick={e => e.stopPropagation()}>
  <div className="flex justify-between items-center mb-4">
  <h3 className={`font-bold ${t.text} text-lg`}>일정 상세</h3>
  <button type="button" onClick={() => setSelectedCalendarEvent(null)} className={`text-2xl ${t.text}`}>×</button>
@@ -20148,9 +20154,9 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {selectedCalendarEvent.time && <span>{selectedCalendarEvent.time}</span>}
  </div>
  {selectedCalendarEvent.memo && (
- <div className="mt-3 p-3 bg-neutral-100 rounded-lg">
+ <div className="mt-3 p-3 bg-[#F2F4F6] rounded-lg">
  <p className={`text-xs mb-1 ${t.text}`}>메모</p>
- <p className="text-neutral-800 whitespace-pre-wrap">{selectedCalendarEvent.memo}</p>
+ <p className="text-[#333D4B] whitespace-pre-wrap">{selectedCalendarEvent.memo}</p>
  </div>
  )}
  {selectedCalendarEvent.company && (
@@ -20172,7 +20178,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  setShowCalendarModal(true);
  setSelectedCalendarEvent(null);
  }}
- className="flex-1 py-2 bg-neutral-100 text-primary-600 rounded-xl font-bold"
+ className="flex-1 py-2 bg-[#F2F4F6] text-primary-600 rounded-xl font-bold"
  >
  수정
  </button>
@@ -20192,7 +20198,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  )}
  {showCalendarModal && (
  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowCalendarModal(false)}>
- <div className="bg-neutral-100 rounded-2xl p-5 w-full max-w-md" onClick={e => e.stopPropagation()}>
+ <div className="bg-[#F2F4F6] rounded-2xl p-5 w-full max-w-md" onClick={e => e.stopPropagation()}>
  <div className="flex justify-between items-center mb-4">
  <h3 className={`font-bold ${t.text} text-lg`}>
  {selectedCalendarDate} 일정
@@ -20204,8 +20210,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  const dayEvents = calendarEvents.filter(e => e.date === selectedCalendarDate);
  if (dayRoutes.length > 0 || dayEvents.length > 0) {
  return (
- <div className="mb-4 p-3 bg-neutral-100 rounded-xl max-h-32 overflow-y-auto">
- <p className="text-xs text-neutral-800 mb-2 font-bold">이 날의 일정</p>
+ <div className="mb-4 p-3 bg-[#F2F4F6] rounded-xl max-h-32 overflow-y-auto">
+ <p className="text-xs text-[#333D4B] mb-2 font-bold">이 날의 일정</p>
  {dayRoutes.map(r => {
  const manager = managers.find(m => m.id === r.managerId);
  return (
@@ -20245,7 +20251,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  placeholder="일정 제목"
  value={calendarEventInput.title}
  onChange={e => setCalendarEventInput({ ...calendarEventInput, title: e.target.value })}
- className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`}
+ className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all`}
  />
  <div className="relative" onClick={() => document.getElementById('calEventTime').showPicker?.()}>
  <input
@@ -20253,14 +20259,14 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  type="time"
  value={calendarEventInput.time}
  onChange={e => setCalendarEventInput({ ...calendarEventInput, time: e.target.value })}
- className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all cursor-pointer`}
+ className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all cursor-pointer`}
  />
  </div>
  <textarea
  placeholder="메모 (선택)"
  value={calendarEventInput.memo}
  onChange={e => setCalendarEventInput({ ...calendarEventInput, memo: e.target.value })}
- className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all resize-none h-20`}
+ className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all resize-none h-20`}
  />
  </div>
  <div className="flex gap-2 mt-4">
@@ -20270,10 +20276,10 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  setCalendarEventInput({ title: '', time: '09:00', memo: '' });
  setEditingEventId(null);
  }}
- className={`px-4 py-2 rounded-lg font-medium transition-all border ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 border-neutral-600 hover:bg-neutral-600' : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50'} flex-1`}
+ className={`px-4 py-2 rounded-lg font-medium transition-all border ${theme === 'dark' ? 'bg-[#2C2C35] text-neutral-200 border-neutral-600 hover:bg-neutral-600' : 'bg-white text-[#4E5968] border-[#E5E8EB] hover:bg-[#F9FAFB]'} flex-1`}
  >새로 작성</button>
  )}
- <button type="button" onClick={() => setShowCalendarModal(false)} className={`px-4 py-2 rounded-lg font-medium transition-all border ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 border-neutral-600 hover:bg-neutral-600' : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50'} flex-1`}>취소</button>
+ <button type="button" onClick={() => setShowCalendarModal(false)} className={`px-4 py-2 rounded-lg font-medium transition-all border ${theme === 'dark' ? 'bg-[#2C2C35] text-neutral-200 border-neutral-600 hover:bg-neutral-600' : 'bg-white text-[#4E5968] border-[#E5E8EB] hover:bg-[#F9FAFB]'} flex-1`}>취소</button>
  <button
  onClick={() => {
  if (!calendarEventInput.title.trim()) return alert('일정 제목을 입력하세요');
@@ -20292,17 +20298,17 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  setEditingEventId(null);
  alert(editingEventId ? '일정이 수정되었습니다!' : '일정이 추가되었습니다!');
  }}
- className="px-4 py-2 bg-neutral-900 text-white rounded-lg font-medium hover:bg-neutral-800 transition-all flex-1"
+ className="px-4 py-2 bg-[#191F28] text-white rounded-lg font-medium hover:bg-[#21212A] transition-all flex-1"
  >{editingEventId ? '수정' : '추가'}</button>
  </div>
- <div className="mt-4 pt-4 border-t border-neutral-200">
+ <div className="mt-4 pt-4 border-t border-[#E5E8EB]">
  <button
  onClick={() => {
  setRouteDate(selectedCalendarDate);
  setShowCalendarModal(false);
  navigateToTab('route');
  }}
- className="w-full text-center text-sm text-neutral-800 font-bold"
+ className="w-full text-center text-sm text-[#333D4B] font-bold"
  >
  동선 등록하기 →
  </button>
@@ -20312,13 +20318,13 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  )}
  {selectedSchedule && (
  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setSelectedSchedule(null)}>
- <div className="bg-neutral-100 rounded-2xl p-5 w-full max-w-md max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+ <div className="bg-[#F2F4F6] rounded-2xl p-5 w-full max-w-md max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
  <div className="flex justify-between items-start mb-4">
  <div>
  <h3 className={`font-bold ${t.text} text-lg`}>{selectedSchedule.name}</h3>
  <p className={`text-sm ${t.text}`}>{selectedSchedule.date}</p>
  </div>
- <button type="button" onClick={() => setSelectedSchedule(null)} className="text-neutral-800 hover:text-neutral-800 text-xl"></button>
+ <button type="button" onClick={() => setSelectedSchedule(null)} className="text-[#333D4B] hover:text-[#333D4B] text-xl"></button>
  </div>
  {(() => {
  const completedCount = (selectedSchedule.stops || []).filter(s => s.visited).length;
@@ -20328,9 +20334,9 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="mb-4">
  <div className="flex justify-between items-center mb-2">
  <span className={`text-sm ${t.text}`}>진행률</span>
- <span className="text-sm font-bold text-neutral-800">{completedCount}/{totalCount} ({percent}%)</span>
+ <span className="text-sm font-bold text-[#333D4B]">{completedCount}/{totalCount} ({percent}%)</span>
  </div>
- <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+ <div className="h-2 bg-[#E5E8EB] rounded-full overflow-hidden">
  <div className="h-full bg-gradient-to-r from-teal-500 to-cyan-500 transition-all duration-300" style={{ width: `${percent}%` }}></div>
  </div>
  </div>
@@ -20338,10 +20344,10 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  })()}
  <div className="space-y-2 mb-4 max-h-64 overflow-y-auto">
  {(selectedSchedule.stops || []).map((stop, idx) => (
- <div key={stop.id} className={`flex items-start gap-3 p-3 rounded-lg transition-all ${stop.visited ? 'bg-emerald-900/30' : 'bg-neutral-100'}`}>
+ <div key={stop.id} className={`flex items-start gap-3 p-3 rounded-lg transition-all ${stop.visited ? 'bg-emerald-900/30' : 'bg-[#F2F4F6]'}`}>
  <button
  onClick={() => toggleStopVisited(selectedSchedule.id, stop.id)}
- className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm transition-all flex-shrink-0 ${stop.visited ? 'bg-emerald-500 text-white' : 'bg-neutral-200 border-2 border-neutral-200 text-neutral-800 hover:border-primary-400'}`}
+ className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm transition-all flex-shrink-0 ${stop.visited ? 'bg-emerald-500 text-white' : 'bg-[#E5E8EB] border-2 border-[#E5E8EB] text-[#333D4B] hover:border-primary-400'}`}
  >
  {stop.visited ? '' : idx + 1}
  </button>
@@ -20350,17 +20356,17 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {stop.address && <p className={`text-xs break-words ${t.text}`}>{stop.address}</p>}
  </div>
  {stop.lat && stop.lng && (
- <button type="button" onClick={() => viewStopOnMap(stop)} className="w-8 h-8 rounded-lg bg-neutral-100 hover:bg-neutral-200 text-primary-600 flex items-center justify-center text-sm flex-shrink-0"></button>
+ <button type="button" onClick={() => viewStopOnMap(stop)} className="w-8 h-8 rounded-lg bg-[#F2F4F6] hover:bg-[#E5E8EB] text-primary-600 flex items-center justify-center text-sm flex-shrink-0"></button>
  )}
  </div>
  ))}
  </div>
  <div className="space-y-2">
- <button type="button" onClick={() => { setSelectedSchedule(null); viewSavedRouteOnMap(selectedSchedule); }} className={`w-full px-4 py-2 rounded-lg font-medium transition-all border ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 border-neutral-600 hover:bg-neutral-600' : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50'}`}>
+ <button type="button" onClick={() => { setSelectedSchedule(null); viewSavedRouteOnMap(selectedSchedule); }} className={`w-full px-4 py-2 rounded-lg font-medium transition-all border ${theme === 'dark' ? 'bg-[#2C2C35] text-neutral-200 border-neutral-600 hover:bg-neutral-600' : 'bg-white text-[#4E5968] border-[#E5E8EB] hover:bg-[#F9FAFB]'}`}>
  전체 경로 지도에서 보기
  </button>
  {selectedSchedule.status !== 'completed' && (
- <button type="button" onClick={() => completeAllStops(selectedSchedule.id)} className="w-full px-4 py-2 bg-neutral-900 text-white rounded-lg font-medium hover:bg-neutral-800 transition-all py-3 font-bold">
+ <button type="button" onClick={() => completeAllStops(selectedSchedule.id)} className="w-full px-4 py-2 bg-[#191F28] text-white rounded-lg font-medium hover:bg-[#21212A] transition-all py-3 font-bold">
  방문 완료 (확정으로 이동)
  </button>
  )}
@@ -20372,10 +20378,10 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* 멘트 추가/수정 모달 */}
  {showMentModal && (
  <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[1200] p-4" onClick={() => { setShowMentModal(false); setMentForm({ name: '', content: '', type: 'broker', memo: '' }); }}>
- <div className={`rounded-2xl p-5 w-full max-w-md ${theme === 'dark' ? 'bg-neutral-800' : 'bg-white'}`} onClick={e => e.stopPropagation()}>
+ <div className={`rounded-2xl p-5 w-full max-w-md ${theme === 'dark' ? 'bg-[#21212A]' : 'bg-white'}`} onClick={e => e.stopPropagation()}>
  <div className="flex justify-between items-center mb-4">
  <h3 className={`font-bold ${t.text} text-lg`}>{editingMent ? '멘트 수정' : '새 멘트 추가'}</h3>
- <button type="button" onClick={() => { setShowMentModal(false); setMentForm({ name: '', content: '', type: 'broker', memo: '' }); }} className={`text-neutral-500 text-2xl hover:${t.text}`}>×</button>
+ <button type="button" onClick={() => { setShowMentModal(false); setMentForm({ name: '', content: '', type: 'broker', memo: '' }); }} className={`text-[#56565F] text-2xl hover:${t.text}`}>×</button>
  </div>
  <div className="space-y-3">
  <input 
@@ -20383,16 +20389,16 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  placeholder="멘트 이름 (예: 폐업률 충격)" 
  value={mentForm.name}
  onChange={e => setMentForm({ ...mentForm, name: e.target.value })}
- className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`}
+ className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all`}
  />
  <div className="flex gap-2">
  <button 
  onClick={() => setMentForm({ ...mentForm, type: 'broker' })}
- className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${mentForm.type === 'broker' ? 'bg-neutral-600 text-neutral-700 border border-neutral-500' : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200'}`}
+ className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${mentForm.type === 'broker' ? 'bg-neutral-600 text-[#4E5968] border border-neutral-500' : 'bg-[#F2F4F6] text-[#56565F] hover:bg-[#E5E8EB]'}`}
  >중개사용</button>
  <button 
  onClick={() => setMentForm({ ...mentForm, type: 'customer' })}
- className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${mentForm.type === 'customer' ? 'bg-neutral-600 text-neutral-700 border border-neutral-500' : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200'}`}
+ className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${mentForm.type === 'customer' ? 'bg-neutral-600 text-[#4E5968] border border-neutral-500' : 'bg-[#F2F4F6] text-[#56565F] hover:bg-[#E5E8EB]'}`}
  >고객용</button>
  </div>
  <textarea 
@@ -20400,18 +20406,18 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  value={mentForm.content}
  onChange={e => setMentForm({ ...mentForm, content: e.target.value })}
  rows="4"
- className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all resize-none`}
+ className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all resize-none`}
  />
  <input 
  type="text" 
  placeholder="메모 (선택사항)"
  value={mentForm.memo}
  onChange={e => setMentForm({ ...mentForm, memo: e.target.value })}
- className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all`}
+ className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all`}
  />
  </div>
  <div className="flex gap-2 mt-4">
- <button type="button" onClick={() => { setShowMentModal(false); setMentForm({ name: '', content: '', type: 'broker', memo: '' }); }} className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all border ${theme === 'dark' ? 'bg-neutral-700 text-neutral-200 border-neutral-600 hover:bg-neutral-600' : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50'}`}>취소</button>
+ <button type="button" onClick={() => { setShowMentModal(false); setMentForm({ name: '', content: '', type: 'broker', memo: '' }); }} className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all border ${theme === 'dark' ? 'bg-[#2C2C35] text-neutral-200 border-neutral-600 hover:bg-neutral-600' : 'bg-white text-[#4E5968] border-[#E5E8EB] hover:bg-[#F9FAFB]'}`}>취소</button>
  <button 
  onClick={() => {
  if (!mentForm.name.trim() || !mentForm.content.trim()) return alert('멘트 이름과 내용을 입력하세요');
@@ -20431,7 +20437,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  setEditingMent(null);
  setMentForm({ name: '', content: '', type: 'broker', memo: '' });
  }}
- className="flex-1 px-4 py-2 bg-neutral-900 text-white rounded-lg font-medium hover:bg-neutral-800 transition-all"
+ className="flex-1 px-4 py-2 bg-[#191F28] text-white rounded-lg font-medium hover:bg-[#21212A] transition-all"
  >{editingMent ? '수정 완료' : '추가하기'}</button>
  </div>
  </div>
@@ -20441,16 +20447,16 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {/* AI 피드백 모달 */}
  {showAiFeedback && feedbackMent && (
  <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[1200] p-4" onClick={() => setShowAiFeedback(false)}>
- <div className={`rounded-2xl p-5 w-full max-w-lg max-h-[85vh] overflow-y-auto ${theme === 'dark' ? 'bg-neutral-800' : 'bg-white'}`} onClick={e => e.stopPropagation()}>
+ <div className={`rounded-2xl p-5 w-full max-w-lg max-h-[85vh] overflow-y-auto ${theme === 'dark' ? 'bg-[#21212A]' : 'bg-white'}`} onClick={e => e.stopPropagation()}>
  <div className="flex justify-between items-center mb-4">
  <h3 className={`font-bold ${t.text} text-lg`}>AI 피드백</h3>
- <button type="button" onClick={() => setShowAiFeedback(false)} className="text-neutral-500 text-2xl hover:text-white">×</button>
+ <button type="button" onClick={() => setShowAiFeedback(false)} className="text-[#56565F] text-2xl hover:text-white">×</button>
  </div>
  
  <div className="mb-4">
- <p className="text-sm text-neutral-500 mb-1">선택된 멘트: <span className="text-neutral-700 font-medium">{feedbackMent.name}</span></p>
- <div className="p-3 rounded-lg bg-neutral-50 border border-neutral-200">
- <p className="text-sm text-neutral-700 whitespace-pre-wrap">{feedbackMent.content}</p>
+ <p className="text-sm text-[#56565F] mb-1">선택된 멘트: <span className="text-[#4E5968] font-medium">{feedbackMent.name}</span></p>
+ <div className="p-3 rounded-lg bg-[#F9FAFB] border border-[#E5E8EB]">
+ <p className="text-sm text-[#4E5968] whitespace-pre-wrap">{feedbackMent.content}</p>
  </div>
  </div>
 
@@ -20461,7 +20467,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  onChange={e => setFeedbackInput(e.target.value)}
  placeholder="기존 멘트를 수정해보세요"
  rows="3"
- className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all resize-none w-full`}
+ className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all resize-none w-full`}
  />
  </div>
 
@@ -20472,7 +20478,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  value={feedbackQuestion}
  onChange={e => setFeedbackQuestion(e.target.value)}
  placeholder="이렇게 바꿔봤는데 어떻게 생각해?"
- className={`w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg ${t.text} placeholder-neutral-400 focus:outline-none focus:border-neutral-400 transition-all w-full`}
+ className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all w-full`}
  />
  </div>
 
@@ -20511,18 +20517,18 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
    btn.disabled = false;
  }
  }}
- className="w-full px-4 py-2 bg-neutral-900 text-white rounded-lg font-medium hover:bg-neutral-800 transition-all"
+ className="w-full px-4 py-2 bg-[#191F28] text-white rounded-lg font-medium hover:bg-[#21212A] transition-all"
  >AI에게 피드백 받기</button>
 
  {/* 최근 피드백 히스토리 */}
  {mentFeedbacks.filter(f => f.mentId === feedbackMent.id).length > 0 && (
- <div className="mt-4 pt-4 border-t border-neutral-200">
+ <div className="mt-4 pt-4 border-t border-[#E5E8EB]">
  <p className={`text-sm mb-2 ${t.textMuted}`}>이 멘트의 피드백 히스토리</p>
  <div className="space-y-2 max-h-40 overflow-y-auto">
  {mentFeedbacks.filter(f => f.mentId === feedbackMent.id).slice(-3).reverse().map(fb => (
- <div key={fb.id} className="p-3 rounded-lg bg-neutral-100/30 border border-neutral-200/30">
+ <div key={fb.id} className="p-3 rounded-lg bg-[#F2F4F6]/30 border border-[#E5E8EB]/30">
  <p className={`text-xs mb-1 ${t.textMuted}`}>{new Date(fb.createdAt).toLocaleString('ko-KR')}</p>
- <p className="text-sm text-neutral-700 line-clamp-2">{fb.question}</p>
+ <p className="text-sm text-[#4E5968] line-clamp-2">{fb.question}</p>
  </div>
  ))}
  </div>
