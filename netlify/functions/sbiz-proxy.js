@@ -49,33 +49,50 @@ exports.handler = async (event, context) => {
   try {
     let targetUrl, useHttp = false;
 
+    // 헬퍼: endpoint 경로 정규화 (슬래시 보장 + /search.json suffix 보장)
+    const normalizeEndpoint = (ep) => {
+      let path = ep.startsWith('/') ? ep : '/' + ep;
+      if (!path.endsWith('/search.json')) {
+        // /search.json 이 아예 없으면 붙이기
+        if (path.endsWith('/')) path += 'search.json';
+        else path += '/search.json';
+      }
+      return path;
+    };
+
     // 1. GIS API
     if (api === 'gis' && endpoint) {
+      const gisPath = normalizeEndpoint(endpoint);
       if (queryParams.wgs84_lat && queryParams.wgs84_lng) {
         const tm = wgs84ToTM(parseFloat(queryParams.wgs84_lat), parseFloat(queryParams.wgs84_lng));
         const margin = parseInt(queryParams.margin) || 1000;
         const urlParams = new URLSearchParams({ minXAxis: (tm.x-margin).toString(), maxXAxis: (tm.x+margin).toString(), minYAxis: (tm.y-margin).toString(), maxYAxis: (tm.y+margin).toString(), mapLevel: queryParams.mapLevel || '14' });
         ['chkedList','indsLclsCd','indsLclsNm','indsMclsCd','indsMclsNm'].forEach(k => { if (queryParams[k]) urlParams.append(k, queryParams[k]); });
-        targetUrl = `https://bigdata.sbiz.or.kr${endpoint}?${urlParams.toString()}`;
+        targetUrl = `https://bigdata.sbiz.or.kr${gisPath}?${urlParams.toString()}`;
       } else {
         const urlParams = new URLSearchParams();
         Object.keys(queryParams).forEach(k => { if (queryParams[k]) urlParams.append(k, queryParams[k]); });
-        targetUrl = `https://bigdata.sbiz.or.kr${endpoint}?${urlParams.toString()}`;
+        targetUrl = `https://bigdata.sbiz.or.kr${gisPath}?${urlParams.toString()}`;
       }
     }
-    // 2. OpenAPI
-    else if (api === 'open' && endpoint) {
-      const key = SBIZ_OPEN_API_KEYS[apiName];
-      if (!key) return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: `알 수 없는 apiName: ${apiName}`, available: Object.keys(SBIZ_OPEN_API_KEYS) }) };
-      const urlParams = new URLSearchParams({ certKey: key });
+    // 2. OpenAPI → /sbiz/api/bizonSttus/{name}/search.json (certKey 필요)
+    else if (api === 'open') {
+      const name = apiName || endpoint;
+      if (!name) return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'apiName 또는 endpoint 파라미터 필요' }) };
+      const openPath = `/sbiz/api/bizonSttus/${name}/search.json`;
+      const urlParams = new URLSearchParams();
+      // certKey 추가 (SBIZ_OPEN_API_KEYS에서 해당 API 키 조회)
+      const certKey = SBIZ_OPEN_API_KEYS[name];
+      if (certKey) urlParams.append('certKey', certKey);
       Object.keys(queryParams).forEach(k => { if (queryParams[k]) urlParams.append(k, queryParams[k]); });
-      targetUrl = `https://bigdata.sbiz.or.kr${endpoint}?${urlParams.toString()}`;
+      targetUrl = `https://bigdata.sbiz.or.kr${openPath}?${urlParams.toString()}`;
     }
     // 3. SBIZ
     else if (api === 'sbiz' && endpoint) {
+      const sbizPath = endpoint.startsWith('/') ? endpoint : '/' + endpoint;
       const urlParams = new URLSearchParams();
       Object.keys(queryParams).forEach(k => { if (queryParams[k]) urlParams.append(k, queryParams[k]); });
-      targetUrl = `https://bigdata.sbiz.or.kr${endpoint}?${urlParams.toString()}`;
+      targetUrl = `https://bigdata.sbiz.or.kr${sbizPath}?${urlParams.toString()}`;
     }
     // 4. coord (반경 자동 확대: 1000 → 2000 → 3000)
     else if (api === 'coord') {
@@ -139,13 +156,14 @@ exports.handler = async (event, context) => {
     // 6. 서울시 열린데이터 (추정매출, 유동인구 등)
     else if (api === 'seoul') {
       const seoulApiKey = '6d6c71717173656f3432436863774a';
-      const { service, startIndex, endIndex, stdrYyquCd, industryCode } = queryParams;
+      const { service, startIndex, endIndex, stdrYyquCd, industryCode, filterField, filterValue, maxBatch } = queryParams;
       const svc = service || 'VwsmTrdarSelngQq';
       const quarter = stdrYyquCd ? `/${stdrYyquCd}` : '';
 
-      // industryCode가 있으면 전체 데이터를 서버에서 수집 후 필터링
-      if (industryCode) {
+      // industryCode 또는 filterField가 있으면 전체 데이터를 서버에서 수집 후 필터링
+      if (industryCode || filterField) {
         const allRows = [];
+        const batchLimit = Math.min(parseInt(maxBatch) || 22, 150); // LOCALDATA는 최대 150배치(15만건)
         const fetchBatch = (si, ei) => new Promise((resolve, reject) => {
           const batchUrl = `http://openapi.seoul.go.kr:8088/${seoulApiKey}/json/${svc}/${si}/${ei}${quarter}`;
           http.get(batchUrl, { timeout: 15000 }, (res) => {
@@ -155,13 +173,21 @@ exports.handler = async (event, context) => {
           }).on('error', () => resolve(null));
         });
 
-        // 1000건씩 순차 수집 (최대 22배치, 타임아웃 방지)
-        for (let si = 1; si <= 22000; si += 1000) {
+        // 1000건씩 순차 수집
+        for (let si = 1; si <= batchLimit * 1000; si += 1000) {
           try {
             const batch = await fetchBatch(si, si + 999);
             const rows = batch?.[svc]?.row || [];
             if (rows.length === 0) break;
-            const filtered = rows.filter(r => r.SVC_INDUTY_CD === industryCode);
+            let filtered;
+            if (industryCode) {
+              filtered = rows.filter(r => r.SVC_INDUTY_CD === industryCode);
+            } else if (filterField && filterValue) {
+              // 범용 필터: filterField 컬럼에 filterValue가 포함된 행만 수집
+              filtered = rows.filter(r => (r[filterField] || '').includes(filterValue));
+            } else {
+              filtered = rows;
+            }
             allRows.push(...filtered);
           } catch(e) { break; }
         }
@@ -171,7 +197,7 @@ exports.handler = async (event, context) => {
           headers: corsHeaders,
           body: JSON.stringify({
             success: true,
-            data: { filteredRows: allRows, totalFiltered: allRows.length, industryCode, quarter: stdrYyquCd },
+            data: { filteredRows: allRows, totalFiltered: allRows.length, industryCode, filterField, filterValue, quarter: stdrYyquCd },
             elapsedMs: Date.now() - startTime
           })
         };

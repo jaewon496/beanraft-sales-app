@@ -6,6 +6,66 @@
 [functions]
   node_bundler = "esbuild"
 
+[functions."gemini-proxy"]
+  timeout = 26
+
+[functions."naver-local-proxy"]
+  timeout = 26
+
+[functions."ncp-geo-proxy"]
+  timeout = 26
+
+[functions."kakao-proxy"]
+  timeout = 26
+
+[functions."sbiz-proxy"]
+  timeout = 26
+
+[functions."reset-password"]
+  timeout = 26
+
+[[redirects]]
+  from = "/site/*"
+  to = "https://www.beancraft.co.kr/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/css/*"
+  to = "https://www.beancraft.co.kr/css/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/js/*"
+  to = "https://www.beancraft.co.kr/js/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/fonts/*"
+  to = "https://www.beancraft.co.kr/fonts/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/images/*"
+  to = "https://www.beancraft.co.kr/images/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/uploads/*"
+  to = "https://www.beancraft.co.kr/uploads/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/data/*"
+  to = "https://www.beancraft.co.kr/data/:splat"
+  status = 200
+  force = true
+
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"

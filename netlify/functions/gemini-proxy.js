@@ -65,26 +65,41 @@ export async function handler(event) {
 
     try {
       const body = JSON.parse(event.body || '{}');
-      const { contents, generationConfig } = body;
+      const { contents, generationConfig, systemInstruction, tools } = body;
       if (!contents) {
         return { statusCode: 400, headers, body: JSON.stringify({ error: 'contents 필수' }) };
       }
 
-      const requestBody = { contents };
-      if (generationConfig) requestBody.generationConfig = generationConfig;
+      const requestBody = {
+        contents,
+        ...(generationConfig && { generationConfig }),
+        ...(systemInstruction && { systemInstruction }),
+        ...(tools && { tools }),
+      };
 
+      // 25초 타임아웃 (Netlify 함수 26초 제한 내)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 25000);
+      
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(requestBody)
+          body: JSON.stringify(requestBody),
+          signal: controller.signal
         }
       );
+      
+      clearTimeout(timeoutId);
 
       const data = await response.text();
       return { statusCode: response.status, headers, body: data };
     } catch (error) {
+      // AbortController 타임아웃 시 더 명확한 에러 메시지
+      if (error.name === 'AbortError') {
+        return { statusCode: 504, headers, body: JSON.stringify({ error: 'Gemini API 응답 시간 초과 (25초). 프롬프트를 줄이거나 maxOutputTokens를 낮추세요.' }) };
+      }
       return { statusCode: 500, headers, body: JSON.stringify({ error: error.message }) };
     }
   }

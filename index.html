@@ -1,6 +1,25 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
+  <!-- PWA 서비스워커/캐시 초기화 (React 로드 전 실행) -->
+  <script>
+  (function() {
+    if (!localStorage.getItem('bc_sw_reset_v2')) {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+          regs.forEach(function(r) { r.unregister(); });
+        });
+      }
+      if ('caches' in window) {
+        caches.keys().then(function(names) {
+          names.forEach(function(n) { caches.delete(n); });
+        });
+      }
+      localStorage.setItem('bc_sw_reset_v2', '1');
+      setTimeout(function() { location.reload(true); }, 500);
+    }
+  })();
+  </script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />

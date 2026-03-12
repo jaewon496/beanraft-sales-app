@@ -1,5 +1,6 @@
-// Naver Local Search API 프록시 (CORS 우회)
+// Naver Search API 프록시 (CORS 우회) - local + blog 검색 지원
 // 네이버 개발자센터(developers.naver.com) 키 사용
+// type=local (기본값): 지역 검색, type=blog: 블로그 검색
 exports.handler = async (event) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -32,9 +33,20 @@ exports.handler = async (event) => {
     };
   }
 
+  // [STEP F] type 파라미터: 'local' (기본) 또는 'blog'
+  const searchType = event.queryStringParameters?.type || 'local';
+  const display = event.queryStringParameters?.display || '5';
+  const sort = event.queryStringParameters?.sort || (searchType === 'blog' ? 'sim' : 'random');
+
   try {
-    const display = event.queryStringParameters?.display || '5';
-    const url = `https://openapi.naver.com/v1/search/local.json?query=${encodeURIComponent(query)}&display=${display}&sort=random`;
+    let url;
+    if (searchType === 'blog') {
+      // [STEP F] 네이버 블로그 검색 API
+      url = `https://openapi.naver.com/v1/search/blog.json?query=${encodeURIComponent(query)}&display=${display}&sort=${sort}`;
+    } else {
+      // 기존 로컬 검색 API
+      url = `https://openapi.naver.com/v1/search/local.json?query=${encodeURIComponent(query)}&display=${display}&sort=${sort}`;
+    }
 
     const response = await fetch(url, {
       headers: {
@@ -45,7 +57,7 @@ exports.handler = async (event) => {
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error('Naver Local Search API error:', response.status, errText);
+      console.error(`Naver ${searchType} Search API error:`, response.status, errText);
       return {
         statusCode: response.status,
         headers,
@@ -55,23 +67,29 @@ exports.handler = async (event) => {
 
     const data = await response.json();
 
-    // mapx/mapy (카텍 TM128) → WGS84 변환 헬퍼
-    const tm128ToWgs84 = (mapx, mapy) => {
-      // 카텍(TM128) → WGS84 근사 변환
-      const x = parseInt(mapx) / 10000000;
-      const y = parseInt(mapy) / 10000000;
-      // Naver mapx/mapy는 경도*1e7, 위도*1e7 형태
-      return { lat: y, lng: x };
-    };
+    // 블로그 검색: HTML 태그 제거
+    if (searchType === 'blog' && data.items && Array.isArray(data.items)) {
+      data.items = data.items.map(item => {
+        if (item.title) item.title = item.title.replace(/<[^>]*>/g, '');
+        if (item.description) item.description = item.description.replace(/<[^>]*>/g, '');
+        return item;
+      });
+    }
 
-    // items에 WGS84 좌표 추가
-    if (data.items && Array.isArray(data.items)) {
+    // 로컬 검색: mapx/mapy 변환 + HTML 태그 제거
+    if (searchType === 'local' && data.items && Array.isArray(data.items)) {
+      // mapx/mapy (카텍 TM128) → WGS84 변환 헬퍼
+      const tm128ToWgs84 = (mapx, mapy) => {
+        const x = parseInt(mapx) / 10000000;
+        const y = parseInt(mapy) / 10000000;
+        return { lat: y, lng: x };
+      };
+
       data.items = data.items.map(item => {
         if (item.mapx && item.mapy) {
           const coords = tm128ToWgs84(item.mapx, item.mapy);
           item.wgs84 = coords;
         }
-        // HTML 태그 제거
         if (item.title) item.title = item.title.replace(/<[^>]*>/g, '');
         return item;
       });

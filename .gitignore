@@ -10,3 +10,69 @@ single-test*.js
 full-test*.js
 e2e-test.js
 test-sales-mode.js
+
+# Local Netlify folder
+.netlify
+
+# Debug/temp files
+_debug_*
+_capture_*
+_extract_*
+_patch_*
+_write_*
+_gen*.py
+_good_deploy_*
+_part1_*
+_test.json
+*.b64
+
+# Backup files
+*.bak
+*.bak2
+*.backup_*
+src/App.jsx.broker_backup_*
+src/App.jsx.pdf_backup
+
+# Local scripts
+*.bat
+*.ps1
+open-*.bat
+open-*.ps1
+start-*.bat
+test-*.bat
+claude-*.bat
+claude*.bat
+
+# Session data
+session_storage_*.txt
+broker_edits_extracted.txt
+callgemini_def.txt
+compare-server.js
+generate-pdf.js
+openub_main.js
+feb25_*.txt
+feb25_*.py
+extracted_*.txt
+extracted_*.md
+nul
+
+# Local folders
+logs/
+patches/
+cmd/
+launchers/
+.claude/
+
+# Memory/docs (local only)
+memory/
+CLAUDE.md
+*.md
+!README.md
+
+# Prototype HTML files
+public/content-preview.html
+public/hero-demo.html
+public/prototype*.html
+public/video-viewer.html
+public/verify_pdf.pdf
+public/_gen_preview_html.py

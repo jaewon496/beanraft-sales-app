@@ -87,31 +87,6 @@ body {
 }
 
 /* ========================================
-   토스 버튼 스타일
-   ======================================== */
-
-.btn-primary {
-  @apply text-white font-semibold transition-all;
-  background: var(--blue-500);
-  border-radius: var(--radius-md);
-  height: 52px;
-  font-size: 16px;
-}
-.btn-primary:hover { background: var(--blue-600); }
-.btn-primary:active { transform: scale(0.98); opacity: 0.9; }
-
-.btn-secondary {
-  @apply font-medium transition-all;
-  background: var(--grey-100);
-  color: var(--grey-700);
-  border-radius: var(--radius-md);
-  height: 52px;
-  font-size: 16px;
-}
-.btn-secondary:hover { background: var(--grey-200); }
-.btn-secondary:active { transform: scale(0.98); }
-
-/* ========================================
    토스 입력 필드
    ======================================== */
 
@@ -389,52 +364,6 @@ textarea::placeholder {
 }
 
 /* ========================================
-   프로그레스 바
-   ======================================== */
-
-.progress-bg {
-  height: 6px;
-  background: var(--grey-100);
-  border-radius: var(--radius-full);
-  overflow: hidden;
-}
-
-.progress-bar {
-  height: 100%;
-  background: var(--blue-500);
-  border-radius: var(--radius-full);
-  transition: width 0.6s var(--ease-toss);
-}
-
-/* ========================================
-   배지/태그
-   ======================================== */
-
-.badge {
-  font-size: 12px;
-  font-weight: 600;
-  padding: 4px 10px;
-  background: var(--grey-100);
-  color: var(--grey-600);
-  border-radius: var(--radius-full);
-}
-
-.badge-success {
-  background: rgba(3,178,108,0.1);
-  color: var(--green-500);
-}
-
-.badge-warning {
-  background: rgba(254,152,0,0.1);
-  color: var(--orange-500);
-}
-
-.badge-error {
-  background: rgba(240,68,82,0.1);
-  color: var(--red-500);
-}
-
-/* ========================================
    호환성 유지 (기존 클래스)
    ======================================== */
 
@@ -509,54 +438,6 @@ textarea::placeholder {
 }
 
 /* ========================================
-   토스식 그래프/차트 스타일
-   ======================================== */
-.toss-chart-tooltip {
-  background: var(--grey-900) !important;
-  border: none !important;
-  border-radius: var(--radius-md) !important;
-  color: #fff !important;
-  font-size: 13px !important;
-  font-weight: 500 !important;
-  box-shadow: var(--shadow-lg) !important;
-  padding: 8px 14px !important;
-}
-
-/* ========================================
-   토스식 리스트 아이템 디바이더
-   ======================================== */
-.toss-divider {
-  height: 1px;
-  background: var(--grey-100);
-  margin: 0;
-}
-
-.dark-toss .toss-divider {
-  background: var(--dark-border);
-}
-
-/* ========================================
-   토스식 인포 박스
-   ======================================== */
-.toss-info-box {
-  background: rgba(49,130,246,0.06);
-  border-radius: var(--radius-md);
-  padding: 14px 18px;
-}
-
-.toss-info-box-warn {
-  background: rgba(254,152,0,0.06);
-  border-radius: var(--radius-md);
-  padding: 14px 18px;
-}
-
-.toss-info-box-danger {
-  background: rgba(240,68,82,0.06);
-  border-radius: var(--radius-md);
-  padding: 14px 18px;
-}
-
-/* ========================================
    🌟 토스급 프리미엄 3D 비주얼 이펙트
    ======================================== */
 
@@ -571,6 +452,11 @@ textarea::placeholder {
 @keyframes orb-glow-pulse {
   0%, 100% { opacity: 0.6; filter: blur(40px); }
   50% { opacity: 0.9; filter: blur(50px); }
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(6px); }
 }
 
 @keyframes orb-rotate {
@@ -784,10 +670,11 @@ textarea::placeholder {
   transition: width 1s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* ── 파티클 / 반짝이는 도트 ── */
+/* ── 파티클 / 별빛 반짝임 ── */
 @keyframes sparkle {
-  0%, 100% { opacity: 0; transform: scale(0); }
-  50% { opacity: 1; transform: scale(1); }
+  0%   { opacity: 0.1; transform: scale(0.5); }
+  50%  { opacity: 1; transform: scale(1.3); }
+  100% { opacity: 0.1; transform: scale(0.5); }
 }
 
 .sparkle-dot {
@@ -797,6 +684,25 @@ textarea::placeholder {
   background: rgba(255,255,255,0.6);
   border-radius: 50%;
   animation: sparkle 2s ease-in-out infinite;
+}
+
+/* ── 히어로 글로우 펄스 ── */
+@keyframes glowPulse {
+  0%   { opacity: 0.6; transform: translate(-50%, -50%) scale(0.9); }
+  50%  { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+  100% { opacity: 0.6; transform: translate(-50%, -50%) scale(0.9); }
+}
+
+/* ── 히어로 로고/텍스트 애니메이션 ── */
+@keyframes heroLogoReveal {
+  0% { opacity: 0; transform: translateY(40px) scale(0.92); filter: blur(8px); }
+  60% { opacity: 1; filter: blur(0); }
+  100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+
+@keyframes heroTextSlideUp {
+  0% { opacity: 0; transform: translateY(30px); }
+  100% { opacity: 1; transform: translateY(0); }
 }
 
 /* ── 그라데이션 텍스트 ── */
@@ -843,15 +749,92 @@ textarea::placeholder {
   animation: list-slide-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-/* ── 배지 글로우 ── */
-.badge-glow-blue {
-  box-shadow: 0 0 12px rgba(49,130,246,0.3), 0 0 4px rgba(49,130,246,0.2);
+
+/* Modal Overlay & Content */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 9999;
+  animation: modal-fade-in 0.2s ease-out;
 }
 
-.badge-glow-green {
-  box-shadow: 0 0 12px rgba(3,178,108,0.3), 0 0 4px rgba(3,178,108,0.2);
+@keyframes modal-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
-.badge-glow-red {
-  box-shadow: 0 0 12px rgba(240,68,82,0.3), 0 0 4px rgba(240,68,82,0.2);
+.modal-content {
+  background: #fff;
+  border-radius: 24px 24px 0 0;
+  padding: 24px;
+  width: 100%;
+  max-width: 480px;
+  max-height: 85vh;
+  overflow-y: auto;
+  animation: modal-slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  .modal-content {
+    background: #21212A;
+  }
+}
+
+@keyframes modal-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── 스크롤 카드 등장 애니메이션 ── */
+@keyframes scrollCardReveal {
+  0% { opacity: 0; transform: translateY(40px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.scroll-card-reveal {
+  opacity: 0;
+  transform: translateY(40px);
+  transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.scroll-card-reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ═══ Broker Mode: Glass Card Hover Effects ═══ */
+.glass-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.glass-card-light:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+}
+
+/* ═══ Broker Mode: lightSweep keyframes (camelCase alias) ═══ */
+@keyframes lightSweep {
+  0% { left: -100%; }
+  50% { left: 100%; }
+  100% { left: 100%; }
+}
+
+/* ═══ Broker Mode: gradientShift keyframes (camelCase alias) ═══ */
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }

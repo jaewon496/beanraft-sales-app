@@ -1,18 +1,44 @@
-﻿import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { firebase, database } from './firebase';
 import {
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area, Tooltip
 } from 'recharts';
+import {
+  HeroSection,
+  ServiceLineup,
+  InteriorGallery,
+  EducationGallery,
+  OpenProcess,
+  ComparisonCard,
+  FeeTable,
+  BrokerStatus,
+  SalesSystem,
+  AISection
+} from './components/broker-intro';
+import { latLngToS2Tokens } from './lib/s2geometry';
+import { estimateAllCafeSales } from './lib/salesEstimation';
 
 // ═══════════════════════════════════════════════════════════════
 // 앱 버전 관리 - 캐시 무효화용
 // ═══════════════════════════════════════════════════════════════
 const APP_VERSION = '2026.01.30.v6-firebase-fix';
 
+// ═══════════════════════════════════════════════════════════════
+// 디버그 플래그: true이면 STEP E(비카페 필터링)만 실행하고
+// 나머지 느린 API/AI 처리를 모두 스킵함
+// false로 바꾸면 전체 기능이 복원됨
+// ═══════════════════════════════════════════════════════════════
+const DEBUG_STEP_E_ONLY = true;
+
 // 앱 시작 시 버전 출력 및 캐시 체크
 (() => {
   console.log(`%c빈크래프트 영업관리 v${APP_VERSION}`, 'color: #10b981; font-size: 14px; font-weight: bold;');
+  // Vite dev server에서는 버전 체크/캐시 갱신 건너뛰기
+  if (import.meta.env.DEV) {
+    console.log('[DEV] 개발 환경 - 버전 체크 건너뜀');
+    return;
+  }
   const storedVersion = localStorage.getItem('bc_app_version');
   if (storedVersion !== APP_VERSION) {
     console.log('새 버전 감지 - 캐시 갱신 중...');
@@ -562,12 +588,18 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
   const green = '#03B26C';
   const elevatedBg = dark ? '#2C2C35' : '#F2F4F6';
   
-  // 브루 피드백 - 접이식 상세보기 UI
-  const BruBubble = ({ text, summary, delay = 0.5 }) => {
+  // 브루 피드백 - 접이식 상세보기 UI (AI 캐릭터 페르소나 지원)
+  const BruBubble = ({ text, summary, delay = 0.5, charName = '브루', charColor = '#3182F6' }) => {
     const [open, setOpen] = React.useState(false);
     if (!text) return null;
     const safeText = typeof text === 'string' ? text : (typeof text === 'object' ? JSON.stringify(text) : String(text));
     const safeSummary = typeof summary === 'string' ? summary : (summary && typeof summary === 'object' ? JSON.stringify(summary) : summary ? String(summary) : null);
+    // 캐릭터별 그라데이션 보조색 매핑
+    const gradientMap = {
+      '#4F46E5': '#7C3AED', '#0EA5E9': '#3B82F6', '#F43F5E': '#EC4899',
+      '#10B981': '#059669', '#F59E0B': '#D97706', '#8B5CF6': '#6D28D9'
+    };
+    const gradEnd = gradientMap[charColor] || '#6366F1';
     return (
       <FadeUpToss inView={true} delay={delay}>
         <div style={{ marginTop: 20, position: 'relative', zIndex: 10 }}>
@@ -578,10 +610,10 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             style={{
               width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               padding: '14px 18px',
-              background: open ? `${blue}0F` : (dark ? 'rgba(49,130,246,0.06)' : 'rgba(49,130,246,0.04)'),
+              background: open ? `${charColor}0F` : (dark ? `${charColor}0F` : `${charColor}0A`),
               borderRadius: open ? '18px 18px 0 0' : 18,
               border: 'none', cursor: 'pointer',
-              borderLeft: `3px solid ${blue}40`,
+              borderLeft: `3px solid ${charColor}40`,
               transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
               WebkitTapHighlightColor: 'transparent',
               touchAction: 'manipulation',
@@ -591,11 +623,11 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
               <span style={{
                 display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                 width: 24, height: 24, borderRadius: '50%',
-                background: `linear-gradient(135deg, ${blue}, #6366F1)`,
+                background: `linear-gradient(135deg, ${charColor}, ${gradEnd})`,
                 color: '#fff', fontSize: 11, fontWeight: 900,
-                boxShadow: '0 2px 8px rgba(49,130,246,0.3)',
+                boxShadow: `0 2px 8px ${charColor}4D`,
               }}>B</span>
-              <span style={{ fontSize: 14, color: blue, fontWeight: 700 }}>브루</span>
+              <span style={{ fontSize: 14, color: charColor, fontWeight: 700 }}>{charName}</span>
               {safeSummary && !open && (
                 <span style={{ fontSize: 12, color: t2, fontWeight: 500, marginLeft: 4, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block' }}>
                   — {safeSummary.length > 25 ? safeSummary.substring(0, 25) + '...' : safeSummary}
@@ -603,7 +635,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
               )}
             </div>
             <span style={{
-              fontSize: 18, color: blue, fontWeight: 400,
+              fontSize: 18, color: charColor, fontWeight: 400,
               transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
               transition: 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
               display: 'inline-block',
@@ -619,14 +651,14 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             pointerEvents: open ? 'auto' : 'none',
           }}>
             <div style={{
-              background: `${blue}0F`, borderRadius: '0 0 18px 18px',
+              background: `${charColor}0F`, borderRadius: '0 0 18px 18px',
               padding: '4px 18px 18px',
-              borderLeft: `3px solid ${blue}40`,
+              borderLeft: `3px solid ${charColor}40`,
             }}>
               <p style={{ fontSize: 14.5, color: t1, lineHeight: 1.75, letterSpacing: '-0.01em' }}>{safeText}</p>
               {safeSummary && (
-                <div style={{ marginTop: 14, padding: '10px 14px', background: `${blue}0A`, borderRadius: 14, border: `1px solid ${blue}15` }}>
-                  <p style={{ fontSize: 13, color: blue, fontWeight: 600, lineHeight: 1.55 }}>💡 {safeSummary}</p>
+                <div style={{ marginTop: 14, padding: '10px 14px', background: `${charColor}0A`, borderRadius: 14, border: `1px solid ${charColor}15` }}>
+                  <p style={{ fontSize: 13, color: charColor, fontWeight: 600, lineHeight: 1.55 }}>{safeSummary}</p>
                 </div>
               )}
             </div>
@@ -660,8 +692,10 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
   const _apiDynPpl = cd?.apis?.dynPplCmpr?.data;
   const _apiSalesAvg = cd?.apis?.salesAvg?.data;
 
-  // 카페 수: salesAvg '카페' stcnt → Gemini 텍스트
+  // 카페 수: nearbyTotalCafes(500m실측) → salesAvg '카페' stcnt → Gemini 텍스트
   const cafeCount = (() => {
+    // 최우선: 반경 500m 실측 카페 수 (storeRadius + 카카오 + 네이버 합산, 중복 제거됨)
+    if (cd?.nearbyTotalCafes > 0) return cd.nearbyTotalCafes;
     // 1순위: salesAvg에서 카페 업종 stcnt (메인 동만)
     if (Array.isArray(_apiSalesAvg)) {
       const cafeItem = _apiSalesAvg.find(s => s.tpbizClscdNm === '카페');
@@ -669,7 +703,11 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
     }
     // 2순위: cfrStcnt API (주의: 전체 업종 포함일 수 있음)
     if (_apiCfrStcnt?.stcnt && _apiCfrStcnt.stcnt > 0 && _apiCfrStcnt.tpbizClscdNm === '카페') return _apiCfrStcnt.stcnt;
-    // 3순위: Gemini 텍스트에서 추출 (단, '1km' 같은 거리 숫자 제외)
+    // 3순위: Gemini 텍스트에서 추출 (좌표 없으면 신뢰 불가 → 사용 안 함)
+    if (!d.coordinates) {
+      console.warn('[영업모드] 좌표 없음 → Gemini 카페 수 사용 안 함 (할루시네이션 위험)');
+      return 0;
+    }
     const overviewText = String(d.overview?.cafeCount || '');
     const cafeMatch = overviewText.match(/카페[가\s]*(\d[\d,]+)\s*개/);
     if (cafeMatch) return parseInt(cafeMatch[1].replace(/,/g, ''));
@@ -677,6 +715,11 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
     if (numMatch) return parseInt(numMatch[1].replace(/,/g, ''));
     return extractNum(d.overview?.cafeCount);
   })();
+  // 비상식적 카페 수 필터: 반경 500m에 카페 200개 초과는 비상식적 (AI 할루시네이션 방지)
+  const safeCafeCount = cafeCount > 200 ? 0 : cafeCount;
+  if (cafeCount > 200) {
+    console.warn(`[영업모드] 카페 수 ${cafeCount}개는 비상식적 → 0으로 리셋 (반경 500m 기준 200개 상한)`);
+  }
 
   // 유동인구: dynPplCmpr API cnt(월간) → 일평균(÷30) → Gemini 텍스트
   const floatingPop = (() => {
@@ -700,7 +743,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
   const closed = _rawClosed > 200 ? 0 : _rawClosed;
   
   // 카운트업 애니메이션
-  const aCafe = useCountUpToss(cafeCount, 1200, 0, v1);
+  const aCafe = useCountUpToss(safeCafeCount, 1200, 0, v1);
   const aPop = useCountUpToss(floatingPop > 10000 ? Math.floor(floatingPop / 10000) : floatingPop, 1500, 0, v1);
   const aOpen = useCountUpToss(newOpen, 800, 0, v1);
   const aClose = useCountUpToss(closed, 800, 0, v1);
@@ -879,7 +922,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
       fontFamily: '"Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", sans-serif',
       color: t1,
       overflowY: 'auto',
-      scrollSnapType: 'y mandatory',
+      scrollSnapType: 'y proximity',
       height: 'calc(100vh - 130px)',
       WebkitOverflowScrolling: 'touch',
       borderRadius: 22,
@@ -915,7 +958,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
       <div style={{ ...sec, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
         <FadeUpToss inView={true} delay={0}>
           <p style={{ fontSize: 18, color: t1, lineHeight: 1.8, marginBottom: 20, fontWeight: 500 }}>
-            사장님의 새로운 시작을 누구보다 응원하는 <span style={{ color: blue, fontWeight: 700 }}>브루</span>예요.
+            사장님의 새로운 시작을 누구보다 응원하는 <span style={{ color: '#4F46E5', fontWeight: 700 }}>브루코치</span>예요.
           </p>
         </FadeUpToss>
         <FadeUpToss inView={true} delay={0.15}>
@@ -953,7 +996,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px 24px' }}>
           {[
             { label: '카페 수', val: aCafe, unit: '개', color: t1, big: true },
-            { label: '유동인구', val: floatingPop > 10000 ? `${aPop}만` : aPop, unit: floatingPop > 10000 ? '명' : '명', color: t1, big: true },
+            { label: '유동인구', val: floatingPop > 10000 ? `${aPop}만` : (floatingPop > 0 ? aPop : '-'), unit: floatingPop > 0 ? '명' : '', color: t1, big: true, note: floatingPop === 0 ? null : (floatingPop > 0 && cd?.dongInfo?.admdstCdNm ? `${cd.dongInfo.admdstCdNm} 기준` : null) },
             { label: '신규 개업', val: newOpen > 0 ? aOpen : '-', unit: newOpen > 0 ? '개' : '', color: green, big: false },
             { label: '폐업', val: closed > 0 ? aClose : '-', unit: closed > 0 ? '개' : '', color: red, big: false },
           ].map((item, i) => (
@@ -963,9 +1006,57 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
                 <span style={{ fontSize: item.big ? 80 : 48, fontWeight: 800, letterSpacing: '-0.05em', lineHeight: 1.0, color: item.color, fontVariantNumeric: 'tabular-nums' }}>{S(item.val)}</span>
                 <span style={{ fontSize: item.big ? 22 : 18, fontWeight: 500, color: t2, letterSpacing: '-0.02em' }}>{S(item.unit)}</span>
               </div>
+              {item.note && <p style={{ fontSize: 11, color: t3, marginTop: 4 }}>{S(item.note)}</p>}
             </FadeUpToss>
           ))}
         </div>
+        {/* ── Card 1 강화: 개업률/폐업률 + 간편분석 ── */}
+        {cd?.apis?.seoulStorQq?.data && (() => {
+          const sq = cd.apis.seoulStorQq.data;
+          return (sq.openRate || sq.closeRate) ? (
+            <FadeUpToss inView={v1} delay={0.5}>
+              <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
+                {sq.openRate && (
+                  <div style={{ flex: 1, background: `${green}12`, borderRadius: 14, padding: '10px 14px', textAlign: 'center' }}>
+                    <p style={{ fontSize: 11, color: t3, marginBottom: 4 }}>개업률</p>
+                    <p style={{ fontSize: 20, fontWeight: 800, color: green }}>{sq.openRate}%</p>
+                    <p style={{ fontSize: 11, color: t3, marginTop: 2 }}>평균 {sq.avgOpenCount}개</p>
+                  </div>
+                )}
+                {sq.closeRate && (
+                  <div style={{ flex: 1, background: `${red}12`, borderRadius: 14, padding: '10px 14px', textAlign: 'center' }}>
+                    <p style={{ fontSize: 11, color: t3, marginBottom: 4 }}>폐업률</p>
+                    <p style={{ fontSize: 20, fontWeight: 800, color: red }}>{sq.closeRate}%</p>
+                    <p style={{ fontSize: 11, color: t3, marginTop: 2 }}>평균 {sq.avgCloseCount}개</p>
+                  </div>
+                )}
+              </div>
+            </FadeUpToss>
+          ) : null;
+        })()}
+        {cd?.apis?.simple?.data && (() => {
+          const sd = cd.apis.simple.data;
+          const parts = [];
+          if (typeof sd === 'object' && !Array.isArray(sd)) {
+            if (sd.storCo) parts.push(`점포 ${sd.storCo}개`);
+            if (sd.fltPplCnt) parts.push(`유동인구 ${sd.fltPplCnt}`);
+            if (sd.openBizRate) parts.push(`개업률 ${sd.openBizRate}%`);
+          } else if (Array.isArray(sd) && sd.length > 0) {
+            sd.slice(0, 3).forEach(item => {
+              const nm = item.nm || item.indsMclsNm || item.item || '';
+              const val = item.val || item.storCo || item.cnt || '';
+              if (nm && val) parts.push(`${nm}: ${val}`);
+            });
+          }
+          return parts.length > 0 ? (
+            <FadeUpToss inView={v1} delay={0.52}>
+              <div style={{ marginTop: 12, background: `${blue}08`, borderRadius: 14, padding: '10px 14px' }}>
+                <p style={{ fontSize: 12, color: blue, fontWeight: 600, marginBottom: 2 }}>간편분석</p>
+                <p style={{ fontSize: 13, color: t2, lineHeight: 1.5 }}>{parts.join(' / ')}</p>
+              </div>
+            </FadeUpToss>
+          ) : null;
+        })()}
         {d.overview?.source && (
           <p style={{ fontSize: 12, color: t3, marginTop: 24 }}>출처: {S(d.overview.source)}</p>
         )}
@@ -986,7 +1077,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             </div>
           </FadeUpToss>
         )}
-        <BruBubble text={d.overview?.bruFeedback} summary={d.overview?.bruSummary} delay={0.6} />
+        <BruBubble text={d.overview?.bruFeedback} summary={d.overview?.bruSummary} delay={0.6} charName="데이터브루" charColor="#0EA5E9" />
       </div>
       
       {/* ━━━ 2. 방문 연령 분포 ━━━ */}
@@ -999,7 +1090,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
               {(cafeAgeData && cafeAgeData.length > 0)
                 ? `핵심 카페 소비층: ${ageMap[cafeAgeData[0]?.age] || '?'}(${cafeAgeData[0]?.pct || 0}%)`
                 : sortedCstData.length > 0
-                ? `핵심 소비층: ${ageMap[sortedCstData[0]?.age] || '?'}(${sortedCstData[0]?.pipcnt ? Math.round(sortedCstData[0].pipcnt / sortedCstData.reduce((s,d) => s + (d.pipcnt||0), 0) * 100) + '%' : ''}) ⚠ 전체 업종`
+                ? `핵심 소비층: ${ageMap[sortedCstData[0]?.age] || '?'}(${sortedCstData[0]?.pipcnt ? Math.round(sortedCstData[0].pipcnt / sortedCstData.reduce((s,d) => s + (d.pipcnt||0), 0) * 100) + '%' : ''}) (전체 업종)`
                 : d.consumers?.mainTarget ? `핵심 타겟: ${S(d.consumers.mainTarget)} (${S(d.consumers.mainRatio || '')})` : '소비 연령 데이터'}
             </p>
           </FadeUpToss>
@@ -1066,7 +1157,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
               </FadeUpToss>
             );
           })()}
-          <BruBubble text={d.consumers?.bruFeedback || d.overview?.bruFeedback} summary={d.consumers?.bruSummary} delay={0.5} />
+          <BruBubble text={d.consumers?.bruFeedback || d.overview?.bruFeedback} summary={d.consumers?.bruSummary} delay={0.5} charName="데이터브루" charColor="#0EA5E9" />
         </div>
       )}
       
@@ -1102,11 +1193,52 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
               </div>
             </FadeUpToss>
           </div>
+          {cd?.dongInfo?.admdstCdNm && (
+            <p style={{ fontSize: 11, color: t3, marginTop: -16, marginBottom: 16, textAlign: 'center' }}>
+              {cd.dongInfo.admdstCdNm} 행정동 기준 (분석 반경 500m와 차이가 있을 수 있습니다)
+            </p>
+          )}
+          {/* Card 2.5 강화: 유동인구 성별/연령 상세 */}
+          {cd?.apis?.seoulFlpopDetail?.data && (() => {
+            const fp = cd.apis.seoulFlpopDetail.data;
+            const gd = fp.gender;
+            const topAge = fp.age?.[0];
+            return (gd || topAge) ? (
+              <FadeUpToss inView={true} delay={0.3}>
+                <div style={{ display: 'grid', gridTemplateColumns: gd ? '1fr 1fr' : '1fr', gap: 12, marginTop: 8, marginBottom: 8 }}>
+                  {gd && (
+                    <div style={{ background: cardBg, borderRadius: 14, padding: '12px 16px' }}>
+                      <p style={{ fontSize: 11, color: t3, marginBottom: 8 }}>성별 비율</p>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <div style={{ flex: gd.malePct, height: 8, borderRadius: 4, background: blue }} />
+                        <div style={{ flex: 100 - gd.malePct, height: 8, borderRadius: 4, background: '#F06595' }} />
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
+                        <span style={{ fontSize: 12, color: blue, fontWeight: 600 }}>남 {gd.malePct}%</span>
+                        <span style={{ fontSize: 12, color: '#F06595', fontWeight: 600 }}>여 {100 - gd.malePct}%</span>
+                      </div>
+                    </div>
+                  )}
+                  {topAge && (
+                    <div style={{ background: cardBg, borderRadius: 14, padding: '12px 16px' }}>
+                      <p style={{ fontSize: 11, color: t3, marginBottom: 6 }}>주요 연령대</p>
+                      {fp.age.slice(0, 3).map((a, ai) => (
+                        <div key={ai} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+                          <span style={{ fontSize: 12, color: ai === 0 ? blue : t2, fontWeight: ai === 0 ? 700 : 500 }}>{a.age}</span>
+                          <span style={{ fontSize: 12, color: ai === 0 ? blue : t2, fontWeight: 600 }}>{a.pct}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </FadeUpToss>
+            ) : null;
+          })()}
         </div>
         );
       })()}
 
-        <BruBubble text={d.consumers?.bruFeedback} summary={d.consumers?.bruSummary} delay={0.55} />
+        <BruBubble text={d.consumers?.bruFeedback} summary={d.consumers?.bruSummary} delay={0.55} charName="데이터브루" charColor="#0EA5E9" />
 
       {/* ━━━ 3. 프랜차이즈 현황 ━━━ */}
       {franchiseData.length > 0 && (
@@ -1182,11 +1314,51 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
                     const nearest = fList.find(fl => fl.brand === fName || fName.includes(fl.brand?.replace(/커피|카페/g, '')) || fl.brand?.includes(fName.replace(/커피|카페/g, '')));
                     return nearest?.dist ? <p style={{ fontSize: 12, color: blue, marginLeft: 26, marginBottom: 2 }}>가장 가까운 매장: {nearest.dist}m {nearest.addr ? `(${nearest.addr.split(' ').slice(-2).join(' ')})` : ''}</p> : null;
                   })()}
+                  {(() => {
+                    // 매출 추정 데이터 표시
+                    const estimates = cd?.salesEstimates || [];
+                    const est = estimates.find(e => e.brand === fName || (e.brand && fName.includes(e.brand.replace(/커피|카페/g, ''))) || (e.brand && e.brand.includes(fName.replace(/커피|카페/g, ''))));
+                    if (!est || !est.estimated) return null;
+                    const layerLabel = { L1: '건물 매출', L2: '건물 분배', L3: '브랜드 추정', L4: '경쟁 분석' };
+                    return (
+                      <p style={{ fontSize: 12, color: green, marginLeft: 26, marginBottom: 2, fontWeight: 500 }}>
+                        추정 매출: ~{est.estimated.toLocaleString()}만원/월
+                        <span style={{ fontSize: 11, color: t3, fontWeight: 400, marginLeft: 6 }}>
+                          ({layerLabel[est.layer] || est.layer}, 신뢰도 {Math.round(est.confidence * 100)}%)
+                        </span>
+                      </p>
+                    );
+                  })()}
                   {f.feedback && <p style={{ fontSize: 13, color: t2, marginLeft: 26, lineHeight: 1.55, marginTop: 4 }}>{S(typeof f.feedback === 'string' && f.feedback.length > 120 ? f.feedback.substring(0, 120) + '...' : f.feedback)}</p>}
                 </div>
               );
             })}
           </FadeUpToss>
+          {/* Card 3 강화: 커피전문점 인허가 기반 영업중/폐업/생존율 */}
+          {cd?.apis?.seoulCoffeePermit?.data && (() => {
+            const cp = cd.apis.seoulCoffeePermit.data;
+            return (cp.dongTotal > 0) ? (
+              <FadeUpToss inView={v3} delay={0.42}>
+                <div style={{ background: cardBg, borderRadius: 18, padding: '16px 18px', marginTop: 20 }}>
+                  <p style={{ fontSize: 12, color: t3, marginBottom: 10 }}>커피전문점 인허가 현황 (동 기준)</p>
+                  <div style={{ display: 'flex', gap: 12 }}>
+                    <div style={{ flex: 1, textAlign: 'center' }}>
+                      <p style={{ fontSize: 22, fontWeight: 800, color: green }}>{cp.activeCount}</p>
+                      <p style={{ fontSize: 11, color: t3 }}>영업중</p>
+                    </div>
+                    <div style={{ flex: 1, textAlign: 'center' }}>
+                      <p style={{ fontSize: 22, fontWeight: 800, color: red }}>{cp.closedCount}</p>
+                      <p style={{ fontSize: 11, color: t3 }}>폐업</p>
+                    </div>
+                    <div style={{ flex: 1, textAlign: 'center' }}>
+                      <p style={{ fontSize: 22, fontWeight: 800, color: blue }}>{cp.survivalRate}%</p>
+                      <p style={{ fontSize: 11, color: t3 }}>생존율</p>
+                    </div>
+                  </div>
+                </div>
+              </FadeUpToss>
+            ) : null;
+          })()}
           {d.franchiseCommonRisks?.length > 0 && (
             <FadeUpToss inView={v3} delay={0.45}>
               <div style={{ background: `${red}15`, borderRadius: 22, padding: 20, marginTop: 24 }}>
@@ -1200,7 +1372,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
         </div>
       )}
       
-        <BruBubble text={d.franchise?.[0]?.feedback} summary={d.franchise?.[0]?.bruSummary} delay={0.5} />
+        <BruBubble text={d.franchise?.[0]?.feedback} summary={d.franchise?.[0]?.bruSummary} delay={0.5} charName="경쟁브루" charColor="#F59E0B" />
 
       {/* ━━━ 3.5 개인 카페 경쟁 분석 ━━━ */}
       {(cd?.nearbyIndependentList?.length > 0 || (cd?.nearbyIndependentCafes > 0)) && (
@@ -1251,7 +1423,15 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
           </FadeUpToss>
           <FadeUpToss inView={v3b} delay={0.15}>
             <div style={{ marginTop: 16 }}>
-              {(cd?.nearbyIndependentList || []).slice(0, 8).map((cafe, i) => (
+              {(cd?.nearbyIndependentList || []).slice(0, 8).map((cafe, i) => {
+                // 해당 카페의 매출 추정 데이터 찾기
+                const estimates = cd?.salesEstimates || [];
+                const cafeName = (cafe.name || '').replace(/\s/g, '').toUpperCase();
+                const est = estimates.find(e => {
+                  const eName = (e.name || '').replace(/\s/g, '').toUpperCase();
+                  return eName === cafeName || eName.includes(cafeName) || cafeName.includes(eName);
+                });
+                return (
                 <div key={i} style={{ padding: '12px 0', borderBottom: i < Math.min((cd?.nearbyIndependentList || []).length, 8) - 1 ? `1px solid ${divColor}` : 'none' }}>
                   <div style={{ display: 'flex', alignItems: 'center' }}>
                     <div style={{ width: 10, height: 10, borderRadius: '50%', background: TOSS_COLORS[(i + 3) % TOSS_COLORS.length], marginRight: 12, flexShrink: 0 }} />
@@ -1259,8 +1439,17 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
                     {cafe.dist && <span style={{ fontSize: 12, color: blue, fontWeight: 600, marginLeft: 8, flexShrink: 0 }}>{cafe.dist}m</span>}
                   </div>
                   {cafe.addr && <p style={{ fontSize: 12, color: t3, marginLeft: 22, marginTop: 4, lineHeight: 1.4 }}>{S(cafe.addr)}</p>}
+                  {est && est.estimated > 0 && (
+                    <p style={{ fontSize: 12, color: green, marginLeft: 22, marginTop: 2, fontWeight: 500 }}>
+                      추정 매출: ~{est.estimated.toLocaleString()}만원/월
+                      <span style={{ fontSize: 11, color: t3, fontWeight: 400, marginLeft: 6 }}>
+                        ({est.layer === 'L1' ? '건물 매출' : est.layer === 'L2' ? '건물 분배' : est.layer === 'L3' ? '브랜드 추정' : '경쟁 분석'}, {Math.round(est.confidence * 100)}%)
+                      </span>
+                    </p>
+                  )}
                 </div>
-              ))}
+                );
+              })}
               {(cd?.nearbyIndependentCafes || 0) > 8 && (
                 <p style={{ fontSize: 13, color: t3, textAlign: 'center', marginTop: 12 }}>
                   외 {(cd?.nearbyIndependentCafes || 0) - 8}개 매장
@@ -1271,7 +1460,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
         </div>
       )}
 
-        <BruBubble text={d.indieCafe?.bruFeedback} summary={d.indieCafe?.bruSummary} delay={0.5} />
+        <BruBubble text={d.indieCafe?.bruFeedback} summary={d.indieCafe?.bruSummary} delay={0.5} charName="경쟁브루" charColor="#F59E0B" />
 
       {/* ━━━ 4. 월 매출 (업종별 Top 5) ━━━ */}
       {topSalesBarData.length > 0 && (
@@ -1310,11 +1499,72 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
               </ResponsiveContainer>
             </div>
           </FadeUpToss>
+          {/* Step 7: 동 내 업종 비교 수치 (dongMTpctdCmpr) */}
+          {cd?.apis?.dongMTpctdCmpr?.data && Array.isArray(cd.apis.dongMTpctdCmpr.data) && cd.apis.dongMTpctdCmpr.data.length > 0 && (
+            <FadeUpToss inView={v4} delay={0.3}>
+              <div style={{ background: cardBg, borderRadius: 18, padding: '16px 18px', marginTop: 20 }}>
+                <p style={{ fontSize: 12, color: t3, marginBottom: 10 }}>동 내 업종 비교</p>
+                {cd.apis.dongMTpctdCmpr.data.slice(0, 5).map((dm, dmi) => {
+                  const name = dm.tpbizClscdNm || dm.tpbizNm || '';
+                  const cnt = dm.stcnt || dm.storCnt || 0;
+                  const isCafe = name.includes('카페') || name.includes('커피') || name.includes('음료');
+                  return (
+                    <div key={dmi} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
+                      <span style={{ fontSize: 13, color: isCafe ? blue : t2, fontWeight: isCafe ? 700 : 500 }}>{name}</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: t1 }}>{cnt}개</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </FadeUpToss>
+          )}
+          {/* Card 4 강화: 행정동별 점포수 비교 */}
+          {cd?.apis?.seoulAdstrdStor?.data && (() => {
+            const asd = cd.apis.seoulAdstrdStor.data;
+            const topInds = asd.byIndustry?.slice(0, 5) || [];
+            return topInds.length > 0 ? (
+              <FadeUpToss inView={v4} delay={0.35}>
+                <div style={{ background: cardBg, borderRadius: 18, padding: '16px 18px', marginTop: 20 }}>
+                  <p style={{ fontSize: 12, color: t3, marginBottom: 10 }}>{asd.dong || ''} 행정동 업종별 점포수</p>
+                  {topInds.map((ind, ii) => (
+                    <div key={ii} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
+                      <span style={{ fontSize: 13, color: ii === 0 ? blue : t2, fontWeight: ii === 0 ? 700 : 500 }}>{ind.name}</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: t1 }}>{ind.count}개</span>
+                    </div>
+                  ))}
+                  {asd.cafeCount > 0 && (
+                    <p style={{ fontSize: 12, color: blue, marginTop: 8, fontWeight: 600 }}>카페/음료 점포: {asd.cafeCount}개</p>
+                  )}
+                </div>
+              </FadeUpToss>
+            ) : null;
+          })()}
+          {/* Card 4 강화: 매출추이 지표 */}
+          {cd?.apis?.slsIndex?.data && Array.isArray(cd.apis.slsIndex.data) && cd.apis.slsIndex.data.length > 0 && (
+            <FadeUpToss inView={v4} delay={0.4}>
+              <div style={{ background: `${blue}08`, borderRadius: 18, padding: '16px 18px', marginTop: 12 }}>
+                <p style={{ fontSize: 12, color: t3, marginBottom: 10 }}>매출 추이 지표</p>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {cd.apis.slsIndex.data.slice(0, 5).map((si, sii) => {
+                    const period = si.crtrYm || si.crtrYyqu || '';
+                    const idx = si.slsIdx || si.slsAmt || 0;
+                    return (
+                      <div key={sii} style={{ flex: '1 1 60px', textAlign: 'center', padding: '6px 4px', background: cardBg, borderRadius: 10, minWidth: 60 }}>
+                        <p style={{ fontSize: 10, color: t3 }}>{period}</p>
+                        <p style={{ fontSize: 14, fontWeight: 700, color: idx > 100 ? green : idx < 100 ? red : t1 }}>{idx}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p style={{ fontSize: 11, color: t3, marginTop: 6 }}>100 기준 / 100 이상 = 상승세</p>
+              </div>
+            </FadeUpToss>
+          )}
         </div>
       )}
-      
 
-        <BruBubble text={d.topSales?.bruFeedback} summary={d.topSales?.bruSummary} delay={0.3} />
+
+        <BruBubble text={d.topSales?.bruFeedback} summary={d.topSales?.bruSummary} delay={0.3} charName="데이터브루" charColor="#0EA5E9" />
 
       {/* ━━━ 4.3 유동인구 시간대별 분석 ━━━ */}
       {cd?.apis?.dynPplCmpr?.data && (() => {
@@ -1373,11 +1623,155 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
                   )}
                 </div>
                 <p style={{ fontSize: 12, color: t3, marginTop: 12 }}>※ 시간대별 세부 데이터는 서울 지역에서만 제공됩니다</p>
+                {cd?.dongInfo?.admdstCdNm && (
+                  <p style={{ fontSize: 11, color: t3, marginTop: 4 }}>{cd.dongInfo.admdstCdNm} 행정동 기준 (분석 반경 500m와 차이가 있을 수 있습니다)</p>
+                )}
               </div>
             </FadeUpToss>
           )}
-          <BruBubble text={d.floatingPopTimeFeedback} summary={d.floatingPopTimeSummary} delay={0.4} />
+          <BruBubble text={d.floatingPopTimeFeedback} summary={d.floatingPopTimeSummary} delay={0.4} charName="데이터브루" charColor="#0EA5E9" />
         </div>
+        );
+      })()}
+
+      {/* ━━━ 4.5 입지 인프라 분석 (신규 카드) ━━━ */}
+      {(cd?.apis?.seoulFclty?.data || cd?.apis?.seoulRepop?.data) && (() => {
+        const fclty = cd?.apis?.seoulFclty?.data;
+        const repop = cd?.apis?.seoulRepop?.data;
+        const facilities = fclty?.facilities?.filter(f => f.count > 0) || [];
+        const totalFacilities = facilities.reduce((s, f) => s + f.count, 0);
+        // 인프라 종합 점수 (시설 수 기반 간이 점수: 최대 100)
+        const infraScore = Math.min(100, Math.round(totalFacilities * 5));
+        if (!repop && facilities.length === 0) return null;
+        return (
+          <div style={sec}>
+            <FadeUpToss inView={true} delay={0}>
+              <p className="gradient-text" style={{...secLabel, color: undefined}}>입지 인프라 분석</p>
+              <h2 style={secTitle}>입지 종합 평가</h2>
+            </FadeUpToss>
+            {/* 상주인구 */}
+            {repop && (
+              <FadeUpToss inView={true} delay={0.1}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
+                  <div className={dark ? 'glass-card light-sweep' : 'glass-card-light'} style={{ padding: '16px 18px' }}>
+                    <p style={{ fontSize: 12, color: t3, marginBottom: 6 }}>상주인구</p>
+                    <p style={{ fontSize: 28, fontWeight: 800, color: t1, letterSpacing: '-0.03em' }}>{repop.totalPopulation?.toLocaleString() || '-'}</p>
+                    <p style={{ fontSize: 11, color: t3, marginTop: 4 }}>명</p>
+                  </div>
+                  <div className={dark ? 'glass-card light-sweep' : 'glass-card-light'} style={{ padding: '16px 18px' }}>
+                    <p style={{ fontSize: 12, color: t3, marginBottom: 6 }}>세대수</p>
+                    <p style={{ fontSize: 28, fontWeight: 800, color: blue, letterSpacing: '-0.03em' }}>{repop.households?.toLocaleString() || '-'}</p>
+                    <p style={{ fontSize: 11, color: t3, marginTop: 4 }}>세대</p>
+                  </div>
+                </div>
+              </FadeUpToss>
+            )}
+            {/* 집객시설 */}
+            {facilities.length > 0 && (
+              <FadeUpToss inView={true} delay={0.2}>
+                <div style={{ background: cardBg, borderRadius: 18, padding: '16px 18px', marginBottom: 16 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <p style={{ fontSize: 12, color: t3 }}>주변 집객시설</p>
+                    <div style={{ padding: '4px 10px', borderRadius: 8, background: infraScore >= 60 ? `${green}15` : infraScore >= 30 ? `${blue}15` : `${red}15` }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: infraScore >= 60 ? green : infraScore >= 30 ? blue : red }}>{infraScore}점</span>
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px' }}>
+                    {facilities.map((fac, fi) => (
+                      <div key={fi} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: 13, color: t2 }}>{fac.name}</span>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: fac.count > 0 ? t1 : t3 }}>{fac.count}개</span>
+                      </div>
+                    ))}
+                  </div>
+                  {fclty?.matchedCount && (
+                    <p style={{ fontSize: 11, color: t3, marginTop: 8 }}>{fclty.matchedCount}개 상권 평균</p>
+                  )}
+                </div>
+              </FadeUpToss>
+            )}
+            {d.locationInfra && (
+              <BruBubble text={d.locationInfra} delay={0.35} charName="부동산브루" charColor="#10B981" />
+            )}
+          </div>
+        );
+      })()}
+
+      {/* ━━━ 4.7 상권 트렌드 (신규 카드) ━━━ */}
+      {(cd?.apis?.seoulTrdarIx?.data?.length > 0 || cd?.apis?.delivery?.data?.length > 0 || cd?.apis?.snsAnaly?.data?.length > 0) && (() => {
+        const trdarData = cd?.apis?.seoulTrdarIx?.data || [];
+        const deliveryData = cd?.apis?.delivery?.data || [];
+        const snsData = cd?.apis?.snsAnaly?.data || [];
+        if (trdarData.length === 0 && deliveryData.length === 0 && snsData.length === 0) return null;
+        return (
+          <div style={sec}>
+            <FadeUpToss inView={true} delay={0}>
+              <p className="gradient-text" style={{...secLabel, color: undefined}}>상권 트렌드</p>
+              <h2 style={secTitle}>상권 변화 분석</h2>
+            </FadeUpToss>
+            {/* 상권변화지표 */}
+            {trdarData.length > 0 && (
+              <FadeUpToss inView={true} delay={0.1}>
+                <div style={{ background: cardBg, borderRadius: 18, padding: '16px 18px', marginBottom: 16 }}>
+                  <p style={{ fontSize: 12, color: t3, marginBottom: 10 }}>상권변화지표</p>
+                  {trdarData.slice(0, 3).map((tr, tri) => {
+                    const codeColor = (tr.changeCode || '').includes('확장') ? green : (tr.changeCode || '').includes('축소') ? red : blue;
+                    return (
+                      <div key={tri} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: tri < Math.min(trdarData.length, 3) - 1 ? `1px solid ${divColor}` : 'none' }}>
+                        <span style={{ fontSize: 13, color: t1, fontWeight: 500 }}>{tr.name}</span>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <span style={{ padding: '3px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700, background: `${codeColor}15`, color: codeColor }}>{tr.changeCode || '-'}</span>
+                          {tr.salesChangeRate > 0 && <span style={{ fontSize: 12, color: t2 }}>지표 {tr.salesChangeRate}</span>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {trdarData[0]?.openRate > 0 && (
+                    <div style={{ display: 'flex', gap: 12, marginTop: 10 }}>
+                      <span style={{ fontSize: 12, color: green }}>개업률 {trdarData[0].openRate}%</span>
+                      <span style={{ fontSize: 12, color: red }}>폐업률 {trdarData[0].closeRate}%</span>
+                    </div>
+                  )}
+                </div>
+              </FadeUpToss>
+            )}
+            {/* 배달 추이 요약 */}
+            {deliveryData.length > 0 && (
+              <FadeUpToss inView={true} delay={0.2}>
+                <div style={{ background: `${blue}08`, borderRadius: 18, padding: '16px 18px', marginBottom: 16 }}>
+                  <p style={{ fontSize: 12, color: t3, marginBottom: 8 }}>배달 추이</p>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {deliveryData.slice(0, 3).map((dv, dvi) => (
+                      <span key={dvi} style={{ padding: '4px 10px', borderRadius: 10, fontSize: 12, fontWeight: 600, background: cardBg, color: t1 }}>
+                        {dv.tpbizNm || dv.indsNm || ''} {(dv.dlvrCnt || dv.orderCnt || 0).toLocaleString()}건
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </FadeUpToss>
+            )}
+            {/* SNS 분석 키워드 요약 */}
+            {snsData.length > 0 && (
+              <FadeUpToss inView={true} delay={0.3}>
+                <div style={{ background: cardBg, borderRadius: 18, padding: '16px 18px' }}>
+                  <p style={{ fontSize: 12, color: t3, marginBottom: 8 }}>SNS 키워드</p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {snsData.slice(0, 6).map((sn, sni) => {
+                      const kw = sn.kwrd || sn.keyword || '';
+                      return kw ? (
+                        <span key={sni} style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: `${blue}10`, color: blue }}>
+                          #{kw}
+                        </span>
+                      ) : null;
+                    })}
+                  </div>
+                </div>
+              </FadeUpToss>
+            )}
+            {d.marketTrend && (
+              <BruBubble text={d.marketTrend} delay={0.4} charName="데이터브루" charColor="#0EA5E9" />
+            )}
+          </div>
         );
       })()}
 
@@ -1442,7 +1836,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
                     {d.rentDetail.slice(0, 5).map((rd, rdi) => (
                       <div key={rdi} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 0' }}>
                         <span style={{ fontSize: 13, color: rd.dong === d.rent.primaryDong ? blue : t2 }}>
-                          {rd.dong === d.rent.primaryDong ? '📍 ' : ''}{S(rd.dong)}
+                          {rd.dong === d.rent.primaryDong ? '' : ''}{S(rd.dong)}
                         </span>
                         <span style={{ fontSize: 13, fontWeight: 600, color: t1 }}>월 {(rd.monthly||0).toLocaleString()}만</span>
                       </div>
@@ -1458,16 +1852,61 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
                 {d.rent.source && <p style={{ fontSize: 11, color: t3, marginTop: 12 }}>출처: {S(d.rent.source)} · 매물 {S(d.rent.articleCount)}</p>}
                 {d.rent.bruFeedback && (
                   <div style={{ marginTop: 12 }}>
-                    <BruBubble text={d.rent.bruFeedback} summary={d.rent?.bruSummary} delay={0.3} />
+                    <BruBubble text={d.rent.bruFeedback} summary={d.rent?.bruSummary} delay={0.3} charName="부동산브루" charColor="#10B981" />
                   </div>
                 )}
               </div>
             </FadeUpToss>
           )}
+          {/* Card 5 강화: R-ONE 실제 임대료 */}
+          {cd?.apis?.roneRent?.data && Array.isArray(cd.apis.roneRent.data) && cd.apis.roneRent.data.length > 0 && (
+            <FadeUpToss inView={v5} delay={0.5}>
+              <div style={{ background: cardBg, borderRadius: 18, padding: '16px 18px', marginTop: 16 }}>
+                <p style={{ fontSize: 12, color: t3, marginBottom: 10 }}>R-ONE 실거래 임대료 (한국부동산원)</p>
+                {(() => {
+                  const rows = cd.apis.roneRent.data;
+                  const avgRent = rows.reduce((s, r) => s + (parseFloat(r.RENT_FEE) || 0), 0) / (rows.length || 1);
+                  const avgDeposit = rows.reduce((s, r) => s + (parseFloat(r.GRFE) || 0), 0) / (rows.length || 1);
+                  return (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                      <div>
+                        <p style={{ fontSize: 11, color: t3 }}>평균 임대료</p>
+                        <p style={{ fontSize: 18, fontWeight: 700, color: t1 }}>{Math.round(avgRent * 10) / 10}<span style={{ fontSize: 12, color: t3, fontWeight: 500 }}> 만/평</span></p>
+                      </div>
+                      <div>
+                        <p style={{ fontSize: 11, color: t3 }}>평균 보증금</p>
+                        <p style={{ fontSize: 18, fontWeight: 700, color: t1 }}>{Math.round(avgDeposit * 10) / 10}<span style={{ fontSize: 12, color: t3, fontWeight: 500 }}> 만/평</span></p>
+                      </div>
+                    </div>
+                  );
+                })()}
+                <p style={{ fontSize: 11, color: t3, marginTop: 8 }}>조사 매물: {cd.apis.roneRent.data.length}건</p>
+              </div>
+            </FadeUpToss>
+          )}
+          {/* Card 5 강화: 정부 창업지원 프로그램 */}
+          {cd?.apis?.startupPublic?.data && (() => {
+            const spd = cd.apis.startupPublic.data;
+            const programs = Array.isArray(spd) ? spd : [];
+            return programs.length > 0 ? (
+              <FadeUpToss inView={v5} delay={0.55}>
+                <div style={{ background: `${green}08`, borderRadius: 18, padding: '16px 18px', marginTop: 12 }}>
+                  <p style={{ fontSize: 12, color: green, fontWeight: 600, marginBottom: 10 }}>정부 창업지원 프로그램</p>
+                  {programs.slice(0, 3).map((pg, pgi) => (
+                    <div key={pgi} style={{ padding: '6px 0', borderBottom: pgi < Math.min(programs.length, 3) - 1 ? `1px solid ${divColor}` : 'none' }}>
+                      <p style={{ fontSize: 13, color: t1, fontWeight: 600 }}>{S(pg.prgmNm || pg.sprtNm || pg.title || '')}</p>
+                      {(pg.sprtCn || pg.description) && <p style={{ fontSize: 12, color: t2, marginTop: 2, lineHeight: 1.4 }}>{S((pg.sprtCn || pg.description || '').substring(0, 60))}</p>}
+                    </div>
+                  ))}
+                  {programs.length > 3 && <p style={{ fontSize: 12, color: t3, marginTop: 8 }}>외 {programs.length - 3}건</p>}
+                </div>
+              </FadeUpToss>
+            ) : null;
+          })()}
         </div>
       )}
-      
-        <BruBubble text={d.startupCost?.bruFeedback} summary={d.startupCost?.bruSummary} delay={0.35} />
+
+        <BruBubble text={d.startupCost?.bruFeedback} summary={d.startupCost?.bruSummary} delay={0.35} charName="부동산브루" charColor="#10B981" />
 
       {/* ━━━ 6. 기회 & 리스크 ━━━ */}
       {(d.opportunities?.length > 0 || d.risks?.length > 0) && (
@@ -1510,11 +1949,29 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
               </div>
             </FadeUpToss>
           )}
+          {/* Step 7: 업종별 업소 현황 (storSttus) */}
+          {cd?.apis?.storSttus?.data && Array.isArray(cd.apis.storSttus.data) && cd.apis.storSttus.data.length > 0 && (
+            <FadeUpToss inView={v6} delay={0.35}>
+              <div style={{ background: cardBg, borderRadius: 18, padding: '16px 18px', marginTop: 20 }}>
+                <p style={{ fontSize: 12, color: t3, marginBottom: 10 }}>업종별 업소 현황</p>
+                {cd.apis.storSttus.data.slice(0, 6).map((st, sti) => {
+                  const name = st.indsClsNm || st.tpbizNm || st.indsNm || st.indsMclsNm || '';
+                  const cnt = st.storCo || st.stcnt || 0;
+                  return (
+                    <div key={sti} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 0' }}>
+                      <span style={{ fontSize: 13, color: t2 }}>{name}</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: t1 }}>{cnt.toLocaleString()}개</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </FadeUpToss>
+          )}
         </div>
       )}
-      
 
-        <BruBubble text={d.opportunities?.[0]?.bruFeedback || d.risks?.[0]?.bruFeedback} summary={d.opportunities?.[0]?.bruSummary || d.risks?.[0]?.bruSummary} delay={0.4} />
+
+        <BruBubble text={d.opportunities?.[0]?.bruFeedback || d.risks?.[0]?.bruFeedback} summary={d.opportunities?.[0]?.bruSummary || d.risks?.[0]?.bruSummary} delay={0.4} charName="전략브루" charColor="#8B5CF6" />
 
       {/* ━━━ 6.2 배달 업종 분석 ━━━ */}
       {cd?.apis?.baeminTpbiz?.data?.length > 0 && (
@@ -1546,7 +2003,21 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
               </div>
             </FadeUpToss>
           ))}
-          <BruBubble text={d.deliveryFeedback || "이 지역 배달 트렌드를 파악해서, 카페 배달 메뉴 구성 여부를 생각해보세요."} summary={d.deliverySummary} delay={0.35} />
+          {/* Card 6.2 강화: 소상공인365 배달 건수 추이 */}
+          {cd?.apis?.delivery?.data && Array.isArray(cd.apis.delivery.data) && cd.apis.delivery.data.length > 0 && (
+            <FadeUpToss inView={true} delay={0.3}>
+              <div style={{ background: cardBg, borderRadius: 18, padding: '16px 18px', marginTop: 16 }}>
+                <p style={{ fontSize: 12, color: t3, marginBottom: 10 }}>배달 건수 추이 (소상공인365)</p>
+                {cd.apis.delivery.data.slice(0, 5).map((dv, dvi) => (
+                  <div key={dvi} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
+                    <span style={{ fontSize: 13, color: t2 }}>{dv.tpbizNm || dv.indsNm || ''}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: t1 }}>{(dv.dlvrCnt || dv.orderCnt || 0).toLocaleString()}건</span>
+                  </div>
+                ))}
+              </div>
+            </FadeUpToss>
+          )}
+          <BruBubble text={d.deliveryFeedback || "이 지역 배달 트렌드를 파악해서, 카페 배달 메뉴 구성 여부를 생각해보세요."} summary={d.deliverySummary} delay={0.35} charName="데이터브루" charColor="#0EA5E9" />
         </div>
       )}
 
@@ -1591,10 +2062,57 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
               <p style={{ fontSize: 14, color: t2, lineHeight: 1.6, marginTop: 16 }}>{S(d.snsTrend.bruFeedback)}</p>
             </FadeUpToss>
           )}
+          {/* Card 6.3 강화: 핫플레이스 점수/등급 */}
+          {cd?.apis?.hpReport?.data && (() => {
+            const hpd = cd.apis.hpReport.data;
+            const items = Array.isArray(hpd) ? hpd : (hpd && typeof hpd === 'object') ? [hpd] : [];
+            return items.length > 0 ? (
+              <FadeUpToss inView={true} delay={0.4}>
+                <div style={{ background: `${blue}08`, borderRadius: 18, padding: '16px 18px', marginTop: 16 }}>
+                  <p style={{ fontSize: 12, color: blue, fontWeight: 600, marginBottom: 10 }}>핫플레이스 리포트</p>
+                  {items.slice(0, 3).map((hp, hpi) => {
+                    const name = hp.hpNm || hp.areaNm || hp.nm || '';
+                    const score = hp.hpScore || '';
+                    const rank = hp.hpRank || '';
+                    const grade = hp.hpGrade || '';
+                    return (
+                      <div key={hpi} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
+                        <span style={{ fontSize: 13, color: t1, fontWeight: 500 }}>{name}</span>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          {score && <span style={{ fontSize: 13, fontWeight: 700, color: blue }}>{score}점</span>}
+                          {rank && <span style={{ fontSize: 12, color: t2 }}>{rank}위</span>}
+                          {grade && <span style={{ fontSize: 12, color: green, fontWeight: 600 }}>{grade}</span>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </FadeUpToss>
+            ) : null;
+          })()}
+          {/* Card 6.3 강화: SNS 분석 키워드 (소상공인365) */}
+          {cd?.apis?.snsAnaly?.data && Array.isArray(cd.apis.snsAnaly.data) && cd.apis.snsAnaly.data.length > 0 && (
+            <FadeUpToss inView={true} delay={0.45}>
+              <div style={{ background: cardBg, borderRadius: 18, padding: '16px 18px', marginTop: 12 }}>
+                <p style={{ fontSize: 12, color: t3, marginBottom: 10 }}>SNS 키워드 분석 (소상공인365)</p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {cd.apis.snsAnaly.data.slice(0, 8).map((sn, sni) => {
+                    const kw = sn.kwrd || sn.keyword || '';
+                    const cnt = sn.cnt || sn.mention || 0;
+                    return kw ? (
+                      <span key={sni} style={{ padding: '5px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600, background: sni < 3 ? `${blue}15` : `${cardBg}`, color: sni < 3 ? blue : t2, border: `1px solid ${sni < 3 ? `${blue}30` : divColor}` }}>
+                        {kw} {cnt > 0 ? `(${cnt.toLocaleString()})` : ''}
+                      </span>
+                    ) : null;
+                  })}
+                </div>
+              </div>
+            </FadeUpToss>
+          )}
         </div>
       )}
 
-        <BruBubble text={d.snsTrend?.bruFeedback} summary={d.snsTrend?.bruSummary} delay={0.3} />
+        <BruBubble text={d.snsTrend?.bruFeedback} summary={d.snsTrend?.bruSummary} delay={0.3} charName="트렌드브루" charColor="#F43F5E" />
 
       {/* ━━━ 6.5 날씨 영향 분석 ━━━ */}
       {d.weatherImpact && (
@@ -1611,8 +2129,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 {Object.entries(d.weatherImpact.effects).map(([weather, effect], i) => (
                   <div key={i} style={{ background: cardBg, borderRadius: 14, padding: 16, textAlign: 'center' }}>
-                    <p style={{ fontSize: 24, marginBottom: 4 }}>{weather === '맑음' ? '☀️' : weather === '흐림' ? '☁️' : weather === '비' ? '🌧️' : weather === '눈' ? '❄️' : '🌤️'}</p>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: t1 }}>{weather}</p>
+                    <p style={{ fontSize: 14, marginBottom: 4, fontWeight: 700, color: t1 }}>{weather}</p>
                     <p style={{ fontSize: 15, fontWeight: 800, color: typeof effect === 'number' ? (effect >= 0 ? green : red) : (typeof effect === 'object' && effect?.impact ? (String(effect.impact).includes('+') ? green : String(effect.impact).includes('-') ? red : t2) : t2), marginTop: 4 }}>
                       {typeof effect === 'number' ? `${effect > 0 ? '+' : ''}${effect}%` : (typeof effect === 'object' && effect?.impact ? String(effect.impact) : S(effect))}
                     </p>
@@ -1632,7 +2149,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
         </div>
       )}
 
-        <BruBubble text={d.weatherImpact?.bruFeedback} delay={0.4} />
+        <BruBubble text={d.weatherImpact?.bruFeedback} delay={0.4} charName="전략브루" charColor="#8B5CF6" />
 
       {/* ━━━ 6.7 시장 생존율 ━━━ */}
       {d.marketSurvival && (
@@ -1644,8 +2161,8 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
           <FadeUpToss inView={true} delay={0.15}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 24 }}>
               {[
-                { label: '1년', value: d.marketSurvival.year1 || '64.9%' },
-                { label: '3년', value: d.marketSurvival.year3 || '46.3%' },
+                { label: '1년', value: d.marketSurvival.year1 || '58.3%' },
+                { label: '3년', value: d.marketSurvival.year3 || '36.9%' },
                 { label: '5년', value: d.marketSurvival.year5 || '22.8%' }
               ].map((item, i) => (
                 <div key={i} style={{ background: cardBg, borderRadius: 14, padding: 16, textAlign: 'center' }}>
@@ -1663,10 +2180,28 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
           {d.marketSurvival.source && (
             <p style={{ fontSize: 11, color: t3, marginTop: 16 }}>출처: {S(d.marketSurvival.source)}</p>
           )}
+          {/* Step 7: 업력 현황 (stcarSttus) */}
+          {cd?.apis?.stcarSttus?.data && Array.isArray(cd.apis.stcarSttus.data) && cd.apis.stcarSttus.data.length > 0 && (
+            <FadeUpToss inView={true} delay={0.35}>
+              <div style={{ background: cardBg, borderRadius: 18, padding: '16px 18px', marginTop: 20 }}>
+                <p style={{ fontSize: 12, color: t3, marginBottom: 10 }}>업력 현황 (영업기간별 분포)</p>
+                {cd.apis.stcarSttus.data.slice(0, 6).map((sc, sci) => {
+                  const name = sc.stcarNm || sc.stcarRange || '';
+                  const cnt = sc.storCo || sc.stcnt || 0;
+                  return (
+                    <div key={sci} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
+                      <span style={{ fontSize: 13, color: t2 }}>{name}</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: t1 }}>{cnt.toLocaleString()}개</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </FadeUpToss>
+          )}
         </div>
       )}
 
-        <BruBubble text={d.marketSurvival?.bruFeedback} summary={d.marketSurvival?.bruSummary} delay={0.3} />
+        <BruBubble text={d.marketSurvival?.bruFeedback} summary={d.marketSurvival?.bruSummary} delay={0.3} charName="전략브루" charColor="#8B5CF6" />
 
       {/* ━━━ 7. AI 종합 분석 + 빈크래프트 ━━━ */}
       <div ref={r7} style={{ ...sec, position: 'relative', overflow: 'hidden' }}>
@@ -1677,7 +2212,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
         {d.insight && (
           <FadeUpToss inView={v7}>
             <p className="gradient-text" style={{ fontSize: 13, fontWeight: 700, marginBottom: 10, letterSpacing: '0.02em' }}>AI 종합 분석</p>
-            <h2 style={{ ...secTitle, fontSize: 28 }}>빈코치의 한마디</h2>
+            <h2 style={{ ...secTitle, fontSize: 28 }}>브루코치의 한마디</h2>
             <p style={{ fontSize: 16, color: t2, lineHeight: 1.75, marginBottom: 40, letterSpacing: '-0.01em' }}>{typeof d.insight === 'string' ? d.insight : JSON.stringify(d.insight)}</p>
           </FadeUpToss>
         )}
@@ -2419,12 +2954,11 @@ const callGisAPIViaProxy = async (apiPath, params = {}, maxRetry = 3) => {
   return null;
 };
 
-// 프록시를 통한 OpenAPI 호출 (키 자동 포함)
+// 프록시를 통한 OpenAPI 호출 (프록시에서 /sbiz/api/bizonSttus/{apiName}/search.json 경로 자동 생성)
 const callOpenAPIViaProxy = async (apiName, apiPath, params = {}) => {
   try {
     const proxyUrl = new URL(SBIZ_PROXY_URL, window.location.origin);
     proxyUrl.searchParams.append('api', 'open');
-    proxyUrl.searchParams.append('endpoint', apiPath);
     proxyUrl.searchParams.append('apiName', apiName);
     
     Object.entries(params).forEach(([k, v]) => {
@@ -3150,10 +3684,13 @@ const MARKET_WARNING_DATA = {
     브랜드수: 886, // 커피전문점 프랜차이즈 (치킨 669개보다 200개 이상 많음)
     전국매장수: '약 93,000개', // 통계청 서비스업조사 2024
     서울폐업률: 4.2, // 2024년 2분기, 개업률 4.3%와 비슷 (eventmoa)
-    // 통계청 기업생멸행정통계 2023 기준
+    // 통계청 기업생멸행정통계 2023 기준 (전체 창업기업 평균 - 카페 업종에 사용 금지)
     신생점1년생존율: 64.9,
     신생점3년생존율: 46.3,
     신생점5년생존율: 34.7,
+    // 숙박·음식점업 기준 (카페 업종은 반드시 이 수치 사용)
+    숙박음식점1년생존율: 58.3,
+    숙박음식점3년생존율: 36.9,
     숙박음식점5년생존율: 22.8, // 통계청 - 숙박·음식점업 최저
     '20대폐업률': 20.4, // 50대 8.0%의 2.5배
     본사vs가맹점: '본사 영업이익 140% 증가 vs 가맹점 평당매출 1.5% 증가 (2020-2024)',
@@ -3201,10 +3738,12 @@ const VERIFIED_STATISTICS = {
     기준: '2023년'
   },
   숙박음식점업: {
+    '1년생존율': 58.3,
+    '3년생존율': 36.9,
     '5년생존율': 22.8,
     설명: '전 업종 중 최저 수준',
     출처: '통계청 기업생멸행정통계',
-    기준: '2020년'
+    기준: '2023년'
   },
   // 100대 생활업종 (국세청 2023)
   '100대생활업종': {
@@ -3310,6 +3849,26 @@ const callGeminiProxy = async (contents, generationConfig, signal, tools) => {
     body: JSON.stringify(body)
   });
 };
+// 카카오 로컬 API - 반경 내 카페(CE7) 카테고리 검색 (kakao-proxy 경유)
+const searchKakaoLocalCafe = async (lat, lng, radius = 1000) => {
+  try {
+    const results = [];
+    for (let page = 1; page <= 5; page++) {
+      const res = await fetch(
+        `/api/kakao-proxy?type=category&category_group_code=CE7&x=${lng}&y=${lat}&radius=${radius}&page=${page}&size=15&sort=distance`
+      );
+      if (!res.ok) break;
+      const data = await res.json();
+      results.push(...(data.documents || []));
+      if (data.meta?.is_end) break;
+    }
+    return results;
+  } catch (e) {
+    console.log('카카오 로컬 API 실패:', e.message);
+    return [];
+  }
+};
+
 const YOUTUBE_API_KEY = 'AIzaSyB-UMN0rxjsMT8JKB6peEJOxTrObTJpT3k'; // YouTube Data API v3 키 (무료 할당량: 일 10,000 단위)
 
 // Store OS 디자인 시스템
@@ -3357,7 +3916,7 @@ const UI = {
  const shortRegion = (region) => { if (!region) return ''; const parts = region.split(' '); if (parts.length >= 2) return parts.slice(-2).join(' '); return region; };
  const initManagers = [
  { id: 1, name: '김영업', color: '#3b82f6', username: 'sm001', password: '1234', promo: { '명함': 0, '브로셔': 0, '전단지': 0, '쿠폰': 0 } },
- { id: 2, name: '이영업', color: '#10b981', username: 'sm002', password: '1234', promo: { '명함': 0, '브로셔': 0, '전단지': 0, '쿠폰': 0 } }
+ { id: 2, name: '이영업', color: '#10b981', username: 'sm002', password: '000000', promo: { '명함': 0, '브로셔': 0, '전단지': 0, '쿠폰': 0 } }
  ];
 
 // ═══════════════════════════════════════════════════════════════
@@ -3750,7 +4309,621 @@ const LocationAnalysisModal = ({ data, onClose, onDetailAnalysis, generateAIFeed
      return this.props.children;
    }
  }
- 
+
+ const AutoCollectScheduleStatus = ({ database, theme }) => {
+   const t = THEME_COLORS[theme];
+   const schedRef = database?.ref('autoCollectSchedule');
+   const [sched, setSched] = React.useState(null);
+   React.useEffect(() => {
+     if (!schedRef) return;
+     const cb = schedRef.on('value', snap => { if (snap.val()) setSched(snap.val()); });
+     return () => schedRef.off('value', cb);
+   }, []);
+   if (!sched) return null;
+   const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+   return (
+     <div className={`rounded-2xl p-3 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
+       <div className="flex items-center justify-between">
+         <div className="flex items-center gap-2">
+           <span style={{ fontSize: 12, fontWeight: 700, color: '#6366F1', background: '#EEF2FF', borderRadius: 6, padding: '2px 6px' }}>AI</span>
+           <span className={`text-sm font-bold ${t.text}`}>자동 수집</span>
+           <span className={`text-xs px-2 py-0.5 rounded-full ${sched.enabled ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{sched.enabled ? '활성' : '비활성'}</span>
+         </div>
+         {sched.nextRun && (
+           <span className={`text-xs ${t.textMuted}`}>
+             다음: {dayNames[sched.dayOfWeek]}요일 {sched.hour}시
+           </span>
+         )}
+       </div>
+       <p className={`text-xs ${t.textMuted} mt-1`}>Chrome 확장 프로그램이 매주 자동으로 전국 중개사 데이터를 수집합니다</p>
+     </div>
+   );
+ };
+
+// ═══ ScrollReveal Animation Components (outside App to prevent remounting) ═══
+const ScrollRevealItem = ({ children, delay = 0, inView }) => (
+  <div style={{
+    opacity: inView ? 1 : 0,
+    transform: inView ? 'translateY(0) scale(1)' : 'translateY(60px) scale(0.88)',
+    filter: inView ? 'blur(0px)' : 'blur(4px)',
+    transition: `opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1) ${delay}s, transform 0.9s cubic-bezier(0.16, 1, 0.3, 1) ${delay}s, filter 0.7s cubic-bezier(0.16, 1, 0.3, 1) ${delay}s`,
+    willChange: 'transform, opacity, filter',
+  }}>
+    {children}
+  </div>
+);
+
+const ScrollReveal = ({ children, delay = 0, threshold = 0.15 }) => {
+  const revealRef = useRef(null);
+  const [inView, setInView] = useState(false);
+
+  useEffect(() => {
+    const el = revealRef.current;
+    if (!el) return;
+    let scrollParent = el.parentElement;
+    while (scrollParent) {
+      const style = window.getComputedStyle(scrollParent);
+      if (style.overflowY === 'auto' || style.overflowY === 'scroll') break;
+      scrollParent = scrollParent.parentElement;
+    }
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setInView(true);
+          observer.disconnect();
+        }
+      },
+      { root: scrollParent || null, threshold }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [threshold]);
+
+  return (
+    <div ref={revealRef}>
+      <ScrollRevealItem delay={delay} inView={inView}>{children}</ScrollRevealItem>
+    </div>
+  );
+};
+
+// ═══ Broker Map Component (outside App to prevent remounting) ═══
+const BrokerMapSection = ({ dark, companies, realtorCount = 0 }) => {
+  const mapContainerRef = useRef(null);
+  const mapInstanceRef = useRef(null);
+
+  const o = dark ? '#56565F' : '#B0B8C1';
+  const l = '#3182F6';
+  const c = '#03B26C';
+  const u = dark ? '#2C2C35' : '#F2F4F6';
+  const f = dark ? 'glass-card light-sweep' : 'glass-card-light';
+
+  useEffect(() => {
+    if (!mapContainerRef.current || !window.naver?.maps) return;
+    const map = new window.naver.maps.Map(mapContainerRef.current, {
+      center: new window.naver.maps.LatLng(37.5665, 126.978),
+      zoom: 11,
+      zoomControl: false,
+      mapTypeControl: false,
+      scaleControl: false,
+      logoControl: false,
+      mapDataControl: false,
+    });
+    mapInstanceRef.current = map;
+
+    // Add markers for companies
+    if (companies && companies.length > 0) {
+      companies.forEach(company => {
+        if (company.lat && company.lng) {
+          new window.naver.maps.Marker({
+            position: new window.naver.maps.LatLng(company.lat, company.lng),
+            map,
+            icon: {
+              content: '<div style="width:18px;height:18px;border-radius:50%;background:#3182F6;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3)"></div>',
+              anchor: new window.naver.maps.Point(9, 9),
+            },
+          });
+        }
+      });
+    }
+
+    // Hide Naver branding
+    const hideBranding = () => {
+      if (!mapContainerRef.current) return;
+      const els = mapContainerRef.current.querySelectorAll('a, img, div');
+      els.forEach(el => {
+        const href = el.getAttribute('href') || '';
+        const src = el.getAttribute('src') || '';
+        const cn = el.className || '';
+        const txt = el.textContent || '';
+        if (href.includes('naver') || src.includes('naver') || src.includes('ncp') ||
+            cn.includes('ncp') || cn.includes('logo') ||
+            txt.includes('NAVER') || txt.includes('\u00a9')) {
+          el.style.cssText = 'display:none!important;visibility:hidden!important;opacity:0!important;';
+        }
+      });
+    };
+    setTimeout(hideBranding, 800);
+    setTimeout(hideBranding, 2000);
+    setTimeout(hideBranding, 4000);
+
+    return () => { mapInstanceRef.current = null; };
+  }, [companies]);
+
+  const validCompanies = companies ? companies.filter(c => c && c.name) : [];
+
+  return (
+    <div>
+      <div className={f} style={{ borderRadius: 18, overflow: 'hidden', padding: 0 }}>
+        <div ref={mapContainerRef} style={{ width: '100%', height: 600 }} />
+      </div>
+      {/* 수집 중개사 / 협력 중개사 stat cards removed - now shown in BrokerStatus.jsx */}
+    </div>
+  );
+};
+
+// ═══ Mac Mockup Carousel Component (outside App to prevent remounting) ═══
+const MacMockupCarousel = ({ isDark, companies, regionData, topRegions, maxCount, k, L, N, j, y, te }) => {
+  const [macSlide, setMacSlide] = useState(0);
+  const macSlideCount = 3;
+  const macTouchStartX = useRef(null);
+  const macAutoTimer = useRef(null);
+
+  // 자동 슬라이드 (터치 후 5초 뒤 재개)
+  const startAutoSlide = useCallback(() => {
+    if (macAutoTimer.current) clearInterval(macAutoTimer.current);
+    macAutoTimer.current = setInterval(() => {
+      setMacSlide(prev => (prev + 1) % macSlideCount);
+    }, 3500);
+  }, []);
+
+  useEffect(() => {
+    startAutoSlide();
+    return () => { if (macAutoTimer.current) clearInterval(macAutoTimer.current); };
+  }, [startAutoSlide]);
+
+  // 터치 스와이프 핸들러
+  const handleMacTouchStart = useCallback((e) => {
+    macTouchStartX.current = e.touches[0].clientX;
+  }, []);
+
+  const handleMacTouchEnd = useCallback((e) => {
+    if (macTouchStartX.current === null) return;
+    const diff = macTouchStartX.current - e.changedTouches[0].clientX;
+    if (Math.abs(diff) > 40) {
+      if (diff > 0) {
+        setMacSlide(prev => (prev + 1) % macSlideCount);
+      } else {
+        setMacSlide(prev => (prev - 1 + macSlideCount) % macSlideCount);
+      }
+      // 스와이프 후 자동 슬라이드 리셋
+      if (macAutoTimer.current) clearInterval(macAutoTimer.current);
+      setTimeout(() => startAutoSlide(), 5000);
+    }
+    macTouchStartX.current = null;
+  }, [startAutoSlide]);
+
+  const renderMacSlide = (index) => {
+    const totalBrokers = companies ? companies.length : 0;
+    const totalRegions = Object.keys(regionData).length;
+    switch (index) {
+      // 슬라이드 0: 전국 수집 규모 (거래처에 스케일 어필)
+      case 0: return (
+        <div style={{ padding: '16px 14px' }}>
+          <div style={{ textAlign: 'center', marginBottom: 14 }}>
+            <div style={{ fontSize: 9, color: N, marginBottom: 4, fontWeight: 600 }}>전국 수집 중개사</div>
+            <div style={{ fontSize: 36, fontWeight: 900, color: k, letterSpacing: '-0.03em' }}>{totalBrokers > 0 ? totalBrokers.toLocaleString() : '17,534'}<span style={{ fontSize: 14, fontWeight: 600, color: j }}>개</span></div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+            {[
+              { label: '전국 229구 수집 완료', value: '17개 시/도', color: L },
+              { label: '데이터 정확도', value: '100%', color: '#6366F1' },
+            ].map((stat, i) => (
+              <div key={i} style={{ flex: 1, padding: '10px 12px', background: te, borderRadius: 10, textAlign: 'center' }}>
+                <div style={{ fontSize: 9, color: N, marginBottom: 4 }}>{stat.label}</div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: stat.color }}>{stat.value}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: 11, color: N, textAlign: 'center', lineHeight: 1.5 }}>매일 자동으로 수집·검증되는 실시간 데이터</div>
+        </div>
+      );
+      // 슬라이드 1: CRM 관리 기능 (수집 후 관리 능력 어필)
+      case 1: return (
+        <div style={{ padding: '16px 14px' }}>
+          <div style={{ fontSize: 10, fontWeight: 600, color: j, marginBottom: 10 }}>영업 관리 기능</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {[
+              { title: '방문 일정 관리', desc: '지역별 방문 스케줄 자동 생성', color: k },
+              { title: '연락 기록 추적', desc: '통화·방문·계약 이력 실시간 기록', color: '#6366F1' },
+              { title: '메모·태그 관리', desc: '중개사별 특이사항 메모·분류', color: L },
+              { title: 'AI 영업 분석', desc: '디테일한 관리', color: '#F59E0B' },
+            ].map((item, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: te, borderRadius: 8 }}>
+                <div style={{ width: 6, height: 6, borderRadius: 3, background: item.color, flexShrink: 0 }} />
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: y }}>{item.title}</div>
+                  <div style={{ fontSize: 9, color: N }}>{item.desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: 11, color: N, textAlign: 'center', marginTop: 10, lineHeight: 1.5 }}>수집부터 관리까지 하나의 시스템으로</div>
+        </div>
+      );
+      // 슬라이드 2: 수집 성장 추이 (꾸준히 늘어나는 네트워크)
+      case 2: return (
+        <div style={{ padding: '16px 14px' }}>
+          <div style={{ fontSize: 10, fontWeight: 600, color: j, marginBottom: 10 }}>월별 수집 성장</div>
+          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', height: 100, padding: '0 4px', marginBottom: 8 }}>
+            {[
+              { h: 25, label: '9월' }, { h: 38, label: '10월' }, { h: 52, label: '11월' },
+              { h: 60, label: '12월' }, { h: 72, label: '1월' }, { h: 85, label: '2월' }, { h: 98, label: '3월' },
+            ].map((item, i) => (
+              <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                <div style={{ width: 22, height: item.h, background: `linear-gradient(180deg, ${k}, ${k}66)`, borderRadius: 4 }} />
+                <div style={{ fontSize: 7, color: N }}>{item.label}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ flex: 1, padding: '8px 10px', background: te, borderRadius: 8, textAlign: 'center' }}>
+              <div style={{ fontSize: 9, color: N, marginBottom: 2 }}>누적 수집</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: k }}>17,534개</div>
+            </div>
+            <div style={{ flex: 1, padding: '8px 10px', background: te, borderRadius: 8, textAlign: 'center' }}>
+              <div style={{ fontSize: 9, color: N, marginBottom: 2 }}>매월 증가</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: L }}>지속 성장 중</div>
+            </div>
+          </div>
+        </div>
+      );
+      default: return null;
+    }
+  };
+
+  const slideLabels = ['수집 규모', '영업 관리', '성장 추이'];
+
+  return (
+    <div style={{
+      borderRadius: 16, overflow: 'hidden',
+      border: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'}`,
+      boxShadow: isDark ? '0 8px 32px rgba(0,0,0,0.4)' : '0 8px 32px rgba(0,0,0,0.08)',
+      marginBottom: 16,
+    }}>
+      {/* Title bar */}
+      <div style={{
+        padding: '10px 14px',
+        background: isDark ? '#1C1C24' : '#F2F2F7',
+        display: 'flex', alignItems: 'center', gap: 6,
+        borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`,
+      }}>
+        <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#FF5F57' }} />
+        <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#FEBC2E' }} />
+        <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#28C840' }} />
+        <span style={{ fontSize: 10, color: N, marginLeft: 8, fontWeight: 500 }}>빈크래프트 영업관리</span>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+          {slideLabels.map((label, i) => (
+            <div key={i} onClick={() => { setMacSlide(i); if (macAutoTimer.current) clearInterval(macAutoTimer.current); setTimeout(() => startAutoSlide(), 5000); }} style={{
+              width: 6, height: 6, borderRadius: '50%',
+              background: i === macSlide ? k : (isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)'),
+              transition: 'background 0.3s ease',
+              cursor: 'pointer',
+            }} />
+          ))}
+        </div>
+      </div>
+      {/* Content with fade transition + swipe */}
+      <div
+        onTouchStart={handleMacTouchStart}
+        onTouchEnd={handleMacTouchEnd}
+        style={{ background: isDark ? '#21212A' : '#FFFFFF', position: 'relative', minHeight: 200, touchAction: 'pan-y' }}>
+        {[0, 1, 2].map(i => (
+          <div key={i} style={{
+            position: i === macSlide ? 'relative' : 'absolute',
+            top: 0, left: 0, right: 0,
+            opacity: i === macSlide ? 1 : 0,
+            transition: 'opacity 0.6s ease-in-out',
+            pointerEvents: i === macSlide ? 'auto' : 'none',
+            visibility: i === macSlide ? 'visible' : 'hidden',
+          }}>
+            {renderMacSlide(i)}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// ═══ Phone Mockup Carousel Component (outside App to prevent remounting) ═══
+const PhoneMockupCarousel = ({ dark }) => {
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const touchStartX = useRef(null);
+  const totalSlides = 4;
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentSlide(prev => (prev + 1) % totalSlides);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const o = dark ? '#ECECEF' : '#191F28';
+  const l = dark ? '#8C8C96' : '#6B7684';
+  const c = dark ? '#56565F' : '#B0B8C1';
+  const u = '#3182F6';
+  const f = '#03B26C';
+  const h = dark ? '#2C2C35' : '#F2F4F6';
+  const p = dark ? '#17171C' : '#FFFFFF';
+
+  const handleTouchStart = (e) => { touchStartX.current = e.touches[0].clientX; };
+  const handleTouchEnd = (e) => {
+    if (touchStartX.current === null) return;
+    const diff = touchStartX.current - e.changedTouches[0].clientX;
+    if (Math.abs(diff) > 40) {
+      if (diff > 0) setCurrentSlide(prev => Math.min(prev + 1, totalSlides - 1));
+      else setCurrentSlide(prev => Math.max(prev - 1, 0));
+    }
+    touchStartX.current = null;
+  };
+
+  const slides = [
+    // Slide 1: 상권 개요
+    <div key="s1" style={{ width: `${100 / totalSlides}%`, flexShrink: 0, padding: '10px 12px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 8 }}>
+        <div style={{ width: 6, height: 6, borderRadius: 3, background: u }} />
+        <span style={{ fontSize: 10, fontWeight: 600, color: l }}>상권 분석 리포트</span>
+      </div>
+      <div style={{ fontSize: 20, fontWeight: 900, color: o, marginBottom: 2 }}>강남역</div>
+      <div style={{ fontSize: 9, color: c, marginBottom: 12 }}>반경 500m 분석 결과</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+        {[
+          { label: '카페 수', value: '127개', color: u },
+          { label: '유동인구', value: '34만명', color: '#6366F1' },
+          { label: '월매출', value: '2,847만', color: f },
+          { label: '개업률', value: '12.4%', color: '#F59E0B' },
+        ].map((item, i) => (
+          <div key={i} style={{ background: h, borderRadius: 8, padding: '8px 10px' }}>
+            <div style={{ fontSize: 9, color: c, marginBottom: 2 }}>{item.label}</div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: item.color }}>{item.value}</div>
+          </div>
+        ))}
+      </div>
+    </div>,
+    // Slide 2: 연령별 분석
+    <div key="s2" style={{ width: `${100 / totalSlides}%`, flexShrink: 0, padding: '10px 12px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 8 }}>
+        <div style={{ width: 6, height: 6, borderRadius: 3, background: '#6366F1' }} />
+        <span style={{ fontSize: 10, fontWeight: 600, color: l }}>소비 고객 분석</span>
+      </div>
+      <div style={{ fontSize: 20, fontWeight: 900, color: o, marginBottom: 2 }}>연령별 고객</div>
+      <div style={{ fontSize: 9, color: c, marginBottom: 12 }}>주요 소비 연령층 분포</div>
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-around', height: 100 }}>
+        {[
+          { age: '20대', h: 50, pct: '28%', op: '66' },
+          { age: '30대', h: 72, pct: '38%', op: '' },
+          { age: '40대', h: 40, pct: '22%', op: '88' },
+          { age: '50대', h: 18, pct: '8%', op: '55' },
+          { age: '60+', h: 9, pct: '4%', op: '33' },
+        ].map((item, i) => (
+          <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+            <div style={{ fontSize: 8, fontWeight: 700, color: u }}>{item.pct}</div>
+            <div style={{ width: 24, height: item.h, background: `${u}${item.op}`, borderRadius: 4 }} />
+            <div style={{ fontSize: 8, color: c }}>{item.age}</div>
+          </div>
+        ))}
+      </div>
+    </div>,
+    // Slide 3: 매출 분석
+    <div key="s3" style={{ width: `${100 / totalSlides}%`, flexShrink: 0, padding: '10px 12px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 8 }}>
+        <div style={{ width: 6, height: 6, borderRadius: 3, background: f }} />
+        <span style={{ fontSize: 10, fontWeight: 600, color: l }}>매출 분석</span>
+      </div>
+      <div style={{ fontSize: 20, fontWeight: 900, color: o, marginBottom: 2 }}>업종별 매출</div>
+      <div style={{ fontSize: 9, color: c, marginBottom: 12 }}>월 평균 매출 비교</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {[
+          { name: '카페/음료', amount: '2,847만', pct: 85, color: u },
+          { name: '베이커리', amount: '2,156만', pct: 65, color: '#6366F1' },
+          { name: '음식점', amount: '3,421만', pct: 100, color: f },
+        ].map((item, i) => (
+          <div key={i}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+              <span style={{ fontSize: 10, fontWeight: 600, color: o }}>{item.name}</span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: item.color }}>{item.amount}</span>
+            </div>
+            <div style={{ height: 6, background: h, borderRadius: 3, overflow: 'hidden' }}>
+              <div style={{ width: `${item.pct}%`, height: '100%', background: item.color, borderRadius: 3 }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>,
+    // Slide 4: AI 인사이트
+    <div key="s4" style={{ width: `${100 / totalSlides}%`, flexShrink: 0, padding: '10px 12px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 8 }}>
+        <div style={{ width: 6, height: 6, borderRadius: 3, background: '#8B5CF6' }} />
+        <span style={{ fontSize: 10, fontWeight: 600, color: l }}>AI 종합 평가</span>
+      </div>
+      <div style={{ fontSize: 20, fontWeight: 900, color: o, marginBottom: 2 }}>기회/리스크</div>
+      <div style={{ fontSize: 9, color: c, marginBottom: 12 }}>종합 투자 분석</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ background: `${f}10`, borderRadius: 8, padding: '8px 10px' }}>
+          <div style={{ fontSize: 9, fontWeight: 700, color: f, marginBottom: 4 }}>기회 요인</div>
+          {['유동인구 상위 5% 지역', '30대 직장인 밀집', '카페 수요 증가 추세'].map((t, i) => (
+            <div key={i} style={{ fontSize: 9, color: o, marginBottom: 2, paddingLeft: 6 }}>• {t}</div>
+          ))}
+        </div>
+        <div style={{ background: '#F0445210', borderRadius: 8, padding: '8px 10px' }}>
+          <div style={{ fontSize: 9, fontWeight: 700, color: '#F04452', marginBottom: 4 }}>리스크 요인</div>
+          {['카페 포화도 높음', '임대료 상위 10%'].map((t, i) => (
+            <div key={i} style={{ fontSize: 9, color: o, marginBottom: 2, paddingLeft: 6 }}>• {t}</div>
+          ))}
+        </div>
+      </div>
+    </div>,
+  ];
+
+  return (
+    <div style={{ position: 'relative', width: '100%', maxWidth: 320 }}>
+      <div style={{
+        background: dark ? '#1A1A22' : '#1C1C1E',
+        borderRadius: 36,
+        padding: '12px 10px',
+        boxShadow: dark
+          ? '0 25px 50px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.08), inset 0 0 0 1px rgba(255,255,255,0.05)'
+          : '0 25px 50px rgba(0,0,0,0.2), 0 0 0 1px rgba(0,0,0,0.1), inset 0 0 0 1px rgba(255,255,255,0.1)',
+        position: 'relative',
+      }}>
+        {/* Physical buttons */}
+        <div style={{ position: 'absolute', right: -2, top: 80, width: 2, height: 28, background: dark ? '#2C2C35' : '#333', borderRadius: '0 2px 2px 0' }} />
+        <div style={{ position: 'absolute', left: -2, top: 60, width: 2, height: 18, background: dark ? '#2C2C35' : '#333', borderRadius: '2px 0 0 2px' }} />
+        <div style={{ position: 'absolute', left: -2, top: 84, width: 2, height: 18, background: dark ? '#2C2C35' : '#333', borderRadius: '2px 0 0 2px' }} />
+
+        {/* Notch */}
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 6, position: 'relative', zIndex: 2 }}>
+          <div style={{ width: 60, height: 18, background: '#000', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 6 }}>
+            <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#1a1a2e', border: '1.5px solid #333' }} />
+          </div>
+        </div>
+
+        {/* Screen */}
+        <div
+          style={{ background: p, borderRadius: 24, overflow: 'hidden', position: 'relative', aspectRatio: '9/16', minHeight: 360, touchAction: 'pan-y' }}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+        >
+          {/* Status bar */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 14px 4px', fontSize: 12, fontWeight: 600, color: o }}>
+            <span>9:41</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 1 }}>
+                {[4, 6, 8, 10].map((h, i) => (
+                  <div key={i} style={{ width: 2, height: h, background: o, borderRadius: 1 }} />
+                ))}
+              </div>
+              <div style={{ width: 16, height: 8, border: `1px solid ${l}`, borderRadius: 2, padding: 1, marginLeft: 2 }}>
+                <div style={{ width: '70%', height: '100%', background: f, borderRadius: 1 }} />
+              </div>
+            </div>
+          </div>
+
+          {/* Slides */}
+          <div style={{
+            display: 'flex',
+            transform: `translateX(-${currentSlide * (100 / totalSlides)}%)`,
+            transition: 'transform 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
+            width: `${totalSlides * 100}%`,
+          }}>
+            {slides}
+          </div>
+
+          {/* Bottom bar */}
+          <div style={{ width: 44, height: 4, borderRadius: 2, background: dark ? '#56565F' : '#666', margin: '6px auto 2px' }} />
+        </div>
+      </div>
+
+      {/* Pagination dots */}
+      <div style={{ display: 'flex', gap: 4, justifyContent: 'center', marginTop: 10 }}>
+        {Array.from({ length: totalSlides }).map((_, i) => (
+          <button
+            key={i}
+            onClick={() => setCurrentSlide(i)}
+            style={{
+              width: i === currentSlide ? 16 : 5,
+              height: 5,
+              borderRadius: 3,
+              border: 'none',
+              cursor: 'pointer',
+              background: i === currentSlide ? u : (dark ? '#56565F' : '#D1D5DB'),
+              transition: 'all 0.3s ease',
+              padding: 0,
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════
+// OpenUB 빌딩 매출 데이터 조회 함수
+// 반경 내 건물 정보 + 매출 데이터를 S2 셀 기반으로 수집
+// ═══════════════════════════════════════════════════════════════
+async function fetchOpenUBBuildingData(lat, lng, radiusMeters) {
+  const OPENUB_PROXY = `${window.location.origin}/.netlify/functions/openub-proxy`;
+
+  // Step 1: S2 셀 토큰 생성
+  const cellTokens = latLngToS2Tokens(lat, lng, radiusMeters, 15);
+  console.log(`[OpenUB] S2 셀 ${cellTokens.length}개 생성 (level 15, 반경 ${radiusMeters}m)`);
+
+  // Step 2: 건물 정보 조회 (bd/hash)
+  const hashRes = await fetch(OPENUB_PROXY, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ endpoint: 'bd/hash', body: { cellTokens } })
+  }).then(r => r.json());
+
+  // API 에러 체크 (네트워크 실패, 서버 에러 등)
+  if (hashRes.error === 'api_error') {
+    console.warn('[OpenUB] API 호출 실패:', hashRes.message);
+    return { buildings: {}, buildingSales: {}, available: false };
+  }
+
+  // 반경 내 건물만 필터링
+  const buildings = {};
+  const haversine = (lat1, lng1, lat2, lng2) => {
+    const R = 6371000;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+    return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+  };
+
+  if (hashRes.bd) {
+    for (const [id, info] of Object.entries(hashRes.bd)) {
+      if (info.center && Array.isArray(info.center) && info.center.length >= 2) {
+        const dist = haversine(lat, lng, info.center[1], info.center[0]);
+        if (dist <= radiusMeters) {
+          buildings[id] = { ...info, distance: dist };
+        }
+      }
+    }
+  }
+
+  console.log(`[OpenUB] 반경 ${radiusMeters}m 내 건물 ${Object.keys(buildings).length}개 (전체 ${hashRes.bd ? Object.keys(hashRes.bd).length : 0}개)`);
+
+  // Step 3: 건물별 매출 데이터 조회 (bd/sales) - 10개씩 배치
+  const buildingSales = {};
+  const buildingIds = Object.keys(buildings);
+
+  for (let i = 0; i < buildingIds.length; i += 10) {
+    const batch = buildingIds.slice(i, i + 10);
+    const promises = batch.map(async (id) => {
+      try {
+        const res = await fetch(OPENUB_PROXY, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            endpoint: 'bd/sales',
+            body: { rdnu: id, category: 'A0:B0:C0:D0:F0:G0', login: false }
+          })
+        }).then(r => r.json());
+        if (res.result && Object.keys(res.result).length > 0) {
+          buildingSales[id] = res.result;
+        }
+      } catch (e) {
+        // 실패한 건물은 건너뜀
+      }
+    });
+    await Promise.all(promises);
+  }
+
+  console.log(`[OpenUB] 매출 데이터 ${Object.keys(buildingSales).length}개 건물 수집 완료`);
+
+  return { buildings, buildingSales, available: true };
+}
+
  const App = () => {
  // 앱 마운트 시 초기 로딩 화면 숨기기
  useEffect(() => {
@@ -3761,8 +4934,36 @@ const LocationAnalysisModal = ({ data, onClose, onDetailAnalysis, generateAIFeed
  }, []);
  
  // 로그인 시 명언 문구
- const [loggedIn, setLoggedIn] = useState(false);
- const [user, setUser] = useState(null);
+ const [loggedIn, setLoggedIn] = useState(() => {
+   if (import.meta.env.DEV) {
+     const devHosts = ['localhost', '127.0.0.1', '221.147.31.180'];
+     if (devHosts.includes(window.location.hostname)) {
+       const session = localStorage.getItem('bc_session');
+       if (session) {
+         try {
+           const parsed = JSON.parse(session);
+           if (parsed.expiry > Date.now() && parsed.user) return true;
+         } catch(e) {}
+       }
+     }
+   }
+   return false;
+ });
+ const [user, setUser] = useState(() => {
+   if (import.meta.env.DEV) {
+     const devHosts = ['localhost', '127.0.0.1', '221.147.31.180'];
+     if (devHosts.includes(window.location.hostname)) {
+       const session = localStorage.getItem('bc_session');
+       if (session) {
+         try {
+           const parsed = JSON.parse(session);
+           if (parsed.expiry > Date.now() && parsed.user) return parsed.user;
+         } catch(e) {}
+       }
+     }
+   }
+   return null;
+ });
  const [id, setId] = useState('');
  const [pw, setPw] = useState('');
  const [rememberMe, setRememberMe] = useState(false);
@@ -3840,12 +5041,19 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
  // ═══════════════════════════════════════════════════════════════
  // 영업모드 상태 변수
  // ═══════════════════════════════════════════════════════════════
- const [salesModeActive, setSalesModeActive] = useState(false); // 영업모드 활성화 여부
- const [salesModeScreen, setSalesModeScreen] = useState('select'); // 'select' | 'locked' | 'pin' | 'main'
- const [salesModeTarget, setSalesModeTarget] = useState(null); // 'broker' | 'client'
- const [salesModeTab, setSalesModeTab] = useState('analysis'); // 'analysis' | 'homepage'
+ const [salesModeActive, setSalesModeActive] = useState(() => {
+   try { return sessionStorage.getItem('salesModeActive') === 'true'; } catch(e) { return false; }
+ }); // 영업모드 활성화 여부 (sessionStorage 유지)
+ const [salesModeScreen, setSalesModeScreen] = useState(() => {
+   try { return sessionStorage.getItem('salesModeScreen') || 'select'; } catch(e) { return 'select'; }
+ }); // 'select' | 'pin' | 'main'
+ const [salesModeTarget, setSalesModeTarget] = useState(() => {
+   try { return sessionStorage.getItem('salesModeTarget') || null; } catch(e) { return null; }
+ }); // 'broker' | 'client'
+ const [salesModeTab, setSalesModeTab] = useState(() => {
+   try { return sessionStorage.getItem('salesModeTab') || 'analysis'; } catch(e) { return 'analysis'; }
+ }); // 'intro' | 'analysis' | 'homepage'
  const [salesModePinInput, setSalesModePinInput] = useState('');
- const [salesModeLastActivity, setSalesModeLastActivity] = useState(Date.now());
  const [salesModeSearchQuery, setSalesModeSearchQuery] = useState('');
  const [duplicateRegionOptions, setDuplicateRegionOptions] = useState([]);
  const [showDuplicateSelector, setShowDuplicateSelector] = useState(false);
@@ -3858,12 +5066,12 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
  const [salesAutoCompleteOpen, setSalesAutoCompleteOpen] = useState(false); // 검색 자동완성 드롭다운
  const [salesModeShowSources, setSalesModeShowSources] = useState(false);
  const [salesModeIframeError, setSalesModeIframeError] = useState(false); // iframe 차단 감지
- const [salesModeHomepageUrl, setSalesModeHomepageUrl] = useState('https://www.beancraft.co.kr'); // 홈페이지 URL
+
+ const [brokerSimReferrals, setBrokerSimReferrals] = useState(3);
+ const [brokerSimAmount, setBrokerSimAmount] = useState(100);
  const [salesModeMapCenter, setSalesModeMapCenter] = useState(null); // 지도 중심 좌표
  const [salesModeMapExpanded, setSalesModeMapExpanded] = useState(false); // 지도 펼침 상태
  const [salesModeMapReloading, setSalesModeMapReloading] = useState(false); // 지도 이동 후 재수집 중
- const salesModeTimeoutRef = useRef(null);
- const salesModeLockTimeoutRef = useRef(null);
  const progressIntervalRef = useRef(null); // 부드러운 진행률 애니메이션용
  const currentProgressRef = useRef(0); // 현재 진행률 추적
  const salesModeMapRef = useRef(null); // 네이버 지도 인스턴스
@@ -3884,34 +5092,15 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
  const [locationCircle, setLocationCircle] = useState(null); // 지도 원 객체
  const [locationMarker, setLocationMarker] = useState(null); // 지도 마커 객체
 
- // 영업모드 자동 잠금 타이머 (5분 무활동 시) - 로딩 중에는 잠금 안함
+ // 영업모드 상태 sessionStorage 동기화
  useEffect(() => {
-   if (salesModeActive && salesModeScreen === 'main' && !salesModeSearchLoading) {
-     const checkInactivity = () => {
-       const now = Date.now();
-       if (now - salesModeLastActivity > 300000) { // 5분
-         setSalesModeScreen('locked');
-       }
-     };
-     salesModeLockTimeoutRef.current = setInterval(checkInactivity, 5000);
-     return () => clearInterval(salesModeLockTimeoutRef.current);
-   }
- }, [salesModeActive, salesModeScreen, salesModeLastActivity, salesModeSearchLoading]);
-
- // 영업모드 자동 종료 타이머 (5분 무활동 시)
- useEffect(() => {
-   if (salesModeActive && salesModeScreen === 'locked') {
-     const autoExit = setTimeout(() => {
-       exitSalesMode();
-     }, 300000); // 5분
-     return () => clearTimeout(autoExit);
-   }
- }, [salesModeActive, salesModeScreen]);
-
- // 영업모드 활동 감지
- const updateSalesModeActivity = useCallback(() => {
-   setSalesModeLastActivity(Date.now());
- }, []);
+   try {
+     sessionStorage.setItem('salesModeActive', salesModeActive ? 'true' : 'false');
+     sessionStorage.setItem('salesModeScreen', salesModeScreen || 'select');
+     sessionStorage.setItem('salesModeTarget', salesModeTarget || '');
+     sessionStorage.setItem('salesModeTab', salesModeTab || 'analysis');
+   } catch(e) {}
+ }, [salesModeActive, salesModeScreen, salesModeTarget, salesModeTab]);
 
  // 영업모드 시작
  const startSalesMode = () => {
@@ -3919,11 +5108,11 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
    setSalesModeScreen('select');
    setSalesModeTarget(null);
    setSalesModePinInput('');
-   setSalesModeLastActivity(Date.now());
  };
 
  // 영업모드 종료
  const exitSalesMode = () => {
+   try { if (document.fullscreenElement) document.exitFullscreen().catch(()=>{}); } catch(e){}
    setSalesModeActive(false);
    setSalesModeScreen('select');
    setSalesModeTarget(null);
@@ -3949,9 +5138,36 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
      salesModeMapCircleRef.current = null;
    }
    salesModeMapRef.current = null;
-   if (salesModeTimeoutRef.current) clearTimeout(salesModeTimeoutRef.current);
-   if (salesModeLockTimeoutRef.current) clearInterval(salesModeLockTimeoutRef.current);
+   // sessionStorage 정리
+   try {
+     sessionStorage.removeItem('salesModeActive');
+     sessionStorage.removeItem('salesModeScreen');
+     sessionStorage.removeItem('salesModeTarget');
+     sessionStorage.removeItem('salesModeTab');
+   } catch(e) {}
  };
+
+ // 네이버 로고/저작권 숨기기
+ const hideNaverBranding = () => {
+   if (!salesModeMapContainerRef.current) return;
+   const el = salesModeMapContainerRef.current;
+   el.querySelectorAll('a, img, div').forEach(node => {
+     const href = node.getAttribute('href') || '';
+     const src = node.getAttribute('src') || '';
+     const cls = node.className || '';
+     const txt = node.textContent || '';
+     if (href.includes('naver') || src.includes('naver') ||
+         (typeof cls === 'string' && (cls.includes('ncp') || cls.includes('logo'))) ||
+         (txt.includes('NAVER') && node.tagName !== 'DIV') ||
+         (txt === 'NAVER') || (txt.includes('\u00a9') && txt.includes('NAVER'))) {
+       node.style.cssText = 'display:none!important;visibility:hidden!important;opacity:0!important;';
+     }
+   });
+ };
+
+  // BrokerMapSection, MacMockupCarousel, PhoneMockupCarousel are defined outside App (above)
+  // (prevents re-creation on App re-render, fixing animation replay on click)
+
 
  // 영업모드 동적 지도 초기화
  useEffect(() => {
@@ -3998,6 +5214,8 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
    const mapOptions = {
      center: new window.naver.maps.LatLng(salesModeMapCenter.lat, salesModeMapCenter.lng),
      zoom: 15,
+     logoControl: false,
+     mapDataControl: false,
      zoomControl: true,
      zoomControlOptions: {
        position: window.naver.maps.Position.TOP_RIGHT,
@@ -4029,7 +5247,12 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
      fillOpacity: 0.1
    });
    
- }, [salesModeMapCenter]);
+   // 네이버 브랜딩 로고 숨기기
+   setTimeout(hideNaverBranding, 800);
+   setTimeout(hideNaverBranding, 2000);
+   setTimeout(hideNaverBranding, 4000);
+
+}, [salesModeMapCenter]);
 
  // 영업모드 위치 선택용 지도 초기화
  useEffect(() => {
@@ -4555,7 +5778,6 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
 
  // PIN 입력 처리
  const handlePinInput = (digit) => {
-   updateSalesModeActivity();
    const newPin = salesModePinInput + digit;
    setSalesModePinInput(newPin);
    if (newPin.length === 4) {
@@ -4571,7 +5793,6 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
 
  // PIN 삭제
  const handlePinDelete = () => {
-   updateSalesModeActivity();
    setSalesModePinInput(prev => prev.slice(0, -1));
  };
 
@@ -4808,32 +6029,41 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
        
        if (region.sido === '서울특별시') {
          try {
-           const floatingRes = await fetch(`${PROXY_SERVER_URL}/api/seoul/floating?startIndex=1&endIndex=1000`);
+           // 최신 분기 데이터 동적 가져오기
+           const floatCountRes = await fetch(`${PROXY_SERVER_URL}/api/seoul/floating?startIndex=1&endIndex=1`);
+           let totalCount = 44536;
+           if (floatCountRes.ok) {
+             const countData = await floatCountRes.json();
+             totalCount = countData?.VwsmTrdarFlpopQq?.list_total_count || 44536;
+           }
+           const latestStart = Math.max(1, totalCount - 999);
+           const floatingRes = await fetch(`${PROXY_SERVER_URL}/api/seoul/floating?startIndex=${latestStart}&endIndex=${totalCount}`);
            if (floatingRes.ok) {
              const floatingData = await floatingRes.json();
              if (floatingData.VwsmTrdarFlpopQq?.row) {
                const rows = floatingData.VwsmTrdarFlpopQq.row;
+               // TRDAR_CD_NM (상권명)으로 구 이름 매칭 (SIGNGU_CD_NM 필드 없음)
                const guName = region.sigungu.replace('구', '');
-               const guRows = rows.filter(r => r.SIGNGU_CD_NM?.includes(guName));
-               
+               const guRows = rows.filter(r => (r.TRDAR_CD_NM || '').includes(guName));
+
                if (guRows.length > 0) {
                  const totalFloating = guRows.reduce((sum, r) => sum + (parseInt(r.TOT_FLPOP_CO) || 0), 0);
                  const avgFloating = Math.round(totalFloating / guRows.length);
-                 
-                 // 시간대별 분석
+
+                 // 시간대별 분석 (올바른 필드명 사용)
                  const timeSlots = { '00~06시': 0, '06~11시': 0, '11~14시': 0, '14~17시': 0, '17~21시': 0, '21~24시': 0 };
-                 const timeKeys = ['TMZON_1', 'TMZON_2', 'TMZON_3', 'TMZON_4', 'TMZON_5', 'TMZON_6'];
+                 const timeKeys = ['TMZON_00_06', 'TMZON_06_11', 'TMZON_11_14', 'TMZON_14_17', 'TMZON_17_21', 'TMZON_21_24'];
                  const timeNames = Object.keys(timeSlots);
-                 
+
                  guRows.forEach(r => {
                    timeKeys.forEach((tk, idx) => {
                      timeSlots[timeNames[idx]] += parseInt(r[`${tk}_FLPOP_CO`]) || 0;
                    });
                  });
-                 
+
                  // 피크 시간대 찾기
                  const peakTime = Object.entries(timeSlots).sort((a, b) => b[1] - a[1])[0]?.[0] || '-';
-                 
+
                  results.data.floating = {
                    totalDailyAvg: avgFloating,
                    areaCount: guRows.length,
@@ -4841,7 +6071,7 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
                    timeSlots: timeSlots,
                    source: '서울시 열린데이터'
                  };
-                 
+
                  allResults.summary.totalFloating += avgFloating;
                }
              }
@@ -5029,7 +6259,6 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
    currentProgressRef.current = 0;
    setSalesModeAnalysisStep('검색 준비 중...');
    setSalesModeCollectingText('');
-   updateSalesModeActivity();
 
    // 부드러운 진행률 업데이트 함수
    const animateProgressTo = (target) => {
@@ -5420,12 +6649,30 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
      // 2. 이미 시도+행정구역(구/시/군/읍/면)이 포함되어 있으면 그대로 반환
      // 단, "광주 충장로"처럼 시도+유명지역명은 regionMapping으로 넘겨야 함
      const sidoList = ['서울', '부산', '대구', '인천', '광주', '대전', '울산', '세종', '경기', '강원', '충북', '충남', '전북', '전남', '경북', '경남', '제주'];
+     // 시도 약칭 → 정식명 매핑 (네이버 지오코더 호환)
+     const sidoFullName = {
+       '서울': '서울특별시', '부산': '부산광역시', '대구': '대구광역시', '인천': '인천광역시',
+       '광주': '광주광역시', '대전': '대전광역시', '울산': '울산광역시', '세종': '세종특별자치시',
+       '경기': '경기도', '강원': '강원특별자치도', '충북': '충청북도', '충남': '충청남도',
+       '전북': '전북특별자치도', '전남': '전라남도', '경북': '경상북도', '경남': '경상남도', '제주': '제주특별자치도'
+     };
      const matchedSido = sidoList.find(sido => trimmed.startsWith(sido));
      if (matchedSido) {
        // 시도명을 제거한 나머지에서 행정구역(구/시/군/읍/면/동) 포함 여부 확인
        const rest = trimmed.slice(matchedSido.length).trim();
-       const hasAdmin = /[가-힣]+(구|시|군|읍|면|동)(\s|$)/.test(rest);
-       if (hasAdmin) return [trimmed];
+       // "서울시" -> "시"를 제거하여 rest 정제
+       const restClean = rest.replace(/^시\s*/, '').replace(/^특별시\s*/, '').replace(/^광역시\s*/, '').replace(/^도\s*/, '');
+       const hasAdmin = /[가-힣]+(구|시|군|읍|면|동)(\s|$)/.test(restClean);
+       if (hasAdmin) {
+         const fullName = sidoFullName[matchedSido];
+         const variants = [trimmed];
+         // "서울시 용산구 ..." → "서울특별시 용산구 ...", "서울 용산구 ..."
+         if (fullName && fullName !== trimmed.split(' ')[0]) {
+           variants.unshift(`${fullName} ${restClean}`);
+           variants.push(`${matchedSido} ${restClean}`);
+         }
+         return variants;
+       }
      }
      
      // 3. 동 이름만 입력한 경우 (예: "창신동", "숭인동", "서교동")
@@ -5628,7 +6875,61 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
        } // end for localSearchQueries
      }
 
-     // ═══ 3단계: 클라이언트 사이드 geocode fallback (이미 1단계에서 시도) ═══
+     // ═══ 2.5단계: 카카오 주소 검색 API fallback ═══
+     if (!coordinates) {
+       try {
+         console.log('Naver 실패 → 카카오 주소 검색 API 시도');
+         updateCollectingText(`카카오 지도에서 "${query}" 위치를 검색하고 있어요`);
+         const kakaoGeoRes = await fetch(
+           `/api/kakao-proxy?type=address&query=${encodeURIComponent(query)}`
+         );
+         if (kakaoGeoRes.ok) {
+           const kakaoGeoData = await kakaoGeoRes.json();
+           const doc = kakaoGeoData.documents?.[0];
+           if (doc) {
+             coordinates = {
+               lat: parseFloat(doc.y),
+               lng: parseFloat(doc.x),
+               roadAddress: doc.road_address?.address_name || doc.address_name,
+               jibunAddress: doc.address?.address_name || doc.address_name
+             };
+             const addrParts = (doc.address_name || '').split(' ');
+             addressInfo = {
+               sido: addrParts[0] || '',
+               sigungu: addrParts[1] || '',
+               dong: addrParts[2] || ''
+             };
+             console.log(`카카오 주소 검색 성공: "${query}" → ${coordinates.lat}, ${coordinates.lng}`);
+           }
+         }
+         // 주소 검색 실패 시 키워드 검색도 시도
+         if (!coordinates) {
+           const kakaoKwRes = await fetch(
+             `/api/kakao-proxy?type=keyword&query=${encodeURIComponent(query)}&size=1`
+           );
+           if (kakaoKwRes.ok) {
+             const kakaoKwData = await kakaoKwRes.json();
+             const kwDoc = kakaoKwData.documents?.[0];
+             if (kwDoc) {
+               coordinates = {
+                 lat: parseFloat(kwDoc.y),
+                 lng: parseFloat(kwDoc.x),
+                 roadAddress: kwDoc.road_address_name || kwDoc.address_name
+               };
+               const addrParts = (kwDoc.address_name || '').split(' ');
+               addressInfo = {
+                 sido: addrParts[0] || '',
+                 sigungu: addrParts[1] || '',
+                 dong: addrParts[2] || ''
+               };
+               console.log(`카카오 키워드 검색 성공: "${query}" → ${coordinates.lat}, ${coordinates.lng}`);
+             }
+           }
+         }
+       } catch (kakaoGeoErr) {
+         console.log('카카오 주소 검색 실패:', kakaoGeoErr.message);
+       }
+     }
 
      if (coordinates) {
        setSalesModeMapCenter(coordinates);
@@ -5661,7 +6962,10 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
      }
 
      // 새 API로 상권 데이터 수집
-     if (dongInfo) {
+     if (DEBUG_STEP_E_ONLY) {
+       console.log('[DEBUG] 스킵: GIS API 수집 (dongInfo 기반 8개 + Open API + R-ONE + 인접동 합산)');
+     }
+     if (dongInfo && !DEBUG_STEP_E_ONLY) {
        const dongCd = dongInfo.dongCd;
        const tpbizCd = 'Q01'; // 카페/음식점 업종
        
@@ -5694,26 +6998,32 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
          animateProgressTo(20 + Math.floor((i + 1) / apiCalls.length * 25));
        }
        
-       // dongInfo 저장
+       // dongInfo 저장 (nearbyDongs 포함 - 유동인구 검색 키워드용)
        collectedData.dongInfo = {
          dongCd: dongInfo.dongCd,
          dongNm: dongInfo.dongNm,
-         admdstCdNm: dongInfo.admdstCdNm
+         admdstCdNm: dongInfo.admdstCdNm,
+         nearbyDongs: dongInfo.nearbyDongs || []
        };
 
        // ═══ 추가 Open API 수집 (storSttus/detail/stcarSttus) ═══
        try {
          updateCollectingText('업종별 점포현황과 개폐업 정보를 수집하고 있어요');
          const openApiCalls = [
-           { name: 'storSttus', apiName: 'storSttus', endpoint: '/openApi/storSttus/search.json', params: { dongCd, indsLclsCd: 'Q', indsLclsNm: '음식' }, desc: '업소현황' },
-           { name: 'detail', apiName: 'detail', endpoint: '/openApi/detail/search.json', params: { dongCd, indsLclsCd: 'Q' }, desc: '개폐업 상세' },
-           { name: 'stcarSttus', apiName: 'stcarSttus', endpoint: '/openApi/stcarSttus/search.json', params: { dongCd }, desc: '업력현황' },
+           { name: 'storSttus', apiName: 'storSttus', params: { dongCd, indsLclsCd: 'Q', indsLclsNm: '음식' }, desc: '업소현황' },
+           { name: 'detail', apiName: 'detail', params: { dongCd, indsLclsCd: 'Q' }, desc: '개폐업 상세' },
+           { name: 'stcarSttus', apiName: 'stcarSttus', params: { dongCd }, desc: '업력현황' },
+           { name: 'slsIndex', apiName: 'slsIndex', params: { dongCd, indsLclsCd: 'Q' }, desc: '매출추이' },
+           { name: 'delivery', apiName: 'delivery', params: { dongCd }, desc: '배달현황' },
+           { name: 'snsAnaly', apiName: 'snsAnaly', params: { dongCd }, desc: 'SNS분석' },
+           { name: 'simple', apiName: 'simple', params: { dongCd }, desc: '간편분석' },
+           { name: 'startupPublic', apiName: 'startupPublic', params: { dongCd }, desc: '창업공공지원' },
+           { name: 'hpReport', apiName: 'hpReport', params: { dongCd }, desc: '핫플레이스리포트' },
          ];
          const openResults = await Promise.allSettled(openApiCalls.map(async (oa) => {
            const proxyUrl = new URL(SBIZ_PROXY_URL, window.location.origin);
            proxyUrl.searchParams.append('api', 'open');
            proxyUrl.searchParams.append('apiName', oa.apiName);
-           proxyUrl.searchParams.append('endpoint', oa.endpoint);
            Object.entries(oa.params).forEach(([k, v]) => { if (v) proxyUrl.searchParams.append(k, v.toString()); });
            const res = await fetch(proxyUrl.toString(), { signal: AbortSignal.timeout(15000) });
            if (!res.ok) throw new Error(`${res.status}`);
@@ -5727,7 +7037,27 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
            }
          });
        } catch (e) { console.log('Open API 추가 수집 실패:', e.message); }
-       
+
+       // ═══ R-ONE 임대료 수집 (한국부동산원) ═══
+       try {
+         const roneRegion = addressInfo?.sigungu || '';
+         if (roneRegion) {
+           updateCollectingText('R-ONE 상가 임대료 데이터를 수집하고 있어요');
+           const roneRes = await fetch(`${PROXY_SERVER_URL}/api/rone/rent?region=${encodeURIComponent(roneRegion)}`, { signal: AbortSignal.timeout(15000) });
+           if (roneRes.ok) {
+             const roneData = await roneRes.json();
+             if (roneData?.SttsApiTblData?.row || roneData?.data) {
+               collectedData.apis.roneRent = {
+                 description: 'R-ONE 상가 임대료',
+                 data: roneData?.SttsApiTblData?.row || roneData?.data || roneData
+               };
+               const rows = collectedData.apis.roneRent.data;
+               console.log(`  - roneRent: R-ONE 임대료 ${Array.isArray(rows) ? rows.length : 0}건 (${roneRegion})`);
+             }
+           }
+         }
+       } catch (e) { console.log('R-ONE 임대료 수집 실패:', e.message); }
+
        // ═══ 인접 행정동 카페 수/매출 합산 (반경 내 정확도 강화) ═══
        if (dongInfo.nearbyDongs && dongInfo.nearbyDongs.length > 1) {
          updateCollectingText('인접 행정동 데이터를 합산하고 있어요');
@@ -5759,9 +7089,7 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
      // ═══ Geocoding + 거리 계산 헬퍼 ═══
      const geocodeAddress = async (address) => {
        try {
-         const res = await fetch(`https://naveropenapi.apigw.ntruss.com/map-geocode/v2/geocode?query=${encodeURIComponent(address)}`, {
-           headers: { 'X-NCP-APIGW-API-KEY-ID': NCP_CLIENT_ID, 'X-NCP-APIGW-API-KEY': NCP_CLIENT_SECRET }
-         });
+         const res = await fetch(`/api/ncp-geo-proxy?query=${encodeURIComponent(address)}`);
          if (!res.ok) return null;
          const data = await res.json();
          if (data.addresses?.length > 0) {
@@ -5773,9 +7101,7 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
      
      const calcWalkingDistance = async (startCoord, endCoord) => {
        try {
-         const res = await fetch(`https://naveropenapi.apigw.ntruss.com/map-direction/v1/driving?start=${startCoord.lng},${startCoord.lat}&goal=${endCoord.lng},${endCoord.lat}&option=trafast`, {
-           headers: { 'X-NCP-APIGW-API-KEY-ID': NCP_CLIENT_ID, 'X-NCP-APIGW-API-KEY': NCP_CLIENT_SECRET }
-         });
+         const res = await fetch(`/api/ncp-geo-proxy?type=directions&start=${startCoord.lng},${startCoord.lat}&goal=${endCoord.lng},${endCoord.lat}&option=trafast`);
          if (!res.ok) return null;
          const data = await res.json();
          if (data.code === 0 && data.route?.trafast?.[0]) {
@@ -5796,6 +7122,9 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
      };
 
      // ═══ Firebase 임대료 데이터 수집 ═══
+     if (DEBUG_STEP_E_ONLY) {
+       console.log('[DEBUG] 스킵: Firebase 임대료 데이터 수집');
+     } else {
      setSalesModeAnalysisStep('임대료 데이터 조회 중');
      updateCollectingText('브루가 이 지역 상가 임대료를 조사하고 있어요');
      try {
@@ -5950,6 +7279,7 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
          console.log(`Firebase 임대료 없음 → 부동산원 폴백: 월 ${estMonthly}만, 보증금 ${estDeposit}만 (${sgKey})`);
        }
      }
+     } // end of !DEBUG_STEP_E_ONLY (Firebase 임대료)
 
      // 수집된 데이터 요약 로그
      console.log('수집된 GIS API 데이터:', Object.keys(collectedData.apis));
@@ -6012,7 +7342,9 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
      collectedData.franchiseData = FRANCHISE_DATA;
      
      // Render 서버에서 공정위 프랜차이즈 API 호출 (카페만 필터링)
-     try {
+     if (DEBUG_STEP_E_ONLY) {
+       console.log('[DEBUG] 스킵: Render 프랜차이즈 API');
+     } else try {
        const franchiseRes = await fetch(`${PROXY_SERVER_URL}/api/franchise?cafeOnly=true&numOfRows=50`);
        if (franchiseRes.ok) {
          const franchiseData = await franchiseRes.json();
@@ -6044,18 +7376,51 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
            }
            if (!Array.isArray(nearbyItems)) nearbyItems = nearbyItems ? [nearbyItems] : [];
 
-           // 카페/커피 업종만 필터 (더 넓은 범위로 검출)
+           // 카페/커피 업종만 필터 (비카페 제외 강화)
+           const NOT_CAFE_KEYWORDS = ['주점','술집','노래방','pc방','피씨방','편의점','약국','병원','부동산',
+             '세탁','미용','네일','헤어','치킨','피자','족발','삼겹','고기','갈비','곱창','찜','탕',
+             '횟집','초밥','분식','떡볶이','김밥','라면','국수','칼국수','설렁탕','냉면','파스타',
+             '빵집','제과','마트','슈퍼','편의','문구','학원','교습','운동','헬스','요가','필라테스',
+             '세차','주유','주차','모텔','호텔','숙박','빌딩','오피스','사무실','은행','보험',
+             '핸드폰','휴대폰','통신','꽃집','화원','동물','애견','세무','법무','공인중개'];
            const nearbyCafes = nearbyItems.filter(i => {
              const mclsCd = i.indsMclsCd || '';
              const mclsNm = (i.indsMclsNm || '').toLowerCase();
              const sclsNm = (i.indsSclsNm || '').toLowerCase();
              const bizNm = (i.bizesNm || '').toLowerCase();
-             return mclsCd === 'Q12' || mclsNm.includes('커피') || mclsNm.includes('음료') ||
+             // 비카페 업종 제외
+             if (NOT_CAFE_KEYWORDS.some(kw => bizNm.includes(kw) || sclsNm.includes(kw))) return false;
+             // 카페/커피 업종 포함
+             const isCafe = mclsCd === 'Q12' || mclsNm.includes('커피') ||
                sclsNm.includes('카페') || sclsNm.includes('커피') || sclsNm.includes('coffee') ||
                bizNm.includes('카페') || bizNm.includes('커피') || bizNm.includes('coffee') ||
-               bizNm.includes('cafe') || bizNm.includes('빽다방') || bizNm.includes('메가') ||
-               bizNm.includes('컴포즈') || bizNm.includes('이디야') || bizNm.includes('스타벅스');
+               bizNm.includes('cafe') || bizNm.includes('빽다방') || bizNm.includes('메가mgc') ||
+               bizNm.includes('메가커피') || bizNm.includes('컴포즈') || bizNm.includes('이디야') ||
+               bizNm.includes('스타벅스') || bizNm.includes('투썸') || bizNm.includes('할리스') ||
+               bizNm.includes('폴바셋') || bizNm.includes('더벤티');
+             return isCafe;
            });
+           // storeRadius 결과에 대해 haversine 거리 검증 (500m 초과 제거)
+           const calcDistSR = (lat1, lng1, lat2, lng2) => {
+             const R = 6371000;
+             const dLat = (lat2 - lat1) * Math.PI / 180;
+             const dLng = (lng2 - lng1) * Math.PI / 180;
+             const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+             return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+           };
+           const distVerified = nearbyCafes.filter(store => {
+             if (store.lat && store.lon) {
+               const d = calcDistSR(coordinates.lat, coordinates.lng, parseFloat(store.lat), parseFloat(store.lon));
+               return d <= 500;
+             }
+             return true; // 좌표 없으면 API radius 신뢰
+           });
+           const beforeDistFilter = nearbyCafes.length;
+           nearbyCafes.length = 0;
+           nearbyCafes.push(...distVerified);
+           if (beforeDistFilter !== nearbyCafes.length) {
+             console.log(`[영업모드] storeRadius 거리 검증: ${beforeDistFilter}개 -> ${nearbyCafes.length}개 (${beforeDistFilter - nearbyCafes.length}개 500m 초과 제거)`);
+           }
 
            // 프랜차이즈 브랜드별 매칭
            const FRANCHISE_KEYWORDS = {
@@ -6197,16 +7562,17 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
                const dLng = (item.wgs84.lng - coordinates.lng) * Math.PI / 180;
                const a = Math.sin(dLat/2)**2 + Math.cos(coordinates.lat*Math.PI/180)*Math.cos(item.wgs84.lat*Math.PI/180)*Math.sin(dLng/2)**2;
                dist = Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
-               if (dist > 600) return; // 600m 이상은 제외 (여유 100m)
+               if (dist > 500) return; // 500m 초과 제외 (반경 500m 기준 엄수)
              }
              const addr = item.roadAddress || item.address || '';
+             const naverCategory = item.category || '';
              let isFranchise = false;
              for (const [brand, keywords] of Object.entries(FRANCHISE_KEYWORDS_FLAT)) {
                if (keywords.some(kw => upper.includes(kw.toUpperCase()))) {
                  if (!collectedData.nearbyFranchiseCounts) collectedData.nearbyFranchiseCounts = {};
                  collectedData.nearbyFranchiseCounts[brand] = (collectedData.nearbyFranchiseCounts[brand] || 0) + 1;
                  if (!collectedData.nearbyFranchiseList) collectedData.nearbyFranchiseList = [];
-                 collectedData.nearbyFranchiseList.push({ name: title, brand, addr, dist, source: 'naver' });
+                 collectedData.nearbyFranchiseList.push({ name: title, brand, addr, dist, source: 'naver', category: naverCategory });
                  isFranchise = true;
                  naverAdded++;
                  break;
@@ -6214,7 +7580,7 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
              }
              if (!isFranchise) {
                if (!collectedData.nearbyIndependentList) collectedData.nearbyIndependentList = [];
-               collectedData.nearbyIndependentList.push({ name: title, addr, dist, source: 'naver' });
+               collectedData.nearbyIndependentList.push({ name: title, addr, dist, source: 'naver', category: naverCategory });
                collectedData.nearbyIndependentCafes = (collectedData.nearbyIndependentCafes || 0) + 1;
                naverAdded++;
              }
@@ -6226,8 +7592,865 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
            if (naverAdded > 0) console.log(`[영업모드] 네이버 로컬 검색으로 카페 ${naverAdded}개 추가 발견`);
          }
        } catch (e) { console.log('네이버 로컬 검색 보강 실패:', e.message); }
+
+       // ═══ 3.2단계: 카카오 로컬 API로 추가 카페 수집 (naverMissing 태깅) ═══
+       try {
+         updateCollectingText('카카오 지도에서 주변 카페를 추가 조사하고 있어요');
+         const kakaoResults = await searchKakaoLocalCafe(coordinates.lat, coordinates.lng, 500);
+         let kakaoAdded = 0;
+
+         // 기존 수집된 카페 이름 세트 (중복 방지)
+         const existingNamesUpper = new Set([
+           ...(collectedData.nearbyFranchiseList || []).map(f => (f.name || '').replace(/\s/g, '').toUpperCase()),
+           ...(collectedData.nearbyIndependentList || []).map(f => (f.name || '').replace(/\s/g, '').toUpperCase())
+         ]);
+
+         kakaoResults.forEach(item => {
+           const name = (item.place_name || '').trim();
+           const nameKey = name.replace(/\s/g, '').toUpperCase();
+           if (!name || existingNamesUpper.has(nameKey)) return;
+
+           const category = (item.category_name || '').toLowerCase();
+           const kakaoName = name.toLowerCase();
+           if (category.includes('주점') || category.includes('술집') || category.includes('바(bar)')) return;
+           // 비카페 업종 제외 (카카오)
+           const KAKAO_NOT_CAFE = ['주점','술집','노래방','pc방','편의점','약국','병원','부동산',
+             '세탁','미용','네일','헤어','치킨','피자','족발','고기','갈비','분식','빵집','제과',
+             '마트','슈퍼','학원','운동','헬스','모텔','호텔','은행','보험','통신','세무','공인중개'];
+           if (KAKAO_NOT_CAFE.some(kw => kakaoName.includes(kw) || category.includes(kw))) return;
+
+           const dist = Math.round(parseFloat(item.distance || 9999));
+           if (dist > 500) return;
+
+           // 브랜드 매칭
+           const FRANCHISE_KEYWORDS_KAKAO = {
+             '메가MGC커피': ['메가커피','메가MGC','MEGA','MGC'], '컴포즈커피': ['컴포즈','COMPOSE'],
+             '빽다방': ['빽다방','PAIK'], '더벤티': ['더벤티','VENTI'], '이디야커피': ['이디야','EDIYA'],
+             '투썸플레이스': ['투썸','TWOSOME'], '할리스': ['할리스','HOLLYS'],
+             '스타벅스': ['스타벅스','STARBUCKS'], '폴바셋': ['폴바셋','PAUL BASSETT'],
+             '커피빈': ['커피빈','COFFEE BEAN'], '매머드커피': ['매머드','MAMMOTH'],
+             '감성커피': ['감성커피'], '만랩커피': ['만랩','MANLAB'], '블루보틀': ['블루보틀','BLUE BOTTLE'],
+             '카페베네': ['카페베네'], '탐앤탐스': ['탐앤탐스','TOM N TOMS'],
+             '파스쿠찌': ['파스쿠찌','PASCUCCI'], '하삼동커피': ['하삼동'],
+             '엔제리너스': ['엔제리너스','ANGEL'], '드롭탑': ['드롭탑','DROPTOP'],
+             '토프레소': ['토프레소'], '전광수커피': ['전광수']
+           };
+
+           let matchedBrand = null;
+           const upper = nameKey;
+           for (const [brand, keywords] of Object.entries(FRANCHISE_KEYWORDS_KAKAO)) {
+             if (keywords.some(kw => upper.includes(kw.toUpperCase()))) {
+               matchedBrand = brand;
+               break;
+             }
+           }
+
+           const addr = item.road_address_name || item.address_name || '';
+           const cafeEntry = { name, addr, dist, source: 'kakao', naverMissing: true, category_group_code: item.category_group_code || '', category_name: item.category_name || '' };
+
+           if (matchedBrand) {
+             cafeEntry.brand = matchedBrand;
+             if (!collectedData.nearbyFranchiseCounts) collectedData.nearbyFranchiseCounts = {};
+             collectedData.nearbyFranchiseCounts[matchedBrand] = (collectedData.nearbyFranchiseCounts[matchedBrand] || 0) + 1;
+             if (!collectedData.nearbyFranchiseList) collectedData.nearbyFranchiseList = [];
+             collectedData.nearbyFranchiseList.push(cafeEntry);
+           } else {
+             if (!collectedData.nearbyIndependentList) collectedData.nearbyIndependentList = [];
+             collectedData.nearbyIndependentList.push(cafeEntry);
+             collectedData.nearbyIndependentCafes = (collectedData.nearbyIndependentCafes || 0) + 1;
+           }
+
+           collectedData.nearbyTotalCafes = (collectedData.nearbyTotalCafes || 0) + 1;
+           existingNamesUpper.add(nameKey);
+           kakaoAdded++;
+         });
+
+         if (kakaoAdded > 0) console.log(`[영업모드] 카카오 로컬 API: ${kakaoAdded}개 신규 추가 (총 ${collectedData.nearbyTotalCafes}개)`);
+       } catch (e) { console.log('카카오 로컬 API 실패:', e.message); }
+
+       // ═══ 3.2b단계: storeRadius 데이터 중 네이버에 없는 카페에 naverMissing 태깅 ═══
+       // 네이버 소스가 아닌 카페(storeRadius, kakao)에 naverMissing 플래그 추가
+       const allCafes = [
+         ...(collectedData.nearbyFranchiseList || []),
+         ...(collectedData.nearbyIndependentList || [])
+       ];
+       allCafes.forEach(cafe => {
+         if (cafe.source && cafe.source !== 'naver' && cafe.source !== 'naver-search' && cafe.source !== 'naver-brand' && cafe.source !== 'naver-brand-extra') {
+           if (!cafe.naverMissing) cafe.naverMissing = true;
+         }
+       });
+
+       // ═══ 3.3단계: 중복 제거 (이름+주소+브랜드 기반) ═══
+       const normalizeAddr = (addr) => (addr || '').replace(/\s+/g, '').replace(/층.*$/, '').replace(/호.*$/, '').toUpperCase();
+       const deduplicateList = (list) => {
+         if (!list || list.length === 0) return list;
+         const removed = new Set();
+         const sorted = [...list].sort((a, b) => (a.dist || 9999) - (b.dist || 9999));
+         for (let i = 0; i < sorted.length; i++) {
+           if (removed.has(i)) continue;
+           for (let j = i + 1; j < sorted.length; j++) {
+             if (removed.has(j)) continue;
+             const a = sorted[i], b = sorted[j];
+             // 같은 브랜드 + 가까운 거리 (100m 이내)
+             if (a.brand && b.brand && a.brand === b.brand && Math.abs((a.dist || 0) - (b.dist || 0)) < 100) {
+               removed.add(j);
+               console.log(`[영업모드] 중복 제거: ${b.name}(${b.dist}m) -- ${a.name}(${a.dist}m)과 같은 ${a.brand}`);
+               continue;
+             }
+             // 같은 주소
+             const addrA = normalizeAddr(a.addr), addrB = normalizeAddr(b.addr);
+             if (addrA && addrB && addrA === addrB) {
+               removed.add(j);
+               console.log(`[영업모드] 중복 제거(주소): ${b.name}(${b.dist}m) -- ${a.name}(${a.dist}m)과 같은 주소`);
+               continue;
+             }
+             // 이름 유사 + 가까운 거리 (100m 이내) - 브랜드 무관
+             const aKey = (a.name || '').replace(/\s/g, '').toUpperCase();
+             const bKey = (b.name || '').replace(/\s/g, '').toUpperCase();
+             if (Math.abs((a.dist || 0) - (b.dist || 0)) < 100) {
+               if (aKey.includes(bKey) || bKey.includes(aKey) || aKey === bKey) {
+                 removed.add(j);
+                 console.log(`[영업모드] 중복 제거(이름유사): ${b.name}(${b.dist}m) -- ${a.name}(${a.dist}m)`);
+                 continue;
+               }
+               // 앞 4글자가 같으면 중복 (같은 매장의 다른 표기)
+               if (aKey.length >= 4 && bKey.length >= 4 && aKey.substring(0, 4) === bKey.substring(0, 4)) {
+                 removed.add(j);
+                 console.log(`[영업모드] 중복 제거(접두사): ${b.name}(${b.dist}m) -- ${a.name}(${a.dist}m)`);
+                 continue;
+               }
+             }
+           }
+         }
+         return sorted.filter((_, idx) => !removed.has(idx));
+       };
+
+       if (collectedData.nearbyFranchiseList) {
+         const beforeF = collectedData.nearbyFranchiseList.length;
+         collectedData.nearbyFranchiseList = deduplicateList(collectedData.nearbyFranchiseList);
+         const removedF = beforeF - collectedData.nearbyFranchiseList.length;
+         if (removedF > 0) console.log(`[영업모드] 프랜차이즈 중복 제거: ${removedF}개`);
+       }
+       if (collectedData.nearbyIndependentList) {
+         const beforeI = collectedData.nearbyIndependentList.length;
+         collectedData.nearbyIndependentList = deduplicateList(collectedData.nearbyIndependentList);
+         const removedI = beforeI - collectedData.nearbyIndependentList.length;
+         if (removedI > 0) console.log(`[영업모드] 개인카페 중복 제거: ${removedI}개`);
+       }
+
+       // 중복 제거 후 카운트 재계산
+       const franchiseCount = (collectedData.nearbyFranchiseList || []).length;
+       const independentCount = (collectedData.nearbyIndependentList || []).length;
+       collectedData.nearbyTotalCafes = franchiseCount + independentCount;
+       collectedData.nearbyIndependentCafes = independentCount;
+       // 프랜차이즈 브랜드별 카운트도 재계산
+       const recountFC = {};
+       (collectedData.nearbyFranchiseList || []).forEach(f => {
+         if (f.brand) recountFC[f.brand] = (recountFC[f.brand] || 0) + 1;
+       });
+       collectedData.nearbyFranchiseCounts = recountFC;
+
+       console.log(`[영업모드] 중복 제거 후 최종 카페 수: ${collectedData.nearbyTotalCafes}개 (프랜차이즈 ${franchiseCount}개, 개인 ${independentCount}개)`);
+
+       // ═══ 3.4단계: STEP E - 비카페 필터 + 폐업 판별 (카테고리 코드 + Gemini 웹서치) ═══
+       const allCafesForFilter = [
+         ...(collectedData.nearbyFranchiseList || []),
+         ...(collectedData.nearbyIndependentList || [])
+       ];
+       collectedData.closedCafes = [];
+       collectedData.notCafes = [];
+       const beforeFilterCount = allCafesForFilter.length;
+       console.log(`[영업모드] STEP E: 필터링 전 전체 카페 수: ${beforeFilterCount}개`);
+
+       if (allCafesForFilter.length > 0) {
+         try {
+           updateCollectingText('수집된 업체 중 실제 카페가 아닌 곳과 폐업 여부를 확인하고 있어요');
+           console.log(`[영업모드] STEP E: 비카페+폐업 판별 대상 ${allCafesForFilter.length}개 -- ${allCafesForFilter.map(c => c.name).join(', ')}`);
+
+           // -- STEP E-1: 카테고리 코드 기반 1차 필터 (빠름) --
+           // 카카오 category_group_code: CE7=카페, FD6=음식점, HP8=병원, BK9=은행, MT1=마트, OL7=주유소,
+           //   SW8=지하철, SC4=학교, AC5=학원, PK6=주차장, AT4=관광명소, AD5=숙박, CT1=문화시설, AG2=중개업소
+           // 확실한 비카페 카테고리 코드 (카카오)
+           const NOT_CAFE_CATEGORY_CODES = ['HP8', 'BK9', 'MT1', 'OL7', 'SC4', 'AC5', 'PK6', 'AD5', 'AG2'];
+           // 확실한 비카페 카테고리 이름 키워드 (카카오 category_name, 네이버 category)
+           const NOT_CAFE_CATEGORY_KEYWORDS = [
+             '부동산', '중개', '미용', '헤어', '네일', '뷰티', '피부', '성형',
+             '병원', '의원', '약국', '치과', '한의원', '안과', '이비인후과', '정형외과', '내과', '외과', '동물병원',
+             '마트', '편의점', '슈퍼', '할인점',
+             '주유소', '충전소',
+             '인테리어', '건축', '철물', '건자재',
+             '교육', '학원', '교습', '어린이집', '유치원',
+             '종교', '교회', '성당', '사찰',
+             '숙박', '모텔', '여관', '호텔', '게스트하우스',
+             '세탁', '클리닝',
+             '보험', '금융', '은행', '증권',
+             '법무', '법률', '세무', '회계', '노무',
+             '자동차', '정비', '세차', '타이어',
+             '꽃', '화원', '플라워',
+             '문구', '사진',
+             '가구', '커튼', '조명',
+             '이사', '운송', '택배',
+             '동물', '애견', '펫',
+             '노래방', '코인빨래', '셀프빨래',
+             '주차장', '창고'
+           ];
+           // 유지할 카테고리: 카페, 베이커리, 디저트, 음식점(애매한 것 포함), 분류 불명 전부
+           const KEEP_CATEGORY_KEYWORDS = ['카페', '커피', 'coffee', 'cafe', '디저트', '베이커리', '빵', '제과', '음료', '주스', '차(tea)', '브런치', '빙수'];
+
+           const categoryFilteredOut = [];
+           const remainingAfterCategory = [];
+
+           allCafesForFilter.forEach(cafe => {
+             const catCode = cafe.category_group_code || '';
+             const catName = (cafe.category_name || cafe.category || '').toLowerCase();
+             const cafeName = (cafe.name || '').toLowerCase();
+
+             // 1) 카카오 카테고리 코드로 확실한 비카페 제거
+             if (catCode && NOT_CAFE_CATEGORY_CODES.includes(catCode)) {
+               categoryFilteredOut.push(cafe);
+               console.log(`[영업모드] STEP E-1 카테고리코드 제거: "${cafe.name}" (code: ${catCode}, category: ${catName})`);
+               return;
+             }
+
+             // 2) 카테고리 이름 키워드로 비카페 제거
+             if (catName) {
+               // 카페/음료 관련 카테고리면 유지
+               if (KEEP_CATEGORY_KEYWORDS.some(kw => catName.includes(kw))) {
+                 remainingAfterCategory.push(cafe);
+                 return;
+               }
+               // 비카페 카테고리 키워드 매칭
+               const matchedCat = NOT_CAFE_CATEGORY_KEYWORDS.find(kw => catName.includes(kw));
+               if (matchedCat) {
+                 categoryFilteredOut.push(cafe);
+                 console.log(`[영업모드] STEP E-1 카테고리명 제거: "${cafe.name}" (category: ${catName}, matched: ${matchedCat})`);
+                 return;
+               }
+             }
+
+             // 3) 카테고리 없는 경우: 이름 기반 빠른 필터 (명백한 비카페만)
+             const NAME_OBVIOUS_NOT_CAFE = [
+               '카페트', '카펫', '부동산', '공인중개', '중개사', '미용', '헤어', '네일',
+               '약국', '병원', '의원', '치과', '한의원', '마트', '슈퍼', '편의점',
+               '주유소', '정비', '세차', '인테리어', '학원', '교습', '어린이집',
+               '교회', '성당', '모텔', '여관', '호텔', '노래방', '세탁', '꽃집', '화원'
+             ];
+             const nameMatched = NAME_OBVIOUS_NOT_CAFE.find(kw => cafeName.includes(kw));
+             if (nameMatched) {
+               categoryFilteredOut.push(cafe);
+               console.log(`[영업모드] STEP E-1 이름필터 제거: "${cafe.name}" (matched: ${nameMatched})`);
+               return;
+             }
+
+             // 나머지는 모두 E-2 Gemini 검증 대상
+             remainingAfterCategory.push(cafe);
+           });
+
+           // E-1 결과 적용
+           categoryFilteredOut.forEach(cafe => {
+             collectedData.notCafes.push({ name: cafe.name, addr: cafe.addr, source: cafe.source, reason: 'category_filter' });
+             if (collectedData.nearbyFranchiseList) {
+               collectedData.nearbyFranchiseList = collectedData.nearbyFranchiseList.filter(f => f.name !== cafe.name);
+             }
+             if (collectedData.nearbyIndependentList) {
+               collectedData.nearbyIndependentList = collectedData.nearbyIndependentList.filter(f => f.name !== cafe.name);
+             }
+           });
+
+           if (categoryFilteredOut.length > 0) {
+             console.log(`[영업모드] STEP E-1 카테고리 필터: ${categoryFilteredOut.length}개 비카페 제거 완료 (${categoryFilteredOut.map(c => c.name).join(', ')})`);
+           }
+           console.log(`[영업모드] STEP E-1 후 E-2 검증 대상: ${remainingAfterCategory.length}개`);
+
+           // -- STEP E-1.5: 이름 중복 제거 (Gemini 배치 전) --
+           const normalizeNameForDedup = (name) => (name || '').replace(/[,.\s\u00B7\-_\/\\()（）「」『』【】\u3000]/g, '').toLowerCase();
+           const dedupCafeList = (cafeList) => {
+             const seen = new Map();
+             const deduped = [];
+             const removedDups = [];
+             cafeList.forEach(cafe => {
+               const normName = normalizeNameForDedup(cafe.name);
+               if (seen.has(normName)) {
+                 const existing = seen.get(normName);
+                 const existingDist = parseFloat(existing.distance) || Infinity;
+                 const currentDist = parseFloat(cafe.distance) || Infinity;
+                 if (currentDist < existingDist) {
+                   removedDups.push(existing);
+                   const idx = deduped.indexOf(existing);
+                   if (idx !== -1) deduped[idx] = cafe;
+                   seen.set(normName, cafe);
+                 } else {
+                   removedDups.push(cafe);
+                 }
+               } else {
+                 seen.set(normName, cafe);
+                 deduped.push(cafe);
+               }
+             });
+             return { deduped, removedDups };
+           };
+           const { deduped: dedupedBeforeGemini, removedDups: preGeminiDups } = dedupCafeList(remainingAfterCategory);
+           if (preGeminiDups.length > 0) {
+             console.log(`[영업모드] STEP E-1.5 이름 중복 제거: ${preGeminiDups.length}개 제거 (${preGeminiDups.map(c => c.name).join(', ')})`);
+             preGeminiDups.forEach(cafe => {
+               collectedData.notCafes.push({ name: cafe.name, addr: cafe.addr, source: cafe.source, reason: 'duplicate_name_dedup' });
+               if (collectedData.nearbyFranchiseList) {
+                 collectedData.nearbyFranchiseList = collectedData.nearbyFranchiseList.filter(f => !(f.name === cafe.name && f.addr === cafe.addr));
+               }
+               if (collectedData.nearbyIndependentList) {
+                 collectedData.nearbyIndependentList = collectedData.nearbyIndependentList.filter(f => !(f.name === cafe.name && f.addr === cafe.addr));
+               }
+             });
+           }
+           const remainingForGemini = dedupedBeforeGemini;
+           console.log(`[영업모드] STEP E-1.5 중복 제거 후 Gemini 검증 대상: ${remainingForGemini.length}개`);
+
+           // -- STEP E-1.7: 네이버 지역검색 매장 검증 (E-2 Gemini 전 사전 검증) --
+           if (remainingForGemini.length > 0) {
+             console.log(`[영업모드] STEP E-1.7 시작: 네이버 지역검색으로 ${remainingForGemini.length}개 매장 검증`);
+             updateCollectingText('네이버 지역검색으로 매장 존재 여부를 확인하고 있어요');
+
+             const dongForNaver = addressInfo?.dong || '';
+            const sigunguForNaver = addressInfo?.sigungu || '';
+
+             const NAVER_BATCH_SIZE = 5;
+             const naverBatches = [];
+             for (let i = 0; i < remainingForGemini.length; i += NAVER_BATCH_SIZE) {
+               naverBatches.push(remainingForGemini.slice(i, i + NAVER_BATCH_SIZE));
+             }
+
+             let naverVerifiedCount = 0;
+             let naverNotFoundCount = 0;
+
+             for (let nbIdx = 0; nbIdx < naverBatches.length; nbIdx++) {
+               const naverChunk = naverBatches[nbIdx];
+               console.log(`[영업모드] STEP E-1.7: 배치 ${nbIdx + 1}/${naverBatches.length} (${naverChunk.length}개 매장 검증 중)`);
+
+              const naverPromises = naverChunk.map(async (cafe) => {
+                try {
+                  // 매장명으로 검색 (짧은 이름은 동 이름 추가)
+                  const cafeNameLen = (cafe.name || '').replace(/[a-zA-Z0-9\s]/g, '').length || cafe.name.length;
+                  const naverQuery = (cafeNameLen <= 3 && dongForNaver) ? `${dongForNaver} ${cafe.name}` : cafe.name;
+                  const nvRes = await fetch(`/api/naver-local-proxy?query=${encodeURIComponent(naverQuery)}&display=10`);
+
+                  if (!nvRes.ok) {
+                    console.log(`[E-1.7] "${cafe.name}" 네이버 검색 실패 (status: ${nvRes.status})`);
+                    cafe.naverVerification = null;
+                    return;
+                  }
+
+                  const nvData = await nvRes.json();
+                  const nvItems = nvData.items || [];
+
+                  if (nvItems.length === 0) {
+                    console.log(`[E-1.7] "${cafe.name}" -> query="${naverQuery}" -> 결과 0건`);
+                    cafe.naverVerification = { found: false, matchedItem: null, category: null, reason: 'naver_no_results' };
+                    return;
+                  }
+
+                  // HTML 태그 완전 제거 함수 (네이버 API title에 <b> 등 포함됨)
+                  const stripHtml = (str) => (str || '').replace(/<\/?[^>]+(>|$)/g, '').trim();
+                  // 정규화: 공백/특수문자 제거, 소문자
+                  const normalize = (str) => stripHtml(str).replace(/[,.\s\u00B7\-_\/\\()\[\]'"!?~#&@:;+|{}]/g, '').toLowerCase();
+                  // 토큰 분리: 공백 기준 단어 배열
+                  const tokenize = (str) => stripHtml(str).replace(/[,.\u00B7\-_\/\\()\[\]'"!?~#&@:;+|{}]/g, ' ').toLowerCase().split(/\s+/).filter(t => t.length > 0);
+
+                  const normCafeName = normalize(cafe.name);
+                  const cafeTokens = tokenize(cafe.name);
+
+                  let bestMatch = null;
+                  let bestScore = 0;
+                  let bestMatchType = '';
+                  const debugItems = [];
+
+                  for (const item of nvItems) {
+                    const cleanTitle = stripHtml(item.title);
+                    const normItemTitle = normalize(item.title);
+                    const itemTokens = tokenize(item.title);
+
+                    let score = 0;
+                    let matchType = '';
+
+                    // 1) 정확 일치 (정규화 후)
+                    if (normCafeName === normItemTitle) {
+                      score = 100;
+                      matchType = 'exact';
+                    }
+                    // 2) 포함 관계 (한쪽이 다른쪽을 완전 포함)
+                    else if (normItemTitle.includes(normCafeName) || normCafeName.includes(normItemTitle)) {
+                      score = 85;
+                      matchType = 'contains';
+                    }
+                    // 3) 토큰 기반 매칭: 공통 토큰 비율
+                    else {
+                      const commonTokens = cafeTokens.filter(t => itemTokens.some(it => it.includes(t) || t.includes(it)));
+                      const tokenRatio = cafeTokens.length > 0 ? commonTokens.length / cafeTokens.length : 0;
+                      if (tokenRatio >= 0.5) {
+                        score = Math.round(40 + tokenRatio * 40); // 60~80
+                        matchType = `token(${commonTokens.length}/${cafeTokens.length})`;
+                      }
+                    }
+
+                    // 4) 프랜차이즈명 핵심어 매칭 (첫 토큰이 2글자 이상이고 양쪽에 포함)
+                    if (score < 50 && cafeTokens.length > 0) {
+                      const brandToken = cafeTokens[0];
+                      if (brandToken.length >= 2 && normItemTitle.includes(brandToken)) {
+                        score = Math.max(score, 60);
+                        matchType = `brand("${brandToken}")`;
+                      }
+                    }
+
+                    // 5) 주소 근접도 보너스: 네이버 결과 주소가 cafe.addr과 같은 동/도로명이면 +10
+                    if (score >= 40 && cafe.addr) {
+                      const itemAddr = normalize(item.address || '') + normalize(item.roadAddress || '');
+                      const addrTokens = tokenize(cafe.addr).filter(t => t.length >= 2);
+                      const addrMatch = addrTokens.some(t => itemAddr.includes(t));
+                      if (addrMatch) {
+                        score = Math.min(score + 10, 95);
+                        matchType += '+addr';
+                      }
+                    }
+
+                    // 6) 카테고리 보너스: 카페/커피/음료/디저트/베이커리 카테고리면 +20
+                    const itemCategory = stripHtml(item.category || '');
+                    if (/카페|커피|음료|디저트|베이커리/i.test(itemCategory)) {
+                      score = Math.min(score + 20, 100);
+                      matchType += '+cat';
+                    }
+
+                    // 7) 지역 보너스: roadAddress가 검색 시군구를 포함하면 +10
+                    if (sigunguForNaver && (item.roadAddress || '').includes(sigunguForNaver)) {
+                      score = Math.min(score + 10, 100);
+                      matchType += '+region';
+                    }
+
+                    debugItems.push({ title: cleanTitle, score, matchType });
+
+                    if (score > bestScore) {
+                      bestScore = score;
+                      bestMatch = { ...item, title: cleanTitle, matchScore: score };
+                      bestMatchType = matchType;
+                    }
+                  }
+
+                  // 디버그 로그: 각 카페별 네이버 결과 상세
+                  const debugStr = debugItems.map(d => `"${d.title}"(${d.score},${d.matchType})`).join(', ');
+                  console.log(`[E-1.7] "${cafe.name}" -> query="${naverQuery}" -> ${nvItems.length}건: ${debugStr} => best=${bestScore}`);
+
+                  if (bestMatch && bestScore >= 40) {
+                    const category = stripHtml(bestMatch.category || '');
+                    const isCafeCategory = /카페|커피|coffee|cafe|디저트|베이커리|빵|음료|주스|브런치|빙수/i.test(category);
+
+                    cafe.naverVerification = {
+                      found: true,
+                      matchedItem: {
+                        title: bestMatch.title,
+                        category: category,
+                        address: bestMatch.address || bestMatch.roadAddress || '',
+                        telephone: bestMatch.telephone || ''
+                      },
+                      matchScore: bestScore,
+                      matchType: bestMatchType,
+                      hasRegion: bestMatchType.includes('+region'),
+                      isCafeCategory: isCafeCategory,
+                      category: category,
+                      reason: `naver_matched (score: ${bestScore}, category: ${category})`
+                    };
+                  } else {
+                    cafe.naverVerification = {
+                      found: false,
+                      matchedItem: null,
+                      category: null,
+                      reason: nvItems.length > 0 ? `naver_no_name_match (best=${bestScore})` : 'naver_no_results'
+                    };
+                  }
+                } catch (nvErr) {
+                  console.log(`[E-1.7] "${cafe.name}" 네이버 검색 오류: ${nvErr.message}`);
+                  cafe.naverVerification = null;
+                }
+              });
+
+               await Promise.all(naverPromises);
+
+               // 배치 사이 500ms 대기 (마지막 배치 제외)
+               if (nbIdx < naverBatches.length - 1) {
+                 await new Promise(r => setTimeout(r, 500));
+               }
+             }
+
+             // 결과 집계
+             remainingForGemini.forEach(cafe => {
+               if (cafe.naverVerification?.found) {
+                 naverVerifiedCount++;
+               } else if (cafe.naverVerification !== null) {
+                 naverNotFoundCount++;
+               }
+             });
+
+             console.log(`[영업모드] STEP E-1.7 완료: 네이버 확인됨 ${naverVerifiedCount}개, 미확인 ${naverNotFoundCount}개, 오류 ${remainingForGemini.length - naverVerifiedCount - naverNotFoundCount}개`);
+           }
+
+           // -- STEP E-2: 코드 로직 자동분류 + Gemini 데이터 기반 판별 (배치 처리) --
+          if (remainingForGemini.length > 0) {
+            const naverMissingNames = new Set(allCafes.filter(c => c.naverMissing).map(c => c.name));
+
+            // -- E-2 사전분류: autoKeep / autoRemove / geminiJudge --
+            const CAFE_CATEGORY_RE = /카페|커피|coffee|cafe|디저트|베이커리|빵|음료|주스|브런치|빙수|제과|차\s*전문/i;
+
+            const autoKeepList = [];
+            const autoRemoveList = [];
+            const geminiJudgeList = [];
+
+            remainingForGemini.forEach(cafe => {
+              const nv = cafe.naverVerification;
+              const isFranchiseBrand = !!(cafe.brand); // nearbyFranchiseList 항목은 brand 있음
+              const origCategory = (cafe.category_name || cafe.category || '').toLowerCase();
+
+              // 자동 유지: 프랜차이즈 브랜드
+              if (isFranchiseBrand) {
+                autoKeepList.push(cafe);
+                return;
+              }
+
+              // 자동 유지: 네이버 verified + 카페 카테고리 + 지역일치
+              if (nv && nv.found === true && nv.isCafeCategory === true && nv.hasRegion === true) {
+                autoKeepList.push(cafe);
+                return;
+              }
+
+              // 자동 제거: 네이버 매칭 0건 + 원본 카테고리에도 카페 키워드 없음
+              if (nv && nv.found === false) {
+                const hasCafeCatInOrig = CAFE_CATEGORY_RE.test(origCategory);
+                const hasCafeInName = /카페|커피|coffee|cafe/i.test(cafe.name || '');
+                if (!hasCafeCatInOrig && !hasCafeInName) {
+                  autoRemoveList.push(cafe);
+                  return;
+                }
+              }
+
+              // 나머지: Gemini 판단 대상
+              geminiJudgeList.push(cafe);
+            });
+
+            console.log(`[영업모드] E-2 자동확정: ${autoKeepList.length}개, 자동제거: ${autoRemoveList.length}개, Gemini판단: ${geminiJudgeList.length}개`);
+            console.log(`[영업모드] E-2 autoKeep: ${autoKeepList.map(c => c.name).join(', ') || '없음'}`);
+            console.log(`[영업모드] E-2 autoRemove: ${autoRemoveList.map(c => c.name).join(', ') || '없음'}`);
+            console.log(`[영업모드] E-2 geminiJudge: ${geminiJudgeList.map(c => c.name).join(', ') || '없음'}`);
+
+            // -- autoRemove 적용 --
+            autoRemoveList.forEach(cafe => {
+              const reason = `auto_remove: 네이버 매칭 0건 + 카페 카테고리 미해당 (${cafe.naverVerification?.reason || 'unknown'})`;
+              collectedData.notCafes.push({ name: cafe.name, addr: cafe.addr, source: cafe.source, reason });
+              if (collectedData.nearbyFranchiseList) {
+                collectedData.nearbyFranchiseList = collectedData.nearbyFranchiseList.filter(f => f.name !== cafe.name);
+              }
+              if (collectedData.nearbyIndependentList) {
+                collectedData.nearbyIndependentList = collectedData.nearbyIndependentList.filter(f => f.name !== cafe.name);
+              }
+              console.log(`[영업모드] E-2 자동제거: ${cafe.name} - ${reason}`);
+            });
+
+            // -- fallback 필터 함수 (Gemini 실패/파싱오류 시 사용) --
+            const applyFallbackFilter = (cafes) => {
+              const FALLBACK_KEYWORDS = [
+                '카페트', '카펫', '부동산', '공인중개', '중개사', '미용', '헤어',
+                '네일', '과일', '청과', '세탁', '약국', '병원', '의원', '마트',
+                '편의점', '주유소', '인테리어', '학원', '교습', '어린이집',
+                '노래방', '정비', '세차', '꽃집', '화원', '타이어', '가구'
+              ];
+              cafes.forEach(cafe => {
+                const nameLower = cafe.name.toLowerCase();
+                const fbMatch = FALLBACK_KEYWORDS.find(kw => nameLower.includes(kw));
+                if (fbMatch) {
+                  collectedData.notCafes.push({ name: cafe.name, addr: cafe.addr, source: cafe.source, reason: `fallback_keyword: ${fbMatch}` });
+                  if (collectedData.nearbyFranchiseList) {
+                    collectedData.nearbyFranchiseList = collectedData.nearbyFranchiseList.filter(f => f.name !== cafe.name);
+                  }
+                  if (collectedData.nearbyIndependentList) {
+                    collectedData.nearbyIndependentList = collectedData.nearbyIndependentList.filter(f => f.name !== cafe.name);
+                  }
+                  console.log(`[영업모드] fallback 비카페 제거: ${cafe.name} (키워드: ${fbMatch})`);
+                }
+              });
+            };
+
+            // -- Gemini 판단 대상이 있을 때만 API 호출 --
+            const allNotCafeNames = [];
+            const allClosedNames = [];
+
+            if (geminiJudgeList.length > 0) {
+              // 배치 분할: 10개씩 chunk로 나누기
+              const BATCH_SIZE = 10;
+              const batches = [];
+              for (let i = 0; i < geminiJudgeList.length; i += BATCH_SIZE) {
+                batches.push(geminiJudgeList.slice(i, i + BATCH_SIZE));
+              }
+              const totalBatches = batches.length;
+              console.log(`[영업모드] STEP E-2 Gemini: 총 ${geminiJudgeList.length}개 매장을 ${totalBatches}개 배치로 분할 (배치당 최대 ${BATCH_SIZE}개)`);
+
+              // 순차 배치 처리 (병렬 X - 500 에러 방지)
+              for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
+                const chunk = batches[batchIdx];
+                console.log(`[영업모드] STEP E-2: 배치 ${batchIdx + 1}/${totalBatches} (${chunk.length}개 매장 검증 중)`);
+
+                const batchPrompt = `너는 카페 창업 컨설턴트야. 아래 매장들이 실제 카페/커피 판매점인지 판단해줘.
+
+[절대 규칙]
+- 아래 제공된 카카오/네이버 데이터만 보고 판단하라.
+- 외부 웹 검색이나 사전 지식을 사용하지 마라.
+- 오직 제공된 카테고리, 매장명, 주소 정보만으로 판단하라.
+
+판단 기준:
+1. 카테고리가 카페/커피/음료/디저트/베이커리 관련이면 -> KEEP
+2. 카테고리가 명확히 비카페(부동산, 병원, 미용 등)이면 -> REMOVE
+3. 매장명에 "카페", "커피", "coffee", "cafe"가 포함되면 -> KEEP
+4. 네이버 지역검색에서 지역불일치(검색 지역 외 매장)이면 -> REMOVE
+5. 카테고리 정보 없고 매장명으로도 판단 불가하면 -> KEEP (보수적 판단)
+
+매장 목록:
+${chunk.map(c => {
+  let line = `- ${c.name} (주소: ${c.addr})`;
+  const origCat = c.category_name || c.category || '';
+  if (origCat) line += ` [카카오카테고리: ${origCat}]`;
+  if (naverMissingNames.has(c.name)) line += ' [네이버미등록]';
+  if (c.naverVerification) {
+    if (c.naverVerification.found) {
+      line += ` [네이버검증: category="${c.naverVerification.category || '없음'}", score=${c.naverVerification.matchScore}, 지역${c.naverVerification.hasRegion ? '일치' : '불일치'}]`;
+    } else {
+      line += ` [네이버검증: 미확인 (${c.naverVerification.reason})]`;
+    }
+  }
+  return line;
+}).join('\n')}
+
+반드시 JSON으로만 응답 (다른 텍스트 없이):
+{"results": [{"name": "매장명", "action": "KEEP", "reason": "근거"}]}
+
+action은 반드시 "KEEP" 또는 "REMOVE"만 사용.
+모든 매장에 대해 반드시 판별 결과를 포함해.`;
+
+                try {
+                  const filterRes = await callGeminiProxy(
+                    [{ parts: [{ text: batchPrompt }] }],
+                    { maxOutputTokens: 4000, temperature: 0 },
+                    AbortSignal.timeout(60000)
+                  );
+
+                  if (filterRes.ok) {
+                    const filterResult = await filterRes.json();
+                    let filterText = '';
+                    if (filterResult.candidates?.[0]?.content?.parts) {
+                      filterText = filterResult.candidates[0].content.parts
+                        .filter(p => p.text)
+                        .map(p => p.text)
+                        .join('');
+                    }
+                    console.log(`[영업모드] STEP E-2 배치 ${batchIdx + 1}/${totalBatches} Gemini 응답 (${filterText.length}자):`, filterText.substring(0, 300));
+
+                    const filterMatch = filterText.match(/\{[\s\S]*"results"[\s\S]*\}/);
+                    if (filterMatch) {
+                      try {
+                        const filterData = JSON.parse(filterMatch[0]);
+
+                        (filterData.results || []).forEach(r => {
+                          const foundInAll = chunk.find(c =>
+                            c.name.includes(r.name) || r.name.includes(c.name)
+                          );
+                          if (!foundInAll) return;
+
+                          const action = (r.action || '').toUpperCase();
+                          const reason = r.reason || '';
+
+                          if (action === 'REMOVE') {
+                            collectedData.notCafes.push({
+                              name: foundInAll.name,
+                              addr: foundInAll.addr,
+                              source: foundInAll.source,
+                              reason: `gemini_judge: ${reason}`
+                            });
+                            allNotCafeNames.push(foundInAll.name);
+                            if (collectedData.nearbyFranchiseList) {
+                              collectedData.nearbyFranchiseList = collectedData.nearbyFranchiseList.filter(f => f.name !== foundInAll.name);
+                            }
+                            if (collectedData.nearbyIndependentList) {
+                              collectedData.nearbyIndependentList = collectedData.nearbyIndependentList.filter(f => f.name !== foundInAll.name);
+                            }
+                            console.log(`[영업모드] Gemini REMOVE: ${foundInAll.name} (${foundInAll.source}) - ${reason}`);
+                          } else {
+                            console.log(`[영업모드] Gemini KEEP: ${foundInAll.name} - ${reason}`);
+                          }
+                        });
+
+                        console.log(`[STEP E-2] 배치 ${batchIdx+1} Gemini 판정:`, filterData.results.map(r => `${r.name}: ${r.action} - ${r.reason}`).join(' | '));
+                        console.log(`[영업모드] STEP E-2 배치 ${batchIdx + 1}/${totalBatches} 완료`);
+                      } catch (pe) {
+                        console.log(`[영업모드] STEP E-2 배치 ${batchIdx + 1}/${totalBatches} JSON 파싱 실패: ${pe.message} - fallback 필터 적용`);
+                        applyFallbackFilter(chunk);
+                      }
+                    } else {
+                      console.log(`[영업모드] STEP E-2 배치 ${batchIdx + 1}/${totalBatches}: JSON 추출 실패 - fallback 필터 적용`);
+                      applyFallbackFilter(chunk);
+                    }
+                  } else {
+                    console.log(`[영업모드] STEP E-2 배치 ${batchIdx + 1}/${totalBatches}: Gemini API 실패 (status: ${filterRes.status}) - fallback 필터 적용`);
+                    applyFallbackFilter(chunk);
+                  }
+                } catch (batchErr) {
+                  console.log(`[영업모드] STEP E-2 배치 ${batchIdx + 1}/${totalBatches}: 요청 오류 (${batchErr.message}) - fallback 필터 적용`);
+                  applyFallbackFilter(chunk);
+                }
+              }
+            } else {
+              console.log(`[영업모드] STEP E-2: Gemini 판단 대상 0개 - API 호출 스킵`);
+            }
+
+            // 전체 결과 요약
+            console.log(`[영업모드] E-2 결과: autoKeep ${autoKeepList.length}개, autoRemove ${autoRemoveList.length}개, Gemini REMOVE ${allNotCafeNames.length}개 (${allNotCafeNames.join(', ') || '없음'})`);
+
+            // Gemini가 모든 업체를 KEEP로 판정한 경우 경고
+            if (allNotCafeNames.length === 0 && geminiJudgeList.length > 10) {
+              console.warn(`[영업모드] STEP E 경고: Gemini가 ${geminiJudgeList.length}개 전부 KEEP 판정 - 프롬프트 또는 파싱 확인 필요`);
+            }
+          }
+
+// -- STEP E-3: 결과 적용 - 카운트 재계산 --
+           const postFilterFranchise = (collectedData.nearbyFranchiseList || []).length;
+           const postFilterIndependent = (collectedData.nearbyIndependentList || []).length;
+           collectedData.nearbyTotalCafes = postFilterFranchise + postFilterIndependent;
+           collectedData.nearbyIndependentCafes = postFilterIndependent;
+           const postFilterFC = {};
+           (collectedData.nearbyFranchiseList || []).forEach(f => {
+             if (f.brand) postFilterFC[f.brand] = (postFilterFC[f.brand] || 0) + 1;
+           });
+           collectedData.nearbyFranchiseCounts = postFilterFC;
+
+           console.log(`[영업모드] STEP E 완료: 필터링 전 ${beforeFilterCount}개 -> 필터링 후 ${collectedData.nearbyTotalCafes}개 (비카페 ${collectedData.notCafes.length}개, 폐업 ${collectedData.closedCafes.length}개 제거)`);
+         } catch (e) {
+           console.log('[영업모드] STEP E 비카페+폐업 판별 실패:', e.message);
+         }
+       }
+
+       // ═══ 3.4b단계: STEP F - 카페 상세수집 (메뉴/가격/리뷰/영업시간) ═══
+       if (DEBUG_STEP_E_ONLY) {
+         console.log('[DEBUG] 스킵: STEP F (카페 상세 Gemini 웹서치)');
+       } else {
+       const allCafesForDetail = [
+         ...(collectedData.nearbyFranchiseList || []),
+         ...(collectedData.nearbyIndependentList || [])
+       ].sort((a, b) => (a.dist || 9999) - (b.dist || 9999));
+
+       if (allCafesForDetail.length > 0) {
+         try {
+           updateCollectingText('카페별 메뉴, 가격, 리뷰 정보를 수집하고 있어요');
+           const top15 = allCafesForDetail.slice(0, 15);
+
+           const detailPrompt = `다음 카페들의 상세 정보를 웹 검색으로 수집해줘.
+
+카페 목록:
+${top15.map(c => `- ${c.name} (${c.addr}, ${c.dist}m)`).join('\n')}
+
+각 카페별로 수집:
+1. 아메리카노 가격
+2. 대표 메뉴 3개 + 가격
+3. 네이버/카카오 리뷰 평점 (5점 만점)
+4. 리뷰에서 자주 나오는 긍정/부정 키워드
+5. 영업시간
+6. 인테리어 스타일 (모던/빈티지/미니멀 등)
+7. 좌석 규모 (소형/중형/대형)
+
+JSON으로만 응답:
+{"cafes":[{"name":"카페명","americano":4500,"topMenus":[{"name":"메뉴명","price":6000}],"rating":4.2,"reviewKeywords":{"positive":["넓어요"],"negative":["시끄러워요"]},"hours":"09:00-22:00","interior":"모던","seatSize":"중형"}],"avgAmericano":4800,"priceRange":"3500~6500원"}`;
+
+           console.log(`[영업모드] STEP F: ${top15.length}개 카페 상세 정보 Gemini 웹서치 요청`);
+
+           const detailRes = await callGeminiProxy(
+             [{ parts: [{ text: detailPrompt }] }],
+             { maxOutputTokens: 4000 },
+             AbortSignal.timeout(45000),
+             [{ googleSearch: {} }]
+           );
+
+           if (detailRes.ok) {
+             const detailResult = await detailRes.json();
+             let detailText = '';
+             if (detailResult.candidates?.[0]?.content?.parts) {
+               detailText = detailResult.candidates[0].content.parts
+                 .filter(p => p.text)
+                 .map(p => p.text)
+                 .join('');
+             }
+             const detailMatch = detailText.match(/\{[\s\S]*"cafes"[\s\S]*\}/);
+             if (detailMatch) {
+               try {
+                 const enriched = JSON.parse(detailMatch[0]);
+                 collectedData.enrichedCafes = enriched;
+                 console.log(`[영업모드] 카페 상세 수집 완료: ${(enriched.cafes || []).length}개, 평균 아메리카노 ${enriched.avgAmericano}원`);
+               } catch (pe) {
+                 console.log('[영업모드] 카페 상세 JSON 파싱 실패:', pe.message);
+               }
+             } else {
+               console.log('[영업모드] 카페 상세 응답에서 JSON 추출 실패');
+             }
+           }
+         } catch (e) {
+           console.log('[영업모드] 카페 상세 정보 수집 실패:', e.message);
+         }
+       }
+
+       } // end of !DEBUG_STEP_E_ONLY (STEP F)
+
+       // 최종 거리순 정렬 (DEBUG 모드에서도 실행)
+       if (collectedData.nearbyFranchiseList) collectedData.nearbyFranchiseList.sort((a, b) => (a.dist || 9999) - (b.dist || 9999));
+       if (collectedData.nearbyIndependentList) collectedData.nearbyIndependentList.sort((a, b) => (a.dist || 9999) - (b.dist || 9999));
+
+       const fcFinal = Object.entries(collectedData.nearbyFranchiseCounts || {}).map(([k,v]) => `${k}:${v}`).join(', ');
+       console.log(`[영업모드] ★ 최종 카페 수: ${collectedData.nearbyTotalCafes}개 (프랜차이즈 ${(collectedData.nearbyFranchiseList || []).length}개: ${fcFinal || '없음'}, 개인카페 ${(collectedData.nearbyIndependentList || []).length}개)`);
+
+       // DEBUG TEMP: 카페 데이터 추출용 (임시)
+       window.__FINAL_CAFES__ = [
+         ...(collectedData.nearbyFranchiseList || []).map(c => ({
+           name: c.name || '',
+           address: c.addr || '',
+           x: '',
+           y: '',
+           distance: c.dist || '',
+           isFranchise: true,
+           brand: c.brand || '',
+           category: c.category || '',
+           source: c.source || ''
+         })),
+         ...(collectedData.nearbyIndependentList || []).map(c => ({
+           name: c.name || '',
+           address: c.addr || '',
+           x: '',
+           y: '',
+           distance: c.dist || '',
+           isFranchise: false,
+           brand: '',
+           category: c.category || '',
+           source: c.source || ''
+         }))
+       ];
+       window.__SEARCH_CENTER__ = { lat: coordinates.lat, lng: coordinates.lng };
+       console.log('[DEBUG TEMP] window.__FINAL_CAFES__:', window.__FINAL_CAFES__.length, '개');
+       console.log('[DEBUG TEMP] window.__SEARCH_CENTER__:', window.__SEARCH_CENTER__);
      }
 
+     // ═══════════════════════════════════════════════════════════════
+     // 3.5단계~ 이후: SNS, YouTube, Seoul API, AI 분석 (DEBUG_STEP_E_ONLY일 때 전체 스킵)
+     // ═══════════════════════════════════════════════════════════════
+     if (DEBUG_STEP_E_ONLY) {
+       console.log('[DEBUG] 스킵: SNS 트렌드 분석');
+       console.log('[DEBUG] 스킵: YouTube 리뷰 분석');
+       console.log('[DEBUG] 스킵: Seoul API 9개 추가 수집');
+       console.log('[DEBUG] 스킵: 서울시 시간대별 유동인구');
+       console.log('[DEBUG] 스킵: 서울시 카페 전용 매출 데이터');
+       console.log('[DEBUG] 스킵: 메인 Gemini AI 분석 (카드별 분석)');
+       console.log('[DEBUG] STEP E 디버그 모드 완료 - 카드 렌더링으로 진행');
+       animateProgressTo(95);
+       setSalesModeAnalysisStep('디버그 모드 - STEP E만 실행 완료');
+       updateCollectingText('디버그 모드: STEP E 비카페 필터링 완료. 느린 API/AI 분석은 스킵됨.');
+     } else {
      // ═══════════════════════════════════════════════════════════════
      // 3.5단계: SNS 트렌드 웹검색 (YouTube, 인스타그램, 블로그)
      // ═══════════════════════════════════════════════════════════════
@@ -6236,7 +8459,7 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
      updateCollectingText(`${query} 지역의 SNS 트렌드와 카페 리뷰를 분석하고 있어요`);
      
      // SNS 트렌드 분석용 프롬프트
-     const snsTrendPrompt = `당신은 SNS 트렌드 분석가입니다. "${query} 카페"에 대한 SNS 트렌드를 분석해주세요.
+     const snsTrendPrompt = `당신은 카페 창업 컨설턴트 '트렌드브루'예요. 분석 톤: 트렌드브루 - 트렌디하고 감각적으로 SNS와 온라인 반응을 분석하세요. "${query} 카페"에 대한 SNS 트렌드를 분석해주세요.
 
 [분석 항목]
 1. 이 지역 카페의 SNS 인기 키워드 (인스타그램, 유튜브 기준)
@@ -6259,7 +8482,7 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
     "popularMenuType": "시그니처 음료, 대형 디저트",
     "instagramPosts": "약 X만 게시물 추정",
     "youtubeContent": "리뷰 영상 트렌드 요약",
-    "bruFeedback": "브루가 SNS 트렌드를 바탕으로 브랜딩 방향을 제시해요. 테이크아웃 컵 디자인 등 바이럴 포인트 중심.",
+    "bruFeedback": "트렌드브루가 SNS 트렌드를 바탕으로 브랜딩 방향을 제시해요. 테이크아웃 컵 디자인 등 바이럴 포인트 중심.",
     "bruSummary": "40자 이내 한줄 핵심"
   }
 }
@@ -6442,6 +8665,611 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
      }
    }
 
+     // ═══ 서울시 시간대별 유동인구 수집 (서울 지역만) ═══
+     const isSeoul = (addressInfo?.sido || '').includes('서울') || (addressInfo?.address || query || '').includes('서울');
+     if (isSeoul) try {
+       // 행정동 단축명 사용 (admdstCdNm: "용문동" vs dongNm: "서울특별시 용산구 용문동")
+       const dongShortNm = collectedData.dongInfo?.admdstCdNm || addressInfo?.dong || '';
+       const sgNm = addressInfo?.sigungu || '';
+       // 동이름 root 추출: "용문동" → "용문", "원효로1동" → "원효", "청파동" → "청파"
+       const dongRoot = dongShortNm.replace(/[로동가리]\d*$/g, '').replace(/\d+$/, '');
+       // 인접 행정동 root도 검색 키워드에 추가
+       const nearbyRoots = (collectedData.dongInfo?.nearbyDongs || [])
+         .map(nd => (nd.admdstCdNm || '').replace(/[로동가리]\d*$/g, '').replace(/\d+$/, ''))
+         .filter(r => r && r.length >= 2);
+       const searchKws = [
+         ...new Set([
+           dongRoot,
+           sgNm.replace('구', ''),
+           ...nearbyRoots
+         ])
+       ].filter(kw => kw && kw.length >= 2);
+       console.log(`[유동인구] 검색 키워드: ${searchKws.join(', ')} (행정동: ${dongShortNm})`);
+
+       // 최신 분기 데이터를 동적으로 가져오기 (총 건수 먼저 확인)
+       const floatCountRes = await fetch(`${PROXY_SERVER_URL}/api/seoul/floating?startIndex=1&endIndex=1`);
+       let totalCount = 44536; // fallback
+       if (floatCountRes.ok) {
+         const countData = await floatCountRes.json();
+         totalCount = countData?.VwsmTrdarFlpopQq?.list_total_count || 44536;
+       }
+       // 최신 분기: 마지막 1000건 가져오기 (분기별 ~540건)
+       const latestStart = Math.max(1, totalCount - 999);
+       const floatRes = await fetch(`${PROXY_SERVER_URL}/api/seoul/floating?startIndex=${latestStart}&endIndex=${totalCount}`);
+       if (floatRes.ok) {
+         const floatData = await floatRes.json();
+         const rows = floatData?.VwsmTrdarFlpopQq?.row || [];
+         const matched = rows.filter(r => searchKws.some(kw => (r.TRDAR_CD_NM || '').includes(kw)));
+         console.log(`[유동인구] ${rows.length}개 행 중 ${matched.length}개 매칭 (range: ${latestStart}-${totalCount}, 키워드: ${searchKws.join(',')})`);
+         if (matched.length > 0) {
+           const timeSlots = { '00~06시': 0, '06~11시': 0, '11~14시': 0, '14~17시': 0, '17~21시': 0, '21~24시': 0 };
+           const tmKeys = ['00_06', '06_11', '11_14', '14_17', '17_21', '21_24'];
+           const tmNames = Object.keys(timeSlots);
+           const daySlots = { '월': 0, '화': 0, '수': 0, '목': 0, '금': 0, '토': 0, '일': 0 };
+           const dayKeys = ['MON', 'TUES', 'WED', 'THUR', 'FRI', 'SAT', 'SUN'];
+           const dayNames = Object.keys(daySlots);
+           matched.forEach(r => {
+             tmKeys.forEach((tk, i) => { timeSlots[tmNames[i]] += parseInt(r[`TMZON_${tk}_FLPOP_CO`]) || 0; });
+             dayKeys.forEach((dk, i) => { daySlots[dayNames[i]] += parseInt(r[`${dk}_FLPOP_CO`]) || 0; });
+           });
+           const n = matched.length;
+           Object.keys(timeSlots).forEach(k => { timeSlots[k] = Math.round(timeSlots[k] / n); });
+           Object.keys(daySlots).forEach(k => { daySlots[k] = Math.round(daySlots[k] / n); });
+           const peakTime = Object.entries(timeSlots).sort((a,b) => b[1] - a[1])[0];
+           const peakDay = Object.entries(daySlots).sort((a,b) => b[1] - a[1])[0];
+           collectedData.apis.floatingTime = {
+             description: '시간대별 유동인구 (서울시 열린데이터)',
+             data: {
+               timeSlots, daySlots,
+               peakTime: peakTime?.[0] || '-', peakTimePop: peakTime?.[1] || 0,
+               peakDay: peakDay?.[0] || '-', peakDayPop: peakDay?.[1] || 0,
+               matchedCount: n,
+               matchedNames: matched.slice(0, 5).map(r => r.TRDAR_CD_NM),
+               quarter: matched[0]?.STDR_YYQU_CD || ''
+             }
+           };
+           console.log(`[영업모드] 시간대 유동인구: ${n}개 상권 매칭, 피크 ${peakTime?.[0]}(${peakTime?.[1]?.toLocaleString()}명)`);
+         }
+       }
+     } catch (e) { console.log('[영업모드] 시간대 유동인구 수집 실패:', e.message); }
+
+     // ═══ 서울시 추정매출 API로 카페 전용 연령/시간대/요일 데이터 수집 (서울 지역만) ═══
+     if (isSeoul) try {
+       updateCollectingText('카페 업종 전용 매출·연령 데이터를 수집하고 있어요');
+       const dongNmForSales = collectedData.dongInfo?.dongNm || addressInfo?.dong || '';
+       const sgNmForSales = addressInfo?.sigungu || '';
+       const salesKws = [dongNmForSales.replace(/\d+동$/, ''), query.split(' ')[0], sgNmForSales.replace('구', '')].filter(kw => kw && kw.length >= 2);
+
+       // 서울시 VwsmTrdarSelngQq (추정매출) API - 프록시에서 카페만 필터링해서 반환
+       const cafeSalesRes = await fetch(`/api/sbiz-proxy?api=seoul&service=VwsmTrdarSelngQq&stdrYyquCd=20253&industryCode=CS100010`);
+       if (cafeSalesRes.ok) {
+         const cafeSalesRaw = await cafeSalesRes.json();
+         const cafeRows = cafeSalesRaw?.data?.filteredRows || [];
+         // 지역 매칭 (여러 키워드로)
+         const cafeMatched = cafeRows.filter(r => salesKws.some(kw => (r.TRDAR_CD_NM || '').includes(kw)));
+         console.log(`[영업모드] 서울 카페 추정매출: 카페=${cafeRows.length}개, 매칭=${cafeMatched.length}개 (키워드: ${salesKws.join(',')})`);
+
+         if (cafeMatched.length > 0) {
+           // 연령별 카페 결제건수 합산
+           let a10=0, a20=0, a30=0, a40=0, a50=0, a60=0;
+           // 시간대별 카페 매출건수 합산
+           let t0006=0, t0611=0, t1114=0, t1417=0, t1721=0, t2124=0;
+           // 요일별 카페 매출건수 합산
+           let dMon=0, dTue=0, dWed=0, dThu=0, dFri=0, dSat=0, dSun=0;
+           // 성별 매출건수
+           let mCo=0, fCo=0;
+           // 총 매출액
+           let totalSales=0;
+
+           cafeMatched.forEach(r => {
+             a10 += +(r.AGRDE_10_SELNG_CO||0);
+             a20 += +(r.AGRDE_20_SELNG_CO||0);
+             a30 += +(r.AGRDE_30_SELNG_CO||0);
+             a40 += +(r.AGRDE_40_SELNG_CO||0);
+             a50 += +(r.AGRDE_50_SELNG_CO||0);
+             a60 += +(r.AGRDE_60_ABOVE_SELNG_CO||0);
+             t0006 += +(r.TMZON_00_06_SELNG_CO||0);
+             t0611 += +(r.TMZON_06_11_SELNG_CO||0);
+             t1114 += +(r.TMZON_11_14_SELNG_CO||0);
+             t1417 += +(r.TMZON_14_17_SELNG_CO||0);
+             t1721 += +(r.TMZON_17_21_SELNG_CO||0);
+             t2124 += +(r.TMZON_21_24_SELNG_CO||0);
+             dMon += +(r.MON_SELNG_CO||0);
+             dTue += +(r.TUES_SELNG_CO||0);
+             dWed += +(r.WED_SELNG_CO||0);
+             dThu += +(r.THUR_SELNG_CO||0);
+             dFri += +(r.FRI_SELNG_CO||0);
+             dSat += +(r.SAT_SELNG_CO||0);
+             dSun += +(r.SUN_SELNG_CO||0);
+             mCo += +(r.ML_SELNG_CO||0);
+             fCo += +(r.FML_SELNG_CO||0);
+             totalSales += +(r.THSMON_SELNG_AMT||0);
+           });
+
+           const n = cafeMatched.length;
+           const totalAgeCo = a10+a20+a30+a40+a50+a60;
+
+           // 카페 전용 연령별 데이터 저장
+           collectedData.apis.cafeAgeData = {
+             description: '카페 업종 연령별 결제건수 (서울시 추정매출)',
+             data: [
+               { age: 'M10', pipcnt: Math.round(a10/n), pct: totalAgeCo > 0 ? Math.round(a10/totalAgeCo*100) : 0 },
+               { age: 'M20', pipcnt: Math.round(a20/n), pct: totalAgeCo > 0 ? Math.round(a20/totalAgeCo*100) : 0 },
+               { age: 'M30', pipcnt: Math.round(a30/n), pct: totalAgeCo > 0 ? Math.round(a30/totalAgeCo*100) : 0 },
+               { age: 'M40', pipcnt: Math.round(a40/n), pct: totalAgeCo > 0 ? Math.round(a40/totalAgeCo*100) : 0 },
+               { age: 'M50', pipcnt: Math.round(a50/n), pct: totalAgeCo > 0 ? Math.round(a50/totalAgeCo*100) : 0 },
+               { age: 'M60', pipcnt: Math.round(a60/n), pct: totalAgeCo > 0 ? Math.round(a60/totalAgeCo*100) : 0 }
+             ].sort((a, b) => b.pipcnt - a.pipcnt),
+             source: '서울시 열린데이터 추정매출 (카페 업종)',
+             matchedCount: n,
+             matchedNames: cafeMatched.slice(0, 5).map(r => r.TRDAR_CD_NM),
+             isCafeSpecific: true
+           };
+
+           // 카페 전용 시간대별 데이터 저장
+           collectedData.apis.cafeTimeData = {
+             description: '카페 업종 시간대별 결제건수 (서울시 추정매출)',
+             data: {
+               timeSlots: { '00~06시': Math.round(t0006/n), '06~11시': Math.round(t0611/n), '11~14시': Math.round(t1114/n), '14~17시': Math.round(t1417/n), '17~21시': Math.round(t1721/n), '21~24시': Math.round(t2124/n) },
+               daySlots: { '월': Math.round(dMon/n), '화': Math.round(dTue/n), '수': Math.round(dWed/n), '목': Math.round(dThu/n), '금': Math.round(dFri/n), '토': Math.round(dSat/n), '일': Math.round(dSun/n) },
+               gender: { male: mCo, female: fCo, malePct: (mCo+fCo)>0 ? Math.round(mCo/(mCo+fCo)*100) : 50 },
+               avgSalesPerStore: n > 0 ? Math.round(totalSales / n) : 0
+             },
+             source: '서울시 열린데이터 추정매출 (카페 업종)',
+             isCafeSpecific: true
+           };
+
+           console.log(`[영업모드] 카페 전용 매출 데이터: ${n}개 상권, 연령 1위=${collectedData.apis.cafeAgeData.data[0]?.age}(${collectedData.apis.cafeAgeData.data[0]?.pct}%)`);
+         } else {
+           console.log('[영업모드] 카페 전용 매출: 해당 지역 매칭 없음 (검색:', salesKws.join(','), ')');
+         }
+       }
+     } catch (e) { console.log('[영업모드] 카페 전용 매출 수집 실패:', e.message); }
+
+    // ═══ 서울시 열린데이터 9개 추가 API 수집 (서울 지역만) ═══
+    if (isSeoul) {
+      updateCollectingText('서울시 상권 데이터를 추가 수집하고 있어요');
+      const seoulQuarter = '20253'; // 최신 분기
+      const guNm = addressInfo?.sigungu || ''; // 예: "은평구"
+      const dongNmShort = collectedData.dongInfo?.admdstCdNm || addressInfo?.dong || '';
+      const sgNmNoSuffix = guNm.replace('구', '');
+      const seoulSearchKws = [
+        dongNmShort.replace(/[로동가리]\d*$/g, '').replace(/\d+$/, ''),
+        sgNmNoSuffix,
+        ...(collectedData.dongInfo?.nearbyDongs || [])
+          .map(nd => (nd.admdstCdNm || '').replace(/[로동가리]\d*$/g, '').replace(/\d+$/, ''))
+          .filter(r => r && r.length >= 2)
+      ].filter(kw => kw && kw.length >= 2);
+      const seoulUniqueKws = [...new Set(seoulSearchKws)];
+
+      // 지역 매칭 헬퍼 (상권명에 키워드 포함 여부)
+      const matchByTrdar = (rows) => rows.filter(r => seoulUniqueKws.some(kw => (r.TRDAR_CD_NM || '').includes(kw)));
+      // 자치구/행정동명 매칭 헬퍼
+      const matchByGu = (rows) => rows.filter(r => (r.SIGNGU_CD_NM || '').includes(sgNmNoSuffix) || (r.ADSTRD_CD_NM || '').includes(dongNmShort));
+
+      const seoulApiCalls = [
+        // 1. VwsmTrdarFlpopQq - 유동인구 상세 (이미 floatingTime으로 시간대별은 수집됨, 여기서는 성별/연령별 추가)
+        { key: 'seoulFlpopDetail', svc: 'VwsmTrdarFlpopQq', quarter: seoulQuarter, matchFn: matchByTrdar, desc: '유동인구 상세(성별/연령)' },
+        // 2. VwsmTrdarStorQq - 점포수 + 개폐업률
+        { key: 'seoulStorQq', svc: 'VwsmTrdarStorQq', quarter: seoulQuarter, matchFn: matchByTrdar, desc: '점포수/개폐업률' },
+        // 3. VwsmTrdarRepopQq - 상주인구
+        { key: 'seoulRepop', svc: 'VwsmTrdarRepopQq', quarter: seoulQuarter, matchFn: matchByTrdar, desc: '상주인구' },
+        // 4. VwsmTrdarIxQq - 상권변화지표
+        { key: 'seoulTrdarIx', svc: 'VwsmTrdarIxQq', quarter: seoulQuarter, matchFn: matchByTrdar, desc: '상권변화지표' },
+        // 5. VwsmTrdarFcltyQq - 집객시설
+        { key: 'seoulFclty', svc: 'VwsmTrdarFcltyQq', quarter: seoulQuarter, matchFn: matchByTrdar, desc: '집객시설' },
+        // 6. VwsmSignguStorW - 자치구별 점포
+        { key: 'seoulSignguStor', svc: 'VwsmSignguStorW', quarter: null, matchFn: (rows) => rows.filter(r => (r.SIGNGU_CD_NM || '').includes(sgNmNoSuffix)), desc: '자치구별 점포' },
+        // 7. VwsmAdstrdStorW - 행정동별 점포
+        { key: 'seoulAdstrdStor', svc: 'VwsmAdstrdStorW', quarter: null, matchFn: (rows) => rows.filter(r => seoulUniqueKws.some(kw => (r.ADSTRD_CD_NM || '').includes(kw))), desc: '행정동별 점포' },
+      ];
+
+      // 7개 VwsmTrdar 계열 병렬 호출
+      const seoulResults = await Promise.allSettled(seoulApiCalls.map(async (sc) => {
+        try {
+          const params = new URLSearchParams({ api: 'seoul', service: sc.svc, startIndex: '1', endIndex: '1000' });
+          if (sc.quarter) params.append('stdrYyquCd', sc.quarter);
+          const res = await fetch(`/api/sbiz-proxy?${params.toString()}`, { signal: AbortSignal.timeout(15000) });
+          if (!res.ok) return { key: sc.key, data: null, desc: sc.desc };
+          const json = await res.json();
+          const rows = json?.data?.[sc.svc]?.row || json?.[sc.svc]?.row || json?.data?.filteredRows || [];
+          const matched = sc.matchFn(rows);
+          console.log(`[서울API] ${sc.desc}(${sc.svc}): 전체 ${rows.length}행, 매칭 ${matched.length}행`);
+          return { key: sc.key, rows: matched, total: rows.length, desc: sc.desc };
+        } catch (e) {
+          console.log(`[서울API] ${sc.desc} 실패:`, e.message);
+          return { key: sc.key, data: null, desc: sc.desc };
+        }
+      }));
+
+      // 결과 처리 - collectedData.apis에 저장
+      seoulResults.forEach(r => {
+        if (r.status !== 'fulfilled' || !r.value?.rows?.length) return;
+        const { key, rows, desc } = r.value;
+
+        if (key === 'seoulFlpopDetail') {
+          // 유동인구 성별/연령별 상세
+          let mPop = 0, fPop = 0;
+          let a10 = 0, a20 = 0, a30 = 0, a40 = 0, a50 = 0, a60 = 0;
+          rows.forEach(r => {
+            mPop += +(r.ML_FLPOP_CO || 0); fPop += +(r.FML_FLPOP_CO || 0);
+            a10 += +(r.AGRDE_10_FLPOP_CO || 0); a20 += +(r.AGRDE_20_FLPOP_CO || 0);
+            a30 += +(r.AGRDE_30_FLPOP_CO || 0); a40 += +(r.AGRDE_40_FLPOP_CO || 0);
+            a50 += +(r.AGRDE_50_FLPOP_CO || 0); a60 += +(r.AGRDE_60_ABOVE_FLPOP_CO || 0);
+          });
+          const n = rows.length;
+          const totalAge = a10 + a20 + a30 + a40 + a50 + a60;
+          collectedData.apis.seoulFlpopDetail = {
+            description: desc,
+            data: {
+              gender: { male: Math.round(mPop / n), female: Math.round(fPop / n), malePct: (mPop + fPop) > 0 ? Math.round(mPop / (mPop + fPop) * 100) : 50 },
+              age: [
+                { age: '10대', count: Math.round(a10 / n), pct: totalAge > 0 ? Math.round(a10 / totalAge * 100) : 0 },
+                { age: '20대', count: Math.round(a20 / n), pct: totalAge > 0 ? Math.round(a20 / totalAge * 100) : 0 },
+                { age: '30대', count: Math.round(a30 / n), pct: totalAge > 0 ? Math.round(a30 / totalAge * 100) : 0 },
+                { age: '40대', count: Math.round(a40 / n), pct: totalAge > 0 ? Math.round(a40 / totalAge * 100) : 0 },
+                { age: '50대', count: Math.round(a50 / n), pct: totalAge > 0 ? Math.round(a50 / totalAge * 100) : 0 },
+                { age: '60대+', count: Math.round(a60 / n), pct: totalAge > 0 ? Math.round(a60 / totalAge * 100) : 0 },
+              ].sort((a, b) => b.count - a.count),
+              matchedCount: n,
+              matchedNames: rows.slice(0, 5).map(r => r.TRDAR_CD_NM)
+            },
+            source: '서울시 열린데이터 유동인구'
+          };
+        }
+
+        if (key === 'seoulStorQq') {
+          // 점포수 + 개폐업률
+          let totalStor = 0, openStor = 0, closeStor = 0, franchiseStor = 0;
+          rows.forEach(r => {
+            totalStor += +(r.STOR_CO || 0);
+            openStor += +(r.OPBIZ_STOR_CO || 0);
+            closeStor += +(r.CLSBIZ_STOR_CO || 0);
+            franchiseStor += +(r.FRC_STOR_CO || 0);
+          });
+          const n = rows.length;
+          collectedData.apis.seoulStorQq = {
+            description: desc,
+            data: {
+              avgStoreCount: n > 0 ? Math.round(totalStor / n) : 0,
+              avgOpenCount: n > 0 ? Math.round(openStor / n) : 0,
+              avgCloseCount: n > 0 ? Math.round(closeStor / n) : 0,
+              avgFranchiseCount: n > 0 ? Math.round(franchiseStor / n) : 0,
+              openRate: totalStor > 0 ? (openStor / totalStor * 100).toFixed(1) : '0',
+              closeRate: totalStor > 0 ? (closeStor / totalStor * 100).toFixed(1) : '0',
+              matchedCount: n,
+              matchedNames: rows.slice(0, 5).map(r => r.TRDAR_CD_NM)
+            },
+            source: '서울시 열린데이터 점포수'
+          };
+        }
+
+        if (key === 'seoulRepop') {
+          // 상주인구
+          let totalPop = 0, mPop = 0, fPop = 0, hhCnt = 0;
+          let a10 = 0, a20 = 0, a30 = 0, a40 = 0, a50 = 0, a60 = 0;
+          rows.forEach(r => {
+            totalPop += +(r.TOT_REPOP_CO || 0);
+            mPop += +(r.ML_REPOP_CO || 0); fPop += +(r.FML_REPOP_CO || 0);
+            hhCnt += +(r.APT_HSHOLD_CO || 0);
+            a10 += +(r.AGRDE_10_REPOP_CO || 0); a20 += +(r.AGRDE_20_REPOP_CO || 0);
+            a30 += +(r.AGRDE_30_REPOP_CO || 0); a40 += +(r.AGRDE_40_REPOP_CO || 0);
+            a50 += +(r.AGRDE_50_REPOP_CO || 0); a60 += +(r.AGRDE_60_ABOVE_REPOP_CO || 0);
+          });
+          const n = rows.length;
+          collectedData.apis.seoulRepop = {
+            description: desc,
+            data: {
+              totalPopulation: n > 0 ? Math.round(totalPop / n) : 0,
+              male: n > 0 ? Math.round(mPop / n) : 0,
+              female: n > 0 ? Math.round(fPop / n) : 0,
+              households: n > 0 ? Math.round(hhCnt / n) : 0,
+              ageDistribution: [
+                { age: '10대', count: Math.round(a10 / Math.max(n, 1)), pct: totalPop > 0 ? Math.round(a10 / totalPop * 100) : 0 },
+                { age: '20대', count: Math.round(a20 / Math.max(n, 1)), pct: totalPop > 0 ? Math.round(a20 / totalPop * 100) : 0 },
+                { age: '30대', count: Math.round(a30 / Math.max(n, 1)), pct: totalPop > 0 ? Math.round(a30 / totalPop * 100) : 0 },
+                { age: '40대', count: Math.round(a40 / Math.max(n, 1)), pct: totalPop > 0 ? Math.round(a40 / totalPop * 100) : 0 },
+                { age: '50대', count: Math.round(a50 / Math.max(n, 1)), pct: totalPop > 0 ? Math.round(a50 / totalPop * 100) : 0 },
+                { age: '60대+', count: Math.round(a60 / Math.max(n, 1)), pct: totalPop > 0 ? Math.round(a60 / totalPop * 100) : 0 },
+              ].sort((a, b) => b.count - a.count),
+              matchedCount: n,
+              matchedNames: rows.slice(0, 5).map(r => r.TRDAR_CD_NM)
+            },
+            source: '서울시 열린데이터 상주인구'
+          };
+        }
+
+        if (key === 'seoulTrdarIx') {
+          // 상권변화지표
+          const latestRows = rows.slice(-5); // 최신 5개
+          collectedData.apis.seoulTrdarIx = {
+            description: desc,
+            data: latestRows.map(r => ({
+              name: r.TRDAR_CD_NM || '',
+              changeCode: r.TRDAR_CHNGE_IX_CD_NM || r.TRDAR_CHNGE_IX_CD || '',
+              openRate: +(r.OPBIZ_RT || 0),
+              closeRate: +(r.CLSBIZ_RT || 0),
+              salesChangeRate: +(r.TRDAR_CHNGE_IX || 0),
+              rdiCode: r.RDI_CD_NM || ''
+            })),
+            matchedCount: rows.length,
+            matchedNames: rows.slice(0, 5).map(r => r.TRDAR_CD_NM),
+            source: '서울시 열린데이터 상권변화지표'
+          };
+        }
+
+        if (key === 'seoulFclty') {
+          // 집객시설
+          let govOffice = 0, bank = 0, hospital = 0, pharmacy = 0, school = 0, subway = 0, bus = 0, theater = 0;
+          rows.forEach(r => {
+            govOffice += +(r.VIATR_FCLTY_CO || 0);
+            bank += +(r.BANK_CO || 0);
+            hospital += +(r.GNRL_HPTL_CO || 0);
+            pharmacy += +(r.PARMACY_CO || 0);
+            school += +(r.KND_GRDN_CO || 0) + +(r.ELESCH_CO || 0) + +(r.MSKUL_CO || 0) + +(r.HGSCHL_CO || 0) + +(r.UNIV_CO || 0);
+            subway += +(r.SBWAY_STTN_CO || 0);
+            bus += +(r.BUS_STTN_CO || 0);
+            theater += +(r.THEAT_CO || 0);
+          });
+          const n = rows.length;
+          collectedData.apis.seoulFclty = {
+            description: desc,
+            data: {
+              facilities: [
+                { name: '지하철역', count: n > 0 ? Math.round(subway / n) : 0 },
+                { name: '버스정류장', count: n > 0 ? Math.round(bus / n) : 0 },
+                { name: '은행', count: n > 0 ? Math.round(bank / n) : 0 },
+                { name: '종합병원', count: n > 0 ? Math.round(hospital / n) : 0 },
+                { name: '약국', count: n > 0 ? Math.round(pharmacy / n) : 0 },
+                { name: '학교(전체)', count: n > 0 ? Math.round(school / n) : 0 },
+                { name: '관공서/집객시설', count: n > 0 ? Math.round(govOffice / n) : 0 },
+                { name: '극장', count: n > 0 ? Math.round(theater / n) : 0 },
+              ].sort((a, b) => b.count - a.count),
+              matchedCount: n,
+              matchedNames: rows.slice(0, 5).map(r => r.TRDAR_CD_NM)
+            },
+            source: '서울시 열린데이터 집객시설'
+          };
+        }
+
+        if (key === 'seoulSignguStor') {
+          // 자치구별 점포 (해당 구 데이터만)
+          const guRows = rows.filter(r => (r.SIGNGU_CD_NM || '').includes(sgNmNoSuffix));
+          if (guRows.length > 0) {
+            // 업종별 점포수 집계
+            const byIndustry = {};
+            guRows.forEach(r => {
+              const ind = r.SVC_INDUTY_CD_NM || r.INDUTY_CD_NM || '기타';
+              byIndustry[ind] = (byIndustry[ind] || 0) + +(r.STOR_CO || r.THSMON_STOR_CO || 0);
+            });
+            const sorted = Object.entries(byIndustry).sort((a, b) => b[1] - a[1]);
+            collectedData.apis.seoulSignguStor = {
+              description: desc,
+              data: {
+                gu: guNm,
+                totalStores: sorted.reduce((s, e) => s + e[1], 0),
+                byIndustry: sorted.slice(0, 15).map(([name, count]) => ({ name, count })),
+                cafeCount: byIndustry['커피-음료'] || byIndustry['카페'] || 0,
+                matchedCount: guRows.length
+              },
+              source: '서울시 열린데이터 자치구별 점포'
+            };
+          }
+        }
+
+        if (key === 'seoulAdstrdStor') {
+          // 행정동별 점포
+          if (rows.length > 0) {
+            const byIndustry = {};
+            rows.forEach(r => {
+              const ind = r.SVC_INDUTY_CD_NM || r.INDUTY_CD_NM || '기타';
+              byIndustry[ind] = (byIndustry[ind] || 0) + +(r.STOR_CO || r.THSMON_STOR_CO || 0);
+            });
+            const sorted = Object.entries(byIndustry).sort((a, b) => b[1] - a[1]);
+            collectedData.apis.seoulAdstrdStor = {
+              description: desc,
+              data: {
+                dong: dongNmShort,
+                totalStores: sorted.reduce((s, e) => s + e[1], 0),
+                byIndustry: sorted.slice(0, 15).map(([name, count]) => ({ name, count })),
+                cafeCount: byIndustry['커피-음료'] || byIndustry['카페'] || 0,
+                matchedCount: rows.length,
+                matchedDongs: [...new Set(rows.map(r => r.ADSTRD_CD_NM))].slice(0, 5)
+              },
+              source: '서울시 열린데이터 행정동별 점포'
+            };
+          }
+        }
+      });
+
+      // 8-9. LOCALDATA 인허가 API (커피전문점 + 일반음식점) - 프록시에서 구 단위 필터링
+      if (guNm) {
+        const localdataCalls = [
+          { key: 'seoulCoffeePermit', svc: 'LOCALDATA_072405', filterField: 'RDNWHLADDR', filterValue: guNm, maxBatch: '150', desc: '커피전문점 인허가' },
+          { key: 'seoulRestPermit', svc: 'LOCALDATA_072404', filterField: 'RDNWHLADDR', filterValue: guNm, maxBatch: '150', desc: '일반음식점 인허가' },
+        ];
+        const localResults = await Promise.allSettled(localdataCalls.map(async (lc) => {
+          try {
+            const params = new URLSearchParams({
+              api: 'seoul', service: lc.svc,
+              filterField: lc.filterField, filterValue: lc.filterValue,
+              maxBatch: lc.maxBatch
+            });
+            const res = await fetch(`/api/sbiz-proxy?${params.toString()}`, { signal: AbortSignal.timeout(60000) });
+            if (!res.ok) return { key: lc.key, data: null, desc: lc.desc };
+            const json = await res.json();
+            const rows = json?.data?.filteredRows || [];
+            console.log(`[서울API] ${lc.desc}(${lc.svc}): ${guNm} 필터 ${rows.length}건`);
+            return { key: lc.key, rows, desc: lc.desc };
+          } catch (e) {
+            console.log(`[서울API] ${lc.desc} 실패:`, e.message);
+            return { key: lc.key, data: null, desc: lc.desc };
+          }
+        }));
+
+        localResults.forEach(r => {
+          if (r.status !== 'fulfilled' || !r.value?.rows?.length) return;
+          const { key, rows, desc } = r.value;
+
+          // 동 단위 추가 필터링
+          const dongFiltered = rows.filter(row => {
+            const addr = row.RDNWHLADDR || row.SITEWHLADDR || '';
+            return seoulUniqueKws.some(kw => addr.includes(kw));
+          });
+
+          if (key === 'seoulCoffeePermit') {
+            // 영업중인 것만
+            const active = dongFiltered.filter(row => (row.DTLSTATEGBN || row.TRDSTATEGBN || '').includes('영업'));
+            const closed = dongFiltered.filter(row => (row.DTLSTATEGBN || row.TRDSTATEGBN || '').includes('폐업'));
+            collectedData.apis.seoulCoffeePermit = {
+              description: desc,
+              data: {
+                guTotal: rows.length,
+                dongTotal: dongFiltered.length,
+                activeCount: active.length,
+                closedCount: closed.length,
+                survivalRate: dongFiltered.length > 0 ? Math.round(active.length / dongFiltered.length * 100) : 0,
+                recentOpen: active
+                  .filter(r => r.APVPERMYMD)
+                  .sort((a, b) => (b.APVPERMYMD || '').localeCompare(a.APVPERMYMD || ''))
+                  .slice(0, 5)
+                  .map(r => ({ name: r.BPLCNM || '', date: r.APVPERMYMD || '', addr: (r.RDNWHLADDR || '').substring(0, 30) })),
+                recentClose: closed
+                  .filter(r => r.DCBYMD)
+                  .sort((a, b) => (b.DCBYMD || '').localeCompare(a.DCBYMD || ''))
+                  .slice(0, 5)
+                  .map(r => ({ name: r.BPLCNM || '', date: r.DCBYMD || '' }))
+              },
+              source: '서울시 열린데이터 커피전문점 인허가'
+            };
+          }
+
+          if (key === 'seoulRestPermit') {
+            const active = dongFiltered.filter(row => (row.DTLSTATEGBN || row.TRDSTATEGBN || '').includes('영업'));
+            const closed = dongFiltered.filter(row => (row.DTLSTATEGBN || row.TRDSTATEGBN || '').includes('폐업'));
+            collectedData.apis.seoulRestPermit = {
+              description: desc,
+              data: {
+                guTotal: rows.length,
+                dongTotal: dongFiltered.length,
+                activeCount: active.length,
+                closedCount: closed.length,
+                survivalRate: dongFiltered.length > 0 ? Math.round(active.length / dongFiltered.length * 100) : 0,
+                recentOpen: active
+                  .filter(r => r.APVPERMYMD)
+                  .sort((a, b) => (b.APVPERMYMD || '').localeCompare(a.APVPERMYMD || ''))
+                  .slice(0, 5)
+                  .map(r => ({ name: r.BPLCNM || '', date: r.APVPERMYMD || '', addr: (r.RDNWHLADDR || '').substring(0, 30) })),
+                recentClose: closed
+                  .filter(r => r.DCBYMD)
+                  .sort((a, b) => (b.DCBYMD || '').localeCompare(a.DCBYMD || ''))
+                  .slice(0, 5)
+                  .map(r => ({ name: r.BPLCNM || '', date: r.DCBYMD || '' }))
+              },
+              source: '서울시 열린데이터 일반음식점 인허가'
+            };
+          }
+        });
+      }
+
+      console.log(`[서울API] 9개 추가 수집 완료:`, Object.keys(collectedData.apis).filter(k => k.startsWith('seoul')).join(', '));
+    }
+
+     // ═══════════════════════════════════════════════════════════════
+     // 3.9단계: OpenUB 건물 매출 데이터 + 매장별 매출 추정
+     // ═══════════════════════════════════════════════════════════════
+     if (coordinates && !DEBUG_STEP_E_ONLY) {
+       try {
+         setSalesModeAnalysisStep('건물 매출 데이터 수집 중');
+         updateCollectingText('주변 건물별 매출 데이터를 수집하고 있어요');
+
+         const openubData = await fetchOpenUBBuildingData(coordinates.lat, coordinates.lng, 500);
+         collectedData.openubBuildings = openubData.buildings;
+         collectedData.openubBuildingSales = openubData.buildingSales;
+         collectedData.openubAvailable = openubData.available;
+
+         // 동 평균 카페 매출 (소진공 GIS salesAvg에서)
+         const _cafeAvgForEstimate = (() => {
+           const salesAvgItems = collectedData.apis?.salesAvg?.data;
+           if (Array.isArray(salesAvgItems)) {
+             const cafeItem = salesAvgItems.find(s => s.tpbizClscdNm === '카페');
+             if (cafeItem?.mmavgSlsAmt) return cafeItem.mmavgSlsAmt;
+           }
+           return 1800; // 전국 평균 폴백
+         })();
+
+         // 전체 카페 리스트로 매출 추정
+         const allCafes = [
+           ...(collectedData.nearbyFranchiseList || []).map(f => ({
+             name: f.name,
+             brand: f.brand || f.name,
+             isFranchise: true,
+             addr: f.addr,
+             americanoPrice: FRANCHISE_DATA[f.brand]?.아메리카노 || 0
+           })),
+           ...(collectedData.nearbyIndependentList || []).map(f => ({
+             name: f.name,
+             isFranchise: false,
+             addr: f.addr,
+             americanoPrice: 0
+           }))
+         ];
+
+         if (allCafes.length > 0) {
+           const estimates = estimateAllCafeSales({
+             cafes: allCafes,
+             openubData: openubData.available ? openubData : null,
+             dongAvgCafeSales: _cafeAvgForEstimate,
+             FRANCHISE_DATA_REF: FRANCHISE_DATA,
+             nearbyTotalCafes: collectedData.nearbyTotalCafes || allCafes.length
+           });
+           collectedData.salesEstimates = estimates;
+
+           // 추정 결과 요약 로그
+           const layerCounts = {};
+           estimates.forEach(e => { layerCounts[e.layer] = (layerCounts[e.layer] || 0) + 1; });
+           console.log(`[매출추정] ${estimates.length}개 카페 추정 완료:`, layerCounts,
+             `동 평균: ${_cafeAvgForEstimate}만원, OpenUB: ${openubData.available ? 'O' : 'X'}`);
+         }
+       } catch (e) {
+         console.warn('[매출추정] OpenUB 연동 실패, 동 평균 기반 추정으로 폴백:', e.message);
+         // OpenUB 실패해도 L3/L4 추정은 가능
+         try {
+           const _cafeAvgFallback = (() => {
+             const items = collectedData.apis?.salesAvg?.data;
+             if (Array.isArray(items)) {
+               const c = items.find(s => s.tpbizClscdNm === '카페');
+               if (c?.mmavgSlsAmt) return c.mmavgSlsAmt;
+             }
+             return 1800;
+           })();
+
+           const allCafes = [
+             ...(collectedData.nearbyFranchiseList || []).map(f => ({
+               name: f.name, brand: f.brand || f.name, isFranchise: true, addr: f.addr,
+               americanoPrice: FRANCHISE_DATA[f.brand]?.아메리카노 || 0
+             })),
+             ...(collectedData.nearbyIndependentList || []).map(f => ({
+               name: f.name, isFranchise: false, addr: f.addr, americanoPrice: 0
+             }))
+           ];
+
+           if (allCafes.length > 0) {
+             collectedData.salesEstimates = estimateAllCafeSales({
+               cafes: allCafes,
+               openubData: null,
+               dongAvgCafeSales: _cafeAvgFallback,
+               FRANCHISE_DATA_REF: FRANCHISE_DATA,
+               nearbyTotalCafes: collectedData.nearbyTotalCafes || allCafes.length
+             });
+             console.log(`[매출추정] 폴백 추정 ${collectedData.salesEstimates.length}개 완료 (L3/L4만)`);
+           }
+         } catch (e2) {
+           console.warn('[매출추정] 폴백 추정도 실패:', e2.message);
+         }
+       }
+     }
+
      // ═══════════════════════════════════════════════════════════════
      // 4단계: 수집된 데이터를 AI에게 전달하여 분석 요청
      // ═══════════════════════════════════════════════════════════════
@@ -6544,6 +9372,69 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
          summary.push(`업력현황: ${apis.stcarSttus.data.slice(0,5).map(d => `${d.stcarNm || d.stcarRange || ''}:${d.storCo || d.stcnt || 0}개`).join(', ')}`);
        }
 
+       // 매출추이 (slsIndex) - 매출지수 변화
+       if (apis.slsIndex?.data && Array.isArray(apis.slsIndex.data)) {
+         summary.push(`매출추이: ${apis.slsIndex.data.slice(0,5).map(d => `${d.crtrYm || d.crtrYyqu || ''}:${d.slsIdx || d.slsAmt || 0}`).join(', ')}`);
+       }
+
+       // 배달현황 (delivery) - 배달 주문 현황
+       if (apis.delivery?.data && Array.isArray(apis.delivery.data)) {
+         summary.push(`배달현황: ${apis.delivery.data.slice(0,5).map(d => `${d.tpbizNm || d.indsNm || ''}:${d.dlvrCnt || d.orderCnt || 0}건`).join(', ')}`);
+       }
+
+       // SNS분석 (snsAnaly) - SNS 언급 분석
+       if (apis.snsAnaly?.data && Array.isArray(apis.snsAnaly.data)) {
+         summary.push(`SNS분석: ${apis.snsAnaly.data.slice(0,5).map(d => `${d.kwrd || d.keyword || ''}:${d.cnt || d.mention || 0}건`).join(', ')}`);
+       }
+
+       // 간편분석 (simple) - 상권 간편 요약
+       if (apis.simple?.data) {
+         const sd = apis.simple.data;
+         if (Array.isArray(sd)) {
+           summary.push(`간편분석: ${sd.slice(0,5).map(d => `${d.nm || d.indsMclsNm || d.item || ''}:${d.val || d.storCo || d.cnt || ''}`).join(', ')}`);
+         } else if (typeof sd === 'object') {
+           const parts = [];
+           if (sd.storCo) parts.push(`점포수 ${sd.storCo}`);
+           if (sd.slsAmt) parts.push(`매출 ${sd.slsAmt}`);
+           if (sd.fltPplCnt) parts.push(`유동인구 ${sd.fltPplCnt}`);
+           if (sd.openBizRate) parts.push(`개업률 ${sd.openBizRate}%`);
+           if (sd.closeBizRate) parts.push(`폐업률 ${sd.closeBizRate}%`);
+           if (parts.length > 0) summary.push(`간편분석: ${parts.join(', ')}`);
+         }
+       }
+
+       // 창업공공지원 (startupPublic) - 정부 창업 지원
+       if (apis.startupPublic?.data) {
+         const spd = apis.startupPublic.data;
+         if (Array.isArray(spd) && spd.length > 0) {
+           summary.push(`창업공공지원(${spd.length}건): ${spd.slice(0,5).map(d => `${d.prgmNm || d.sprtNm || d.title || ''}`).join(', ')}`);
+         } else if (typeof spd === 'object' && spd.totalCount) {
+           summary.push(`창업공공지원: ${spd.totalCount}건`);
+         }
+       }
+
+       // 핫플레이스 리포트 (hpReport)
+       if (apis.hpReport?.data) {
+         const hpd = apis.hpReport.data;
+         if (Array.isArray(hpd) && hpd.length > 0) {
+           summary.push(`핫플레이스: ${hpd.slice(0,5).map(d => `${d.hpNm || d.areaNm || d.nm || ''}${d.hpRank ? '('+d.hpRank+'위)' : ''}${d.hpScore ? ':'+d.hpScore+'점' : ''}`).join(', ')}`);
+         } else if (typeof hpd === 'object') {
+           const parts = [];
+           if (hpd.hpScore) parts.push(`핫플점수 ${hpd.hpScore}`);
+           if (hpd.hpRank) parts.push(`순위 ${hpd.hpRank}위`);
+           if (hpd.hpGrade) parts.push(`등급 ${hpd.hpGrade}`);
+           if (parts.length > 0) summary.push(`핫플레이스: ${parts.join(', ')}`);
+         }
+       }
+
+       // R-ONE 상가 임대료 (roneRent) - 한국부동산원
+       if (apis.roneRent?.data && Array.isArray(apis.roneRent.data)) {
+         const rows = apis.roneRent.data;
+         const avgRent = rows.reduce((s, r) => s + (parseFloat(r.RENT_FEE) || 0), 0) / (rows.length || 1);
+         const avgDeposit = rows.reduce((s, r) => s + (parseFloat(r.GRFE) || 0), 0) / (rows.length || 1);
+         summary.push(`R-ONE 임대료(${rows.length}건): 평균 임대료 ${Math.round(avgRent * 10) / 10}만/평, 보증금 ${Math.round(avgDeposit * 10) / 10}만/평`);
+       }
+
        // dynPplCmpr 시간대별 유동인구 (tmzn1~tmzn6)
        if (apis.dynPplCmpr?.data && Array.isArray(apis.dynPplCmpr.data) && apis.dynPplCmpr.data.length > 0) {
          const d0 = apis.dynPplCmpr.data[0];
@@ -6558,9 +9449,145 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
        // Firebase 임대료
        if (apis.firebaseRent?.data?.summary) {
          const s = apis.firebaseRent.data.summary;
-         summary.push(`임대료: 보증금 평균 ${s.avgDeposit?.toLocaleString()}만, 월세 ${s.avgMonthlyRent?.toLocaleString()}만 (${s.dongCount}개 동, ${s.totalArticles}건)`);
+         summary.push(`임대료: 보증금 평균 ${s.avgDeposit?.toLocaleString()}만, 월세 ${s.avgMonthlyRent?.toLocaleString()}만 (${s.dongCount}개 동, ${s.totalArticles}건)${s.isEstimate ? ' (부동산원 통계 추정)' : ''}`);
+         if (apis.firebaseRent.data.nearbyDongs?.length > 0) {
+           summary.push(`동별 임대료: ${apis.firebaseRent.data.nearbyDongs.slice(0,5).map(d => `${d.dong}:보${d.avgDeposit?.toLocaleString()}만/월${d.avgMonthlyRent?.toLocaleString()}만`).join(', ')}`);
+         }
        }
-       
+
+       // 점포수 (storCnt) - rads 기반 행정동별 업소수
+       if (apis.storCnt?.data?.rads && Array.isArray(apis.storCnt.data.rads)) {
+         const rads = apis.storCnt.data.rads;
+         const total = rads.reduce((s, r) => s + (parseInt(r.storCnt) || 0), 0);
+         summary.push(`행정동 총 업소수: ${total.toLocaleString()}개 (${rads.length}개 동)`);
+       }
+
+       // 인구수 (popCnt) - rads 기반
+       if (apis.popCnt?.data?.rads && Array.isArray(apis.popCnt.data.rads)) {
+         const rads = apis.popCnt.data.rads;
+         const totalPop = rads.reduce((s, r) => s + (parseInt(r.ppltnCnt) || 0), 0);
+         const totalHh = rads.reduce((s, r) => s + (parseInt(r.hhCnt) || 0), 0);
+         const totalWorker = rads.reduce((s, r) => s + (parseInt(r.wrcpplCnt) || 0), 0);
+         summary.push(`인구: 상주 ${totalPop.toLocaleString()}명, 세대 ${totalHh.toLocaleString()}, 직장인구 ${totalWorker.toLocaleString()}명`);
+       }
+
+       // SNS 트렌드 (Gemini 웹서치 수집) - 텍스트 요약만
+       if (apis.snsTrend?.data) {
+         const sns = apis.snsTrend.data;
+         const parts = [];
+         if (sns.popularKeywords?.length) parts.push(`인기키워드: ${sns.popularKeywords.slice(0,5).join(', ')}`);
+         if (sns.negativeKeywords?.length) parts.push(`부정키워드: ${sns.negativeKeywords.slice(0,3).join(', ')}`);
+         if (sns.avgPrice) parts.push(`SNS 평균객단가: ${sns.avgPrice}`);
+         if (sns.summary) parts.push(`요약: ${sns.summary}`);
+         if (parts.length > 0) summary.push(`SNS트렌드: ${parts.join(', ')}`);
+       }
+
+       // YouTube 분석 결과 요약
+       if (apis.youtube?.data) {
+         const yt = apis.youtube.data;
+         if (typeof yt === 'string') {
+           summary.push(`YouTube분석: ${yt.substring(0, 200)}`);
+         } else if (yt.summary) {
+           summary.push(`YouTube분석: ${yt.summary}`);
+         }
+       }
+
+       // 카페 연령별 매출 (cafeAgeData)
+       if (apis.cafeAgeData?.data?.length > 0) {
+         summary.push(`카페 매출 연령: ${apis.cafeAgeData.data.slice(0,3).map(d => `${d.age}(${d.pct}%)`).join(', ')}`);
+       }
+
+       // 카페 시간대별 매출 (cafeTimeData)
+       if (apis.cafeTimeData?.data) {
+         const ct = apis.cafeTimeData.data;
+         if (ct.peakTime) summary.push(`카페 피크타임: ${ct.peakTime} (${ct.peakTimeSales?.toLocaleString() || ''}만)`);
+       }
+
+       // ═══ 서울시 열린데이터 9개 추가 API 요약 ═══
+
+       // 유동인구 성별/연령 상세 (seoulFlpopDetail)
+       if (apis.seoulFlpopDetail?.data) {
+         const d = apis.seoulFlpopDetail.data;
+         const gd = d.gender;
+         summary.push(`유동인구 성별: 남성 ${gd.malePct}% / 여성 ${100 - gd.malePct}% (일평균 남 ${gd.male?.toLocaleString()}명, 여 ${gd.female?.toLocaleString()}명)`);
+         if (d.age?.length > 0) {
+           summary.push(`유동인구 연령: ${d.age.slice(0,3).map(a => `${a.age} ${a.pct}%(${a.count?.toLocaleString()}명)`).join(', ')} (${d.matchedCount}개 상권 평균)`);
+         }
+       }
+
+       // 점포수 + 개폐업률 (seoulStorQq)
+       if (apis.seoulStorQq?.data) {
+         const d = apis.seoulStorQq.data;
+         summary.push(`상권 점포: 평균 ${d.avgStoreCount}개 (개업 ${d.avgOpenCount}개/${d.openRate}%, 폐업 ${d.avgCloseCount}개/${d.closeRate}%, 프랜차이즈 ${d.avgFranchiseCount}개) [${d.matchedCount}개 상권]`);
+       }
+
+       // 상주인구 (seoulRepop)
+       if (apis.seoulRepop?.data) {
+         const d = apis.seoulRepop.data;
+         summary.push(`상주인구: ${d.totalPopulation?.toLocaleString()}명 (남 ${d.male?.toLocaleString()}, 여 ${d.female?.toLocaleString()}, 세대 ${d.households?.toLocaleString()})`);
+         if (d.ageDistribution?.length > 0) {
+           summary.push(`상주인구 연령: ${d.ageDistribution.slice(0,3).map(a => `${a.age} ${a.pct}%`).join(', ')}`);
+         }
+       }
+
+       // 상권변화지표 (seoulTrdarIx)
+       if (apis.seoulTrdarIx?.data?.length > 0) {
+         summary.push(`상권변화지표: ${apis.seoulTrdarIx.data.slice(0,3).map(d => `${d.name}=${d.changeCode}(개업${d.openRate}%/폐업${d.closeRate}%)`).join(', ')}`);
+       }
+
+       // 집객시설 (seoulFclty)
+       if (apis.seoulFclty?.data?.facilities?.length > 0) {
+         const facs = apis.seoulFclty.data.facilities.filter(f => f.count > 0);
+         summary.push(`집객시설: ${facs.map(f => `${f.name} ${f.count}개`).join(', ')} [${apis.seoulFclty.data.matchedCount}개 상권 평균]`);
+       }
+
+       // 자치구별 점포 (seoulSignguStor)
+       if (apis.seoulSignguStor?.data) {
+         const d = apis.seoulSignguStor.data;
+         summary.push(`${d.gu} 전체 점포: ${d.totalStores?.toLocaleString()}개${d.cafeCount > 0 ? `, 카페 ${d.cafeCount}개` : ''}`);
+         if (d.byIndustry?.length > 0) {
+           summary.push(`  업종별: ${d.byIndustry.slice(0,8).map(i => `${i.name}:${i.count}`).join(', ')}`);
+         }
+       }
+
+       // 행정동별 점포 (seoulAdstrdStor)
+       if (apis.seoulAdstrdStor?.data) {
+         const d = apis.seoulAdstrdStor.data;
+         summary.push(`${d.dong} 행정동 점포: ${d.totalStores?.toLocaleString()}개${d.cafeCount > 0 ? `, 카페 ${d.cafeCount}개` : ''}`);
+         if (d.byIndustry?.length > 0) {
+           summary.push(`  업종별: ${d.byIndustry.slice(0,8).map(i => `${i.name}:${i.count}`).join(', ')}`);
+         }
+       }
+
+       // 커피전문점 인허가 (seoulCoffeePermit)
+       if (apis.seoulCoffeePermit?.data) {
+         const d = apis.seoulCoffeePermit.data;
+         summary.push(`커피전문점 인허가: 동 내 ${d.dongTotal}건 (영업중 ${d.activeCount}개, 폐업 ${d.closedCount}개, 생존율 ${d.survivalRate}%, 구 전체 ${d.guTotal}건)`);
+         if (d.recentOpen?.length > 0) {
+           summary.push(`  최근 개업: ${d.recentOpen.slice(0,3).map(r => `${r.name}(${r.date})`).join(', ')}`);
+         }
+         if (d.recentClose?.length > 0) {
+           summary.push(`  최근 폐업: ${d.recentClose.slice(0,3).map(r => `${r.name}(${r.date})`).join(', ')}`);
+         }
+       }
+
+       // 일반음식점 인허가 (seoulRestPermit)
+       if (apis.seoulRestPermit?.data) {
+         const d = apis.seoulRestPermit.data;
+         summary.push(`일반음식점 인허가: 동 내 ${d.dongTotal}건 (영업중 ${d.activeCount}개, 폐업 ${d.closedCount}개, 생존율 ${d.survivalRate}%, 구 전체 ${d.guTotal}건)`);
+       }
+
+       // 매장별 추정 매출 (OpenUB + 다층 추정 엔진)
+       if (collectedData.salesEstimates && collectedData.salesEstimates.length > 0) {
+         summary.push('\n=== 매장별 추정 매출 (다층 추정 엔진) ===');
+         const layerDesc = { L1: '건물직접', L2: '건물분배', L3: '브랜드기반', L4: '경쟁분석' };
+         for (const est of collectedData.salesEstimates) {
+           summary.push(`${est.name}: 약 ${est.estimated?.toLocaleString()}만원/월 (${layerDesc[est.layer] || est.layer}, 신뢰도 ${Math.round((est.confidence || 0) * 100)}%)`);
+         }
+         const avgEst = Math.round(collectedData.salesEstimates.reduce((s, e) => s + (e.estimated || 0), 0) / collectedData.salesEstimates.length);
+         summary.push(`추정 평균 매출: ${avgEst.toLocaleString()}만원/월 (${collectedData.salesEstimates.length}개 매장 평균)`);
+       }
+
        return summary.length > 0 ? summary.join('\n') : '데이터 없음';
      };
 
@@ -6627,9 +9654,9 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
 - 테이크아웃 컵 디자인 = 바이럴 포인트
 
 [검증된 공식 통계 - 반드시 이 숫자만 사용]
-■ 창업 생존율 (통계청 2023)
-- 전체 창업기업: 1년 64.9%, 3년 46.3%, 5년 34.7%
-- 숙박·음식점업(카페): 5년 22.8%
+■ 창업 생존율 (통계청 기업생멸행정통계 2023)
+- 숙박·음식점업(카페): 1년 58.3%, 3년 36.9%, 5년 22.8% (반드시 숙박·음식점업 기준만 사용. 전체 산업 평균 64.9%를 카페 생존율로 사용하지 마세요)
+- 전체 창업기업(참고): 1년 64.9%, 3년 46.3%, 5년 34.7%
 - 정부 창업지원 기업: 5년 53.1%
 ■ 카페 시장 (2024)
 - 전국 커피전문점: 약 93,000개
@@ -6639,28 +9666,27 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
 ${query} (${addressInfo?.sido || ''} ${addressInfo?.sigungu || ''} ${addressInfo?.dong || ''})
 좌표: ${coordinates ? `${coordinates.lat}, ${coordinates.lng}` : '미확인'}
 ${collectedData.nearbyTotalCafes > 0 ? `
-[반경 500m 내 카페 매장 현황 - 공공데이터포털 storeRadius API]
+[반경 500m 원형 영역 카페 현황 - 네이버/카카오/소상공인 실측]
 총 카페: ${collectedData.nearbyTotalCafes}개 (프랜차이즈: ${collectedData.nearbyTotalCafes - (collectedData.nearbyIndependentCafes || 0)}개, 개인: ${collectedData.nearbyIndependentCafes || 0}개)
 프랜차이즈별: ${Object.entries(collectedData.nearbyFranchiseCounts || {}).map(([k,v]) => `${k} ${v}개`).join(', ') || '없음'}
-매장 목록: ${(collectedData.nearbyFranchiseList || []).slice(0, 10).map(s => s.name).join(', ')}
-※ 이 데이터는 반경 500m 실측 데이터입니다. franchise 배열의 count에 반드시 이 숫자를 사용하세요.` : ''}
+매장 목록 (가까운 순): ${[
+  ...(collectedData.nearbyFranchiseList || []),
+  ...(collectedData.nearbyIndependentList || [])
+].sort((a, b) => (a.dist || 999) - (b.dist || 999)).slice(0, 15).map(c => `${c.name}(${c.dist || '?'}m)`).join(', ')}
+※ 이 데이터는 검색 지점에서 반경 500m 원형 영역 내 네이버 지도 실측 데이터입니다. 카페 수로 반드시 이 숫자(${collectedData.nearbyTotalCafes}개)를 사용하세요.` : ''}
+${collectedData.enrichedCafes ? `
+[카페별 상세 정보 - Gemini 웹서치 수집]
+평균 아메리카노: ${collectedData.enrichedCafes.avgAmericano || '미확인'}원, 가격대: ${collectedData.enrichedCafes.priceRange || '미확인'}
+${(collectedData.enrichedCafes.cafes || []).slice(0, 10).map(c => `- ${c.name}: 아메리카노 ${c.americano || '?'}원, 평점 ${c.rating || '?'}, ${c.interior || ''}, ${c.seatSize || ''}, ${c.hours || ''}`).join('\n')}
+※ 이 데이터를 활용하여 각 카드에 메뉴가격, 리뷰평점, 영업시간, 인테리어 등을 반영하세요.` : ''}
+${collectedData.closedCafes?.length ? `
+[폐업 추정 카페 ${collectedData.closedCafes.length}개]
+${collectedData.closedCafes.map(c => `${c.name}(${c.source})`).join(', ')}
+※ 카카오/소상공인 데이터에는 있으나 네이버 지도에 없고 웹검색으로 현재 영업 확인 불가한 매장입니다. 이 카페들은 카페 수에서 이미 제외되었습니다.` : ''}
 
 [수집된 실제 데이터 - 소상공인365 GIS API]
 ${hasApiData ? `
-■ 데이터 요약:
 ${summarizeGisData()}
-
-■ 상세 API 응답 데이터:
-${JSON.stringify(collectedData.apis, null, 2)}
-
-※ 데이터 필드 설명:
-- rads: 행정동별 데이터 배열
-- storCntAmt/saleAmt: 매출액 (원)
-- ppltnCnt: 인구수
-- storCnt: 업소수
-- hhCnt: 세대수
-- wrcpplCnt: 직장인구
-- bizon: 상권(비존) 데이터
 ` : '소상공인365 API 데이터 수집 실패 - 일반적인 상권 분석을 제공해주세요.'}
 
 프랜차이즈 비용 데이터 (공정위 정보공개서 기준):
@@ -6671,7 +9697,7 @@ ${JSON.stringify(collectedData.apis, null, 2)}
 
 [분석 요청]
 위 수집된 데이터를 기반으로 "${query}" 지역의 카페 창업 상권 분석을 수행해주세요.
-${hasApiData ? '중요: 수집된 GIS API 데이터의 실제 숫자를 반드시 추출하여 사용하세요. rads 배열의 합계나 평균을 계산해서 구체적인 수치로 표현하세요.' : '신뢰할 수 있는 출처의 데이터를 기반으로 분석해주세요.'}
+${hasApiData ? '중요: 위 요약된 데이터의 실제 숫자를 반드시 사용하세요. 구체적인 수치로 표현하세요.' : '신뢰할 수 있는 출처의 데이터를 기반으로 분석해주세요.'}
 
 [★★★ 카페 수 관련 절대 규칙 ★★★]
 - "카페 수"에는 반드시 "반경 500m 실측 카페 수"(storeRadius API)를 사용하세요.
@@ -6687,7 +9713,7 @@ ${hasApiData ? '중요: 수집된 GIS API 데이터의 실제 숫자를 반드�
 5. 개발 호재: 교통, 재개발, 기업 입주 등 긍정 요인
 6. 리스크 요인: 과포화, 높은 임대료, 젠트리피케이션 등 부정 요인 (숨기지 말 것)
 7. 예상 창업 비용: 보증금+권리금+인테리어+설비 총합
-8. 시장 생존율: 통계청 기준 카페 업종 생존율 (1년 64.9%, 3년 46.3%, 5년 22.8%), 정부 창업지원 기업 5년 생존율 53.1%
+8. 시장 생존율: 통계청 기준 숙박·음식점업 생존율 (1년 58.3%, 3년 36.9%, 5년 22.8%), 정부 창업지원 기업 5년 생존율 53.1% (주의: 전체 산업 평균을 카페 업종에 사용하지 마세요)
 
 [응답 형식 - 매우 중요]
 - 각 필드는 전문적인 조언 톤으로 작성
@@ -6697,8 +9723,15 @@ ${hasApiData ? '중요: 수집된 GIS API 데이터의 실제 숫자를 반드�
 - 마크다운 코드블록(\`\`\`json) 사용 금지. 순수 JSON만 출력
 - 매번 다른 문장 시작 사용 (동일 패턴 반복 금지)
 
-[bruFeedback 작성 규칙 - "브루" 캐릭터]
-브루는 빈크래프트의 AI 컨설턴트예요. 각 카드의 bruFeedback은 브루가 창업자에게 직접 말하는 톤으로 작성해요.
+[bruFeedback 작성 규칙 - AI 캐릭터 페르소나]
+빈크래프트에는 6명의 AI 컨설턴트가 있어요. 각 카드별로 전담 캐릭터가 다릅니다:
+- 브루코치: 종합 조언, 실전 팁. 따뜻하게 응원하면서 실전 조언. (카드0 인사, 카드7 AI종합)
+- 데이터브루: 수치 중심 팩트 전달. 객관적이고 분석적. (카드1 상권개요, 카드2 방문연령, 카드2.5 유동인구, 카드4 매출, 카드4.3 시간대, 카드6.2 배달)
+- 트렌드브루: SNS/핫플/리뷰 분석. 트렌디하고 감각적. (카드6.3 SNS 트렌드)
+- 부동산브루: 임대료/비용 분석. 현실적이고 실용적. (카드4.5 입지인프라, 카드5 임대료/창업비용)
+- 경쟁브루: 프랜차이즈/개인카페 분석. 냉철하고 전략적. (카드3 프랜차이즈, 카드3.5 개인카페)
+- 전략브루: 기회/리스크/생존율. 전략적 인사이트 중심. (카드6 기회&리스크, 카드6.5 날씨, 카드6.7 생존율)
+각 카드의 bruFeedback은 해당 캐릭터가 창업자에게 직접 말하는 톤으로 작성해요.
 - "~에요", "~거든요", "~해보세요" 체를 사용
 - "상담 시 질문할 것" 절대 금지 → "창업 전 생각할 것" 방향으로
 - 창업자가 스스로 판단하고 행동할 수 있는 현실적 조언
@@ -6732,17 +9765,9 @@ bruFeedback은 3단계 깊이로 작성해야 해요. 1차원(데이터 읽기)�
 - 예: "메가커피 2,000원과 싸우지 말고, 30대가 8,500원 쓸 이유를 만드세요"
 - 예: "효창동으로 한 블록 옮기면 월 146만원 절약"
 
-[나쁜 bruFeedback 예시 - 절대 이렇게 쓰지 마세요]
-× "카페 경쟁이 치열한 지역이네요. 신중한 접근이 필요해요."
-× "30대가 26.5%입니다. 핵심 고객으로 설정해야 합니다."
-× "임대료를 예산에 반영해야 합니다."
-× "차별화 전략이 필요합니다."
-
-[좋은 bruFeedback 예시 - 이 수준으로 작성하세요]
-○ 카드1(상권): "카페 209개 중 메가커피·빽다방·스타벅스가 반경 200m에 있어요. 아메리카노 2,000~4,500원 양극단이에요. 중간(3,000~4,000원)이 비어있어요. 이 틈을 노리든, 4,500원 이상 품질 승부를 하든 방향을 먼저 정해야 해요."
-○ 카드2(방문연령): "방문은 60대(23.9%)가 가장 많아요. 주변 관공서·군부대 영향이에요. 하지만 이 숫자만 보고 '어르신 타깃 카페'를 만들면 안 돼요. 실제 누가 돈을 쓰는지는 소비 연령 카드를 확인해보세요."
-○ 카드5(임대료): "한강로3가 월 580만원, 효창동 220만원으로 같은 역세권인데 360만원 차이에요. 카페 월매출 2,442만원 기준으로 임대료 비중이 15%를 넘으면 위험해요. 효창동(9%)이 안전하고, 한강로3가(23.7%)는 고위험이에요."
-○ 카드7(종합): 각 카드를 반복하지 말고, "이 상권에서 개인카페가 살아남는 공식" 하나의 결론으로 연결. 판단 기준을 제시.
+[bruFeedback 품질 기준]
+나쁜 예: 추상적 표현("경쟁 치열", "신중한 접근", "차별화 필요")
+좋은 예: 구체적 숫자+교차분석+시나리오 비교 (카페명, 가격, 비율% 포함)
 
 [방문 vs 소비 교차분석 - 핵심 인사이트]
 - VstAgeRnk(방문연령)과 VstCst(소비연령) 데이터를 반드시 교차 비교하세요
@@ -6777,109 +9802,34 @@ bruFeedback은 3단계 깊이로 작성해야 해요. 1차원(데이터 읽기)�
 - 한 문장은 40자 이내로 끊어 쓰세요
 - insight는 문단을 나눠서 가독성 확보 (\n\n으로 구분)
 
-순수 JSON 형식으로만 응답 (이모티콘 금지, 모든 필드 필수):
+순수 JSON 형식으로만 응답 (이모티콘 금지, 모든 필드 필수, 각 텍스트 필드는 간결하게 2~3문장):
 {
   "region": "${query}",
   "reliability": "높음/중간/낮음",
   "dataDate": "YYYY년 MM월 기준",
-  "overview": { 
-    "cafeCount": "${query} 반경 1km 내 카페가 XXX개예요. (소상공인365 2024년 4분기)", 
-    "newOpen": "2024년 신규 개업 XX개, 월평균 X개 수준이에요.", 
-    "closed": "같은 기간 폐업 XX개예요. 개업 대비 폐업 비율을 확인해보세요.", 
-    "floatingPop": "하루 유동인구 약 XX만명이에요. (소상공인365)", 
-    "residentPop": "상주인구 약 XX만명이에요.", 
-    "source": "소상공인365 GIS API",
-    "bruFeedback": "주변 업종 데이터를 분석해서 카페 창업 방향을 제시해요. 예: 한식집 많으면 식후커피 전략, 오피스 많으면 테이크아웃 특화 등",
-    "bruSummary": "40자 이내 한줄 핵심 (예: 메가커피 2,000원과 싸우지 말고, 경험으로 승부하세요)"
-  },
-  "consumers": { 
-    "mainTarget": "핵심 고객층은 XX대 직장인이에요.", 
-    "mainRatio": "매출 비중 약 XX% 수준이에요.", 
-    "secondTarget": "2순위는 XX층이에요.", 
-    "secondRatio": "약 XX% 정도예요.", 
-    "peakTime": "점심 12-14시, 퇴근 17-19시에 매출이 집중돼요.", 
-    "takeoutRatio": "테이크아웃 비율 약 XX%예요.", 
-    "avgStay": "평균 체류시간 XX분 정도예요.",
-    "bruFeedback": "연령별 데이터+주변 업종을 교차 분석해서 타겟 고객에 맞는 메뉴/공간/가격 방향을 구체적으로 제시해요.",
-    "bruSummary": "40자 이내 한줄 핵심"
-  },
-  "franchise": [
-    { "name": "스타벅스", "count": "반경 500m N개", "price": 4500, "monthly": "약 X,XXX만원" },
-    { "name": "메가커피", "count": "반경 500m N개", "price": 2000, "monthly": "약 X,XXX만원" },
-    { "name": "컴포즈커피", "count": "반경 500m N개", "price": 1500, "monthly": "약 X,XXX만원" },
-    { "name": "이디야", "count": "반경 500m N개", "price": 3300, "monthly": "약 X,XXX만원", "feedback": "이 지역 프랜차이즈 현황에 대한 브루의 코멘트입니다." }
-  ],
-  ※ franchise.count는 반드시 [반경 500m 내 카페 매장 현황]의 실측 데이터를 사용. 전국 매장 수 사용 금지. 500m 내 없으면 0.
-  "rent": { 
-    "monthly": "월세 XXX-XXX만원 수준이에요.", 
-    "deposit": "보증금 X,XXX-X,XXX만원 정도예요.", 
-    "premium": "권리금은 위치에 따라 편차가 커요. 직접 확인이 필요해요.", 
-    "yoyChange": "전년 대비 약 X.X% 변동이에요.", 
-    "source": "한국부동산원",
-    "bruFeedback": "브루가 임대료 관련 창업 전 반드시 생각할 포인트를 제시해요.",
-    "bruSummary": "40자 이내 한줄 핵심"
-  },
-  "opportunities": [
-    { "title": "호재 제목", "detail": "구체적 설명 (출처 포함)", "impact": "상/중/하", "bruFeedback": "브루가 이 기회를 어떻게 활용할지 창업자 관점에서 한 줄 제시해요.", "bruSummary": "40자 이내 핵심 한줄" }
-  ],
-  "risks": [
-    { "title": "리스크 제목", "detail": "이 부분은 창업 전에 반드시 고려해보세요.", "impact": "상/중/하", "bruFeedback": "브루가 이 리스크에 대비해 창업 전 무엇을 생각해야 하는지 제시해요.", "bruSummary": "40자 이내 핵심 한줄" }
-  ],
-  "startupCost": { 
-    "deposit": "보증금 범위 확인 필요", 
-    "premium": "권리금 범위 확인 필요", 
-    "interior": "인테리어는 콘셉트와 평수에 따라 달라요", 
-    "equipment": "기기는 상권 특성에 맞게 구성이 필요해요", 
-    "total": "총 비용은 개별 상담을 통해 구체화해보세요. 빈크래프트는 가맹비/로열티 0원, 광고비 자율 선택이에요.",
-    "bruFeedback": "브루가 창업비용 관련 창업 전 생각할 포인트를 제시해요. 구체적 금액보다 구조와 방향 중심으로.",
-    "bruSummary": "40자 이내 핵심 한줄"
-  },
-  "marketSurvival": {
-    "cafeIndustry5yr": "22.8%",
-    "allIndustry5yr": "34.7%",
-    "govSupported5yr": "53.1%",
-    "source": "통계청 기업생멸행정통계(2023), 중소벤처기업부",
-    "warning": "카페 5년 생존율 22.8%예요. 이 숫자를 바꾸려면 철저한 준비가 필요해요.",
-    "bruFeedback": "브루가 생존율 데이터를 바탕으로 창업자에게 현실적 조언을 해요.",
-    "bruSummary": "40자 이내 핵심 한줄"
-  },
-  "insight": "${query} 지역의 특성과 데이터를 종합하면, [상권 특성 분석]. 창업 전에 이 지역에서 어떤 포지션으로 들어갈지 명확히 정리해보세요.",
+  "overview": { "cafeCount": "", "newOpen": "", "closed": "", "floatingPop": "", "residentPop": "", "source": "소상공인365 GIS API", "bruFeedback": "", "bruSummary": "" },
+  "consumers": { "mainTarget": "", "mainRatio": "", "secondTarget": "", "secondRatio": "", "peakTime": "", "takeoutRatio": "", "avgStay": "", "bruFeedback": "", "bruSummary": "" },
+  "franchise": [{ "name": "", "count": "반경500m N개", "price": 0, "monthly": "" }],
+  "rent": { "monthly": "", "deposit": "", "premium": "", "yoyChange": "", "source": "", "bruFeedback": "", "bruSummary": "" },
+  "opportunities": [{ "title": "", "detail": "", "impact": "상/중/하", "bruFeedback": "", "bruSummary": "" }],
+  "risks": [{ "title": "", "detail": "", "impact": "상/중/하", "bruFeedback": "", "bruSummary": "" }],
+  "startupCost": { "deposit": "", "premium": "", "interior": "", "equipment": "", "total": "", "bruFeedback": "", "bruSummary": "" },
+  "marketSurvival": { "year1": "58.3%", "year3": "36.9%", "year5": "22.8%", "cafeIndustry5yr": "22.8%", "allIndustry5yr": "34.7%", "govSupported5yr": "53.1%", "source": "통계청 기업생멸행정통계(2023)", "warning": "", "insight": "", "bruFeedback": "", "bruSummary": "" },
+  "insight": "",
+  "spendingAgeFeedback": "",
+  "rentFeedback": "",
   "beancraftFeedback": {
-    "interior": {
-      "summary": "이 상권에서는 [인테리어 방향] 콘셉트가 적합해요.",
-      "detail": "과한 포토존 없이도 테이블에서 자연스럽게 촬영 가능한 소품 배치, 간접 조명, 또는 공간 자체가 압도하는 구성을 고려해보세요.",
-      "thinkAbout": "내 예산에서 어떤 요소에 우선순위를 둘지 정리해보세요."
-    },
-    "equipment": {
-      "summary": "이 상권 특성상 [기기 방향]이 중요해요.",
-      "detail": "성수기 피크타임 대비 회전율 중심으로 구성하세요. 제빙기는 100kg 이상 + 여분 자리/비용까지 준비하는 게 안전해요. 에스프레소 머신은 동시 추출 가능한 2그룹 이상을 권장해요.",
-      "thinkAbout": "피크타임에 시간당 몇 잔을 처리해야 하는지 계산해보세요."
-    },
-    "menu": {
-      "summary": "이 상권 평균 객단가는 약 X,XXX원이에요.",
-      "detail": "빈크래프트는 메뉴 구성과 방향을 함께 설계해요. 레시피는 제공하지만, 창업자가 원하는 스킬은 교육으로 충분히 키워드릴 수 있어요.",
-      "thinkAbout": "목표 객단가와 회전율을 어떻게 설정할지 생각해보세요."
-    },
-    "beans": {
-      "summary": "빈크래프트는 가성비(저가 프랜차이즈급)부터 고급라인(와인향, 건포도, 넛티 등)까지 준비되어 있어요.",
-      "detail": "성수기에는 테이크아웃 고객 수요가 늘어나는데, 이때 가성비 라인을 추가 배치하면 '생존커피'라는 명분의 매출로 이어질 수 있어요.",
-      "thinkAbout": "메인 원두와 서브 원두를 어떻게 구성할지 생각해보세요."
-    },
-    "education": {
-      "summary": "이 상권에서 필요한 교육 우선순위예요.",
-      "detail": "[상권 특성에 맞는 교육 내용 - 예: 오피스 상권이면 속도 중심, 관광 상권이면 CS/외국어 응대]",
-      "thinkAbout": "오픈 전에 어떤 역량을 먼저 갖춰야 할지 정리해보세요."
-    },
-    "design": {
-      "summary": "이 지역 SNS 트렌드를 반영한 브랜딩이 필요해요.",
-      "detail": "[SNS 분석 기반 브랜딩 방향]. 테이크아웃 컵 디자인은 자연스러운 바이럴 포인트가 될 수 있어요.",
-      "thinkAbout": "브랜드 네이밍과 로고 방향을 어떻게 잡을지 생각해보세요."
-    },
+    "interior": { "summary": "", "detail": "", "thinkAbout": "" },
+    "equipment": { "summary": "", "detail": "", "thinkAbout": "" },
+    "menu": { "summary": "", "detail": "", "thinkAbout": "" },
+    "beans": { "summary": "", "detail": "", "thinkAbout": "" },
+    "education": { "summary": "", "detail": "", "thinkAbout": "" },
+    "design": { "summary": "", "detail": "", "thinkAbout": "" },
     "priority": ["인테리어", "기기설치", "메뉴개발", "원두", "운영교육", "디자인"]
   }
 }
-
-수집된 API 데이터의 실제 숫자를 반드시 사용하세요. beancraftFeedback의 각 카테고리는 상권 특성에 맞게 구체적으로 작성하세요.`;
+주의: franchise.count는 반경500m 실측 데이터만 사용. 전국 매장수 금지. 500m 내 없으면 0.
+수집된 API 데이터의 실제 숫자를 반드시 사용. beancraftFeedback 각 카테고리는 상권 특성에 맞게 구체적으로 작성.`;
 
      // ═══ 1차: 주변 카페 웹검색 (Gemini Google Search) ═══
      animateProgressTo(60);
@@ -6924,25 +9874,30 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
        for (let attempt = 1; attempt <= maxRetry; attempt++) {
          try {
            updateCollectingText(`AI 분석 중... ${attempt > 1 ? `(재시도 ${attempt}/${maxRetry})` : ''}`);
-           
+
            const controller = new AbortController();
-           const timeoutId = setTimeout(() => controller.abort(), 60000); // 60초 타임아웃
-           
+           const timeoutId = setTimeout(() => controller.abort(), 30000); // 30초 타임아웃 (서버 25초 + 여유)
+
            const response = await callGeminiProxy([{ role: 'user', parts: [{ text: promptText }] }], { temperature: 0.7, maxOutputTokens: 8000 }, controller.signal);
-           
+
            clearTimeout(timeoutId);
-           
+
            if (response.ok) {
              const result = await response.json();
              if (result.candidates?.[0]?.content?.parts?.[0]?.text) {
                return result;
              }
            }
-           console.log(`Gemini API 오류 (${attempt}/${maxRetry}):`, response.status);
+           // 504 = 서버 타임아웃, 500 = 서버 에러 - 재시도 의미 있음
+           console.log(`Gemini API 오류 (${attempt}/${maxRetry}): HTTP ${response.status}`);
+           if (attempt < maxRetry) {
+             const delay = response.status === 504 || response.status === 500 ? 2000 : 3000 * attempt;
+             await new Promise(resolve => setTimeout(resolve, delay));
+           }
          } catch (e) {
            console.log(`Gemini API 실패 (${attempt}/${maxRetry}):`, e.message);
            if (attempt < maxRetry) {
-             await new Promise(resolve => setTimeout(resolve, 3000 * attempt));
+             await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
            }
          }
        }
@@ -6951,7 +9906,8 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
      
      // AI 응답 대기 중 진행률 부드럽게 증가 (70% → 95%)
      animateProgressTo(95);
-     
+
+     console.log(`[영업모드] AI 프롬프트 크기: ${prompt.length.toLocaleString()}자 (약 ${Math.round(prompt.length / 4).toLocaleString()} 토큰)`);
      const result = await callGeminiWithRetry(prompt);
      
      // 인터벌 정리
@@ -7143,13 +10099,25 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
        // ═══ API 실제 유동인구 데이터로 override (월간→일평균 변환) ═══
        if (data.overview) {
          const dynData = collectedData.apis?.dynPplCmpr?.data;
+         let dynPplOverridden = false;
          if (Array.isArray(dynData) && dynData.length > 0) {
            const popCnt = dynData[0]?.cnt || dynData[0]?.fpCnt || 0;
            if (popCnt > 0) {
              // dynPplCmpr API는 월간 유동인구를 반환 → 일평균으로 변환 (÷30)
              const dailyPop = Math.round(popCnt / 30);
              data.overview.floatingPop = String(dailyPop);
-             console.log(`유동인구 override: 월${popCnt}명 → 일평균${dailyPop}명 (dynPplCmpr API)`);
+             dynPplOverridden = true;
+             console.log(`유동인구 override: 월${popCnt}명 → 일평균${dailyPop}명 (dynPplCmpr API, 행정동: ${dynData[0]?.nm || '?'})`);
+           }
+         }
+         // dynPplCmpr가 0이면 서울 열린데이터 floatingTime으로 fallback
+         if (!dynPplOverridden && collectedData.apis?.floatingTime?.data) {
+           const ftData = collectedData.apis.floatingTime.data;
+           const allTimeSlots = ftData.timeSlots || {};
+           const totalFromTimeSlots = Object.values(allTimeSlots).reduce((sum, v) => sum + (v || 0), 0);
+           if (totalFromTimeSlots > 0) {
+             data.overview.floatingPop = String(totalFromTimeSlots);
+             console.log(`유동인구 floatingTime fallback: ${totalFromTimeSlots}명/일 (서울시 열린데이터)`);
            }
          }
        }
@@ -7212,17 +10180,17 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
          }
        }
        
-       // 시장 생존율 fallback
+       // 시장 생존율 fallback (숙박·음식점업 기준, 통계청 기업생멸행정통계 2023)
        if (!data.marketSurvival) {
          data.marketSurvival = {
-           year1: '64.9%',
-           year3: '46.3%',
+           year1: '58.3%',
+           year3: '36.9%',
            year5: '22.8%',
            cafeIndustry5yr: '22.8%',
            allIndustry5yr: '34.7%',
            govSupported5yr: '53.1%',
-           source: '통계청 기업생멸행정통계(2023), 중소벤처기업부',
-           insight: '카페 5년 생존율은 22.8%에요. 체계적인 창업 준비가 생존 확률을 높여줍니다.'
+           source: '통계청 기업생멸행정통계(2023), 숙박·음식점업',
+           insight: '숙박·음식점업 5년 생존율은 22.8%에요. 체계적인 창업 준비가 생존 확률을 높여줍니다.'
          };
        }
 
@@ -7337,159 +10305,24 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
          }
        }
        
-       // ═══ 서울시 시간대별 유동인구 수집 (서울 지역만) ═══
-       const isSeoul = (addressInfo?.sido || '').includes('서울') || (addressInfo?.address || query || '').includes('서울');
-       if (isSeoul) try {
-         const dongNm = collectedData.dongInfo?.dongNm || addressInfo?.dong || '';
-         const sgNm = addressInfo?.sigungu || '';
-         const searchKws = [dongNm.replace(/\d+동$/, ''), query.split(' ')[0], sgNm.replace('구', '')].filter(kw => kw && kw.length >= 2);
-
-         const floatRes = await fetch(`${PROXY_SERVER_URL}/api/seoul/floating?startIndex=44000&endIndex=44536`);
-         if (floatRes.ok) {
-           const floatData = await floatRes.json();
-           const rows = floatData?.VwsmTrdarFlpopQq?.row || [];
-           const matched = rows.filter(r => searchKws.some(kw => (r.TRDAR_CD_NM || '').includes(kw)));
-           if (matched.length > 0) {
-             const timeSlots = { '00~06시': 0, '06~11시': 0, '11~14시': 0, '14~17시': 0, '17~21시': 0, '21~24시': 0 };
-             const tmKeys = ['00_06', '06_11', '11_14', '14_17', '17_21', '21_24'];
-             const tmNames = Object.keys(timeSlots);
-             const daySlots = { '월': 0, '화': 0, '수': 0, '목': 0, '금': 0, '토': 0, '일': 0 };
-             const dayKeys = ['MON', 'TUES', 'WED', 'THUR', 'FRI', 'SAT', 'SUN'];
-             const dayNames = Object.keys(daySlots);
-             matched.forEach(r => {
-               tmKeys.forEach((tk, i) => { timeSlots[tmNames[i]] += parseInt(r[`TMZON_${tk}_FLPOP_CO`]) || 0; });
-               dayKeys.forEach((dk, i) => { daySlots[dayNames[i]] += parseInt(r[`${dk}_FLPOP_CO`]) || 0; });
-             });
-             const n = matched.length;
-             Object.keys(timeSlots).forEach(k => { timeSlots[k] = Math.round(timeSlots[k] / n); });
-             Object.keys(daySlots).forEach(k => { daySlots[k] = Math.round(daySlots[k] / n); });
-             const peakTime = Object.entries(timeSlots).sort((a,b) => b[1] - a[1])[0];
-             const peakDay = Object.entries(daySlots).sort((a,b) => b[1] - a[1])[0];
-             collectedData.apis.floatingTime = {
-               description: '시간대별 유동인구 (서울시 열린데이터)',
-               data: {
-                 timeSlots, daySlots,
-                 peakTime: peakTime?.[0] || '-', peakTimePop: peakTime?.[1] || 0,
-                 peakDay: peakDay?.[0] || '-', peakDayPop: peakDay?.[1] || 0,
-                 matchedCount: n,
-                 matchedNames: matched.slice(0, 5).map(r => r.TRDAR_CD_NM),
-                 quarter: matched[0]?.STDR_YYQU_CD || ''
-               }
-             };
-             console.log(`[영업모드] 시간대 유동인구: ${n}개 상권 매칭, 피크 ${peakTime?.[0]}(${peakTime?.[1]?.toLocaleString()}명)`);
+       // ═══ 서울시 데이터 → mainTarget 업데이트 (이미 수집된 cafeAgeData 사용) ═══
+       if (collectedData.apis?.cafeAgeData?.data?.length > 0) {
+         const cafeTop = collectedData.apis.cafeAgeData.data[0];
+         const cafeSecond = collectedData.apis.cafeAgeData.data[1];
+         const cafeAgeMap = { 'M10': '10대', 'M20': '20대', 'M30': '30대', 'M40': '40대', 'M50': '50대', 'M60': '60대 이상' };
+         if (cafeTop) {
+           data.consumers = data.consumers || {};
+           data.consumers.mainTarget = `${cafeAgeMap[cafeTop.age] || cafeTop.age} (카페 결제 기준)`;
+           data.consumers.mainRatio = `${cafeTop.pct}%`;
+           if (cafeSecond) {
+             data.consumers.secondTarget = cafeAgeMap[cafeSecond.age] || cafeSecond.age;
+             data.consumers.secondRatio = `${cafeSecond.pct}%`;
            }
          }
-       } catch (e) { console.log('[영업모드] 시간대 유동인구 수집 실패:', e.message); }
-
-       // ═══ 서울시 추정매출 API로 카페 전용 연령/시간대/요일 데이터 수집 (서울 지역만) ═══
-       if (isSeoul) try {
-         updateCollectingText('카페 업종 전용 매출·연령 데이터를 수집하고 있어요');
-         const dongNmForSales = collectedData.dongInfo?.dongNm || addressInfo?.dong || '';
-         const sgNmForSales = addressInfo?.sigungu || '';
-         const salesKws = [dongNmForSales.replace(/\d+동$/, ''), query.split(' ')[0], sgNmForSales.replace('구', '')].filter(kw => kw && kw.length >= 2);
-
-         // 서울시 VwsmTrdarSelngQq (추정매출) API - 프록시에서 카페만 필터링해서 반환
-         const cafeSalesRes = await fetch(`/api/sbiz-proxy?api=seoul&service=VwsmTrdarSelngQq&stdrYyquCd=20253&industryCode=CS100010`);
-         if (cafeSalesRes.ok) {
-           const cafeSalesRaw = await cafeSalesRes.json();
-           const cafeRows = cafeSalesRaw?.data?.filteredRows || [];
-           // 지역 매칭 (여러 키워드로)
-           const cafeMatched = cafeRows.filter(r => salesKws.some(kw => (r.TRDAR_CD_NM || '').includes(kw)));
-           console.log(`[영업모드] 서울 카페 추정매출: 카페=${cafeRows.length}개, 매칭=${cafeMatched.length}개 (키워드: ${salesKws.join(',')})`);
-
-           if (cafeMatched.length > 0) {
-             // 연령별 카페 결제건수 합산
-             let a10=0, a20=0, a30=0, a40=0, a50=0, a60=0;
-             // 시간대별 카페 매출건수 합산
-             let t0006=0, t0611=0, t1114=0, t1417=0, t1721=0, t2124=0;
-             // 요일별 카페 매출건수 합산
-             let dMon=0, dTue=0, dWed=0, dThu=0, dFri=0, dSat=0, dSun=0;
-             // 성별 매출건수
-             let mCo=0, fCo=0;
-             // 총 매출액
-             let totalSales=0;
-
-             cafeMatched.forEach(r => {
-               a10 += +(r.AGRDE_10_SELNG_CO||0);
-               a20 += +(r.AGRDE_20_SELNG_CO||0);
-               a30 += +(r.AGRDE_30_SELNG_CO||0);
-               a40 += +(r.AGRDE_40_SELNG_CO||0);
-               a50 += +(r.AGRDE_50_SELNG_CO||0);
-               a60 += +(r.AGRDE_60_ABOVE_SELNG_CO||0);
-               t0006 += +(r.TMZON_00_06_SELNG_CO||0);
-               t0611 += +(r.TMZON_06_11_SELNG_CO||0);
-               t1114 += +(r.TMZON_11_14_SELNG_CO||0);
-               t1417 += +(r.TMZON_14_17_SELNG_CO||0);
-               t1721 += +(r.TMZON_17_21_SELNG_CO||0);
-               t2124 += +(r.TMZON_21_24_SELNG_CO||0);
-               dMon += +(r.MON_SELNG_CO||0);
-               dTue += +(r.TUES_SELNG_CO||0);
-               dWed += +(r.WED_SELNG_CO||0);
-               dThu += +(r.THUR_SELNG_CO||0);
-               dFri += +(r.FRI_SELNG_CO||0);
-               dSat += +(r.SAT_SELNG_CO||0);
-               dSun += +(r.SUN_SELNG_CO||0);
-               mCo += +(r.ML_SELNG_CO||0);
-               fCo += +(r.FML_SELNG_CO||0);
-               totalSales += +(r.THSMON_SELNG_AMT||0);
-             });
-
-             const n = cafeMatched.length;
-             const totalAgeCo = a10+a20+a30+a40+a50+a60;
-
-             // 카페 전용 연령별 데이터 저장
-             collectedData.apis.cafeAgeData = {
-               description: '카페 업종 연령별 결제건수 (서울시 추정매출)',
-               data: [
-                 { age: 'M10', pipcnt: Math.round(a10/n), pct: totalAgeCo > 0 ? Math.round(a10/totalAgeCo*100) : 0 },
-                 { age: 'M20', pipcnt: Math.round(a20/n), pct: totalAgeCo > 0 ? Math.round(a20/totalAgeCo*100) : 0 },
-                 { age: 'M30', pipcnt: Math.round(a30/n), pct: totalAgeCo > 0 ? Math.round(a30/totalAgeCo*100) : 0 },
-                 { age: 'M40', pipcnt: Math.round(a40/n), pct: totalAgeCo > 0 ? Math.round(a40/totalAgeCo*100) : 0 },
-                 { age: 'M50', pipcnt: Math.round(a50/n), pct: totalAgeCo > 0 ? Math.round(a50/totalAgeCo*100) : 0 },
-                 { age: 'M60', pipcnt: Math.round(a60/n), pct: totalAgeCo > 0 ? Math.round(a60/totalAgeCo*100) : 0 }
-               ].sort((a, b) => b.pipcnt - a.pipcnt),
-               source: '서울시 열린데이터 추정매출 (카페 업종)',
-               matchedCount: n,
-               matchedNames: cafeMatched.slice(0, 5).map(r => r.TRDAR_CD_NM),
-               isCafeSpecific: true
-             };
-
-             // 카페 전용 시간대별 데이터 저장
-             collectedData.apis.cafeTimeData = {
-               description: '카페 업종 시간대별 결제건수 (서울시 추정매출)',
-               data: {
-                 timeSlots: { '00~06시': Math.round(t0006/n), '06~11시': Math.round(t0611/n), '11~14시': Math.round(t1114/n), '14~17시': Math.round(t1417/n), '17~21시': Math.round(t1721/n), '21~24시': Math.round(t2124/n) },
-                 daySlots: { '월': Math.round(dMon/n), '화': Math.round(dTue/n), '수': Math.round(dWed/n), '목': Math.round(dThu/n), '금': Math.round(dFri/n), '토': Math.round(dSat/n), '일': Math.round(dSun/n) },
-                 gender: { male: mCo, female: fCo, malePct: (mCo+fCo)>0 ? Math.round(mCo/(mCo+fCo)*100) : 50 },
-                 avgSalesPerStore: n > 0 ? Math.round(totalSales / n) : 0
-               },
-               source: '서울시 열린데이터 추정매출 (카페 업종)',
-               isCafeSpecific: true
-             };
-
-             console.log(`[영업모드] 카페 전용 매출 데이터: ${n}개 상권, 연령 1위=${collectedData.apis.cafeAgeData.data[0]?.age}(${collectedData.apis.cafeAgeData.data[0]?.pct}%)`);
-
-             // mainTarget을 카페 전용 데이터로 업데이트
-             const cafeTop = collectedData.apis.cafeAgeData.data[0];
-             const cafeSecond = collectedData.apis.cafeAgeData.data[1];
-             const cafeAgeMap = { 'M10': '10대', 'M20': '20대', 'M30': '30대', 'M40': '40대', 'M50': '50대', 'M60': '60대 이상' };
-             if (cafeTop) {
-               data.consumers = data.consumers || {};
-               data.consumers.mainTarget = `${cafeAgeMap[cafeTop.age] || cafeTop.age} (카페 결제 기준)`;
-               data.consumers.mainRatio = `${cafeTop.pct}%`;
-               if (cafeSecond) {
-                 data.consumers.secondTarget = cafeAgeMap[cafeSecond.age] || cafeSecond.age;
-                 data.consumers.secondRatio = `${cafeSecond.pct}%`;
-               }
-             }
-           } else {
-             console.log('[영업모드] 카페 전용 매출: 해당 지역 매칭 없음 (검색:', salesKws.join(','), ')');
-           }
-         }
-       } catch (e) { console.log('[영업모드] 카페 전용 매출 수집 실패:', e.message); }
+       }
 
        // ═══ 방법 A: 카드별 개별 프롬프트 강화 ═══
-       setSalesModeAnalysisStep('브루 피드백 강화 중');
+       setSalesModeAnalysisStep('AI 캐릭터 피드백 강화 중');
        updateCollectingText('각 카드별 맞춤 피드백을 작성하고 있어요');
        animateProgressTo(85);
 
@@ -7601,6 +10434,8 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
          const distStr = c.dist ? ` (${c.dist}m)` : '';
          return `${c.name}${distStr}`;
        }).join(', ') || '미수집';
+       crossData.enrichedCafes = collectedData.enrichedCafes || null;
+       crossData.closedCafes = collectedData.closedCafes || [];
 
        // 업종비교 (dongMTpctdCmpr) - 동 단위 업종별 점포수·매출 비교
        const dongMTpctdData = collectedData.apis?.dongMTpctdCmpr?.data;
@@ -7617,6 +10452,61 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
        // 업력현황 (stcarSttus) - 영업기간별 점포 비율
        const stcarData = collectedData.apis?.stcarSttus?.data;
        crossData.stcarStr = Array.isArray(stcarData) ? stcarData.slice(0, 5).map(s => `${s.stcarNm || s.stcarRange || ''}:${s.storCo || s.stcnt || 0}개`).join(', ') : '미수집';
+
+       // 매출추이 (slsIndex) - 매출지수 변화 추이
+       const slsIndexData = collectedData.apis?.slsIndex?.data;
+       crossData.slsIndexStr = Array.isArray(slsIndexData) ? slsIndexData.slice(0, 5).map(s => `${s.crtrYm || s.crtrYyqu || ''}:${s.slsIdx || s.slsAmt || 0}`).join(', ') : '미수집';
+
+       // 배달현황 (delivery) - Open API 배달 주문 데이터
+       const deliveryData = collectedData.apis?.delivery?.data;
+       crossData.deliveryStr = Array.isArray(deliveryData) ? deliveryData.slice(0, 5).map(d => `${d.tpbizNm || d.indsNm || ''}:${d.dlvrCnt || d.orderCnt || 0}건`).join(', ') : '미수집';
+
+       // SNS분석 (snsAnaly) - SNS 키워드 언급 분석
+       const snsAnalyData = collectedData.apis?.snsAnaly?.data;
+       crossData.snsAnalyStr = Array.isArray(snsAnalyData) ? snsAnalyData.slice(0, 5).map(s => `${s.kwrd || s.keyword || ''}:${s.cnt || s.mention || 0}건`).join(', ') : '미수집';
+
+       // 간편분석 (simple) - 상권 간편 요약
+       const simpleData = collectedData.apis?.simple?.data;
+       if (simpleData) {
+         if (Array.isArray(simpleData)) {
+           crossData.simpleStr = simpleData.slice(0, 5).map(d => `${d.nm || d.indsMclsNm || d.item || ''}:${d.val || d.storCo || d.cnt || ''}`).join(', ');
+         } else if (typeof simpleData === 'object') {
+           const parts = [];
+           if (simpleData.storCo) parts.push(`점포 ${simpleData.storCo}`);
+           if (simpleData.slsAmt) parts.push(`매출 ${simpleData.slsAmt}`);
+           if (simpleData.fltPplCnt) parts.push(`유동 ${simpleData.fltPplCnt}`);
+           crossData.simpleStr = parts.join(', ') || JSON.stringify(simpleData).substring(0, 300);
+         }
+       } else { crossData.simpleStr = '미수집'; }
+
+       // 창업공공지원 (startupPublic) - 정부 창업 지원
+       const startupPublicData = collectedData.apis?.startupPublic?.data;
+       if (Array.isArray(startupPublicData) && startupPublicData.length > 0) {
+         crossData.startupPublicStr = startupPublicData.slice(0, 5).map(d => `${d.prgmNm || d.sprtNm || d.title || ''}`).join(', ');
+         crossData.startupPublicCount = startupPublicData.length;
+       } else { crossData.startupPublicStr = '미수집'; crossData.startupPublicCount = 0; }
+
+       // 핫플레이스 리포트 (hpReport)
+       const hpReportData = collectedData.apis?.hpReport?.data;
+       if (Array.isArray(hpReportData) && hpReportData.length > 0) {
+         crossData.hpReportStr = hpReportData.slice(0, 5).map(d => `${d.hpNm || d.areaNm || d.nm || ''}${d.hpScore ? ':'+d.hpScore+'점' : ''}${d.hpRank ? '('+d.hpRank+'위)' : ''}`).join(', ');
+       } else if (hpReportData && typeof hpReportData === 'object') {
+         const parts = [];
+         if (hpReportData.hpScore) parts.push(`점수 ${hpReportData.hpScore}`);
+         if (hpReportData.hpRank) parts.push(`순위 ${hpReportData.hpRank}위`);
+         crossData.hpReportStr = parts.join(', ') || '미수집';
+       } else { crossData.hpReportStr = '미수집'; }
+
+       // R-ONE 상가 임대료 (roneRent)
+       const roneRentData = collectedData.apis?.roneRent?.data;
+       if (Array.isArray(roneRentData) && roneRentData.length > 0) {
+         const avgRent = roneRentData.reduce((s, r) => s + (parseFloat(r.RENT_FEE) || 0), 0) / roneRentData.length;
+         const avgDeposit = roneRentData.reduce((s, r) => s + (parseFloat(r.GRFE) || 0), 0) / roneRentData.length;
+         crossData.roneRentStr = `${roneRentData.length}건, 평균 임대료 ${Math.round(avgRent*10)/10}만/평, 보증금 ${Math.round(avgDeposit*10)/10}만/평`;
+         crossData.roneRentAvgRent = Math.round(avgRent * 10) / 10;
+         crossData.roneRentAvgDeposit = Math.round(avgDeposit * 10) / 10;
+         crossData.roneRentCount = roneRentData.length;
+       } else { crossData.roneRentStr = '미수집'; }
 
        // 웹검색 카페 목록 (거리 포함)
        crossData.nearCafes = nearbySearchResult?.substring(0, 800) || '';
@@ -7661,12 +10551,14 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
        
        // 카드별 프롬프트 생성
        const cardPrompts = {
-         overview: `당신은 카페 창업 컨설턴트 '브루'예요. 카드1(상권개요) 피드백을 작성해주세요.
+         overview: `당신은 카페 창업 컨설턴트 '데이터브루'예요. 분석 톤: 데이터브루 - 객관적 수치 중심으로 팩트를 전달하세요. 카드1(상권개요) 피드백을 작성해주세요.
 [이 카드 데이터] 카페 ${crossData.cafeCount}개(인접 ${crossData.nearbyDongCount}개동 합산), 유동인구 데이터 있음
 [교차 데이터] 주변카페: ${crossData.nearCafes.substring(0,300)}
 업종비교(동 단위): ${crossData.dongMTpctdStr}
 업소현황: ${crossData.storSttusStr}
 개폐업 추이: ${crossData.detailStr}
+매출추이(매출지수): ${crossData.slsIndexStr}
+SNS분석: ${crossData.snsAnalyStr}
 임대료: ${crossData.rentDongsStr}
 소비연령: ${crossData.topSpendAge} ${crossData.topSpendPct}%
 매출: ${crossData.cafeSalesStr}
@@ -7675,7 +10567,7 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
 반드시 아래 JSON 포맷만 출력하세요. 다른 텍스트, 설명, 마크다운 금지.
 {"bruFeedback":"여기에 피드백","bruSummary":"40자이내 요약"}`,
          
-         consumers: `당신은 카페 창업 컨설턴트 '브루'예요. 카드2(방문연령) 피드백을 작성해주세요.
+         consumers: `당신은 카페 창업 컨설턴트 '데이터브루'예요. 분석 톤: 데이터브루 - 객관적 수치 중심으로 팩트를 전달하세요. 카드2(방문연령) 피드백을 작성해주세요.
 [이 카드 데이터] 방문 1위: ${crossData.topVisitAge}(${crossData.topVisitPct}%)
 [교차 데이터] 실제 소비 1위: ${crossData.topSpendAge}(${crossData.topSpendPct}%)${crossData.topVisitAge !== crossData.topSpendAge ? ' ← 방문과 다름!' : ' (방문과 동일)'}
 [규칙] ${crossData.topVisitAge !== crossData.topSpendAge 
@@ -7685,7 +10577,7 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
 반드시 아래 JSON 포맷만 출력하세요. 다른 텍스트, 설명, 마크다운 금지.
 {"bruFeedback":"여기에 피드백","bruSummary":"40자이내 요약"}`,
          
-         spendingAge: `당신은 카페 창업 컨설턴트 '브루'예요. 카드2.3(소비연령) 피드백을 작성해주세요.
+         spendingAge: `당신은 카페 창업 컨설턴트 '데이터브루'예요. 분석 톤: 데이터브루 - 객관적 수치 중심으로 팩트를 전달하세요. 카드2.3(소비연령) 피드백을 작성해주세요.
 [이 카드 데이터] 소비 1위: ${crossData.topSpendAge}(${crossData.topSpendPct}%), 방문 1위: ${crossData.topVisitAge}(${crossData.topVisitPct}%)
 [교차 데이터] 주변카페 평균가격, 매출: ${crossData.cafeSalesStr}
 임대료: ${crossData.rentStr}
@@ -7696,10 +10588,12 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
 반드시 아래 JSON 포맷만 출력하세요. 다른 텍스트, 설명, 마크다운 금지.
 {"bruFeedback":"여기에 피드백","bruSummary":"40자이내 요약"}`,
          
-         franchise: `당신은 카페 창업 컨설턴트 '브루'예요. 카드3(프랜차이즈 경쟁) 피드백을 작성해주세요.
+         franchise: `당신은 카페 창업 컨설턴트 '경쟁브루'예요. 분석 톤: 경쟁브루 - 냉철하고 전략적으로 경쟁 구도를 분석하세요. 카드3(프랜차이즈 경쟁) 피드백을 작성해주세요.
 [이 카드 데이터] 반경 500m 프랜차이즈: ${crossData.nearbyFranchiseStr}
 총 카페: ${crossData.nearbyTotalCafes}개, 개인카페: ${crossData.nearbyIndependentCafes}개
 주변카페(웹검색): ${crossData.nearCafes.substring(0,300)}
+${crossData.enrichedCafes ? `[카페 상세] 평균 아메리카노: ${crossData.enrichedCafes.avgAmericano || '미확인'}원, 가격대: ${crossData.enrichedCafes.priceRange || '미확인'}` : ''}
+${crossData.closedCafes?.length ? `[폐업 추정] ${crossData.closedCafes.map(c => c.name).join(', ')} (카페 수에서 제외됨)` : ''}
 [추가 데이터] 업종별 점포현황: ${crossData.storSttusStr}
 개폐업 추이: ${crossData.detailStr}
 업력(영업기간): ${crossData.stcarStr}
@@ -7715,10 +10609,12 @@ ${isDetailed ? '상세주소이므로 "선택하신 주소에서 가장 가까�
 반드시 아래 JSON 포맷만 출력하세요. 다른 텍스트, 설명, 마크다운 금지.
 {"bruFeedback":"여기에 피드백","bruSummary":"40자이내 요약"}`,
 
-         indieCafe: `당신은 카페 창업 컨설턴트 '브루'예요. 카드3.5(개인카페 경쟁) 피드백을 작성해주세요.
+         indieCafe: `당신은 카페 창업 컨설턴트 '경쟁브루'예요. 분석 톤: 경쟁브루 - 냉철하고 전략적으로 경쟁 구도를 분석하세요. 카드3.5(개인카페 경쟁) 피드백을 작성해주세요.
 [이 카드 데이터] 반경 500m 개인카페: ${crossData.nearbyIndependentCafes}개
 개인카페 목록(거리포함): ${crossData.independentCafeStr}
 총 카페: ${crossData.nearbyTotalCafes}개, 프랜차이즈: ${crossData.nearbyFranchiseStr}
+${crossData.enrichedCafes ? `[카페 상세] ${JSON.stringify((crossData.enrichedCafes.cafes || []).filter(c => !(collectedData.nearbyFranchiseList || []).some(f => f.brand && c.name?.includes(f.brand))).slice(0,5), null, 0)}` : ''}
+${crossData.closedCafes?.length ? `[폐업 추정] ${crossData.closedCafes.map(c => c.name).join(', ')} (카페 수에서 제외됨)` : ''}
 [추가 데이터] 업종별 점포현황: ${crossData.storSttusStr}
 개폐업 추이: ${crossData.detailStr}
 업력(영업기간): ${crossData.stcarStr}
@@ -7735,8 +10631,10 @@ ${isDetailed ? '상세주소이므로 "선택하신 주소에서 가장 가까�
 반드시 아래 JSON 포맷만 출력하세요. 다른 텍스트, 설명, 마크다운 금지.
 {"bruFeedback":"여기에 피드백","bruSummary":"40자이내 요약"}`,
 
-         cafeSales: `당신은 카페 창업 컨설턴트 '브루'예요. 카드4(카페매출) 피드백을 작성해주세요.
+         cafeSales: `당신은 카페 창업 컨설턴트 '데이터브루'예요. 분석 톤: 데이터브루 - 객관적 수치 중심으로 팩트를 전달하세요. 카드4(카페매출) 피드백을 작성해주세요.
 [이 카드 데이터] 매출: ${crossData.cafeSalesStr}
+매출추이(매출지수): ${crossData.slsIndexStr}
+${crossData.enrichedCafes ? `[카페 상세] 평균 아메리카노: ${crossData.enrichedCafes.avgAmericano || '미확인'}원, 가격대: ${crossData.enrichedCafes.priceRange || '미확인'}` : ''}
 [교차 데이터] 소비 1위: ${crossData.topSpendAge}(${crossData.topSpendPct}%)
 임대료: ${crossData.rentStr}, 동별: ${crossData.rentDongsStr}
 업종비교(동 단위): ${crossData.dongMTpctdStr}
@@ -7747,7 +10645,7 @@ ${isDetailed ? '상세주소이므로 "선택하신 주소에서 가장 가까�
 반드시 아래 JSON 포맷만 출력하세요. 다른 텍스트, 설명, 마크다운 금지.
 {"bruFeedback":"여기에 피드백","bruSummary":"40자이내 요약"}`,
          
-         floatingTime: `당신은 카페 창업 컨설턴트 '브루'예요. 카드4.3(유동인구시간대) 피드백을 작성해주세요.
+         floatingTime: `당신은 카페 창업 컨설턴트 '데이터브루'예요. 분석 톤: 데이터브루 - 객관적 수치 중심으로 팩트를 전달하세요. 카드4.3(유동인구시간대) 피드백을 작성해주세요.
 ${crossData.hasTimeData
   ? `[이 카드 데이터] 시간대별 유동인구 (서울시 열린데이터):
 ${crossData.timeSlotStr}
@@ -7769,7 +10667,7 @@ ${crossData.dynPopForTime || '유동인구 데이터 수집됨'}${crossData.dynA
 반드시 아래 JSON 포맷만 출력하세요. 다른 텍스트, 설명, 마크다운 금지.
 {"bruFeedback":"여기에 피드백","bruSummary":"40자이내 요약"}`,
          
-         rent: `당신은 카페 창업 컨설턴트 '브루'예요. 카드5(임대료) 피드백을 작성해주세요.
+         rent: `당신은 카페 창업 컨설턴트 '부동산브루'예요. 분석 톤: 부동산브루 - 현실적이고 실용적으로 비용과 입지를 분석하세요. 카드5(임대료) 피드백을 작성해주세요.
 [이 카드 데이터] ${crossData.rentStr}
 동별: ${crossData.rentDongsStr}
 [교차 데이터] 카페 매출: ${crossData.cafeSalesStr}
@@ -7778,7 +10676,7 @@ ${crossData.dynPopForTime || '유동인구 데이터 수집됨'}${crossData.dynA
 반드시 아래 JSON 포맷만 출력하세요. 다른 텍스트, 설명, 마크다운 금지.
 {"bruFeedback":"여기에 피드백","bruSummary":"40자이내 요약"}`,
          
-         startupCost: `당신은 카페 창업 컨설턴트 '브루'예요. 카드5-2(창업비용) 피드백을 작성해주세요.
+         startupCost: `당신은 카페 창업 컨설턴트 '부동산브루'예요. 분석 톤: 부동산브루 - 현실적이고 실용적으로 비용과 입지를 분석하세요. 카드5-2(창업비용) 피드백을 작성해주세요.
 [교차 데이터] 임대료: ${crossData.rentStr}
 매출: ${crossData.cafeSalesStr}
 [규칙] 빈크래프트는 가맹비 0원, 로열티 0원. 프랜차이즈 대비 비용 구조 비교. 초기 투자 회수 기간 추정. 80자 이상.
@@ -7786,43 +10684,48 @@ ${crossData.dynPopForTime || '유동인구 데이터 수집됨'}${crossData.dynA
 반드시 아래 JSON 포맷만 출력하세요. 다른 텍스트, 설명, 마크다운 금지.
 {"bruFeedback":"여기에 피드백","bruSummary":"40자이내 요약"}`,
          
-         opportunity: `당신은 카페 창업 컨설턴트 '브루'예요. 카드6(기회) 피드백을 작성해주세요.
+         opportunity: `당신은 카페 창업 컨설턴트 '전략브루'예요. 분석 톤: 전략브루 - 전략적 인사이트와 구체적 기회/리스크를 강조하세요. 카드6(기회) 피드백을 작성해주세요.
 [교차 데이터] 소비: ${crossData.topSpendAge}(${crossData.topSpendPct}%)
 매출: ${crossData.cafeSalesStr}
+매출추이(매출지수): ${crossData.slsIndexStr}
 임대료: ${crossData.rentStr}
 업종비교: ${crossData.dongMTpctdStr}
 개폐업추이: ${crossData.detailStr}
 업력현황: ${crossData.stcarStr}
+배달현황: ${crossData.deliveryStr}
+SNS분석: ${crossData.snsAnalyStr}
 주변카페: ${crossData.nearCafes.substring(0,200)}
-[규칙] "A를 하면 X, B를 하면 Y" 시나리오 필수. 객단가 계산 포함. 개폐업 추이에서 신규 오픈 > 폐업이면 "성장하는 상권", 반대면 "진입 주의" 식으로 해석. 업력 데이터로 "3년 이상 버틴 카페 비율 X%" 인용. 120자 이상.
+[규칙] "A를 하면 X, B를 하면 Y" 시나리오 필수. 객단가 계산 포함. 개폐업 추이에서 신규 오픈 > 폐업이면 "성장하는 상권", 반대면 "진입 주의" 식으로 해석. 업력 데이터로 "3년 이상 버틴 카페 비율 X%" 인용. 매출추이(매출지수)가 있으면 상승/하락 트렌드를 판단. SNS 분석 데이터가 있으면 지역 관심도 언급. 120자 이상.
 [bruSummary] 40자 이내
 반드시 아래 JSON 포맷만 출력하세요. 다른 텍스트, 설명, 마크다운 금지.
 {"bruFeedback":"여기에 피드백","bruSummary":"40자이내 요약"}`,
          
-         risk: `당신은 카페 창업 컨설턴트 '브루'예요. 카드6(리스크) 피드백을 작성해주세요.
+         risk: `당신은 카페 창업 컨설턴트 '전략브루'예요. 분석 톤: 전략브루 - 전략적 인사이트와 구체적 기회/리스크를 강조하세요. 카드6(리스크) 피드백을 작성해주세요.
 [교차 데이터] 카페수: ${crossData.cafeCount}
 임대료: ${crossData.rentStr}, 동별: ${crossData.rentDongsStr}
 매출: ${crossData.cafeSalesStr}
+매출추이(매출지수): ${crossData.slsIndexStr}
 업종비교: ${crossData.dongMTpctdStr}
 개폐업추이: ${crossData.detailStr}
 업력현황: ${crossData.stcarStr}
 주변카페: ${crossData.nearCafes.substring(0,200)}
-[규칙] 위험 시나리오를 숫자로 보여줘. "월세 X만이면 매출의 Y%, 순이익 Z만원" 계산. 개폐업 데이터에서 폐업이 많으면 "최근 N개월간 폐업 M개 → 이 상권 진입 리스크" 경고. 업력 데이터에서 1년 미만 폐업률이 높으면 구체적 수치로 경고. 120자 이상.
+[규칙] 위험 시나리오를 숫자로 보여줘. "월세 X만이면 매출의 Y%, 순이익 Z만원" 계산. 개폐업 데이터에서 폐업이 많으면 "최근 N개월간 폐업 M개 → 이 상권 진입 리스크" 경고. 업력 데이터에서 1년 미만 폐업률이 높으면 구체적 수치로 경고. 매출추이가 하락세이면 추가 경고. 120자 이상.
 [bruSummary] 40자 이내
 반드시 아래 JSON 포맷만 출력하세요. 다른 텍스트, 설명, 마크다운 금지.
 {"bruFeedback":"여기에 피드백","bruSummary":"40자이내 요약"}`,
          
-         delivery: `당신은 카페 창업 컨설턴트 '브루'예요. 카드6.2(배달) 피드백을 작성해주세요.
-[이 카드 데이터] 배달현황: ${crossData.baeminStr}
+         delivery: `당신은 카페 창업 컨설턴트 '데이터브루'예요. 분석 톤: 데이터브루 - 객관적 수치 중심으로 팩트를 전달하세요. 카드6.2(배달) 피드백을 작성해주세요.
+[이 카드 데이터] 배달현황(배민): ${crossData.baeminStr}
+배달현황(소상공인365): ${crossData.deliveryStr}
 [교차 데이터] 매출: ${crossData.cafeSalesStr}
 소비: ${crossData.topSpendAge}
-[규칙] 배달 vs 매장 전략 비교. 수수료 고려한 수익성 분석. 80자 이상.
+[규칙] 배민 데이터와 소상공인365 배달현황을 교차해서 배달 시장 분석. 배달 vs 매장 전략 비교. 수수료 고려한 수익성 분석. 80자 이상.
 [bruSummary] 40자 이내
 반드시 아래 JSON 포맷만 출력하세요. 다른 텍스트, 설명, 마크다운 금지.
 {"bruFeedback":"여기에 피드백","bruSummary":"40자이내 요약"}`,
          
-         survival: `당신은 카페 창업 컨설턴트 '브루'예요. 카드6.7(생존율) 피드백을 작성해주세요.
-[이 카드 데이터] 카페 5년 생존율 22.8%
+         survival: `당신은 카페 창업 컨설턴트 '전략브루'예요. 분석 톤: 전략브루 - 전략적 인사이트와 구체적 기회/리스크를 강조하세요. 카드6.7(생존율) 피드백을 작성해주세요.
+[이 카드 데이터] 숙박·음식점업 생존율: 1년 58.3%, 3년 36.9%, 5년 22.8% (통계청 기업생멸행정통계 2023, 숙박·음식점업 기준. 전체 산업 평균 아님)
 [교차 데이터] 이 상권 카페수: ${crossData.cafeCount}, 임대료: ${crossData.rentStr}
 매출: ${crossData.cafeSalesStr}
 업력현황(이 동 실제 데이터): ${crossData.stcarStr}
@@ -7832,20 +10735,23 @@ ${crossData.dynPopForTime || '유동인구 데이터 수집됨'}${crossData.dynA
 반드시 아래 JSON 포맷만 출력하세요. 다른 텍스트, 설명, 마크다운 금지.
 {"bruFeedback":"여기에 피드백","bruSummary":"40자이내 요약"}`,
          
-         insight: `당신은 카페 창업 컨설턴트 '브루'예요. 카드7(AI종합) 작성해주세요.
+         insight: `당신은 카페 창업 컨설턴트 '브루코치'예요. 분석 톤: 브루코치 - 따뜻하게 응원하면서 실전 조언을 제공하세요. 카드7(AI종합) 작성해주세요.
 [전체 데이터 요약]
 카페: ${crossData.cafeCount}개(반경 500m 총 ${crossData.nearbyTotalCafes}개: 프랜차이즈 ${crossData.nearbyFranchiseStr}, 개인 ${crossData.nearbyIndependentCafes}개)
 소비: ${crossData.topSpendAge}(${crossData.topSpendPct}%), 방문: ${crossData.topVisitAge}(${crossData.topVisitPct}%)
 매출: ${crossData.cafeSalesStr}
+매출추이(매출지수): ${crossData.slsIndexStr}
 임대료: ${crossData.rentStr}, 동별: ${crossData.rentDongsStr}
 업종비교(동 단위): ${crossData.dongMTpctdStr}
 개폐업추이: ${crossData.detailStr}
 업력현황: ${crossData.stcarStr}
 업소현황: ${crossData.storSttusStr}
+배달(배민): ${crossData.baeminStr}
+배달현황(소상공인365): ${crossData.deliveryStr}
+SNS분석: ${crossData.snsAnalyStr}
 주변카페: ${crossData.nearCafes.substring(0,300)}
-배달: ${crossData.baeminStr}
 [규칙] 각 카드 내용을 반복하지 말고, 위 전체 데이터를 교차 분석해서 "이 상권에서 개인카페가 살아남는 공식"을 하나의 결론으로 연결하세요.
-반드시 수치를 인용하면서: ① 매출 대비 임대료 비중 ② 생존 카페 특성(업력 데이터) ③ 소비 연령 맞춤 전략 ④ 프랜차이즈 vs 개인의 포지셔닝.
+반드시 수치를 인용하면서: ① 매출 대비 임대료 비중 ② 생존 카페 특성(업력 데이터) ③ 소비 연령 맞춤 전략 ④ 프랜차이즈 vs 개인의 포지셔닝 ⑤ 매출추이 트렌드(상승/하락) ⑥ SNS 관심도.
 빈크래프트 상담으로 자연스럽게 연결. 250자 이상.
 반드시 아래 JSON 포맷만 출력하세요. 다른 텍스트, 설명, 마크다운 금지.
 {"insight":"여기에 종합 피드백"}`
@@ -8078,22 +10984,25 @@ ${crossData.dynPopForTime || '유동인구 데이터 수집됨'}${crossData.dynA
          // 창업지원 효과 - 중소벤처기업부 공식 통계 (2017년 기준, 2019년 발표)
          // 이 데이터는 "정부 창업지원 프로그램" 효과이며, 특정 업체 컨설팅 효과가 아닙니다.
          startupSupportEffect: {
-           supported: { 
-             survivalRate1yr: '89.4%', 
-             survivalRate3yr: '68.1%', 
+           supported: {
+             survivalRate1yr: '89.4%',
+             survivalRate3yr: '68.1%',
              survivalRate5yr: '53.1%',
              label: '정부 창업지원 기업'
            },
-           general: { 
-             survivalRate1yr: '64.9%', 
-             survivalRate3yr: '46.3%', 
+           general: {
+             survivalRate1yr: '64.9%',
+             survivalRate3yr: '46.3%',
              survivalRate5yr: '34.7%',
-             label: '일반 창업기업'
+             label: '일반 창업기업 (전체 산업)'
            },
-           cafeSurvival5yr: '22.8%', // 숙박·음식점업 5년 생존율 (통계청)
+           // 숙박·음식점업 생존율 (카페 업종 표시에는 이 수치 사용)
+           cafeSurvival1yr: '58.3%',
+           cafeSurvival3yr: '36.9%',
+           cafeSurvival5yr: '22.8%',
            source: '중소벤처기업부 창업지원기업 이력·성과 조사, 통계청 기업생멸행정통계',
            sourceYear: '2017년 기준 (2019년 발표) / 2023년 통계청',
-           warning: '카페(숙박·음식점업) 5년 생존율은 22.8%로 전체 평균보다 낮습니다.',
+           warning: '숙박·음식점업 생존율: 1년 58.3%, 3년 36.9%, 5년 22.8%로 전체 평균보다 낮습니다.',
            message: '철저한 준비와 전문가 조언이 생존 확률을 높이는 데 도움이 됩니다.'
          },
          insight: extractField('insight') || `${query} 지역의 상세 분석을 위해 추가 데이터를 수집 중입니다. 정확한 분석을 위해 빈크래프트 AI피드백와 상담을 권장드립니다.`,
@@ -8108,6 +11017,46 @@ ${crossData.dynPopForTime || '유동인구 데이터 수집됨'}${crossData.dynA
        setSalesModeAnalysisStep('분석 완료');
        setSalesModeCollectingText('');
        setSalesModeSearchResult({ success: true, data: fallbackData, query, hasApiData, partial: true, collectedData });
+     }
+     } // end of !DEBUG_STEP_E_ONLY (SNS~AI 분석)
+
+     // 디버그 모드: 결과 설정 (카드 렌더링용 - 데이터 없는 필드는 "-"로 표시됨)
+     if (DEBUG_STEP_E_ONLY) {
+       // 디버그 모드에서도 매출 추정 실행 (L3/L4만, OpenUB 없이)
+       if (!collectedData.salesEstimates && (collectedData.nearbyFranchiseList?.length > 0 || collectedData.nearbyIndependentList?.length > 0)) {
+         try {
+           const allCafes = [
+             ...(collectedData.nearbyFranchiseList || []).map(f => ({
+               name: f.name, brand: f.brand || f.name, isFranchise: true, addr: f.addr,
+               americanoPrice: FRANCHISE_DATA[f.brand]?.아메리카노 || 0
+             })),
+             ...(collectedData.nearbyIndependentList || []).map(f => ({
+               name: f.name, isFranchise: false, addr: f.addr, americanoPrice: 0
+             }))
+           ];
+           collectedData.salesEstimates = estimateAllCafeSales({
+             cafes: allCafes,
+             openubData: null,
+             dongAvgCafeSales: 1800,
+             FRANCHISE_DATA_REF: FRANCHISE_DATA,
+             nearbyTotalCafes: collectedData.nearbyTotalCafes || allCafes.length
+           });
+           console.log(`[DEBUG] 매출 추정 ${collectedData.salesEstimates.length}개 완료 (L3/L4)`);
+         } catch (e) {
+           console.warn('[DEBUG] 매출 추정 실패:', e.message);
+         }
+       }
+
+       const debugData = {
+         overview: { cafeCount: String(collectedData.nearbyTotalCafes || 0), newOpen: '-', closed: '-', floatingPop: '-', residentPop: '-', source: 'DEBUG MODE - STEP E only' },
+         regionBrief: 'DEBUG MODE: STEP E(비카페 필터링)만 실행됨. 나머지 API/AI 분석은 스킵됨.',
+       };
+       if (coordinates) debugData.coordinates = coordinates;
+       animateProgressTo(100);
+       setSalesModeAnalysisStep('디버그 모드 완료');
+       setSalesModeCollectingText('');
+       setSalesModeSearchResult({ success: true, data: debugData, query, hasApiData: false, partial: true, collectedData });
+       setSalesModeMapExpanded(true);
      }
    } catch (error) {
      // 분석 중지(abort)인 경우 에러 표시하지 않음
@@ -8218,7 +11167,7 @@ ${crossData.dynPopForTime || '유동인구 데이터 수집됨'}${crossData.dynA
 - "됩니다/안됩니다" 대신 "돼요/안돼요"
 
 [말투 예시]
-- "이 상권 카페 생존율 22.8%에요. 10개 중 8개가 5년 안에 문 닫는다는 데이터예요."
+- "숙박·음식점업 5년 생존율 22.8%에요. 10개 중 8개가 5년 안에 문 닫는다는 데이터예요."
 - "준비 없이 들어가는 게 가장 큰 리스크예요."
 - "경쟁 카페가 47개예요. 살아남으려면 차별화 포인트가 필요해요."
 - "저희가 도와드리는 건 리스크를 줄이는 준비예요."
@@ -8595,8 +11544,7 @@ ${JSON.stringify(regionData, null, 2)}
      let addressInfo = null;
      try {
        const geoResponse = await fetch(
-         `https://naveropenapi.apigw.ntruss.com/map-geocode/v2/geocode?query=${encodeURIComponent(regionName)}`,
-         { headers: { 'X-NCP-APIGW-API-KEY-ID': 'dx2ymyk2b1', 'X-NCP-APIGW-API-KEY': '18184ztuYuPVkqzPumsSqRNVsMHCiBFMWhWdRJAJ' } }
+         `/api/ncp-geo-proxy?query=${encodeURIComponent(regionName)}`
        );
        const geoData = await geoResponse.json();
        if (geoData.addresses?.[0]) {
@@ -8786,17 +11734,35 @@ ${JSON.stringify(regionData, null, 2)}
      // ═══ 서울시 시간대별 유동인구 수집 (서울 지역만) ═══
      const isSeoul = (addressInfo?.sido || '').includes('서울') || (addressInfo?.address || query || '').includes('서울');
      if (isSeoul) try {
-       const dongNm = dongInfo?.dongNm || '';
+       // 행정동 단축명 사용 (admdstCdNm: "용문동" vs dongNm: "서울특별시 용산구 용문동")
+       const dongShortNm = dongInfo?.admdstCdNm || dongInfo?.dongNm?.split(' ').pop() || addressInfo?.dong || '';
        const sgNm = addressInfo?.sigungu || '';
-       // 검색 키워드: 2글자 이상만 (1글자 오매칭 방지)
-       const searchKws = [dongNm.replace(/\d+동$/, ''), query.split(' ')[0], sgNm.replace('구', '')].filter(kw => kw && kw.length >= 2);
-       
-       const floatRes = await fetch(`${PROXY_SERVER_URL}/api/seoul/floating?startIndex=44000&endIndex=44536`);
+       // 동이름 root 추출: "용문동" → "용문", "원효로1동" → "원효"
+       const dongRoot = dongShortNm.replace(/[로동가리]\d*$/g, '').replace(/\d+$/, '');
+       // 인접 행정동 root도 추가
+       const nearbyRoots = (dongInfo?.nearbyDongs || [])
+         .map(nd => (nd.admdstCdNm || '').replace(/[로동가리]\d*$/g, '').replace(/\d+$/, ''))
+         .filter(r => r && r.length >= 2);
+       const searchKws = [
+         ...new Set([dongRoot, sgNm.replace('구', ''), ...nearbyRoots])
+       ].filter(kw => kw && kw.length >= 2);
+       console.log(`[유동인구-키워드] 검색 키워드: ${searchKws.join(', ')} (행정동: ${dongShortNm})`);
+
+       // 최신 분기 데이터를 동적으로 가져오기
+       const floatCountRes = await fetch(`${PROXY_SERVER_URL}/api/seoul/floating?startIndex=1&endIndex=1`);
+       let totalCount = 44536;
+       if (floatCountRes.ok) {
+         const countData = await floatCountRes.json();
+         totalCount = countData?.VwsmTrdarFlpopQq?.list_total_count || 44536;
+       }
+       const latestStart = Math.max(1, totalCount - 999);
+       const floatRes = await fetch(`${PROXY_SERVER_URL}/api/seoul/floating?startIndex=${latestStart}&endIndex=${totalCount}`);
        if (floatRes.ok) {
          const floatData = await floatRes.json();
          const rows = floatData?.VwsmTrdarFlpopQq?.row || [];
          // 키워드 매칭
          const matched = rows.filter(r => searchKws.some(kw => (r.TRDAR_CD_NM || '').includes(kw)));
+         console.log(`[유동인구-키워드] ${rows.length}개 행 중 ${matched.length}개 매칭`);
          if (matched.length > 0) {
            // 시간대별 합산
            const timeSlots = { '00~06시': 0, '06~11시': 0, '11~14시': 0, '14~17시': 0, '17~21시': 0, '21~24시': 0 };
@@ -8837,6 +11803,77 @@ ${JSON.stringify(regionData, null, 2)}
          }
        }
      } catch (e) { console.log('시간대 유동인구 수집 실패:', e.message); } // end isSeoul
+
+    // ═══ 서울시 열린데이터 9개 추가 API 수집 (서울 지역만, 중개사 영업모드) ═══
+    if (isSeoul) {
+      const seoulQuarter = '20253';
+      const guNm = addressInfo?.sigungu || '';
+      const dongNmShort2 = dongInfo?.admdstCdNm || dongInfo?.dongNm?.split(' ').pop() || addressInfo?.dong || '';
+      const sgNmNoSuffix2 = guNm.replace('구', '');
+      const seoulSearchKws2 = [...new Set([
+        dongNmShort2.replace(/[로동가리]\d*$/g, '').replace(/\d+$/, ''),
+        sgNmNoSuffix2,
+        ...(dongInfo?.nearbyDongs || [])
+          .map(nd => (nd.admdstCdNm || '').replace(/[로동가리]\d*$/g, '').replace(/\d+$/, ''))
+          .filter(r => r && r.length >= 2)
+      ])].filter(kw => kw && kw.length >= 2);
+
+      const matchByTrdar2 = (rows) => rows.filter(r => seoulSearchKws2.some(kw => (r.TRDAR_CD_NM || '').includes(kw)));
+
+      const seoulApis2 = [
+        { key: 'seoulStorQq', svc: 'VwsmTrdarStorQq', quarter: seoulQuarter, matchFn: matchByTrdar2, desc: '점포수/개폐업률' },
+        { key: 'seoulRepop', svc: 'VwsmTrdarRepopQq', quarter: seoulQuarter, matchFn: matchByTrdar2, desc: '상주인구' },
+        { key: 'seoulTrdarIx', svc: 'VwsmTrdarIxQq', quarter: seoulQuarter, matchFn: matchByTrdar2, desc: '상권변화지표' },
+        { key: 'seoulFclty', svc: 'VwsmTrdarFcltyQq', quarter: seoulQuarter, matchFn: matchByTrdar2, desc: '집객시설' },
+        { key: 'seoulSignguStor', svc: 'VwsmSignguStorW', quarter: null, matchFn: (rows) => rows.filter(r => (r.SIGNGU_CD_NM || '').includes(sgNmNoSuffix2)), desc: '자치구별 점포' },
+      ];
+
+      const seoulRes2 = await Promise.allSettled(seoulApis2.map(async (sc) => {
+        try {
+          const params = new URLSearchParams({ api: 'seoul', service: sc.svc, startIndex: '1', endIndex: '1000' });
+          if (sc.quarter) params.append('stdrYyquCd', sc.quarter);
+          const res = await fetch(`/api/sbiz-proxy?${params.toString()}`, { signal: AbortSignal.timeout(15000) });
+          if (!res.ok) return { key: sc.key, data: null };
+          const json = await res.json();
+          const rows = json?.data?.[sc.svc]?.row || json?.[sc.svc]?.row || [];
+          const matched = sc.matchFn(rows);
+          console.log(`[중개사-서울API] ${sc.desc}: 전체 ${rows.length}행, 매칭 ${matched.length}행`);
+          return { key: sc.key, rows: matched, total: rows.length };
+        } catch (e) { return { key: sc.key, data: null }; }
+      }));
+
+      seoulRes2.forEach(r => {
+        if (r.status !== 'fulfilled' || !r.value?.rows?.length) return;
+        const { key, rows } = r.value;
+        const n = rows.length;
+
+        if (key === 'seoulStorQq') {
+          let totalStor = 0, openStor = 0, closeStor = 0;
+          rows.forEach(r => { totalStor += +(r.STOR_CO || 0); openStor += +(r.OPBIZ_STOR_CO || 0); closeStor += +(r.CLSBIZ_STOR_CO || 0); });
+          collectedData.apis.seoulStorQq = { description: '점포수/개폐업률', data: { avgStoreCount: Math.round(totalStor / n), openRate: totalStor > 0 ? (openStor / totalStor * 100).toFixed(1) : '0', closeRate: totalStor > 0 ? (closeStor / totalStor * 100).toFixed(1) : '0', matchedCount: n }, source: '서울시 열린데이터' };
+        }
+        if (key === 'seoulRepop') {
+          let totalPop = 0;
+          rows.forEach(r => { totalPop += +(r.TOT_REPOP_CO || 0); });
+          collectedData.apis.seoulRepop = { description: '상주인구', data: { totalPopulation: Math.round(totalPop / n), matchedCount: n }, source: '서울시 열린데이터' };
+        }
+        if (key === 'seoulTrdarIx') {
+          collectedData.apis.seoulTrdarIx = { description: '상권변화지표', data: rows.slice(-3).map(r => ({ name: r.TRDAR_CD_NM || '', changeCode: r.TRDAR_CHNGE_IX_CD_NM || '', openRate: +(r.OPBIZ_RT || 0), closeRate: +(r.CLSBIZ_RT || 0) })), source: '서울시 열린데이터' };
+        }
+        if (key === 'seoulFclty') {
+          let subway = 0, bus = 0, bank = 0, hospital = 0;
+          rows.forEach(r => { subway += +(r.SBWAY_STTN_CO || 0); bus += +(r.BUS_STTN_CO || 0); bank += +(r.BANK_CO || 0); hospital += +(r.GNRL_HPTL_CO || 0); });
+          collectedData.apis.seoulFclty = { description: '집객시설', data: { subway: Math.round(subway / n), bus: Math.round(bus / n), bank: Math.round(bank / n), hospital: Math.round(hospital / n), matchedCount: n }, source: '서울시 열린데이터' };
+        }
+        if (key === 'seoulSignguStor') {
+          const byIndustry = {};
+          rows.forEach(r => { const ind = r.SVC_INDUTY_CD_NM || '기타'; byIndustry[ind] = (byIndustry[ind] || 0) + +(r.STOR_CO || 0); });
+          const sorted = Object.entries(byIndustry).sort((a, b) => b[1] - a[1]);
+          collectedData.apis.seoulSignguStor = { description: '자치구별 점포', data: { gu: guNm, totalStores: sorted.reduce((s, e) => s + e[1], 0), byIndustry: sorted.slice(0, 10).map(([name, count]) => ({ name, count })) }, source: '서울시 열린데이터' };
+        }
+      });
+      console.log(`[중개사-서울API] 추가 수집 완료:`, Object.keys(collectedData.apis).filter(k => k.startsWith('seoul')).join(', '));
+    }
 
      // 3단계: 데이터 요약 생성 (새 API 응답 형식)
      const summarizeData = () => {
@@ -8932,7 +11969,32 @@ ${JSON.stringify(regionData, null, 2)}
        if (collectedData.dongInfo) {
          summary.push(`행정동: ${collectedData.dongInfo.dongNm || collectedData.dongInfo.dongCd}`);
        }
-       
+
+       // ═══ 서울시 열린데이터 추가 API 요약 (중개사 모드) ═══
+       if (apis.seoulStorQq?.data) {
+         const d = apis.seoulStorQq.data;
+         summary.push(`상권 점포: 평균 ${d.avgStoreCount}개 (개업률 ${d.openRate}%, 폐업률 ${d.closeRate}%)`);
+       }
+       if (apis.seoulRepop?.data) {
+         summary.push(`상주인구: ${apis.seoulRepop.data.totalPopulation?.toLocaleString()}명`);
+       }
+       if (apis.seoulTrdarIx?.data?.length > 0) {
+         summary.push(`상권변화: ${apis.seoulTrdarIx.data.map(d => `${d.name}=${d.changeCode}`).join(', ')}`);
+       }
+       if (apis.seoulFclty?.data) {
+         const f = apis.seoulFclty.data;
+         const parts = [];
+         if (f.subway > 0) parts.push(`지하철 ${f.subway}`);
+         if (f.bus > 0) parts.push(`버스 ${f.bus}`);
+         if (f.bank > 0) parts.push(`은행 ${f.bank}`);
+         if (f.hospital > 0) parts.push(`병원 ${f.hospital}`);
+         if (parts.length > 0) summary.push(`집객시설: ${parts.join(', ')}`);
+       }
+       if (apis.seoulSignguStor?.data) {
+         const d = apis.seoulSignguStor.data;
+         summary.push(`${d.gu} 전체: ${d.totalStores?.toLocaleString()}개 점포`);
+       }
+
        return summary.join('\n');
      };
 
@@ -10410,7 +13472,6 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  // Firebase Auth 상태 감시 + 자동 로그인
  useEffect(() => {
 
- 
  const unsubscribe = firebase.auth().onAuthStateChanged(async (firebaseUser) => {
  if (firebaseUser && !loggedIn) {
  // Firebase 인증됨 - 자동 로그인
@@ -10477,10 +13538,15 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  localStorage.setItem('bc_session', JSON.stringify({ user: userData, expiry: Date.now() + (6 * 60 * 60 * 1000) }));
  console.log('Firebase 자동 로그인:', userData.name);
  } else if (!firebaseUser && loggedIn) {
- // Firebase 로그아웃됨
+ // Firebase 로그아웃됨 - DEV 환경 가드 추가
+ const isDevLocal = import.meta.env.DEV && ['localhost','127.0.0.1','221.147.31.180'].includes(window.location.hostname);
+ if (!isDevLocal) {
  setLoggedIn(false);
  setUser(null);
  localStorage.removeItem('bc_session');
+ } else {
+ console.log('[DEV] Firebase user=null but skipping session removal on dev environment');
+ }
  }
  });
  
@@ -12892,14 +15958,9 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  // 네이버 Directions API로 실제 도로 경로 가져오기
  const fetchDirectionsRoute = async (startLat, startLng, optimizedStops) => {
  if (optimizedStops.length < 1) return null;
- const NCP_CLIENT_ID = 'dx2ymyk2b1';
- const NCP_CLIENT_SECRET = '18184ztuYuPVkqzPumsSqRNVsMHCiBFMWhWdRJAJ';
+ // NCP API keys moved to server-side proxy (ncp-geo-proxy)
  
  // API 키 검증
- if (!NCP_CLIENT_ID || !NCP_CLIENT_SECRET) {
-   console.warn('NCP API 키가 설정되지 않았습니다.');
-   return null;
- }
  try {
  const start = `${startLng},${startLat}`;
  const goal = `${optimizedStops[optimizedStops.length - 1].lng},${optimizedStops[optimizedStops.length - 1].lat}`;
@@ -12907,14 +15968,9 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  if (optimizedStops.length > 1) {
  waypoints = optimizedStops.slice(0, -1).map(s => `${s.lng},${s.lat}`).join('|');
  }
- let url = `https://naveropenapi.apigw.ntruss.com/map-direction-15/v1/driving?start=${start}&goal=${goal}&option=trafast`;
- if (waypoints) url += `&waypoints=${waypoints}`;
- const response = await fetch(url, {
- headers: {
- 'X-NCP-APIGW-API-KEY-ID': NCP_CLIENT_ID,
- 'X-NCP-APIGW-API-KEY': NCP_CLIENT_SECRET
- }
- });
+ let url = `/api/ncp-geo-proxy?type=directions&start=${start}&goal=${goal}&option=trafast`;
+ if (waypoints) url += `&waypoints=${encodeURIComponent(waypoints)}`;
+ const response = await fetch(url);
  if (!response.ok) return null;
  const data = await response.json();
  if (data.code !== 0 || !data.route?.trafast?.[0]) return null;
@@ -13108,7 +16164,8 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
    const newRoutes = routes.map(r => r.id === route.id ? updated : r);
    setRoutes(newRoutes);
    localStorage.setItem('bc_routes', JSON.stringify(newRoutes));
-   
+   saveRoute(updated);
+
    // 미방문 업체 담당자 미배정 처리
    if (unassignUnvisited) {
      const unvisitedStops = route.stops?.filter(s => !s.visited) || [];
@@ -13443,6 +16500,9 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  try {
  // Firebase Auth로 로그인 (이메일 형식)
  const email = id.includes('@') ? id : `${id}@beancraft.com`;
+ const username = email.split('@')[0];
+
+
  const userCredential = await firebase.auth().signInWithEmailAndPassword(email, pw);
  const firebaseUser = userCredential.user;
  
@@ -13490,7 +16550,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  console.error('로그인 에러:', error);
  if (error.code === 'auth/user-not-found') {
  alert('등록되지 않은 계정입니다');
- } else if (error.code === 'auth/wrong-password') {
+ } else if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
  alert('비밀번호가 올바르지 않습니다');
  } else if (error.code === 'auth/invalid-email') {
  alert('이메일 형식이 올바르지 않습니다');
@@ -13759,7 +16819,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
    };
    
    return (
-     <div className={`min-h-screen flex items-center justify-center p-4 overflow-hidden ${theme === 'dark' ? 'bg-[#191F28]' : 'bg-gradient-to-br from-neutral-50 via-neutral-100 to-neutral-200'}`}>
+     <div className="min-h-screen flex items-center justify-center p-4 overflow-hidden" style={{background: '#0a0a0a'}}>
        <div className="w-full max-w-md relative" style={{minHeight: '500px'}}>
          
          {/* 명언 - quote일 때만 보임 */}
@@ -13772,7 +16832,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
              pointerEvents: loginPhase === 'quote' ? 'auto' : 'none'
            }}
          >
-           <p className={`text-sm sm:text-base font-normal leading-relaxed max-w-xs sm:max-w-sm mx-auto text-center ${theme === 'dark' ? 'text-[#8C8C96]' : 'text-[#4E5968]'}`} style={{wordBreak: 'keep-all'}}>"{loginQuote}"</p>
+           <p className="text-sm sm:text-base font-normal leading-relaxed max-w-xs sm:max-w-sm mx-auto text-center text-[#a0a0a0]" style={{wordBreak: 'keep-all'}}>"{loginQuote}"</p>
          </div>
          
          {/* 로고만 - logo일 때 보임 */}
@@ -13787,7 +16847,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
          >
            <div className="text-center">
              <img src="/logo.png" alt="BEANCRAFT" className="w-72 h-72 sm:w-96 sm:h-96 mx-auto mb-4 object-contain" />
-             <p className={`text-lg sm:text-xl tracking-widest font-semibold ${theme === 'dark' ? 'text-white' : 'text-[#191F28]'}`}>빈크래프트 영업관리</p>
+             <p className="text-lg sm:text-xl tracking-widest font-semibold text-white">빈크래프트 영업관리</p>
            </div>
          </div>
          
@@ -13803,19 +16863,19 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
          >
            <div className="text-center mb-6">
              <img src="/logo.png" alt="BEANCRAFT" className="w-56 h-56 sm:w-72 sm:h-72 mx-auto mb-3 object-contain" />
-             <p className={`text-base sm:text-lg tracking-widest font-semibold ${theme === 'dark' ? 'text-white' : 'text-[#191F28]'}`}>빈크래프트 영업관리</p>
+             <p className="text-base sm:text-lg tracking-widest font-semibold text-white">빈크래프트 영업관리</p>
            </div>
            <div className="text-center mb-5 px-4">
-             <p className={`text-xs sm:text-sm font-normal leading-relaxed max-w-xs sm:max-w-sm mx-auto ${theme === 'dark' ? 'text-[#B0B8C1]' : 'text-[#6B7684]'}`} style={{wordBreak: 'keep-all'}}>"{loginQuote}"</p>
+             <p className="text-xs sm:text-sm font-normal leading-relaxed max-w-xs sm:max-w-sm mx-auto text-[#8a8a8a]" style={{wordBreak: 'keep-all'}}>"{loginQuote}"</p>
            </div>
-           <div className={`rounded-2xl p-4 sm:p-6 shadow-xl backdrop-blur-xl ${theme === 'dark' ? 'bg-white/10 border border-white/20' : 'bg-white/80 border border-white/50'}`}>
-             <input type="text" placeholder="아이디" value={id} onChange={e => setId(e.target.value)} className={`w-full p-2.5 sm:p-3 rounded-xl mb-2 sm:mb-3 outline-none focus:ring-2 text-sm font-medium transition-all ${theme === 'dark' ? 'bg-white/10 text-white placeholder-[#B0B8C1] focus:ring-white/30 border border-white/10' : 'bg-white text-[#191F28] placeholder-[#B0B8C1] focus:ring-neutral-300 border border-[#E5E8EB]'}`} />
-             <input type="password" placeholder="비밀번호" value={pw} onChange={e => setPw(e.target.value)} onKeyPress={e => e.key === 'Enter' && login()} className={`w-full p-2.5 sm:p-3 rounded-xl mb-2 sm:mb-3 outline-none focus:ring-2 text-sm font-medium transition-all ${theme === 'dark' ? 'bg-white/10 text-white placeholder-[#B0B8C1] focus:ring-white/30 border border-white/10' : 'bg-white text-[#191F28] placeholder-[#B0B8C1] focus:ring-neutral-300 border border-[#E5E8EB]'}`} />
-             <label className={`flex items-center gap-2 text-sm mb-4 cursor-pointer ${theme === 'dark' ? 'text-[#8C8C96]' : 'text-[#4E5968]'}`}>
+           <div className="rounded-2xl p-4 sm:p-6 shadow-xl backdrop-blur-xl bg-[#1a1a1a] border border-[#333]">
+             <input type="text" placeholder="아이디" value={id} onChange={e => setId(e.target.value)} className="w-full p-2.5 sm:p-3 rounded-xl mb-2 sm:mb-3 outline-none focus:ring-2 text-sm font-medium transition-all bg-[#111] text-white placeholder-[#666] focus:ring-[#444] border border-[#333]" />
+             <input type="password" placeholder="비밀번호" value={pw} onChange={e => setPw(e.target.value)} onKeyPress={e => e.key === 'Enter' && login()} className="w-full p-2.5 sm:p-3 rounded-xl mb-2 sm:mb-3 outline-none focus:ring-2 text-sm font-medium transition-all bg-[#111] text-white placeholder-[#666] focus:ring-[#444] border border-[#333]" />
+             <label className="flex items-center gap-2 text-sm mb-4 cursor-pointer text-[#999]">
                <input type="checkbox" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)} className="w-4 h-4 rounded accent-neutral-700" />
                로그인 상태 유지
              </label>
-             <button type="button" onClick={login} className={`w-full p-3 rounded-xl font-semibold transition-all text-sm ${theme === 'dark' ? 'bg-white text-[#191F28] hover:bg-[#F2F4F6]' : 'bg-[#191F28] text-white hover:bg-[#21212A]'}`}>로그인</button>
+             <button type="button" onClick={login} className="w-full p-3 rounded-xl font-semibold transition-all text-sm bg-white text-[#0a0a0a] hover:bg-[#e0e0e0]">로그인</button>
            </div>
          </div>
          
@@ -13841,67 +16901,52 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  // ═══════════════════════════════════════════════════════════════
  if (salesModeActive) {
    return (
-     <div 
-       className={`min-h-screen select-none ${t.bgGradient} ${t.text}`}
-       onClick={updateSalesModeActivity}
-       onTouchStart={updateSalesModeActivity}
+     <div
+       className="min-h-screen select-none bg-[#F9FAFB] text-[#191F28]"
        style={{ WebkitUserSelect: 'none', userSelect: 'none' }}
      >
        {/* 대상 선택 화면 */}
        {salesModeScreen === 'select' && (
          <div className="min-h-screen flex flex-col items-center justify-center p-6">
            <img src="/logo.png" alt="BEANCRAFT" className="w-48 h-48 object-contain mb-8" onError={(e) => { e.target.style.display = 'none'; }} />
-           <h2 className={`text-2xl font-bold mb-2 ${t.text}`}>영업모드</h2>
-           <p className={`mb-8 ${t.textSecondary}`}>대상을 선택해주세요</p>
+           <h2 className="text-2xl font-bold mb-2 text-[#191F28]">영업모드</h2>
+           <p className="mb-8 text-[#6B7684]">대상을 선택해주세요</p>
            <div className="w-full max-w-sm space-y-2">
              <button
-               onClick={() => { setSalesModeTarget('broker'); setSalesModeScreen('main'); }}
-               className={`w-full py-6 rounded-2xl border-2 transition-all ${theme === 'dark' ? 'border-white/[0.08] hover:border-white hover:bg-[#21212A]' : 'border-[#E5E8EB] hover:border-[#8B95A1] hover:bg-[#F9FAFB]'}`}
+               onClick={() => { setSalesModeTarget('broker'); setSalesModeTab('intro'); setSalesModeScreen('main'); try { if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{}); } catch(e){} }}
+               className="w-full py-6 rounded-2xl border-2 transition-all border-[#E5E8EB] hover:border-[#8B95A1] hover:bg-[#F9FAFB]"
              >
-               <span className={`text-xl font-bold ${t.text}`}>중개사</span>
-               <p className={`text-sm mt-1 ${t.textSecondary}`}>부동산 중개사 미팅용</p>
+               <span className="text-xl font-bold text-[#191F28]">중개사</span>
+               <p className="text-sm mt-1 text-[#6B7684]">부동산 중개사 미팅용</p>
              </button>
              <button
-               onClick={() => { setSalesModeTarget('client'); setSalesModeScreen('main'); }}
-               className={`w-full py-6 rounded-2xl border-2 transition-all ${theme === 'dark' ? 'border-white/[0.08] hover:border-white hover:bg-[#21212A]' : 'border-[#E5E8EB] hover:border-[#8B95A1] hover:bg-[#F9FAFB]'}`}
+               onClick={() => { setSalesModeTarget('client'); setSalesModeTab('analysis'); setSalesModeScreen('main'); }}
+               className="w-full py-6 rounded-2xl border-2 transition-all border-[#E5E8EB] hover:border-[#8B95A1] hover:bg-[#F9FAFB]"
              >
-               <span className={`text-xl font-bold ${t.text}`}>의뢰인</span>
-               <p className={`text-sm mt-1 ${t.textSecondary}`}>카페 창업 의뢰인용</p>
+               <span className="text-xl font-bold text-[#191F28]">의뢰인</span>
+               <p className="text-sm mt-1 text-[#6B7684]">카페 창업 의뢰인용</p>
              </button>
            </div>
            <button
              onClick={exitSalesMode}
-             className={`mt-8 text-sm ${t.textSecondary}`}
+             className="mt-8 text-sm text-[#6B7684]"
            >
              영업모드 종료
            </button>
          </div>
        )}
 
-       {/* 잠금 화면 */}
-       {salesModeScreen === 'locked' && (
-         <div 
-           className={`min-h-screen flex flex-col items-center justify-center p-6 ${t.bgGradient}`}
-           onClick={() => setSalesModeScreen('pin')}
-         >
-           <img src="/logo.png" alt="BEANCRAFT" className="w-40 h-40 object-contain mb-8 opacity-80" onError={(e) => { e.target.style.display = 'none'; }} />
-           <p className={`text-sm mb-4 ${t.textMuted}`}>화면을 터치하여 잠금 해제</p>
-           <div className={`w-48 h-1 rounded-full overflow-hidden ${theme === 'dark' ? 'bg-white/20' : 'bg-[#D1D6DB]'}`}>
-             <div className={`h-full w-1/3 animate-pulse ${theme === 'dark' ? 'bg-white/60' : 'bg-neutral-600'}`}></div>
-           </div>
-         </div>
-       )}
 
        {/* PIN 입력 화면 */}
        {salesModeScreen === 'pin' && (
          <div className="min-h-screen flex flex-col items-center justify-center p-6">
-           <h2 className={`text-xl font-bold mb-2 ${t.text}`}>PIN 입력</h2>
-           <p className={`text-sm mb-8 ${t.textSecondary}`}>4자리 비밀번호를 입력해주세요</p>
+           <h2 className="text-xl font-bold mb-2 text-[#191F28]">PIN 입력</h2>
+           <p className="text-sm mb-8 text-[#6B7684]">4자리 비밀번호를 입력해주세요</p>
            <div className="flex gap-3 mb-8">
              {[0, 1, 2, 3].map(i => (
                <div
                  key={i}
-                 className={`w-4 h-4 rounded-full transition-all ${salesModePinInput.length > i ? (theme === 'dark' ? 'bg-white' : 'bg-[#191F28]') : (theme === 'dark' ? 'bg-[#2C2C35]' : 'bg-[#D1D6DB]')}`}
+                 className={`w-4 h-4 rounded-full transition-all ${salesModePinInput.length > i ? 'bg-[#191F28]' : 'bg-[#D1D6DB]'}`}
                />
              ))}
            </div>
@@ -13916,8 +16961,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                  disabled={digit === ''}
                  className={`w-16 h-16 rounded-full text-2xl font-bold transition-all ${
                    digit === '' ? 'invisible' :
-                   digit === 'del' ? 'text-[#8C8C96] hover:bg-[#21212A]' :
-                   'bg-[#21212A] hover:bg-[#2C2C35] text-white'
+                   digit === 'del' ? 'text-[#8C8C96] hover:bg-[#F2F4F6]' :
+                   'bg-[#F2F4F6] hover:bg-[#E5E8EB] text-[#191F28]'
                  }`}
                >
                  {digit === 'del' ? '⌫' : digit}
@@ -13925,27 +16970,29 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
              ))}
            </div>
            <button
-             onClick={() => setSalesModeScreen('locked')}
-             className={`mt-8 text-sm ${t.textSecondary}`}
+             onClick={() => setSalesModeScreen('select')}
+             className="mt-8 text-sm text-[#6B7684]"
            >
              취소
            </button>
          </div>
        )}
 
+
        {/* 메인 영업모드 화면 */}
        {salesModeScreen === 'main' && (
-         <div className="min-h-screen flex flex-col">
+         <div className="h-screen flex flex-col overflow-hidden">
            {/* 상단 헤더 - 로고 + 타겟 배지 */}
-           <div className={`px-4 py-3 flex justify-between items-center sticky top-0 z-50 backdrop-blur-xl border-b ${theme === 'dark' ? 'bg-[#17171C]/95 border-white/[0.06]' : 'bg-white/95 border-[#E5E8EB]'}`}>
+           <div className="px-4 py-3 flex justify-between items-center sticky top-0 z-50 backdrop-blur-xl border-b bg-white/95 border-[#E5E8EB]">
              <button
                onClick={exitSalesMode}
-               className={`px-3 py-1.5 text-sm font-medium rounded-xl border transition-all ${theme === 'dark' ? 'text-[#8C8C96] hover:text-[#ECECEF] border-white/[0.08] hover:bg-[#2C2C35]' : 'text-[#6B7684] hover:text-[#191F28] border-[#E5E8EB] hover:bg-[#F2F4F6]'}`}
+               className="px-3 py-1.5 text-sm font-medium rounded-xl border transition-all text-[#6B7684] hover:text-[#191F28] border-[#E5E8EB] hover:bg-[#F2F4F6]"
              >
                관리자
              </button>
-             <img src="/logo.png" alt="BEANCRAFT" className="h-8 object-contain" onError={(e) => { e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 30"><text y="22" font-size="18" font-weight="bold" fill="white">BEANCRAFT</text></svg>'; }} />
-             <div className="w-20 flex justify-end">
+             <img src="/logo.png" alt="BEANCRAFT" className="h-8 object-contain" onError={(e) => { e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 30"><text y="22" font-size="18" font-weight="bold" fill="%23191F28">BEANCRAFT</text></svg>'; }} />
+             <div className="flex items-center gap-2 justify-end">
+
                <span className={`px-3 py-1.5 rounded-lg text-xs font-bold ${
                  salesModeTarget === 'broker' 
                    ? 'bg-blue-600 text-white' 
@@ -13957,23 +17004,37 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
            </div>
 
            {/* 탭 네비게이션 */}
-           <div className={`flex border-b ${theme === 'dark' ? 'bg-[#17171C] border-white/[0.06]' : 'bg-white border-[#E5E8EB]'}`}>
+           <div className="flex border-b bg-white border-[#E5E8EB]">
+             {salesModeTarget === 'broker' && (
+               <button
+                 onClick={() => { setSalesModeTab('intro'); try { if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{}); } catch(e){} }}
+                 className={`flex-1 py-3.5 text-center font-bold text-[15px] transition-all ${
+                   salesModeTab === 'intro'
+                     ? 'text-[#191F28] border-b-2 border-[#3182F6]'
+                     : 'text-[#B0B8C1] hover:text-[#6B7684]'
+                 }`}
+               >
+                 소개
+               </button>
+             )}
+             {salesModeTarget !== 'broker' && (
+               <button
+                 onClick={() => { setSalesModeTab('analysis'); }}
+                 className={`flex-1 py-3.5 text-center font-bold text-[15px] transition-all ${
+                   salesModeTab === 'analysis'
+                     ? 'text-[#191F28] border-b-2 border-[#3182F6]'
+                     : 'text-[#B0B8C1] hover:text-[#6B7684]'
+                 }`}
+               >
+                 분석
+               </button>
+             )}
              <button
-               onClick={() => { setSalesModeTab('analysis'); updateSalesModeActivity(); }}
-               className={`flex-1 py-3.5 text-center font-bold text-[15px] transition-all ${
-                 salesModeTab === 'analysis'
-                   ? (theme === 'dark' ? 'text-[#ECECEF] border-b-2 border-[#3182F6]' : 'text-[#191F28] border-b-2 border-[#3182F6]')
-                   : (theme === 'dark' ? 'text-[#56565F] hover:text-[#8C8C96]' : 'text-[#B0B8C1] hover:text-[#6B7684]')
-               }`}
-             >
-               분석
-             </button>
-             <button
-               onClick={() => { setSalesModeTab('homepage'); updateSalesModeActivity(); }}
+               onClick={() => { setSalesModeTab('homepage'); }}
                className={`flex-1 py-3.5 text-center font-bold text-[15px] transition-all ${
                  salesModeTab === 'homepage'
-                   ? (theme === 'dark' ? 'text-[#ECECEF] border-b-2 border-[#3182F6]' : 'text-[#191F28] border-b-2 border-[#3182F6]')
-                   : (theme === 'dark' ? 'text-[#56565F] hover:text-[#8C8C96]' : 'text-[#B0B8C1] hover:text-[#6B7684]')
+                   ? 'text-[#191F28] border-b-2 border-[#3182F6]'
+                   : 'text-[#B0B8C1] hover:text-[#6B7684]'
                }`}
              >
                홈페이지
@@ -13981,7 +17042,109 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
            </div>
 
            {/* 탭 콘텐츠 */}
-           <div className={`flex-1 overflow-y-auto ${theme === 'dark' ? 'bg-[#17171C]' : 'bg-[#F9FAFB]'}`}>
+           <div className="flex-1 overflow-y-auto min-h-0 bg-[#F9FAFB]" style={{ scrollSnapType: salesModeTab === 'intro' ? 'y proximity' : 'none', scrollBehavior: 'smooth' }}>
+
+            {/* ═══ 중개사 소개 탭 (intro) ═══ */}
+            {salesModeTab === 'intro' && salesModeTarget === 'broker' && (() => {
+  const isDark = false;
+  const g = '#F9FAFB';
+  const y = '#191F28';
+  const j = '#6B7684';
+  const N = '#B0B8C1';
+  const T = '#E5E8EB';
+  const k = '#3182F6';
+  const M = '#F04452';
+  const L = '#03B26C';
+  const te = '#F2F4F6';
+  const ne = 'glass-card-light';
+  const colors = { g, y, j, N, T, k, M, L, te, ne };
+
+  const sectionStyle = {
+    minHeight: 'calc(100vh - 130px)',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    padding: '28px 16px',
+    boxSizing: 'border-box',
+    scrollSnapAlign: 'start',
+  };
+
+  const headingStyle = {
+    fontSize: 38,
+    fontWeight: 800,
+    letterSpacing: '-0.03em',
+    lineHeight: 1.25,
+    color: y,
+    marginBottom: 8,
+  };
+
+  const descStyle = {
+    fontSize: 17,
+    color: j,
+    marginBottom: 20,
+    lineHeight: 1.6,
+    letterSpacing: '-0.01em',
+  };
+
+  // Province abbreviation map for broker dashboard
+  const provinceAbbrev = {
+    '서울특별시': '서울', '경기도': '경기', '부산광역시': '부산',
+    '대구광역시': '대구', '인천광역시': '인천', '광주광역시': '광주',
+    '대전광역시': '대전', '울산광역시': '울산', '세종특별자치시': '세종',
+    '강원도': '강원', '강원특별자치도': '강원', '충청북도': '충북',
+    '충청남도': '충남', '전라북도': '전북', '전북특별자치도': '전북',
+    '전라남도': '전남', '경상북도': '경북', '경상남도': '경남', '제주특별자치도': '제주',
+  };
+
+  const getRealtorsByProvince = () => {
+    if (!companies || !Array.isArray(companies)) return {};
+    const groups = {};
+    companies.forEach(c => {
+      if (!c || !c.address) return;
+      const addr = c.address;
+      let prov = null;
+      for (const [full, abbr] of Object.entries(provinceAbbrev)) {
+        if (addr.startsWith(full) || addr.startsWith(abbr)) { prov = abbr; break; }
+      }
+      if (!prov) {
+        if (/^서울/.test(addr)) prov = '서울';
+        else if (/^경기/.test(addr)) prov = '경기';
+        else if (/^부산/.test(addr)) prov = '부산';
+        else if (/^대구/.test(addr)) prov = '대구';
+        else if (/^인천/.test(addr)) prov = '인천';
+      }
+      if (prov) groups[prov] = (groups[prov] || 0) + 1;
+    });
+    return groups;
+  };
+
+  const regionData = getRealtorsByProvince();
+  const topRegions = Object.entries(regionData).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  const maxCount = topRegions.length > 0 ? topRegions[0][1] : 1;
+
+  return (
+    <div style={{
+      background: g,
+      fontFamily: '"Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif',
+      color: y,
+      WebkitOverflowScrolling: 'touch',
+      WebkitFontSmoothing: 'antialiased',
+    }}>
+      <HeroSection colors={colors} />
+      <ServiceLineup colors={colors} sectionStyle={sectionStyle} headingStyle={headingStyle} descStyle={descStyle} ScrollReveal={ScrollReveal} />
+      <InteriorGallery colors={colors} sectionStyle={sectionStyle} headingStyle={headingStyle} descStyle={descStyle} />
+      <EducationGallery colors={colors} sectionStyle={sectionStyle} headingStyle={headingStyle} descStyle={descStyle} />
+      <OpenProcess colors={colors} sectionStyle={sectionStyle} headingStyle={headingStyle} descStyle={descStyle} ScrollReveal={ScrollReveal} />
+      <ComparisonCard colors={colors} sectionStyle={sectionStyle} headingStyle={headingStyle} descStyle={descStyle} ScrollReveal={ScrollReveal} />
+      <FeeTable colors={colors} sectionStyle={sectionStyle} headingStyle={headingStyle} descStyle={descStyle} ScrollReveal={ScrollReveal} />
+      <BrokerStatus colors={colors} sectionStyle={sectionStyle} headingStyle={headingStyle} descStyle={descStyle} companies={companies} BrokerMapSection={BrokerMapSection} />
+      <SalesSystem colors={colors} sectionStyle={sectionStyle} headingStyle={headingStyle} descStyle={descStyle} companies={companies} regionData={regionData} topRegions={topRegions} maxCount={maxCount} MacMockupCarousel={MacMockupCarousel} />
+      <AISection colors={colors} sectionStyle={sectionStyle} headingStyle={headingStyle} descStyle={descStyle} PhoneMockupCarousel={PhoneMockupCarousel} />
+      <div style={{ height: 8 }} />
+    </div>
+  );
+})()}
+
              {/* 분석 탭 */}
              {salesModeTab === 'analysis' && (
                <div className="p-4 space-y-2">
@@ -14000,7 +17163,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                      }}
                      onFocus={() => { if (salesModeSearchQuery.length >= 1) setSalesAutoCompleteOpen(true); }}
                      placeholder="지역을 검색하세요 (예: 강남역, 판교)"
-                     className={`w-full px-4 py-3.5 rounded-2xl border-[1.5px] focus:outline-none transition-all text-[15px] ${theme === 'dark' ? 'border-white/[0.08] bg-[#2C2C35] focus:border-[#3182F6] text-[#ECECEF] placeholder-[#56565F]' : 'border-[#E5E8EB] bg-white focus:border-[#3182F6] text-[#191F28] placeholder-[#B0B8C1]'}`}
+                     className="w-full px-4 py-3.5 rounded-2xl border-[1.5px] focus:outline-none transition-all text-[15px] border-[#E5E8EB] bg-white focus:border-[#3182F6] text-[#191F28] placeholder-[#B0B8C1]"
                      style={{ boxShadow: 'none' }}
                    />
                    <button
@@ -14028,8 +17191,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                        <div style={{
                          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
                          marginTop: 4, borderRadius: 14, overflow: 'hidden',
-                         background: theme === 'dark' ? '#21212A' : '#FFF',
-                         border: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.08)' : '#E5E8EB'}`,
+                         background: '#FFF',
+                         border: '1px solid #E5E8EB',
                          boxShadow: '0 8px 28px rgba(0,0,0,0.12)'
                        }}>
                          {filtered.map((spot, i) => (
@@ -14037,15 +17200,15 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                              onClick={() => { setSalesModeSearchQuery(spot); setSalesAutoCompleteOpen(false); searchSalesModeRegion(spot); }}
                              style={{
                                padding: '10px 16px', cursor: 'pointer', fontSize: 14,
-                               color: theme === 'dark' ? '#ECECEF' : '#191F28',
-                               borderBottom: i < filtered.length - 1 ? `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.06)' : '#F2F4F6'}` : 'none',
+                               color: '#191F28',
+                               borderBottom: i < filtered.length - 1 ? '1px solid #F2F4F6' : 'none',
                                display: 'flex', alignItems: 'center', gap: 8,
                                transition: 'background 0.15s ease',
                              }}
-                             onMouseOver={(e) => e.currentTarget.style.background = theme === 'dark' ? '#2C2C35' : '#F2F4F6'}
+                             onMouseOver={(e) => e.currentTarget.style.background = '#F2F4F6'}
                              onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
                            >
-                             <span style={{ color: theme === 'dark' ? '#888' : '#BBB', fontSize: 12 }}>📍</span>
+                             <span style={{ color: '#BBB', fontSize: 12, lineHeight: 1 }}><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg></span>
                              <span>{spot}</span>
                            </div>
                          ))}
@@ -14055,7 +17218,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                  </div>
 
                  {/* 검색 안내 */}
-                 <p style={{ fontSize: 12, color: theme === 'dark' ? '#888' : '#999', padding: '2px 4px', margin: 0 }}>
+                 <p style={{ fontSize: 12, color: '#999', padding: '2px 4px', margin: 0 }}>
                    상세 주소 입력 시 더 정밀한 분석이 가능해요 (예: 서울시 용산구 청파로 205-6)
                  </p>
 
@@ -14063,9 +17226,9 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                  <button
                    onClick={startLocationSelectMode}
                    className={`w-full py-3 rounded-xl border text-sm font-medium transition-all ${
-                     locationSelectMode 
-                       ? 'border-white bg-white text-black' 
-                       : 'border-white/[0.08] bg-[#21212A] text-[#8C8C96] hover:bg-[#2C2C35]'
+                     locationSelectMode
+                       ? 'border-[#191F28] bg-[#191F28] text-white'
+                       : 'border-[#E5E8EB] bg-[#F2F4F6] text-[#6B7684] hover:bg-[#E5E8EB]'
                    }`}
                  >
                    {locationSelectMode ? '지도를 탭하여 위치를 선택하세요' : '지도에서 직접 위치 선택 (반경 500m 분석)'}
@@ -14074,19 +17237,19 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                  {/* 지역 선택 모드 안내 */}
                  {locationSelectMode && (
                    <div className="space-y-3">
-                     <div className={`p-3 ${theme === 'dark' ? 'bg-[#21212A]' : 'bg-[#F2F4F6]'} rounded-xl`}>
-                       <p className={`text-sm text-center ${t.textSecondary}`}>지도를 탭하면 해당 위치의 반경 500m 업종 분석을 시작합니다</p>
+                     <div className="p-3 bg-[#F2F4F6] rounded-xl">
+                       <p className="text-sm text-center text-[#6B7684]">지도를 탭하면 해당 위치의 반경 500m 업종 분석을 시작합니다</p>
                        <button
                          onClick={exitLocationSelectMode}
-                         className={`w-full mt-2 py-2 text-sm ${t.textSecondary}`}
+                         className="w-full mt-2 py-2 text-sm text-[#6B7684]"
                        >
                          취소
                        </button>
                      </div>
                      {/* 위치 선택용 지도 */}
-                     <div 
+                     <div
                        ref={salesModeSelectMapContainerRef}
-                       className={`h-[60vh] ${theme === 'dark' ? 'bg-[#2C2C35]' : 'bg-[#E5E8EB]'} rounded-xl overflow-hidden`}
+                       className="h-[60vh] bg-[#E5E8EB] rounded-xl overflow-hidden"
                        style={{ minHeight: '400px' }}
                      />
                    </div>
@@ -14095,9 +17258,9 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                  {/* 검색 결과 - 토스 스타일 */}
                  {/* 중복 지역 선택 드롭다운 */}
                 {showDuplicateSelector && duplicateRegionOptions.length > 0 && (
-                  <div className={`mt-3 rounded-xl overflow-hidden border ${theme === 'dark' ? 'border-white/[0.08] bg-[#21212A]' : 'border-[#E5E8EB] bg-white'}`}>
-                    <div className={`px-4 py-2.5 ${theme === 'dark' ? 'bg-neutral-750' : 'bg-[#F9FAFB]'}`}>
-                      <p className={`text-xs font-semibold ${theme === 'dark' ? 'text-[#8C8C96]' : 'text-[#6B7684]'}`}>
+                  <div className="mt-3 rounded-xl overflow-hidden border border-[#E5E8EB] bg-white">
+                    <div className="px-4 py-2.5 bg-[#F9FAFB]">
+                      <p className="text-xs font-semibold text-[#6B7684]">
                         같은 이름의 지역이 있어요. 분석할 지역을 선택해주세요.
                       </p>
                     </div>
@@ -14110,26 +17273,22 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                           setDuplicateRegionOptions([]);
                           searchSalesModeRegion(opt.fullQuery, true);
                         }}
-                        className={`w-full text-left px-4 py-3 flex items-center justify-between transition-all ${
-                          theme === 'dark' 
-                            ? 'hover:bg-[#2C2C35] border-t border-white/[0.08]' 
-                            : 'hover:bg-[#F9FAFB] border-t border-[#F2F4F6]'
-                        }`}
+                        className="w-full text-left px-4 py-3 flex items-center justify-between transition-all hover:bg-[#F9FAFB] border-t border-[#F2F4F6]"
                       >
                         <div>
-                          <p className={`text-sm font-semibold ${theme === 'dark' ? 'text-white' : 'text-[#191F28]'}`}>{opt.label}</p>
-                          <p className={`text-xs mt-0.5 ${theme === 'dark' ? 'text-[#B0B8C1]' : 'text-[#56565F]'}`}>{opt.description}</p>
+                          <p className="text-sm font-semibold text-[#191F28]">{opt.label}</p>
+                          <p className="text-xs mt-0.5 text-[#56565F]">{opt.description}</p>
                         </div>
-                        <svg className={`w-4 h-4 ${theme === 'dark' ? 'text-[#56565F]' : 'text-[#B0B8C1]'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                        <svg className="w-4 h-4 text-[#B0B8C1]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                       </button>
                     ))}
                   </div>
                 )}
 
                 {salesModeSearchResult?.success && (
-                   <TossStyleResults 
-                     result={salesModeSearchResult} 
-                     theme={theme}
+                   <TossStyleResults
+                     result={salesModeSearchResult}
+                     theme="light"
                      onShowSources={() => setSalesModeShowSources(!salesModeShowSources)}
                      salesModeShowSources={salesModeShowSources}
                    />
@@ -14162,15 +17321,15 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                      </div>
                      
                      {/* 퍼센트 표시 */}
-                     <p className={`text-4xl font-bold ${t.text} mb-4`}>
+                     <p className="text-4xl font-bold text-[#191F28] mb-4">
                        {salesModeAnalysisProgress}%
                      </p>
-                     
+
                      {/* 수집 멘트 - 상세 상태 */}
-                     <p className={`text-sm mb-2 text-center max-w-sm ${t.textSecondary}`}>
+                     <p className="text-sm mb-2 text-center max-w-sm text-[#6B7684]">
                        {salesModeCollectingText || salesModeAnalysisStep}
                      </p>
-                     <p className={`text-xs ${t.textSecondary}`}>잠시만 기다려주세요</p>
+                     <p className="text-xs text-[#6B7684]">잠시만 기다려주세요</p>
 
                      {/* 분석 중지 버튼 */}
                      <button
@@ -14199,8 +17358,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                  {/* 검색 전 안내 */}
                  {!salesModeSearchResult && !salesModeSearchLoading && (
                    <div className="text-center py-20">
-                     <p className={`mb-2 ${t.textSecondary}`}>지역을 검색하면</p>
-                     <p className={`${t.textSecondary}`}>AI 상권 분석 결과를 확인할 수 있습니다</p>
+                     <p className="mb-2 text-[#6B7684]">지역을 검색하면</p>
+                     <p className="text-[#6B7684]">AI 상권 분석 결과를 확인할 수 있습니다</p>
                    </div>
                  )}
 
@@ -14208,85 +17367,137 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                  {salesModeSearchResult?.success === false && (
                    <div className="text-center py-10">
                      <p className="text-red-500 mb-2">분석 중 오류가 발생했습니다</p>
-                     <p className={`text-sm ${t.textSecondary}`}>{salesModeSearchResult.error}</p>
+                     <p className="text-sm text-[#6B7684]">{salesModeSearchResult.error}</p>
                    </div>
                  )}
                </div>
              )}
 
-             {/* 홈페이지 탭 */}
+             {/* 홈페이지 탭 - 웹사이트 원본 헤더 표시 + 네비게이션 교체 */}
              {salesModeTab === 'homepage' && (
-               <div className="h-[calc(100vh-120px)] flex flex-col">
-                 {/* 카테고리 메뉴 */}
-                 <div className={`p-3 border-b ${theme === 'dark' ? 'bg-[#21212A] border-white/[0.08]' : 'bg-white border-gray-100'}`}>
-                   <div className="flex gap-2 overflow-x-auto">
-                     <button 
-                       onClick={() => setSalesModeHomepageUrl('https://www.beancraft.co.kr')}
-                       className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium ${salesModeHomepageUrl === 'https://www.beancraft.co.kr' ? 'bg-[#191F28] text-white' : 'bg-[#F2F4F6] text-[#8C8C96] hover:bg-[#E5E8EB]'}`}
-                     >
-                       홈
-                     </button>
-                     <button 
-                       onClick={() => setSalesModeHomepageUrl('https://www.beancraft.co.kr/%EC%B0%BD%EC%97%85%EC%95%88%EB%82%B4')}
-                       className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium ${salesModeHomepageUrl?.includes('창업안내') ? 'bg-[#191F28] text-white' : 'bg-[#F2F4F6] text-[#8C8C96] hover:bg-[#E5E8EB]'}`}
-                     >
-                       창업안내
-                     </button>
-                     <button 
-                       onClick={() => setSalesModeHomepageUrl('https://www.beancraft.co.kr/%EC%9D%B8%ED%85%8C%EB%A6%AC%EC%96%B4')}
-                       className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium ${salesModeHomepageUrl?.includes('인테리어') ? 'bg-[#191F28] text-white' : 'bg-[#F2F4F6] text-[#8C8C96] hover:bg-[#E5E8EB]'}`}
-                     >
-                       인테리어
-                     </button>
-                     <button 
-                       onClick={() => setSalesModeHomepageUrl('https://www.beancraft.co.kr/%EA%B8%B0%EA%B8%B0%EC%84%A4%EC%B9%98')}
-                       className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium ${salesModeHomepageUrl?.includes('기기설치') ? 'bg-[#191F28] text-white' : 'bg-[#F2F4F6] text-[#8C8C96] hover:bg-[#E5E8EB]'}`}
-                     >
-                       기기설치
-                     </button>
-                     <button 
-                       onClick={() => setSalesModeHomepageUrl('https://www.beancraft.co.kr/%EB%A9%94%EB%89%B4%EA%B0%9C%EB%B0%9C')}
-                       className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium ${salesModeHomepageUrl?.includes('메뉴개발') ? 'bg-[#191F28] text-white' : 'bg-[#F2F4F6] text-[#8C8C96] hover:bg-[#E5E8EB]'}`}
-                     >
-                       메뉴개발
-                     </button>
-                     <button 
-                       onClick={() => setSalesModeHomepageUrl('https://www.beancraft.co.kr/%EC%9A%B4%EC%98%81%EA%B5%90%EC%9C%A1')}
-                       className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium ${salesModeHomepageUrl?.includes('운영교육') ? 'bg-[#191F28] text-white' : 'bg-[#F2F4F6] text-[#8C8C96] hover:bg-[#E5E8EB]'}`}
-                     >
-                       운영교육
-                     </button>
-                   </div>
-                 </div>
-                 
-                 {/* iframe으로 홈페이지 직접 표시 */}
-                 <div className={`flex-1 relative ${theme === 'dark' ? 'bg-[#191F28]' : 'bg-white'}`}>
-                   <iframe
-                     src={salesModeHomepageUrl || 'https://www.beancraft.co.kr'}
-                     className="w-full h-full border-0"
-                     title="빈크래프트 홈페이지"
-                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                   />
-                 </div>
+               <div className="h-[calc(100vh-120px)]">
+                 <iframe
+                   src="/site/"
+                   className="w-full h-full border-0"
+                   title="빈크래프트 홈페이지"
+                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                   onLoad={(e) => {
+                     try {
+                       const doc = e.target.contentDocument;
+                       if (!doc) return;
+                       const iframeWindow = doc.defaultView;
+
+                       // Step 1: Unregister Service Workers
+                       // CreatorLink registers a SW that intercepts requests and shows offline page
+                       try {
+                         const iframeNav = doc.defaultView.navigator;
+                         if (iframeNav.serviceWorker) {
+                           iframeNav.serviceWorker.getRegistrations().then(regs => {
+                             regs.forEach(r => r.unregister());
+                           });
+                         }
+                       } catch(swErr) {}
+
+                       // Step 2: Minimal CSS injection (only visibility fixes for iframe context)
+                       const style = doc.createElement('style');
+                       style.textContent = 'header, #header, .navbar-fixed-top { opacity: 1 !important; visibility: visible !important; }';
+                       doc.head.appendChild(style);
+
+                       // Step 3: Intercept History API (pushState/replaceState)
+                       // CreatorLink uses pushState for client-side navigation - URLs lose /site/ prefix
+                       // Also handles absolute URLs (e.g. http://localhost:5174/기기설치)
+                       const iframeWin = iframeWindow;
+                       function fixUrl(url) {
+                         if (!url) return url;
+                         let str = String(url);
+                         // 절대 URL인 경우 (http://... or https://...)
+                         try {
+                           const parsed = new URL(str, iframeWin.location.origin);
+                           // 같은 origin이면 pathname만 확인
+                           if (parsed.origin === iframeWin.location.origin) {
+                             if (!parsed.pathname.startsWith('/site/') && !parsed.pathname.startsWith('/site')) {
+                               parsed.pathname = '/site' + parsed.pathname;
+                               return parsed.href;
+                             }
+                           }
+                         } catch(e) {
+                           // URL 파싱 실패 시 문자열로 처리
+                         }
+                         // 상대경로인 경우
+                         if (str.startsWith('/') && !str.startsWith('/site/') && !str.startsWith('/site')) {
+                           return '/site' + str;
+                         }
+                         return str;
+                       }
+
+                       // Step 3: pushState → 전체 페이지 로드로 대체
+                       const origPushState = iframeWin.history.pushState;
+                       const origReplaceState = iframeWin.history.replaceState;
+
+                       iframeWin.history.pushState = function(state, title, url) {
+                         if (url) {
+                           const fixedUrl = fixUrl(String(url));
+                           // 같은 페이지면 pushState 유지, 다른 페이지면 전체 로드
+                           const currentPath = iframeWin.location.pathname;
+                           try {
+                             const newPath = new URL(fixedUrl, iframeWin.location.origin).pathname;
+                             if (newPath !== currentPath) {
+                               // 다른 페이지로 이동 → 전체 페이지 로드
+                               iframeWin.location.href = fixedUrl;
+                               return;
+                             }
+                           } catch(e) {}
+                           // 같은 페이지 내 변경 (hash 변경 등) → 기존 pushState 유지
+                           return origPushState.call(iframeWin.history, state, title, fixedUrl);
+                         }
+                         return origPushState.call(iframeWin.history, state, title, url);
+                       };
+
+                       iframeWin.history.replaceState = function(state, title, url) {
+                         if (url) {
+                           return origReplaceState.call(iframeWin.history, state, title, fixUrl(String(url)));
+                         }
+                         return origReplaceState.call(iframeWin.history, state, title, url);
+                       };
+
+                       // Step 4: Click interceptor for links (capture phase)
+                       // Also uses fixUrl to handle absolute URLs in href attributes
+                       doc.addEventListener('click', function(ev) {
+                         const link = ev.target.closest('a');
+                         if (!link) return;
+                         const href = link.getAttribute('href');
+                         if (!href) return;
+                         const fixed = fixUrl(href);
+                         if (fixed !== href) {
+                           ev.preventDefault();
+                           iframeWin.location.href = fixed;
+                         }
+                       }, true);
+
+                       // Step 5: Prevent new service worker registration
+                       try {
+                         if (iframeWindow.navigator.serviceWorker) {
+                           iframeWindow.navigator.serviceWorker.register = function() {
+                             return Promise.resolve();
+                           };
+                         }
+                       } catch(swRegErr) {}
+
+                     } catch(err) {
+                       console.warn('iframe onLoad handler:', err);
+                     }
+                   }}
+                 />
                </div>
              )}
            </div>
 
-           {/* 하단 종료 버튼 */}
-           <div className={`border-t p-4 sticky bottom-0 ${theme === 'dark' ? 'bg-[#191F28] border-white/[0.06]' : 'bg-white border-[#E5E8EB]'}`}>
-             <button
-               onClick={() => setSalesModeScreen('locked')}
-               className={`w-full py-3 rounded-xl font-medium transition-all ${theme === 'dark' ? 'bg-[#21212A] text-[#8C8C96] hover:bg-[#2C2C35]' : 'bg-[#F2F4F6] text-[#6B7684] hover:bg-[#E5E8EB]'}`}
-             >
-               화면 잠금
-             </button>
-           </div>
          </div>
        )}
 
        {/* 지역 분석 모달 (반경 500m) */}
        {showLocationModal && locationAnalysisData && (
-         <LocationAnalysisModal 
+         <LocationAnalysisModal
            data={locationAnalysisData}
            onClose={() => {
              setShowLocationModal(false);
@@ -14298,17 +17509,17 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
              searchSalesModeRegion(location.address);
            }}
            generateAIFeedback={generateLocationAIFeedback}
-           theme={theme}
+           theme="light"
          />
        )}
 
        {/* 지역 선택 로딩 오버레이 */}
        {locationAnalysisLoading && (
          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-           <div className={`rounded-2xl p-8 flex flex-col items-center ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur' : 'bg-white'}`}>
-             <div className={`w-12 h-12 border-4 rounded-full animate-spin mb-4 ${theme === 'dark' ? 'border-neutral-600 border-t-white' : 'border-[#E5E8EB] border-t-neutral-800'}`}></div>
-             <p className={`font-medium ${t.text}`}>반경 500m 분석 중</p>
-             <p className={`text-sm mt-1 ${t.textMuted}`}>데이터를 수집하고 있습니다</p>
+           <div className="rounded-2xl p-8 flex flex-col items-center bg-white shadow-xl">
+             <div className="w-12 h-12 border-4 rounded-full animate-spin mb-4 border-[#E5E8EB] border-t-neutral-800"></div>
+             <p className="font-medium text-[#191F28]">반경 500m 분석 중</p>
+             <p className="text-sm mt-1 text-[#B0B8C1]">데이터를 수집하고 있습니다</p>
            </div>
          </div>
        )}
@@ -14351,7 +17562,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
    className={`p-1.5 rounded-lg transition-all ${theme === 'dark' ? 'hover:bg-white/10 text-[#B0B8C1] hover:text-white' : 'hover:bg-[#F2F4F6] text-[#56565F] hover:text-[#191F28]'}`}
    title={theme === 'dark' ? '라이트 모드' : '다크 모드'}
  >
-   {theme === 'dark' ? '☀️' : '🌙'}
+   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">{theme === 'dark' ? (<circle cx="8" cy="8" r="4" stroke="currentColor" strokeWidth="1.5" fill="none" />) : (<path d="M13 8.5a5.5 5.5 0 0 1-7.5-7.5 6 6 0 1 0 7.5 7.5z" stroke="currentColor" strokeWidth="1.5" fill="none" />)}</svg>
  </button>
  <button type="button" onClick={logout} className={`text-xs font-medium transition-colors ${theme === 'dark' ? 'text-[#56565F] hover:text-white' : 'text-[#56565F] hover:text-[#191F28]'}`}>로그아웃</button>
  </div>
@@ -14374,7 +17585,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
    onClick={toggleTheme}
    className={`p-1.5 rounded-lg transition-all ${theme === 'dark' ? 'text-[#B0B8C1]' : 'text-[#56565F]'}`}
  >
-   {theme === 'dark' ? '☀️' : '🌙'}
+   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">{theme === 'dark' ? (<circle cx="8" cy="8" r="4" stroke="currentColor" strokeWidth="1.5" fill="none" />) : (<path d="M13 8.5a5.5 5.5 0 0 1-7.5-7.5 6 6 0 1 0 7.5 7.5z" stroke="currentColor" strokeWidth="1.5" fill="none" />)}</svg>
  </button>
  <button type="button" onClick={logout} className={`text-sm font-medium transition-colors ${theme === 'dark' ? 'text-[#B0B8C1] hover:text-white' : 'text-[#56565F] hover:text-[#191F28]'}`}>나가기</button>
  </div>
@@ -15697,7 +18908,6 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  )}
 
 
-
  {/* 출처 URL */}
  {regionRec.sourceUrl && (
  <a 
@@ -16054,7 +19264,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <span className={`px-2 py-1 rounded-full bg-neutral-600 ${t.text} text-xs`}>폐업률: 14.1%</span>
  <span className={`px-2 py-1 rounded-full bg-neutral-600 ${t.text} text-xs`}>경쟁: 전국 9.3만개</span>
  </div>
- <p className={`text-xs mt-2 ${t.textMuted}`}>출처: 통계청 기업생멸행정통계, 시사저널</p>
+ <p className={`text-xs mt-2 ${t.textMuted}`}>출처: 통계청 기업생멸행정통계(2023), 숙박·음식점업 / 시사저널</p>
  </div>
  <a href="https://www.sisajournal.com/news/articleView.html?idxno=195110" target="_blank" rel="noopener" className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[#E5E8EB] hover:bg-[#21212A]/10 text-[#4E5968] text-sm transition-all">
  시사저널: 카페 폐업률 14%, 치킨집보다 높아 →
@@ -16441,9 +19651,6 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </a>
  <p className="text-xs text-[#56565F] mt-3 text-center">* 최종 창업비용은 점포 크기, 위치, 인테리어 범위에 따라 달라집니다.</p>
  </div>
-
-
-
 
 
  {/* 팀 피드백 자동 학습 시스템 */}
@@ -17175,7 +20382,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm`}
  />
  <button
- onClick={() => {
+ onClick={async () => {
  const searchKeyword = routeSearchText || routeSearchRegion;
  if (!searchKeyword) return alert('지역을 선택하거나 직접 입력하세요');
  if (!routeSearchTarget || routeSearchTarget < 1) return alert('목표 수를 입력하세요 (1~50)');
@@ -17212,16 +20419,25 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  .sort((a, b) => (b.listings || b.listingCount || 1) - (a.listings || a.listingCount || 1))
  .slice(0, Math.min(Number(routeSearchTarget), 200));
  if (regionRealtors.length === 0) return alert('해당 지역/키워드에 추가할 미방문 중개사가 없습니다.');
- const newStops = regionRealtors.map(r => ({
- id: 'stop_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
- name: r.realtorName || r.officeName || r.name, 
- address: r.address || '',
- phone: r.cellPhone || r.phone || '',
- lat: null, lng: null, visited: false, listings: r.listings || r.listingCount || 1
- }));
+ const newStops = [];
+ for (const r of regionRealtors) {
+   let coords = null;
+   if (r.address) {
+     coords = await geocodeAddress(r.address, r.realtorName || r.officeName || r.name);
+   }
+   newStops.push({
+     id: 'stop_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+     name: r.realtorName || r.officeName || r.name,
+     address: r.address || '',
+     phone: r.cellPhone || r.phone || '',
+     lat: coords?.lat || null, lng: coords?.lng || null, visited: false, listings: r.listings || r.listingCount || 1
+   });
+ }
+ const withCoords = newStops.filter(s => s.lat && s.lng).length;
+ const withoutCoords = newStops.length - withCoords;
  setRouteStops(prev => [...prev, ...newStops]);
  setRouteSearchText('');
- alert('' + newStops.length + '개 중개사를 동선에 추가했습니다!');
+ alert(newStops.length + '개 중개사를 동선에 추가했습니다!\n\n위치 확인됨: ' + withCoords + '곳\n위치 미확인: ' + withoutCoords + '곳');
  }}
  disabled={(!routeSearchRegion && !routeSearchText) || !routeSearchTarget}
  className="w-full px-4 py-3 bg-[#191F28] text-white rounded-lg font-bold hover:bg-[#21212A] transition-all disabled:opacity-50"
@@ -18528,34 +21744,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
 
  {/* 자동 수집 스케줄 상태 */}
- {(() => {
-   const schedRef = database?.ref('autoCollectSchedule');
-   const [sched, setSched] = React.useState(null);
-   React.useEffect(() => {
-     if (!schedRef) return;
-     const cb = schedRef.on('value', snap => { if (snap.val()) setSched(snap.val()); });
-     return () => schedRef.off('value', cb);
-   }, []);
-   if (!sched) return null;
-   const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
-   return (
-     <div className={`rounded-2xl p-3 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
-       <div className="flex items-center justify-between">
-         <div className="flex items-center gap-2">
-           <span style={{ fontSize: 16 }}>🤖</span>
-           <span className={`text-sm font-bold ${t.text}`}>자동 수집</span>
-           <span className={`text-xs px-2 py-0.5 rounded-full ${sched.enabled ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{sched.enabled ? '활성' : '비활성'}</span>
-         </div>
-         {sched.nextRun && (
-           <span className={`text-xs ${t.textMuted}`}>
-             다음: {dayNames[sched.dayOfWeek]}요일 {sched.hour}시
-           </span>
-         )}
-       </div>
-       <p className={`text-xs ${t.textMuted} mt-1`}>Chrome 확장 프로그램이 매주 자동으로 전국 중개사 데이터를 수집합니다</p>
-     </div>
-   );
- })()}
+ <AutoCollectScheduleStatus database={database} theme={theme} />
 
  {/* 검색/필터/정렬 */}
  <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
@@ -19355,7 +22544,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  
  {/* 전국 상권 데이터 수집 (관리자 전용) */}
  <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
- <h3 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-[#191F28]'} text-lg mb-3`}>📊 전국 상권 데이터 수집</h3>
+ <h3 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-[#191F28]'} text-lg mb-3`}>전국 상권 데이터 수집</h3>
  <p className={`text-sm ${theme === 'dark' ? 'text-[#B0B8C1]' : 'text-[#56565F]'} mb-4`}>선택한 지역의 상권 데이터를 수집하여 Firebase에 저장합니다.</p>
  
  <div className="grid grid-cols-2 gap-3 mb-4">
@@ -19367,7 +22556,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        className={`w-full px-3 py-2 rounded-lg border ${theme === 'dark' ? 'bg-[#2C2C35] border-neutral-600 text-white' : 'bg-white border-[#D1D6DB] text-[#191F28]'}`}
      >
        <option value="">시도 선택</option>
-       <option value="전국">🇰🇷 전국 (모든 시/도)</option>
+       <option value="전국">전국 (모든 시/도)</option>
        {Object.keys(KOREA_REGIONS).map(sido => (
          <option key={sido} value={sido}>{sido}</option>
        ))}
@@ -19385,7 +22574,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
          {apiCollectSido === '전국' ? '전국 수집시 불필요' : apiCollectSido ? '전체 시/군/구' : '시군구 선택'}
        </option>
        {apiCollectSido && apiCollectSido !== '전국' && (
-         <option value="전체">📁 {apiCollectSido} 전체</option>
+         <option value="전체">{apiCollectSido} 전체</option>
        )}
        {apiCollectSido && apiCollectSido !== '전국' && KOREA_REGIONS[apiCollectSido]?.map(sigungu => (
          <option key={sigungu} value={sigungu}>{sigungu}</option>
@@ -19416,7 +22605,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
      disabled={!apiCollectSido || apiCollectProgress.status?.includes('수집')}
      className="flex-1 px-4 py-2 bg-blue-600 rounded-lg font-medium hover:bg-blue-700 transition-all text-white disabled:opacity-50 disabled:cursor-not-allowed"
    >
-     {apiCollectProgress.status?.includes('수집') ? '수집 중...' : '🔄 수집 시작'}
+     {apiCollectProgress.status?.includes('수집') ? '수집 중...' : '수집 시작'}
    </button>
  </div>
  <p className={`text-xs mt-2 ${theme === 'dark' ? 'text-[#B0B8C1]' : 'text-[#56565F]'}`}>
@@ -19480,6 +22669,27 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </p>
  </div>
  <input type="color" value={m.color} onChange={e => saveManager({...m, color: e.target.value})} className="w-10 h-10 rounded cursor-pointer flex-shrink-0" />
+ <button type="button" onClick={async () => {
+   if (!confirm(`${m.name}(${m.username}) 비밀번호를 0000으로 초기화?`)) return;
+   try {
+     const resetEmail = `${m.username}@beancraft.com`;
+     const res = await fetch('/api/reset-password', {
+       method: 'POST',
+       headers: { 'Content-Type': 'application/json' },
+       body: JSON.stringify({ email: resetEmail, newPassword: '0000', adminKey: 'beancraft-admin-reset-2024' })
+     });
+     const result = await res.json();
+     if (result.success) { alert(result.message); } else {
+       await database.ref('passwordResets/' + m.username).set({ newPassword: '0000', requestedAt: new Date().toISOString() });
+       alert('초기화 요청 등록 완료. 다음 로그인 시 0000으로 접속 가능');
+     }
+   } catch (err) {
+     try {
+       await database.ref('passwordResets/' + m.username).set({ newPassword: '0000', requestedAt: new Date().toISOString() });
+       alert('초기화 요청 등록 완료. 다음 로그인 시 0000으로 접속 가능');
+     } catch (dbErr) { alert('초기화 실패: ' + dbErr.message); }
+   }
+ }} className="px-2 py-1 bg-amber-500 text-white rounded-lg text-xs font-medium hover:bg-amber-600 transition-all flex-shrink-0">PW초기화</button>
  <button type="button" onClick={() => { if (confirm(`삭제하시겠습니까?`)) database.ref('managers/' + m.id).remove(); }} className={`${t.text} font-bold text-sm flex-shrink-0`}>삭제</button>
  </div>
  );
@@ -19496,13 +22706,13 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowApiCollectReport(false)}>
    <div className={`w-full max-w-lg max-h-[80vh] overflow-y-auto rounded-2xl p-6 ${theme === 'dark' ? 'bg-[#21212A]' : 'bg-white'}`} onClick={e => e.stopPropagation()}>
      <div className="flex justify-between items-center mb-4">
-       <h3 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-[#191F28]'} text-xl`}>📊 수집 보고서</h3>
+       <h3 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-[#191F28]'} text-xl`}>수집 보고서</h3>
        <button onClick={() => setShowApiCollectReport(false)} className={`text-2xl ${theme === 'dark' ? 'text-[#B0B8C1] hover:text-white' : 'text-[#B0B8C1] hover:text-[#191F28]'}`}>×</button>
      </div>
      
      <div className={`p-4 rounded-xl mb-4 ${theme === 'dark' ? 'bg-[#2C2C35]' : 'bg-[#F2F4F6]'}`}>
        <p className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-[#191F28]'} mb-2`}>
-         {apiCollectResults.collectType === 'nationwide' ? '🇰🇷 전국' : 
+         {apiCollectResults.collectType === 'nationwide' ? '전국' : 
           apiCollectResults.collectType === 'sido' ? `${apiCollectResults.sido} 전체` :
           `${apiCollectResults.sido || apiCollectResults.region?.sido} ${apiCollectResults.sigungu || apiCollectResults.region?.sigungu}`}
        </p>
@@ -19520,7 +22730,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        {/* 수집 요약 (다중 지역) */}
        {apiCollectResults.summary && (
          <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-blue-900/30' : 'bg-blue-50'}`}>
-           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-[#191F28]'} mb-2`}>📈 수집 요약</p>
+           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-[#191F28]'} mb-2`}>수집 요약</p>
            <div className="grid grid-cols-2 gap-2 text-sm">
              <p className={theme === 'dark' ? 'text-[#8C8C96]' : 'text-[#6B7684]'}>성공: {apiCollectResults.summary.success}개 지역</p>
              <p className={theme === 'dark' ? 'text-[#8C8C96]' : 'text-[#6B7684]'}>실패: {apiCollectResults.summary.failed}개 지역</p>
@@ -19533,7 +22743,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        {/* 상가정보 (단일 지역) */}
        {apiCollectResults.data?.store && (
          <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-[#2C2C35]/50' : 'bg-blue-50'}`}>
-           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-[#191F28]'} mb-1`}>🏪 상가정보</p>
+           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-[#191F28]'} mb-1`}>상가정보</p>
            <p className={`text-sm ${theme === 'dark' ? 'text-[#B0B8C1]' : 'text-[#56565F]'}`}>전체 점포: {apiCollectResults.data.store.total?.toLocaleString() || 0}개</p>
            <p className={`text-sm ${theme === 'dark' ? 'text-[#B0B8C1]' : 'text-[#56565F]'}`}>카페: {apiCollectResults.data.store.cafeCount?.toLocaleString() || 0}개</p>
          </div>
@@ -19542,7 +22752,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        {/* 서울시 유동인구 */}
        {(apiCollectResults.data?.seoulFloating || apiCollectResults.summary?.success > 0) && apiCollectResults.sido?.includes('서울') && (
          <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-[#2C2C35]/50' : 'bg-green-50'}`}>
-           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-[#191F28]'} mb-1`}>👥 서울시 유동인구</p>
+           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-[#191F28]'} mb-1`}>서울시 유동인구</p>
            <p className={`text-sm ${theme === 'dark' ? 'text-[#B0B8C1]' : 'text-[#56565F]'}`}>
              {apiCollectResults.data?.seoulFloating?.totalRecords 
                ? `총 레코드: ${apiCollectResults.data.seoulFloating.totalRecords?.toLocaleString()}건`
@@ -19554,7 +22764,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        {/* 프랜차이즈 */}
        {apiCollectResults.data?.franchise && (
          <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-[#2C2C35]/50' : 'bg-purple-50'}`}>
-           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-[#191F28]'} mb-1`}>☕ 프랜차이즈 (카페)</p>
+           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-[#191F28]'} mb-1`}>프랜차이즈 (카페)</p>
            <p className={`text-sm ${theme === 'dark' ? 'text-[#B0B8C1]' : 'text-[#56565F]'}`}>수집 브랜드: {apiCollectResults.data.franchise.count || 0}개</p>
          </div>
        )}
@@ -19562,7 +22772,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        {/* 임대료 */}
        {apiCollectResults.data?.rent && (
          <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-[#2C2C35]/50' : 'bg-yellow-50'}`}>
-           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-[#191F28]'} mb-1`}>🏠 임대료</p>
+           <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-[#191F28]'} mb-1`}>임대료</p>
            <p className={`text-sm ${theme === 'dark' ? 'text-[#B0B8C1]' : 'text-[#56565F]'}`}>한국부동산원 R-ONE 데이터 수집 완료</p>
          </div>
        )}
@@ -19575,15 +22785,15 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        }`}>
          <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-[#191F28]'}`}>
            {(apiCollectResults.savedToFirebase || apiCollectResults.summary?.success > 0) 
-             ? '✅ Firebase 저장 완료' 
-             : '❌ Firebase 저장 실패'}
+             ? 'Firebase 저장 완료' 
+             : 'Firebase 저장 실패'}
          </p>
        </div>
        
        {/* 에러 표시 */}
        {apiCollectResults.errors?.length > 0 && (
          <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-rose-900/30' : 'bg-rose-50'}`}>
-           <p className={`font-medium text-rose-500 mb-1`}>⚠️ 수집 중 오류 ({apiCollectResults.errors.length}건)</p>
+           <p className={`font-medium text-rose-500 mb-1`}>수집 중 오류 ({apiCollectResults.errors.length}건)</p>
            {apiCollectResults.errors.slice(0, 5).map((err, idx) => (
              <p key={idx} className={`text-xs ${theme === 'dark' ? 'text-[#B0B8C1]' : 'text-[#56565F]'}`}>
                {err.region || err.api}: {err.message}
