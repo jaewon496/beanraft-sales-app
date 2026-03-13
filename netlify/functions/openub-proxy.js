@@ -37,7 +37,13 @@ export async function handler(event) {
 
     const response = await fetch(`https://api.openub.com/v2/${endpoint}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept-Encoding': 'gzip, br',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Origin': 'https://openub.com',
+        'Referer': 'https://openub.com/'
+      },
       body: JSON.stringify(body)
     });
 

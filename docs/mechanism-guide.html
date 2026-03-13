@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>빈크래프트 영업관리 - 기능 메커니즘 설명서</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif; background: #f8f9fa; color: #1a1a2e; line-height: 1.7; }
+
+  .hero { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); color: white; padding: 80px 40px; text-align: center; }
+  .hero h1 { font-size: 2.8em; margin-bottom: 16px; font-weight: 800; }
+  .hero p { font-size: 1.2em; opacity: 0.85; max-width: 700px; margin: 0 auto; }
+  .hero .badge { display: inline-block; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); border-radius: 20px; padding: 6px 16px; margin-top: 20px; font-size: 0.9em; }
+
+  .container { max-width: 1100px; margin: 0 auto; padding: 40px 20px; }
+
+  .toc { background: white; border-radius: 16px; padding: 32px; margin-bottom: 40px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
+  .toc h2 { font-size: 1.4em; margin-bottom: 16px; color: #0f3460; }
+  .toc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .toc a { color: #333; text-decoration: none; padding: 8px 12px; border-radius: 8px; transition: all 0.2s; display: block; font-size: 0.95em; }
+  .toc a:hover { background: #e8f4fd; color: #0f3460; }
+  .toc a .num { color: #0f3460; font-weight: 700; margin-right: 6px; }
+
+  .section-divider { text-align: center; margin: 60px 0 40px; }
+  .section-divider h2 { font-size: 1.8em; color: #0f3460; margin-bottom: 8px; }
+  .section-divider p { color: #666; font-size: 1em; }
+  .section-divider .line { width: 60px; height: 3px; background: #0f3460; margin: 12px auto 0; border-radius: 2px; }
+
+  .card-section { background: white; border-radius: 16px; padding: 36px; margin-bottom: 28px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); border-left: 4px solid #0f3460; }
+  .card-section.engine { border-left-color: #e74c3c; }
+  .card-section.flow { border-left-color: #27ae60; }
+  .card-section h3 { font-size: 1.4em; color: #0f3460; margin-bottom: 6px; }
+  .card-section .subtitle { color: #888; font-size: 0.9em; margin-bottom: 20px; }
+
+  .purpose { background: #f0f7ff; border-radius: 10px; padding: 16px 20px; margin-bottom: 20px; }
+  .purpose strong { color: #0f3460; }
+
+  .mechanism { background: #fafafa; border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+  .mechanism h4 { color: #e74c3c; font-size: 1em; margin-bottom: 10px; }
+
+  .flow-box { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+  .flow-step { background: #e8f4fd; border-radius: 8px; padding: 8px 14px; font-size: 0.85em; font-weight: 600; color: #0f3460; }
+  .flow-arrow { color: #999; font-weight: bold; }
+
+  .data-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 0.9em; }
+  .data-table th { background: #f0f7ff; color: #0f3460; padding: 10px 14px; text-align: left; font-weight: 600; }
+  .data-table td { padding: 10px 14px; border-bottom: 1px solid #eee; }
+  .data-table tr:last-child td { border-bottom: none; }
+
+  .tag { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 0.75em; font-weight: 600; margin-right: 4px; }
+  .tag.api { background: #dff0d8; color: #3c763d; }
+  .tag.ai { background: #fcf8e3; color: #8a6d3b; }
+  .tag.calc { background: #f2dede; color: #a94442; }
+  .tag.free { background: #e8f4fd; color: #31708f; }
+  .tag.seoul { background: #fce4ec; color: #c62828; }
+
+  .output-box { background: #f5f5f5; border-radius: 8px; padding: 14px 18px; margin: 10px 0; border: 1px dashed #ddd; }
+  .output-box .label { font-size: 0.8em; color: #888; margin-bottom: 4px; }
+
+  .improvement { background: linear-gradient(135deg, #fff9e6, #fff3cd); border-radius: 10px; padding: 16px 20px; margin-top: 16px; border: 1px solid #ffc107; }
+  .improvement h4 { color: #856404; font-size: 0.95em; margin-bottom: 8px; }
+  .improvement ul { padding-left: 18px; font-size: 0.9em; color: #856404; }
+
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin: 20px 0; }
+  .stat-card { background: linear-gradient(135deg, #667eea, #764ba2); color: white; border-radius: 12px; padding: 20px; text-align: center; }
+  .stat-card .num { font-size: 2em; font-weight: 800; }
+  .stat-card .label { font-size: 0.85em; opacity: 0.85; margin-top: 4px; }
+
+  .footer { text-align: center; padding: 40px; color: #999; font-size: 0.85em; }
+
+  @media (max-width: 768px) {
+    .hero h1 { font-size: 1.8em; }
+    .toc-grid { grid-template-columns: 1fr; }
+    .stats-grid { grid-template-columns: 1fr 1fr; }
+    .container { padding: 20px 12px; }
+    .card-section { padding: 24px 18px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>빈크래프트 영업관리</h1>
+  <p>도로명 주소 하나로 반경 500m 상권의 카페 시장을 분석하는 AI 기반 영업 도구</p>
+  <div class="badge">기능 메커니즘 설명서 v1.0 | 2026.03.13</div>
+</div>
+
+<div class="container">
+
+  <!-- 숫자 요약 -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="num">55</div>
+      <div class="label">연동 API 수</div>
+    </div>
+    <div class="stat-card" style="background: linear-gradient(135deg, #f093fb, #f5576c);">
+      <div class="num">14</div>
+      <div class="label">분석 카드</div>
+    </div>
+    <div class="stat-card" style="background: linear-gradient(135deg, #4facfe, #00f2fe);">
+      <div class="num">4</div>
+      <div class="label">매출 추정 레이어</div>
+    </div>
+    <div class="stat-card" style="background: linear-gradient(135deg, #43e97b, #38f9d7);">
+      <div class="num">500m</div>
+      <div class="label">분석 반경</div>
+    </div>
+  </div>
+
+  <!-- 목차 -->
+  <div class="toc" id="top">
+    <h2>목차</h2>
+    <div class="toc-grid">
+      <a href="#overview"><span class="num">00</span> 전체 흐름: 검색부터 결과까지</a>
+      <a href="#card1"><span class="num">01</span> 카페 현황 (경쟁 지도)</a>
+      <a href="#card2"><span class="num">02</span> 유동인구 분석</a>
+      <a href="#card3"><span class="num">03</span> 매출 추정</a>
+      <a href="#card35"><span class="num">3.5</span> 개별 카페 매출 분석</a>
+      <a href="#card4"><span class="num">04</span> 프랜차이즈 vs 개인카페</a>
+      <a href="#card45"><span class="num">4.5</span> 입지 인프라 분석</a>
+      <a href="#card47"><span class="num">4.7</span> 상가 임대료</a>
+      <a href="#card5"><span class="num">05</span> 피크타임 분석</a>
+      <a href="#card6"><span class="num">06</span> 배달/테이크아웃</a>
+      <a href="#card7"><span class="num">07</span> 개업/폐업 트렌드</a>
+      <a href="#card8"><span class="num">08</span> 카페별 상세 정보</a>
+      <a href="#card9"><span class="num">09</span> 중개사 정보</a>
+      <a href="#card10"><span class="num">10</span> AI 종합 분석</a>
+      <a href="#engine"><span class="num">ENG</span> 매출 추정 엔진 (4-Layer)</a>
+      <a href="#pipeline"><span class="num">PIPE</span> 데이터 수집 파이프라인</a>
+      <a href="#improving"><span class="num">DEV</span> 현재 개선 중인 작업</a>
+    </div>
+  </div>
+
+  <!-- ==================== 전체 흐름 ==================== -->
+  <div class="section-divider" id="overview">
+    <h2>전체 흐름</h2>
+    <p>사용자가 주소를 입력하면 어떤 일이 일어나는가</p>
+    <div class="line"></div>
+  </div>
+
+  <div class="card-section flow">
+    <h3>검색 -> 수집 -> 분석 -> 결과</h3>
+    <div class="subtitle">약 30~60초 동안 55개 API에서 데이터를 수집하고 AI가 종합 분석합니다</div>
+
+    <div class="mechanism">
+      <h4>STEP 1. 주소 해석 (0~2초)</h4>
+      <p>입력된 도로명 주소를 <strong>위도/경도 좌표</strong>로 변환합니다. 카카오 지오코딩 API가 "서울시 용산구 청파로 205-6"을 (37.5449, 126.9714) 같은 숫자로 바꿔줍니다.</p>
+      <div class="flow-box">
+        <span class="flow-step">도로명 주소 입력</span>
+        <span class="flow-arrow">-></span>
+        <span class="flow-step">카카오 지오코딩</span>
+        <span class="flow-arrow">-></span>
+        <span class="flow-step">위도/경도 좌표</span>
+        <span class="flow-arrow">-></span>
+        <span class="flow-step">행정동 코드 확인</span>
+      </div>
+    </div>
+
+    <div class="mechanism">
+      <h4>STEP 2. 카페 수집 (2~10초)</h4>
+      <p>좌표를 중심으로 <strong>반경 500m</strong> 안의 모든 카페를 찾습니다. 카카오 로컬 API로 1차 수집하고, 네이버 지역검색으로 실제 존재 여부를 교차 검증합니다.</p>
+      <div class="flow-box">
+        <span class="flow-step">카카오 로컬 검색</span>
+        <span class="flow-arrow">-></span>
+        <span class="flow-step">카테고리 필터링</span>
+        <span class="flow-arrow">-></span>
+        <span class="flow-step">네이버 교차검증</span>
+        <span class="flow-arrow">-></span>
+        <span class="flow-step">비카페 제거</span>
+        <span class="flow-arrow">-></span>
+        <span class="flow-step">최종 카페 리스트</span>
+      </div>
+      <p style="margin-top:10px; font-size:0.9em; color:#666;">미용실, 네일샵 등이 "카페"로 등록된 경우가 많아서 AI(Gemini)가 매장명과 카테고리를 분석해 진짜 카페만 남깁니다.</p>
+    </div>
+
+    <div class="mechanism">
+      <h4>STEP 3. 상권 데이터 수집 (10~40초)</h4>
+      <p>55개 API에서 유동인구, 매출, 임대료, 배달, 인프라 등의 데이터를 <strong>동시에</strong> 수집합니다. 서울 지역은 서울 열린데이터 API가 추가로 작동합니다.</p>
+    </div>
+
+    <div class="mechanism">
+      <h4>STEP 4. AI 분석 + 카드 생성 (40~60초)</h4>
+      <p>수집된 모든 데이터를 Google Gemini AI에게 전달합니다. AI가 14개 카드 각각에 맞는 <strong>맞춤형 인사이트</strong>를 작성합니다. 단순히 숫자를 보여주는 것이 아니라 "이 지역에서 카페를 열면 어떤 전략이 필요한지"까지 분석합니다.</p>
+    </div>
+  </div>
+
+  <!-- ==================== 카드 1 ==================== -->
+  <div class="section-divider" id="card1">
+    <h2>14개 분석 카드</h2>
+    <p>각 카드가 무엇을, 어떻게, 왜 보여주는가</p>
+    <div class="line"></div>
+  </div>
+
+  <div class="card-section">
+    <h3>카드 1. 카페 현황 (경쟁 지도)</h3>
+    <div class="subtitle">반경 500m 안에 카페가 몇 개 있는지, 어떤 구성인지</div>
+
+    <div class="purpose">
+      <strong>왜 필요한가:</strong> 카페를 열기 전 가장 먼저 알아야 할 것은 "경쟁자가 몇 명이냐"입니다. 프랜차이즈와 개인카페의 비율도 전략에 직접 영향을 줍니다.
+    </div>
+
+    <div class="mechanism">
+      <h4>메커니즘</h4>
+      <table class="data-table">
+        <tr><th>표시 정보</th><th>데이터 소스</th><th>산출 방식</th></tr>
+        <tr><td>카페 수 (프랜차이즈/개인 분리)</td><td><span class="tag api">카카오 로컬</span> <span class="tag api">네이버 검색</span></td><td>반경 500m 좌표 기반 검색 + AI 필터링으로 비카페 제거</td></tr>
+        <tr><td>유동인구</td><td><span class="tag api">소상공인365</span></td><td>해당 행정동의 일평균 유동인구 수치</td></tr>
+        <tr><td>개업률 / 폐업률</td><td><span class="tag api">소상공인365 GIS</span></td><td>해당 행정동의 최근 분기 개업/폐업 비율</td></tr>
+      </table>
+    </div>
+
+    <div class="output-box">
+      <div class="label">결과 예시</div>
+      카페 40개 (프랜차이즈 9개 + 개인 31개) | 유동인구 12,450명 | 개업률 3.0% | 폐업률 2.3%
+    </div>
+  </div>
+
+  <!-- 카드 2 -->
+  <div class="card-section" id="card2">
+    <h3>카드 2. 유동인구 분석</h3>
+    <div class="subtitle">시간대별, 요일별, 연령별 유동인구 패턴</div>
+
+    <div class="purpose">
+      <strong>왜 필요한가:</strong> 카페 매출은 유동인구에 직결됩니다. "언제, 어떤 사람이 많이 다니는가"를 알면 메뉴 구성, 영업시간, 타겟 고객을 정할 수 있습니다.
+    </div>
+
+    <div class="mechanism">
+      <h4>메커니즘</h4>
+      <table class="data-table">
+        <tr><th>표시 정보</th><th>데이터 소스</th><th>산출 방식</th></tr>
+        <tr><td>시간대별 유동인구 (0~23시)</td><td><span class="tag api">소상공인365</span> <span class="tag seoul">서울 열린데이터</span></td><td>행정동 기준 시간대별 통행량</td></tr>
+        <tr><td>요일별 패턴 (월~일)</td><td><span class="tag api">소상공인365</span></td><td>요일별 유동인구 비중 7일 패턴</td></tr>
+        <tr><td>연령대별 분포</td><td><span class="tag api">소상공인365</span></td><td>10대~60대+ 비중</td></tr>
+        <tr><td>성별 비율</td><td><span class="tag api">소상공인365</span></td><td>남녀 유동인구 비율</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- 카드 3 -->
+  <div class="card-section" id="card3">
+    <h3>카드 3. 매출 추정</h3>
+    <div class="subtitle">이 지역 카페의 평균 월매출은 얼마인가</div>
+
+    <div class="purpose">
+      <strong>왜 필요한가:</strong> 창업의 핵심 질문 - "여기서 카페를 하면 한 달에 얼마를 벌 수 있는가?" 카드사 결제 데이터와 AI 모델을 결합해 추정합니다.
+    </div>
+
+    <div class="mechanism">
+      <h4>메커니즘</h4>
+      <table class="data-table">
+        <tr><th>표시 정보</th><th>데이터 소스</th><th>산출 방식</th></tr>
+        <tr><td>지역 평균 월매출</td><td><span class="tag api">소상공인365</span></td><td>해당 행정동의 음식업종 월평균 카드 매출</td></tr>
+        <tr><td>건물별 실제 매출</td><td><span class="tag api">OpenUB</span></td><td>카드사 결제 데이터 기반 건물 단위 추정 (아래 엔진 참조)</td></tr>
+        <tr><td>분기별 매출 추이</td><td><span class="tag seoul">서울 VwsmTrdarSelngQq</span></td><td>서울 상권 분기별 카드 매출 합계</td></tr>
+      </table>
+    </div>
+
+    <div class="improvement">
+      <h4>현재 개선 중</h4>
+      <ul>
+        <li>OpenUB 건물 매출 연동 정상화 (S2 셀 레벨 문제 수정 중)</li>
+        <li>매출 범위 표기: 단일 숫자 -> "최소~최대" 범위 방식으로 변경</li>
+        <li>프랜차이즈/개인카페 분리 매출 표기</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- 카드 3.5 -->
+  <div class="card-section" id="card35">
+    <h3>카드 3.5. 개별 카페 매출 분석</h3>
+    <div class="subtitle">카페 하나하나의 추정 매출과 신뢰도</div>
+
+    <div class="purpose">
+      <strong>왜 필요한가:</strong> 지역 평균이 아닌 <strong>개별 카페</strong>의 매출을 알아야 "저 자리에 들어가면 얼마를 벌 수 있는가"를 판단할 수 있습니다.
+    </div>
+
+    <div class="mechanism">
+      <h4>메커니즘: 4-Layer 매출 추정 엔진</h4>
+      <p>카페마다 가용한 데이터가 다르기 때문에, 4단계 레이어로 나누어 가장 정확한 방법을 자동 선택합니다.</p>
+      <table class="data-table">
+        <tr><th>레이어</th><th>조건</th><th>방법</th><th>정확도</th></tr>
+        <tr><td><strong>L1</strong></td><td>건물에 매장 1개</td><td>OpenUB 건물 매출 = 이 카페 매출</td><td>95%</td></tr>
+        <tr><td><strong>L2</strong></td><td>건물에 매장 여러 개</td><td>건물 매출을 매장 특성별로 분배 (Zipf 법칙)</td><td>93%</td></tr>
+        <tr><td><strong>L3</strong></td><td>프랜차이즈</td><td>브랜드 평균 x 지역 보정</td><td>90%</td></tr>
+        <tr><td><strong>L4</strong></td><td>개인카페</td><td>ML 모델 (영업패턴+리뷰+업력+경쟁도)</td><td>78~85%</td></tr>
+      </table>
+      <p style="margin-top:10px; font-size:0.9em;">자세한 엔진 설명은 <a href="#engine">매출 추정 엔진</a> 섹션 참조</p>
+    </div>
+  </div>
+
+  <!-- 카드 4 -->
+  <div class="card-section" id="card4">
+    <h3>카드 4. 프랜차이즈 vs 개인카페 비교</h3>
+    <div class="subtitle">대형 브랜드와 개인카페의 매출/가격/생존율 비교</div>
+
+    <div class="purpose">
+      <strong>왜 필요한가:</strong> "스타벅스 옆에서 개인카페가 살아남을 수 있는가?" 프랜차이즈와의 경쟁 구도를 객관적 데이터로 보여줍니다.
+    </div>
+
+    <div class="mechanism">
+      <h4>메커니즘</h4>
+      <table class="data-table">
+        <tr><th>표시 정보</th><th>데이터 소스</th><th>산출 방식</th></tr>
+        <tr><td>프랜차이즈 목록/매출</td><td><span class="tag calc">FRANCHISE_DATA</span></td><td>19개 주요 브랜드 연평균 매출 내장 데이터</td></tr>
+        <tr><td>개인카페 평균 매출</td><td><span class="tag api">소상공인365</span> <span class="tag api">OpenUB</span></td><td>프랜차이즈 제외 후 개인카페만 평균</td></tr>
+        <tr><td>아메리카노 평균 가격</td><td><span class="tag api">카카오/네이버</span></td><td>수집된 메뉴 정보에서 아메리카노 가격 추출</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- 카드 4.5 -->
+  <div class="card-section" id="card45">
+    <h3>카드 4.5. 입지 인프라 분석</h3>
+    <div class="subtitle">주변에 학교, 병원, 지하철역 등이 얼마나 있는가</div>
+    <span class="tag seoul">서울 전용</span>
+
+    <div class="purpose">
+      <strong>왜 필요한가:</strong> 지하철역 도보 5분, 대학교 앞 등의 입지 조건이 카페 매출에 큰 영향을 줍니다.
+    </div>
+
+    <div class="mechanism">
+      <h4>메커니즘</h4>
+      <table class="data-table">
+        <tr><th>표시 정보</th><th>데이터 소스</th><th>산출 방식</th></tr>
+        <tr><td>집객시설 수 (학교/병원/관공서 등)</td><td><span class="tag seoul">서울 VwsmTrdarIxQq</span></td><td>상권 내 집객시설 유형별 수량</td></tr>
+        <tr><td>교통 접근성</td><td><span class="tag seoul">서울 열린데이터</span></td><td>지하철역, 버스정류장 거리</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- 카드 4.7 -->
+  <div class="card-section" id="card47">
+    <h3>카드 4.7. 상가 임대료</h3>
+    <div class="subtitle">이 지역 상가 1층 임대료는 얼마인가</div>
+
+    <div class="purpose">
+      <strong>왜 필요한가:</strong> 매출이 아무리 높아도 임대료가 비싸면 수익이 남지 않습니다. 매출 대비 임대료 비율(임대료율)이 핵심 지표입니다.
+    </div>
+
+    <div class="mechanism">
+      <h4>메커니즘</h4>
+      <table class="data-table">
+        <tr><th>표시 정보</th><th>데이터 소스</th><th>산출 방식</th></tr>
+        <tr><td>평균 임대료 (원/m2)</td><td><span class="tag api">R-ONE 부동산</span></td><td>한국부동산원 상가 임대료 시세</td></tr>
+        <tr><td>보증금/월세</td><td><span class="tag seoul">서울 VwsmTrdarRentQq</span></td><td>서울시 상권 임대료 데이터</td></tr>
+        <tr><td>임대료 추이</td><td><span class="tag api">R-ONE</span></td><td>분기별 임대료 변동</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- 카드 5 -->
+  <div class="card-section" id="card5">
+    <h3>카드 5. 피크타임 분석</h3>
+    <div class="subtitle">카페가 가장 바쁜 시간대와 요일</div>
+
+    <div class="purpose">
+      <strong>왜 필요한가:</strong> 피크타임을 알면 인력 배치, 원재료 준비, 프로모션 시간대를 정할 수 있습니다.
+    </div>
+
+    <div class="mechanism">
+      <h4>메커니즘</h4>
+      <table class="data-table">
+        <tr><th>표시 정보</th><th>데이터 소스</th><th>산출 방식</th></tr>
+        <tr><td>시간대별 매출 비중</td><td><span class="tag api">소상공인365</span></td><td>24시간대별 카드 결제 비중</td></tr>
+        <tr><td>요일별 매출 비중</td><td><span class="tag api">소상공인365</span></td><td>월~일 7일 패턴 분석</td></tr>
+        <tr><td>피크/비피크 시간</td><td><span class="tag ai">Gemini AI</span></td><td>데이터 기반 AI가 피크타임 구간 판별</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- 카드 6 -->
+  <div class="card-section" id="card6">
+    <h3>카드 6. 배달/테이크아웃</h3>
+    <div class="subtitle">배달 매출 비중과 테이크아웃 가능성</div>
+
+    <div class="purpose">
+      <strong>왜 필요한가:</strong> 배달앱 매출이 전체의 30%를 넘는 카페도 있습니다. 배달 시장 규모를 파악해야 좌석 수, 포장 동선, 배달앱 입점 전략을 세울 수 있습니다.
+    </div>
+
+    <div class="mechanism">
+      <h4>메커니즘</h4>
+      <table class="data-table">
+        <tr><th>표시 정보</th><th>데이터 소스</th><th>산출 방식</th></tr>
+        <tr><td>배달 건수/매출</td><td><span class="tag api">소상공인365 배달</span></td><td>행정동 음식업종 배달 주문 건수</td></tr>
+        <tr><td>SNS 언급 분석</td><td><span class="tag api">소상공인365 SNS</span></td><td>블로그/인스타 언급량으로 테이크아웃 수요 추정</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- 카드 7 -->
+  <div class="card-section" id="card7">
+    <h3>카드 7. 개업/폐업 트렌드</h3>
+    <div class="subtitle">이 지역에서 카페가 얼마나 생기고 사라지는가</div>
+
+    <div class="purpose">
+      <strong>왜 필요한가:</strong> 폐업률이 높은 지역은 그만큼 위험하다는 신호입니다. 반대로 개업이 활발하면 상권이 성장 중이라는 의미입니다.
+    </div>
+
+    <div class="mechanism">
+      <h4>메커니즘</h4>
+      <table class="data-table">
+        <tr><th>표시 정보</th><th>데이터 소스</th><th>산출 방식</th></tr>
+        <tr><td>개업/폐업 수</td><td><span class="tag api">소상공인365 GIS</span></td><td>행정동 음식업종 신규개업/폐업 건수</td></tr>
+        <tr><td>생존율</td><td><span class="tag api">소상공인365</span></td><td>1년/3년/5년 생존율</td></tr>
+        <tr><td>트렌드 방향</td><td><span class="tag ai">Gemini AI</span></td><td>개업>폐업이면 "성장", 반대면 "위축" 판단</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- 카드 8 -->
+  <div class="card-section" id="card8">
+    <h3>카드 8. 카페별 상세 정보</h3>
+    <div class="subtitle">주변 카페 하나하나의 메뉴, 가격, 리뷰, 영업시간</div>
+
+    <div class="purpose">
+      <strong>왜 필요한가:</strong> 경쟁자의 아메리카노 가격, 영업시간, 고객 평점을 알면 차별화 전략을 세울 수 있습니다.
+    </div>
+
+    <div class="mechanism">
+      <h4>메커니즘</h4>
+      <table class="data-table">
+        <tr><th>표시 정보</th><th>데이터 소스</th><th>산출 방식</th></tr>
+        <tr><td>메뉴 및 가격</td><td><span class="tag api">카카오 로컬</span></td><td>카카오맵에 등록된 메뉴 정보 수집</td></tr>
+        <tr><td>리뷰 수 / 평점</td><td><span class="tag api">카카오 로컬</span> <span class="tag api">네이버 검색</span></td><td>플랫폼별 리뷰 수 합산</td></tr>
+        <tr><td>영업시간</td><td><span class="tag api">카카오 로컬</span></td><td>카카오맵 등록 영업시간</td></tr>
+        <tr><td>프랜차이즈 여부</td><td><span class="tag calc">FRANCHISE_DATA</span></td><td>19개 브랜드명 매칭으로 자동 판별</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- 카드 9 -->
+  <div class="card-section" id="card9">
+    <h3>카드 9. 인근 부동산 중개사</h3>
+    <div class="subtitle">상가 임대를 도와줄 수 있는 근처 중개사 목록</div>
+
+    <div class="purpose">
+      <strong>왜 필요한가:</strong> 분석 결과를 보고 "여기서 하겠다"고 결심하면, 바로 연결 가능한 부동산 중개사 정보가 필요합니다.
+    </div>
+
+    <div class="mechanism">
+      <h4>메커니즘</h4>
+      <table class="data-table">
+        <tr><th>표시 정보</th><th>데이터 소스</th><th>산출 방식</th></tr>
+        <tr><td>중개사 목록</td><td><span class="tag api">카카오 로컬</span></td><td>반경 내 "부동산" 키워드 검색</td></tr>
+        <tr><td>전화번호/주소</td><td><span class="tag api">카카오 로컬</span></td><td>카카오맵 등록 정보</td></tr>
+        <tr><td>홈페이지 링크</td><td><span class="tag api">카카오 로컬</span></td><td>등록된 웹사이트 URL</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- 카드 10 -->
+  <div class="card-section" id="card10">
+    <h3>카드 10. AI 종합 분석 리포트</h3>
+    <div class="subtitle">모든 데이터를 종합한 AI의 최종 진단과 전략 제안</div>
+
+    <div class="purpose">
+      <strong>왜 필요한가:</strong> 14개 카드의 숫자를 사람이 종합 판단하기 어렵습니다. AI가 전체 데이터를 읽고 "이 지역에 카페를 여는 게 좋은지/나쁜지, 좋다면 어떤 전략으로"를 한 문장으로 정리합니다.
+    </div>
+
+    <div class="mechanism">
+      <h4>메커니즘</h4>
+      <p>Google Gemini AI에게 수집된 모든 데이터(카페 수, 유동인구, 매출, 임대료, 경쟁 구도, 피크타임, 배달 비중 등)를 전달하면, AI가 다음을 생성합니다:</p>
+      <table class="data-table">
+        <tr><th>분석 항목</th><th>내용</th></tr>
+        <tr><td>입지 평가</td><td>이 위치가 카페 창업에 적합한지 종합 판단</td></tr>
+        <tr><td>경쟁 분석</td><td>프랜차이즈 밀집도, 개인카페 생존 가능성</td></tr>
+        <tr><td>타겟 고객</td><td>연령대/성별/시간대 기반 주요 고객층 제안</td></tr>
+        <tr><td>매출 예측</td><td>현실적인 월매출 범위와 손익분기점</td></tr>
+        <tr><td>차별화 전략</td><td>메뉴, 가격, 인테리어, 배달 등 구체적 전략</td></tr>
+        <tr><td>리스크 요인</td><td>주의해야 할 위험 요소</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- ==================== 매출 추정 엔진 ==================== -->
+  <div class="section-divider" id="engine">
+    <h2>매출 추정 엔진</h2>
+    <p>개별 카페의 월매출을 추정하는 4-Layer 시스템</p>
+    <div class="line"></div>
+  </div>
+
+  <div class="card-section engine">
+    <h3>4-Layer 매출 추정 엔진</h3>
+    <div class="subtitle">카페마다 가용한 데이터가 다르기 때문에, 가장 정확한 방법을 자동 선택합니다</div>
+
+    <div class="mechanism">
+      <h4>Layer 1 - 건물 직접 매출 (정확도 95%)</h4>
+      <p><strong>조건:</strong> 건물에 매장이 1개뿐일 때</p>
+      <p><strong>원리:</strong> OpenUB가 카드사(신한카드 등)의 실제 결제 데이터를 기반으로 건물별 월매출을 산출합니다. 건물에 매장이 하나뿐이면 건물 매출 = 그 매장 매출이므로 가장 정확합니다.</p>
+      <div class="flow-box">
+        <span class="flow-step">좌표</span>
+        <span class="flow-arrow">-></span>
+        <span class="flow-step">S2 셀 토큰 생성</span>
+        <span class="flow-arrow">-></span>
+        <span class="flow-step">OpenUB bd/hash</span>
+        <span class="flow-arrow">-></span>
+        <span class="flow-step">OpenUB gp (건물 목록)</span>
+        <span class="flow-arrow">-></span>
+        <span class="flow-step">OpenUB bd/sales (건물 매출)</span>
+        <span class="flow-arrow">-></span>
+        <span class="flow-step">카페와 건물 좌표 매칭</span>
+      </div>
+    </div>
+
+    <div class="mechanism">
+      <h4>Layer 2 - 건물 내 분배 (정확도 93%)</h4>
+      <p><strong>조건:</strong> 건물에 매장이 여러 개일 때</p>
+      <p><strong>원리:</strong> 건물 총매출을 알지만 매장이 5개면 각각이 얼마인지 모릅니다. 이때 <strong>Zipf 법칙</strong>이라는 통계적 분배 법칙을 적용합니다.</p>
+      <p style="margin-top:10px;">Zipf 법칙: "1등 매장이 2등의 1.7배, 3등의 2.4배 매출을 올린다"는 자연 법칙. 매장의 순위는 카테고리(카페>음식점>소매), 리뷰 수, 영업패턴 유사도로 결정합니다.</p>
+      <p style="margin-top:10px;"><strong>핵심 개선점:</strong> 건물 전체 매출이 아닌 <strong>카페 카테고리(A12) 매출만 추출</strong>해서 카페끼리만 분배. 이렇게 하면 음식점/소매점의 매출이 섞이지 않아 정확도가 크게 올라갑니다.</p>
+    </div>
+
+    <div class="mechanism">
+      <h4>Layer 3 - 프랜차이즈 브랜드 평균 (정확도 90%)</h4>
+      <p><strong>조건:</strong> 스타벅스, 투썸플레이스 등 프랜차이즈일 때</p>
+      <p><strong>원리:</strong> 프랜차이즈 본사의 정보공개서에서 가맹점 연평균 매출을 가져옵니다. 이 값의 70%는 브랜드 자체의 힘이고, 30%만 지역 영향을 받는다고 보정합니다.</p>
+      <p style="margin-top:10px;">예: 스타벅스 연매출 7.3억 / 12개월 = 월 6,083만원. 이 지역의 평균 매출이 전국보다 20% 낮다면 -> 6,083 x (1 + (-0.2 x 0.3)) = 5,718만원</p>
+    </div>
+
+    <div class="mechanism">
+      <h4>Layer 4 - ML 모델 / 경쟁 조정 (정확도 78~85%)</h4>
+      <p><strong>조건:</strong> 개인카페이고 건물 매출 데이터가 없을 때 (가장 많은 케이스)</p>
+      <p><strong>원리:</strong> 머신러닝 모델이 4가지 요소를 분석해 동네 평균 대비 이 카페의 매출 수준을 예측합니다.</p>
+      <table class="data-table">
+        <tr><th>ML Feature</th><th>가중치</th><th>의미</th></tr>
+        <tr><td>요일별 영업패턴 균등도</td><td>25%</td><td>매일 고르게 영업하는 카페 = 매출 안정적</td></tr>
+        <tr><td>활성 영업일 수</td><td>35%</td><td>주 7일 영업 > 주 5일 = 매출 높음</td></tr>
+        <tr><td>리뷰 비율</td><td>25%</td><td>동네 평균 대비 리뷰가 많으면 = 인기 카페</td></tr>
+        <tr><td>영업 연수</td><td>15%</td><td>오래 살아남은 카페 = 매출 안정적</td></tr>
+      </table>
+      <p style="margin-top:10px;">이 4가지 점수를 합산해 0~1 사이 점수를 만들고, 이 점수에 따라 동네 평균 매출의 0.7배~1.5배 범위에서 추정합니다.</p>
+    </div>
+  </div>
+
+  <!-- ==================== 데이터 수집 파이프라인 ==================== -->
+  <div class="section-divider" id="pipeline">
+    <h2>데이터 수집 파이프라인</h2>
+    <p>55개 API를 어떻게 조합해서 데이터를 모으는가</p>
+    <div class="line"></div>
+  </div>
+
+  <div class="card-section flow">
+    <h3>API 구조</h3>
+    <div class="subtitle">모든 외부 API는 Netlify 프록시 서버를 거쳐서 호출됩니다 (보안 + CORS 해결)</div>
+
+    <table class="data-table">
+      <tr><th>프록시</th><th>연결 API</th><th>용도</th></tr>
+      <tr><td><strong>sbiz-proxy</strong></td><td>소상공인365 (7개 라우트)</td><td>유동인구, 매출, 업종, 좌표변환, 상권정보</td></tr>
+      <tr><td><strong>openub-proxy</strong></td><td>OpenUB (3개 엔드포인트)</td><td>건물별 카드매출 (bd/hash, gp, bd/sales)</td></tr>
+      <tr><td><strong>gemini-proxy</strong></td><td>Google Gemini AI</td><td>카페 필터링, 종합 분석 리포트 생성</td></tr>
+      <tr><td><strong>naver-proxy</strong></td><td>네이버 검색 API</td><td>카페 존재 검증, 리뷰/평점 수집</td></tr>
+      <tr><td><strong>kakao</strong></td><td>카카오 로컬 API (직접)</td><td>지오코딩, 카페 검색, 메뉴/영업시간</td></tr>
+      <tr><td><strong>seoul</strong></td><td>서울 열린데이터 (9개)</td><td>서울 전용: 상권매출, 임대료, 인프라 등</td></tr>
+    </table>
+
+    <div class="mechanism" style="margin-top:20px;">
+      <h4>OpenUB 연동 방식 (핵심)</h4>
+      <p>OpenUB는 공식 API가 아닌 <strong>웹사이트 역분석</strong>으로 동작합니다. OpenUB 웹사이트가 내부적으로 호출하는 API를 분석해서 동일한 방식으로 호출합니다.</p>
+      <div class="flow-box">
+        <span class="flow-step">위도/경도</span>
+        <span class="flow-arrow">-></span>
+        <span class="flow-step">S2 Geometry 셀 토큰 (Level 14)</span>
+        <span class="flow-arrow">-></span>
+        <span class="flow-step">bd/hash (셀 -> 해시키)</span>
+        <span class="flow-arrow">-></span>
+        <span class="flow-step">gp (해시키 -> 건물 목록+매출)</span>
+        <span class="flow-arrow">-></span>
+        <span class="flow-step">bd/sales (건물 ID -> 카테고리별 매출)</span>
+      </div>
+      <p style="margin-top:10px;">카테고리 코드 <code>A12</code> = 카페/음료. 이 코드로 필터링하면 건물 내 카페 매출만 추출 가능. 인증 없이 무료로 동작합니다.</p>
+    </div>
+
+    <div class="mechanism">
+      <h4>카페 필터링 파이프라인 (STEP E)</h4>
+      <p>카카오에서 검색된 매장 중 진짜 카페만 골라내는 5단계 필터:</p>
+      <div class="flow-box">
+        <span class="flow-step">E-1 카테고리 필터</span>
+        <span class="flow-arrow">-></span>
+        <span class="flow-step">E-1.5 중복 제거</span>
+        <span class="flow-arrow">-></span>
+        <span class="flow-step">E-1.7 네이버 교차검증</span>
+        <span class="flow-arrow">-></span>
+        <span class="flow-step">E-2 AI 판별 (Gemini)</span>
+        <span class="flow-arrow">-></span>
+        <span class="flow-step">E-3 최종 확정</span>
+      </div>
+      <p style="margin-top:10px;">E-2에서 3가지 자동 판정이 작동합니다:</p>
+      <ul style="padding-left:18px; font-size:0.9em; margin-top:8px;">
+        <li><strong>autoKeep</strong>: 네이버에서 카페로 확인 + 지역 일치 -> 무조건 카페</li>
+        <li><strong>autoRemove</strong>: 네이버 매칭 0건 + 비카페 카테고리 -> 무조건 제거</li>
+        <li><strong>geminiJudge</strong>: 애매한 나머지 -> AI가 최종 판단</li>
+      </ul>
+      <p style="margin-top:10px;">이 파이프라인의 결과: 같은 주소로 3번 검색해도 카페 수가 <strong>동일</strong>합니다 (비결정성 해결 완료).</p>
+    </div>
+  </div>
+
+  <!-- ==================== 현재 개선 중 ==================== -->
+  <div class="section-divider" id="improving">
+    <h2>현재 개선 중인 작업</h2>
+    <p>더 정확하고 신뢰할 수 있는 데이터를 위해</p>
+    <div class="line"></div>
+  </div>
+
+  <div class="card-section" style="border-left-color: #f39c12;">
+    <h3>매출 정확도 개선</h3>
+    <div class="subtitle">개인카페 매출 추정의 신뢰성을 높이는 작업</div>
+
+    <table class="data-table">
+      <tr><th>개선 항목</th><th>현재 상태</th><th>목표</th></tr>
+      <tr><td>OpenUB 건물 매출 연동</td><td>S2 셀 레벨 문제로 0건 반환 중</td><td>Level 14 정상 복구 -> 건물별 실제 카드매출 확보</td></tr>
+      <tr><td>카테고리 분리 매출</td><td>건물 전체 매출로 Zipf 분배</td><td>카페 카테고리(A12) 매출만 추출해서 정밀 분배</td></tr>
+      <tr><td>매출 표기 방식</td><td>단일 숫자 (예: 1,200만원)</td><td>최소~최대 범위 (예: 1,050~1,350만원)</td></tr>
+      <tr><td>L4 범위 축소</td><td>동평균의 0.4~2.5배 (너무 넓음)</td><td>0.7~1.5배 (현실적 범위)</td></tr>
+      <tr><td>리뷰 기반 Zipf 랭킹</td><td>카테고리 가중치로 순위 결정</td><td>리뷰 수로 매장 순위 결정 -> 분배 정확도 상승</td></tr>
+    </table>
+  </div>
+
+  <div class="card-section" style="border-left-color: #f39c12;">
+    <h3>전국화 + 데이터 안정성</h3>
+    <div class="subtitle">서울 이외 지역에서도 동일한 품질의 분석을 제공</div>
+
+    <table class="data-table">
+      <tr><th>개선 항목</th><th>현재 상태</th><th>목표</th></tr>
+      <tr><td>서울 전용 카드 처리</td><td>비서울 지역에서 빈 데이터 노출</td><td>서울 전용(4.5) 분리 + 비서울은 대체 데이터 표시</td></tr>
+      <tr><td>Gemini 플레이스홀더</td><td>"정보 없음"이 문자열로 표시됨</td><td>실제 데이터 없음 -> API 폴백 체인 작동</td></tr>
+      <tr><td>행정동 vs 반경 불일치</td><td>500m 반경 카페 vs 행정동 유동인구</td><td>복수 행정동 가중 합산</td></tr>
+      <tr><td>지오코딩 안정성</td><td>비서울 주소 10건 중 4건 실패</td><td>카카오 + 행정안전부 이중 지오코딩</td></tr>
+    </table>
+  </div>
+
+  <div class="footer">
+    <p>빈크래프트 영업관리 | 기능 메커니즘 설명서</p>
+    <p>이 문서는 시스템의 기술적 구조를 비개발자가 이해할 수 있도록 작성되었습니다.</p>
+    <p style="margin-top:8px;">2026.03.13 기준</p>
+  </div>
+
+</div>
+
+</body>
+</html>
