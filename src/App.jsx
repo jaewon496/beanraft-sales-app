@@ -9965,14 +9965,15 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
      setSalesModeAnalysisStep('AI 리포트 생성 중');
      updateCollectingText(`AI가 ${query} 지역 상권 데이터를 분석하고 있어요`);
      
-     // AI 호출 함수 (재시도 로직 포함)
+     // AI 호출 함수 (재시도 로직 포함, 상세 에러 추적)
      const callGeminiWithRetry = async (promptText, maxRetry = 3) => {
+       let lastErrorDetail = '';
        for (let attempt = 1; attempt <= maxRetry; attempt++) {
          try {
-           updateCollectingText(`AI 분석 중... ${attempt > 1 ? `(재시도 ${attempt}/${maxRetry})` : ''}`);
+           updateCollectingText(`AI 분석 중... ${attempt > 1 ? `(재시도 ${attempt}/${maxRetry}) ${lastErrorDetail}` : ''}`);
 
            const controller = new AbortController();
-           const timeoutId = setTimeout(() => controller.abort(), 30000); // 30초 타임아웃 (서버 25초 + 여유)
+           const timeoutId = setTimeout(() => controller.abort(), 55000); // 55초 타임아웃 (Netlify 26초 + 네트워크 여유)
 
            const response = await callGeminiProxy([{ role: 'user', parts: [{ text: promptText }] }], { temperature: 0.7, maxOutputTokens: 8000 }, controller.signal);
 
@@ -9983,20 +9984,40 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
              if (result.candidates?.[0]?.content?.parts?.[0]?.text) {
                return result;
              }
+             lastErrorDetail = 'AI 응답 비어있음';
+             console.log(`Gemini API 빈 응답 (${attempt}/${maxRetry}):`, JSON.stringify(result).substring(0, 300));
+           } else {
+             // 상세 에러 구분
+             let errorBody = '';
+             try { errorBody = await response.text(); } catch (_) {}
+             const statusMap = {
+               429: '요청 한도 초과(429)',
+               500: '서버 내부 오류(500)',
+               503: '서비스 일시 중단(503)',
+               504: '서버 응답 시간 초과(504)',
+               400: '요청 형식 오류(400)',
+               403: 'API 키 권한 없음(403)'
+             };
+             lastErrorDetail = statusMap[response.status] || `HTTP ${response.status}`;
+             console.log(`Gemini API 오류 (${attempt}/${maxRetry}): ${lastErrorDetail}`, errorBody.substring(0, 200));
            }
-           // 504 = 서버 타임아웃, 500 = 서버 에러 - 재시도 의미 있음
-           console.log(`Gemini API 오류 (${attempt}/${maxRetry}): HTTP ${response.status}`);
            if (attempt < maxRetry) {
-             const delay = response.status === 504 || response.status === 500 ? 2000 : 3000 * attempt;
+             const delay = response.status === 429 ? 5000 * attempt : (response.status === 504 || response.status === 500) ? 2000 : 3000 * attempt;
              await new Promise(resolve => setTimeout(resolve, delay));
            }
          } catch (e) {
-           console.log(`Gemini API 실패 (${attempt}/${maxRetry}):`, e.message);
+           if (e.name === 'AbortError') {
+             lastErrorDetail = '클라이언트 타임아웃(55초)';
+           } else {
+             lastErrorDetail = e.message || '네트워크 오류';
+           }
+           console.log(`Gemini API 실패 (${attempt}/${maxRetry}): ${lastErrorDetail}`);
            if (attempt < maxRetry) {
              await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
            }
          }
        }
+       console.error(`AI 호출 ${maxRetry}회 모두 실패. 마지막 원인: ${lastErrorDetail}`);
        return null;
      };
      
@@ -10015,42 +10036,135 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
      animateProgressTo(98);
      updateCollectingText(`AI 응답을 처리하고 있어요`);
      
-     // AI 호출 실패 체크
+     // AI 호출 실패 체크 - 수집된 모든 데이터로 Graceful Fallback
      if (!result) {
-       console.error('AI 호출 3회 모두 실패');
+       console.error('AI 호출 3회 모두 실패 - 수집된 API 데이터로 결과 표시');
        animateProgressTo(100);
-       setSalesModeAnalysisStep('분석 완료 (부분)');
+       setSalesModeAnalysisStep('분석 완료 (AI 없이)');
        setSalesModeCollectingText('');
-       
-       // API 데이터로 기본 정보 구성
+
+       // 수집된 API 데이터에서 최대한 추출
        const apis = collectedData.apis || {};
-       let cafeCount = '데이터 수집 중';
-       let floatingPop = '데이터 수집 중';
-       
-       if (apis.storCnt?.data?.rads) {
+       let _fbCafeCount = '-';
+       let _fbFloatingPop = '-';
+       let _fbResidentPop = '-';
+
+       // 카페 수: storeRadius 우선, 없으면 storCnt
+       if (collectedData.nearbyTotalCafes > 0) {
+         _fbCafeCount = String(collectedData.nearbyTotalCafes);
+       } else if (apis.storCnt?.data?.rads) {
          const total = apis.storCnt.data.rads.reduce((sum, r) => sum + (parseInt(r.storCnt) || 0), 0);
-         cafeCount = `소상공인365 데이터 기준, 총 업소 수 약 ${total.toLocaleString()}개 (카페 추정 ${Math.round(total * 0.15).toLocaleString()}개)`;
+         _fbCafeCount = `${Math.round(total * 0.15)} (음식업 ${total}개 중 추정)`;
        }
-       if (apis.popCnt?.data?.rads) {
+
+       // 유동인구
+       if (apis.dynPplCmpr?.data?.[0]) {
+         const popCnt = apis.dynPplCmpr.data[0]?.cnt || apis.dynPplCmpr.data[0]?.fpCnt || 0;
+         if (popCnt > 0) _fbFloatingPop = String(Math.round(popCnt / 30));
+       } else if (apis.popCnt?.data?.rads) {
          const total = apis.popCnt.data.rads.reduce((sum, r) => sum + (parseInt(r.ppltnCnt) || 0), 0);
-         floatingPop = `일평균 유동인구 약 ${total.toLocaleString()}명`;
+         if (total > 0) _fbFloatingPop = String(total);
        }
-       
-       setSalesModeSearchResult({ 
-         success: true, 
-         data: {
-           region: query,
-           reliability: '낮음',
-           dataDate: new Date().toLocaleDateString('ko-KR') + ' 기준',
-           overview: { cafeCount, floatingPop, source: '소상공인365' },
-           insight: 'AI 분석 서비스가 일시적으로 원활하지 않습니다. 기본 데이터만 표시됩니다. 잠시 후 다시 검색해주세요.',
-           rawApiData: hasApiData ? collectedData.apis : null
-         }, 
-         query, 
+
+       // 상주인구
+       if (apis.popCnt?.data?.rads) {
+         const rPop = apis.popCnt.data.rads.reduce((sum, r) => sum + (parseInt(r.rsdntCnt) || 0), 0);
+         if (rPop > 0) _fbResidentPop = String(rPop);
+       }
+
+       // 소비 연령
+       const _fbCafeAge = apis.cafeAgeData?.data || [];
+       const _fbVstCst = apis.vstCst?.data || [];
+       let _fbMainTarget = '-', _fbMainRatio = '-', _fbSecondTarget = '-', _fbSecondRatio = '-';
+       const _fbAgeMap = { 'M10': '10대', 'M20': '20대', 'M30': '30대', 'M40': '40대', 'M50': '50대', 'M60': '60대 이상' };
+       if (_fbCafeAge.length > 0) {
+         _fbMainTarget = (_fbAgeMap[_fbCafeAge[0]?.age] || _fbCafeAge[0]?.age || '-') + ' (카페 결제 기준)';
+         _fbMainRatio = (_fbCafeAge[0]?.pct || '-') + '%';
+         if (_fbCafeAge[1]) { _fbSecondTarget = _fbAgeMap[_fbCafeAge[1]?.age] || _fbCafeAge[1]?.age; _fbSecondRatio = (_fbCafeAge[1]?.pct || '-') + '%'; }
+       } else if (_fbVstCst.length > 0) {
+         const sorted = [..._fbVstCst].sort((a,b) => (b.pipcnt||0) - (a.pipcnt||0));
+         const totalPip = sorted.reduce((s,d) => s + (d.pipcnt||0), 0);
+         if (sorted[0]) { _fbMainTarget = (sorted[0].age || '').replace('M','') + '대'; _fbMainRatio = totalPip > 0 ? (sorted[0].pipcnt / totalPip * 100).toFixed(1) + '%' : '-'; }
+         if (sorted[1]) { _fbSecondTarget = (sorted[1].age || '').replace('M','') + '대'; _fbSecondRatio = totalPip > 0 ? (sorted[1].pipcnt / totalPip * 100).toFixed(1) + '%' : '-'; }
+       }
+
+       // 피크 시간
+       let _fbPeakTime = '-';
+       const _fbDynData = apis.dynPplCmpr?.data;
+       if (Array.isArray(_fbDynData) && _fbDynData.length > 0) {
+         const _ts = [
+           { label: '오전 6~9시', key: 'tmzn1' }, { label: '오전 9~12시', key: 'tmzn2' },
+           { label: '오후 12~15시', key: 'tmzn3' }, { label: '오후 15~18시', key: 'tmzn4' },
+           { label: '저녁 18~21시', key: 'tmzn5' }, { label: '야간 21~24시', key: 'tmzn6' }
+         ];
+         const _tv = _ts.map(ts => ({
+           label: ts.label, value: _fbDynData.reduce((s, d) => s + (d[ts.key + 'FpCnt'] || d[ts.key] || 0), 0)
+         })).filter(t => t.value > 0).sort((a, b) => b.value - a.value);
+         if (_tv.length > 0) _fbPeakTime = _tv[0].label + '(' + _tv[0].value.toLocaleString() + '명)';
+       }
+
+       // 임대료
+       const _fbRent = apis.firebaseRent?.data;
+       const _fbRentMonthly = _fbRent?.summary?.avgMonthlyRent ? _fbRent.summary.avgMonthlyRent + '만원' : '-';
+       const _fbRentDeposit = _fbRent?.summary?.avgDeposit ? _fbRent.summary.avgDeposit + '만원' : '-';
+
+       // 매출
+       const _fbSalesData = apis.salesAvg?.data || [];
+       let _fbCafeSales = '-';
+       if (Array.isArray(_fbSalesData)) {
+         const cafeItem = _fbSalesData.find(s => s.tpbizClscdNm === '카페');
+         if (cafeItem?.mmavgSlsAmt) _fbCafeSales = Math.round(cafeItem.mmavgSlsAmt).toLocaleString() + '만원';
+       }
+
+       // 프랜차이즈 목록
+       const _fbFrCounts = collectedData.nearbyFranchiseCounts || {};
+       const _fbFrArr = Object.entries(_fbFrCounts).map(([name, count]) => ({
+         name, count: '반경500m ' + count + '개', price: 0, monthly: '-'
+       }));
+       if (_fbFrArr.length === 0) {
+         _fbFrArr.push({ name: '데이터 수집 중', count: '-', price: 0, monthly: '-' });
+       }
+
+       const _fbFallbackData = {
+         region: query,
+         reliability: '낮음 (AI 분석 없음)',
+         dataDate: new Date().toLocaleDateString('ko-KR') + ' 기준',
+         overview: { cafeCount: _fbCafeCount, newOpen: '-', closed: '-', floatingPop: _fbFloatingPop, residentPop: _fbResidentPop, source: '소상공인365 / 카카오 로컬' },
+         consumers: { mainTarget: _fbMainTarget, mainRatio: _fbMainRatio, secondTarget: _fbSecondTarget, secondRatio: _fbSecondRatio, peakTime: _fbPeakTime, takeoutRatio: '-', avgStay: '-' },
+         franchise: _fbFrArr,
+         topSales: { bruFeedback: _fbCafeSales !== '-' ? '카페 업종 월평균 매출: ' + _fbCafeSales : '매출 데이터를 불러오지 못했습니다.' },
+         rent: { monthly: _fbRentMonthly, deposit: _fbRentDeposit, premium: '-', yoyChange: '-', source: _fbRent ? '한국부동산원' : '-' },
+         opportunities: [{ title: 'AI 분석 필요', detail: 'AI 분석 재시도 후 기회 요인이 표시됩니다.', impact: '중' }],
+         risks: [{ title: 'AI 분석 필요', detail: 'AI 분석 재시도 후 리스크 요인이 표시됩니다.', impact: '중' }],
+         startupCost: {
+           deposit: _fbRentDeposit !== '-' ? _fbRentDeposit : '확인 필요',
+           premium: '별도 확인 필요',
+           interior: '3,000~5,000만원 (15평 기준)',
+           equipment: '2,000~3,000만원',
+           total: '추정 불가 (AI 분석 필요)'
+         },
+         marketSurvival: {
+           year1: '58.3%', year3: '36.9%', year5: '22.8%',
+           cafeIndustry5yr: '22.8%', allIndustry5yr: '34.7%', govSupported5yr: '53.1%',
+           source: '통계청 기업생멸행정통계(2023)',
+           insight: '숙박·음식점업 5년 생존율은 22.8%. 체계적인 준비가 생존율을 높여줍니다.'
+         },
+         insight: 'AI 종합 분석 서비스가 일시적으로 응답하지 않았습니다. 수집된 데이터(카페 현황, 유동인구, 임대료 등)는 정상적으로 표시됩니다.\n\n상단의 검색 버튼을 다시 눌러 AI 분석을 재시도할 수 있습니다.',
+         rawApiData: hasApiData ? collectedData.apis : null
+       };
+
+       if (coordinates) _fbFallbackData.coordinates = coordinates;
+
+       setSalesModeSearchResult({
+         success: true,
+         data: _fbFallbackData,
+         query,
          hasApiData,
          aiError: true,
+         partial: true,
          collectedData
        });
+       setSalesModeMapExpanded(true);
        return;
      }
      
@@ -11194,9 +11308,29 @@ SNS분석: ${crossData.snsAnalyStr}
      if (progressIntervalRef.current) {
        clearInterval(progressIntervalRef.current);
      }
-     setSalesModeAnalysisProgress(0);
-     currentProgressRef.current = 0;
-     setSalesModeSearchResult({ success: false, error: error.message, query });
+     // Graceful Fallback: 에러 시에도 수집된 데이터가 있으면 표시
+     animateProgressTo(100);
+     currentProgressRef.current = 100;
+     const _errFallback = {
+       region: query,
+       reliability: '낮음 (오류 발생)',
+       dataDate: new Date().toLocaleDateString('ko-KR') + ' 기준',
+       overview: { cafeCount: '-', newOpen: '-', closed: '-', floatingPop: '-', residentPop: '-', source: '-' },
+       consumers: { mainTarget: '-', mainRatio: '-', secondTarget: '-', secondRatio: '-', peakTime: '-', takeoutRatio: '-', avgStay: '-' },
+       franchise: [{ name: '데이터 수집 실패', count: '-', price: 0, monthly: '-' }],
+       rent: { monthly: '-', deposit: '-', premium: '-', yoyChange: '-', source: '-' },
+       opportunities: [{ title: '오류 발생', detail: '데이터 수집 중 오류가 발생했습니다: ' + (error.message || '알 수 없는 오류'), impact: '상' }],
+       risks: [],
+       startupCost: { deposit: '-', premium: '-', interior: '-', equipment: '-', total: '-' },
+       marketSurvival: {
+         year1: '58.3%', year3: '36.9%', year5: '22.8%',
+         cafeIndustry5yr: '22.8%', allIndustry5yr: '34.7%', govSupported5yr: '53.1%',
+         source: '통계청 기업생멸행정통계(2023)'
+       },
+       insight: '분석 중 오류가 발생했습니다: ' + (error.message || '알 수 없는 오류') + '\n\n상단의 검색 버튼을 다시 눌러 재시도해주세요.',
+       rawApiData: null
+     };
+     setSalesModeSearchResult({ success: true, data: _errFallback, query, hasApiData: false, aiError: true, partial: true });
    } finally {
      setSalesModeSearchLoading(false);
      if (progressIntervalRef.current) {
