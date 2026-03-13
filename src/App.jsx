@@ -10532,6 +10532,9 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
        }
 
        // ═══ 방법 A: 카드별 개별 프롬프트 강화 ═══
+       // 전체 카드 피드백 프로세스를 try-catch로 감싸서
+       // 실패해도 이미 수집된 data를 보존한다 (화면 리셋 방지)
+       try {
        setSalesModeAnalysisStep('AI 캐릭터 피드백 강화 중');
        updateCollectingText('각 카드별 맞춤 피드백을 작성하고 있어요');
        animateProgressTo(85);
@@ -11055,9 +11058,12 @@ SNS분석: ${crossData.snsAnalyStr}
        
        // 결과를 data에 병합
        const safeStr = (v) => typeof v === 'string' ? v : (v && typeof v === 'object' ? JSON.stringify(v) : v ? String(v) : '');
+       let cardMergeSuccessCount = 0;
+       let cardMergeFailCount = 0;
        for (const r of cardResults) {
          if (r.status !== 'fulfilled' || !r.value?.data) continue;
          const { key, data: cardData } = r.value;
+         try {
          // 문자열 보장
          if (cardData.bruFeedback && typeof cardData.bruFeedback !== 'string') cardData.bruFeedback = safeStr(cardData.bruFeedback);
          if (cardData.bruSummary && typeof cardData.bruSummary !== 'string') cardData.bruSummary = safeStr(cardData.bruSummary);
@@ -11118,10 +11124,25 @@ SNS분석: ${crossData.snsAnalyStr}
              if (cardData.insight) { data.insight = cardData.insight; }
              break;
          }
+         cardMergeSuccessCount++;
+         } catch (cardMergeErr) {
+           cardMergeFailCount++;
+           console.warn('[카드 병합] 카드 ' + key + ' 병합 실패 (스킵):', cardMergeErr.message);
+         }
        }
-       console.log('카드별 강화 완료:', cardResults.filter(r => r.status === 'fulfilled' && r.value?.data).length, '/', cardKeys.length);
+       console.log('[카드 피드백] 카드별 강화 완료:', cardMergeSuccessCount, '/', cardKeys.length, (cardMergeFailCount > 0 ? '(병합 실패: ' + cardMergeFailCount + '개)' : ''));
+       } catch (cardFeedbackError) {
+         // 카드별 피드백 생성 실패 시: 이미 수집된 data는 보존
+         // 피드백 없이 수집 데이터만으로 결과 표시 (화면 리셋 절대 방지)
+         console.error('[카드 피드백] 전체 프로세스 실패 - 수집 데이터로 진행:', cardFeedbackError);
+         console.log('[카드 피드백] data 객체 보존됨, 피드백 없이 표시');
+         // data 객체에 피드백 미생성 표시
+         if (!data.insight) {
+           data.insight = '카드별 AI 피드백 생성 중 오류가 발생했습니다. 수집된 데이터를 기반으로 결과를 표시합니다. 재검색하면 피드백이 정상 생성될 수 있습니다.';
+         }
+       }
        
-       // 100% 완료
+       // 100% 완료 (카드 피드백 성공/실패 무관하게 항상 실행)
        animateProgressTo(100);
        setSalesModeAnalysisStep('분석 완료');
        setSalesModeCollectingText('');
