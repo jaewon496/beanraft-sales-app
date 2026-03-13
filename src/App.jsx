@@ -3024,7 +3024,8 @@ const callOpenAPIViaProxy = async (apiName, apiPath, params = {}) => {
     
     const response = await fetch(proxyUrl.toString(), {
       method: 'GET',
-      headers: { 'Accept': 'application/json' }
+      headers: { 'Accept': 'application/json' },
+      signal: AbortSignal.timeout(10000)
     });
     
     if (response.ok) {
@@ -3154,7 +3155,7 @@ const getCoordToDongCd = async (lat, lng) => {
     proxyUrl.searchParams.append('lat', lat.toString());
     proxyUrl.searchParams.append('lng', lng.toString());
     
-    const response = await fetch(proxyUrl.toString());
+    const response = await fetch(proxyUrl.toString(), { signal: AbortSignal.timeout(10000) });
     if (response.ok) {
       const result = await response.json();
       if (result.success && result.data && result.data.length > 0) {
@@ -3910,7 +3911,8 @@ const searchKakaoLocalCafe = async (lat, lng, radius = 1000) => {
     const results = [];
     for (let page = 1; page <= 5; page++) {
       const res = await fetch(
-        `/api/kakao-proxy?type=category&category_group_code=CE7&x=${lng}&y=${lat}&radius=${radius}&page=${page}&size=15&sort=distance`
+        `/api/kakao-proxy?type=category&category_group_code=CE7&x=${lng}&y=${lat}&radius=${radius}&page=${page}&size=15&sort=distance`,
+        { signal: AbortSignal.timeout(10000) }
       );
       if (!res.ok) break;
       const data = await res.json();
@@ -4916,7 +4918,8 @@ async function fetchOpenUBBuildingData(lat, lng, radiusMeters) {
   const hashRes = await fetch(OPENUB_PROXY, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ endpoint: 'bd/hash', body: { cellTokens } })
+    body: JSON.stringify({ endpoint: 'bd/hash', body: { cellTokens } }),
+    signal: AbortSignal.timeout(15000)
   }).then(r => r.json());
 
   // API 에러 체크 (네트워크 실패, 서버 에러 등)
@@ -4962,7 +4965,8 @@ async function fetchOpenUBBuildingData(lat, lng, radiusMeters) {
           body: JSON.stringify({
             endpoint: 'bd/sales',
             body: { rdnu: id, category: 'A0:B0:C0:D0:F0:G0', login: false }
-          })
+          }),
+          signal: AbortSignal.timeout(10000)
         }).then(r => r.json());
         if (res.result && Object.keys(res.result).length > 0) {
           buildingSales[id] = res.result;
@@ -5477,7 +5481,8 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
    let address = '';
    try {
      const reverseGeoResponse = await fetch(
-       `${PROXY_SERVER_URL}/api/reverse-geocode?lat=${lat}&lng=${lng}`
+       `${PROXY_SERVER_URL}/api/reverse-geocode?lat=${lat}&lng=${lng}`,
+       { signal: AbortSignal.timeout(10000) }
      );
      const reverseGeoData = await reverseGeoResponse.json();
      if (reverseGeoData.results?.[0]) {
@@ -6010,7 +6015,7 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
        setApiCollectProgress(prev => ({ ...prev, current: currentStep, status: `[${region.sigungu}] 상가정보 수집 중...` }));
        
        try {
-         const storeRes = await fetch(`${PROXY_SERVER_URL}/api/store/radius?cx=${region.lng}&cy=${region.lat}&radius=1000&numOfRows=1000&pageNo=1`);
+         const storeRes = await fetch(`${PROXY_SERVER_URL}/api/store/radius?cx=${region.lng}&cy=${region.lat}&radius=1000&numOfRows=1000&pageNo=1`, { signal: AbortSignal.timeout(15000) });
          if (storeRes.ok) {
            const storeData = await storeRes.json();
            console.log(`[${region.sigungu}] 상가 API 응답:`, JSON.stringify(storeData).substring(0, 500));
@@ -6085,14 +6090,14 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
        if (region.sido === '서울특별시') {
          try {
            // 최신 분기 데이터 동적 가져오기
-           const floatCountRes = await fetch(`${PROXY_SERVER_URL}/api/seoul/floating?startIndex=1&endIndex=1`);
+           const floatCountRes = await fetch(`${PROXY_SERVER_URL}/api/seoul/floating?startIndex=1&endIndex=1`, { signal: AbortSignal.timeout(10000) });
            let totalCount = 44536;
            if (floatCountRes.ok) {
              const countData = await floatCountRes.json();
              totalCount = countData?.VwsmTrdarFlpopQq?.list_total_count || 44536;
            }
            const latestStart = Math.max(1, totalCount - 999);
-           const floatingRes = await fetch(`${PROXY_SERVER_URL}/api/seoul/floating?startIndex=${latestStart}&endIndex=${totalCount}`);
+           const floatingRes = await fetch(`${PROXY_SERVER_URL}/api/seoul/floating?startIndex=${latestStart}&endIndex=${totalCount}`, { signal: AbortSignal.timeout(15000) });
            if (floatingRes.ok) {
              const floatingData = await floatingRes.json();
              if (floatingData.VwsmTrdarFlpopQq?.row) {
@@ -6166,7 +6171,7 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
        setApiCollectProgress(prev => ({ ...prev, current: currentStep, status: `[${region.sigungu}] 임대료 수집 중...` }));
        
        try {
-         const rentRes = await fetch(`${PROXY_SERVER_URL}/api/rone/rent?pSize=100`);
+         const rentRes = await fetch(`${PROXY_SERVER_URL}/api/rone/rent?pSize=100`, { signal: AbortSignal.timeout(10000) });
          if (rentRes.ok) {
            const rentData = await rentRes.json();
            if (rentData.SttsApiTblData?.row) {
@@ -6868,7 +6873,7 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
        for (const localQuery of localSearchQueries) {
          if (coordinates) break;
        try {
-         const localRes = await fetch(`/api/naver-local-proxy?query=${encodeURIComponent(localQuery)}&display=1`);
+         const localRes = await fetch(`/api/naver-local-proxy?query=${encodeURIComponent(localQuery)}&display=1`, { signal: AbortSignal.timeout(10000) });
          if (localRes.ok) {
            const localData = await localRes.json();
            const item = localData.items?.[0];
@@ -6945,7 +6950,8 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
            if (coordinates) break;
            try {
              const kakaoGeoRes = await fetch(
-               `/api/kakao-proxy?type=address&query=${encodeURIComponent(kakaoQuery)}`
+               `/api/kakao-proxy?type=address&query=${encodeURIComponent(kakaoQuery)}`,
+               { signal: AbortSignal.timeout(10000) }
              );
              if (kakaoGeoRes.ok) {
                const kakaoGeoData = await kakaoGeoRes.json();
@@ -6983,7 +6989,8 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
              if (coordinates) break;
              try {
                const kakaoKwRes = await fetch(
-                 `/api/kakao-proxy?type=keyword&query=${encodeURIComponent(kwQuery)}&size=1`
+                 `/api/kakao-proxy?type=keyword&query=${encodeURIComponent(kwQuery)}&size=1`,
+                 { signal: AbortSignal.timeout(10000) }
                );
                if (kakaoKwRes.ok) {
                  const kakaoKwData = await kakaoKwRes.json();
@@ -7174,7 +7181,7 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
      // ═══ Geocoding + 거리 계산 헬퍼 ═══
      const geocodeAddress = async (address) => {
        try {
-         const res = await fetch(`/api/ncp-geo-proxy?query=${encodeURIComponent(address)}`);
+         const res = await fetch(`/api/ncp-geo-proxy?query=${encodeURIComponent(address)}`, { signal: AbortSignal.timeout(10000) });
          if (!res.ok) return null;
          const data = await res.json();
          if (data.addresses?.length > 0) {
@@ -7186,7 +7193,7 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
      
      const calcWalkingDistance = async (startCoord, endCoord) => {
        try {
-         const res = await fetch(`/api/ncp-geo-proxy?type=directions&start=${startCoord.lng},${startCoord.lat}&goal=${endCoord.lng},${endCoord.lat}&option=trafast`);
+         const res = await fetch(`/api/ncp-geo-proxy?type=directions&start=${startCoord.lng},${startCoord.lat}&goal=${endCoord.lng},${endCoord.lat}&option=trafast`, { signal: AbortSignal.timeout(10000) });
          if (!res.ok) return null;
          const data = await res.json();
          if (data.code === 0 && data.route?.trafast?.[0]) {
@@ -7260,7 +7267,7 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
        // 후보 동들에서 Firebase rent 데이터 병렬 조회
        const rentResults = await Promise.allSettled(
          [...new Set(rentDongCandidates)].slice(0, 30).map(async (dng) => {
-           const res = await fetch(`${FIREBASE_DB}/regionData/${encodeURIComponent(dng)}.json`);
+           const res = await fetch(`${FIREBASE_DB}/regionData/${encodeURIComponent(dng)}.json`, { signal: AbortSignal.timeout(10000) });
            if (!res.ok) return null;
            const data = await res.json();
            if (!data) return null;
@@ -7612,7 +7619,7 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
        try {
          updateCollectingText('네이버 지도에서 주변 카페를 추가 확인하고 있어요');
          const searchRegion = addressInfo ? `${addressInfo.sigungu || ''} ${addressInfo.dong || ''}`.trim() : query;
-         const naverCafeRes = await fetch(`/api/naver-local-proxy?query=${encodeURIComponent(searchRegion + ' 카페')}&display=5`);
+         const naverCafeRes = await fetch(`/api/naver-local-proxy?query=${encodeURIComponent(searchRegion + ' 카페')}&display=5`, { signal: AbortSignal.timeout(10000) });
          if (naverCafeRes.ok) {
            const naverCafeData = await naverCafeRes.json();
            const naverItems = naverCafeData.items || [];
@@ -8016,7 +8023,7 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
                   // 매장명으로 검색 (짧은 이름은 동 이름 추가)
                   const cafeNameLen = (cafe.name || '').replace(/[a-zA-Z0-9\s]/g, '').length || cafe.name.length;
                   const naverQuery = (cafeNameLen <= 3 && dongForNaver) ? `${dongForNaver} ${cafe.name}` : cafe.name;
-                  const nvRes = await fetch(`/api/naver-local-proxy?query=${encodeURIComponent(naverQuery)}&display=10`);
+                  const nvRes = await fetch(`/api/naver-local-proxy?query=${encodeURIComponent(naverQuery)}&display=10`, { signal: AbortSignal.timeout(10000) });
 
                   if (!nvRes.ok) {
                     console.log(`[E-1.7] "${cafe.name}" 네이버 검색 실패 (status: ${nvRes.status})`);
@@ -8576,7 +8583,7 @@ JSON으로만 응답:
 
      let snsTrendData = null;
      try {
-       const snsResponse = await callGeminiProxy([{ role: 'user', parts: [{ text: snsTrendPrompt }] }], { temperature: 0.7, maxOutputTokens: 2000 });
+       const snsResponse = await callGeminiProxy([{ role: 'user', parts: [{ text: snsTrendPrompt }] }], { temperature: 0.7, maxOutputTokens: 2000 }, AbortSignal.timeout(20000));
        
        if (snsResponse.ok) {
          const snsResult = await snsResponse.json();
@@ -8651,7 +8658,7 @@ JSON으로만 응답:
          const searchQuery = `${query} 카페 리뷰`;
          const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(searchQuery)}&type=video&maxResults=5&order=relevance&key=${YOUTUBE_API_KEY}`;
        
-       const searchResponse = await fetch(searchUrl);
+       const searchResponse = await fetch(searchUrl, { signal: AbortSignal.timeout(15000) });
        
        if (searchResponse.ok) {
          const searchData = await searchResponse.json();
@@ -8661,7 +8668,7 @@ JSON으로만 응답:
            // 2. 각 영상의 통계 정보 가져오기
            const videoIds = videos.map(v => v.id.videoId).join(',');
            const statsUrl = `https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id=${videoIds}&key=${YOUTUBE_API_KEY}`;
-           const statsResponse = await fetch(statsUrl);
+           const statsResponse = await fetch(statsUrl, { signal: AbortSignal.timeout(15000) });
            
            let videoStats = [];
            if (statsResponse.ok) {
@@ -8675,7 +8682,7 @@ JSON으로만 응답:
              const videoId = videos[i].id.videoId;
              try {
                const commentsUrl = `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=${videoId}&maxResults=20&order=relevance&key=${YOUTUBE_API_KEY}`;
-               const commentsResponse = await fetch(commentsUrl);
+               const commentsResponse = await fetch(commentsUrl, { signal: AbortSignal.timeout(10000) });
                
                if (commentsResponse.ok) {
                  const commentsData = await commentsResponse.json();
@@ -8772,7 +8779,7 @@ JSON으로만 응답:
        console.log(`[유동인구] 검색 키워드: ${searchKws.join(', ')} (행정동: ${dongShortNm})`);
 
        // 최신 분기 데이터를 동적으로 가져오기 (총 건수 먼저 확인)
-       const floatCountRes = await fetch(`${PROXY_SERVER_URL}/api/seoul/floating?startIndex=1&endIndex=1`);
+       const floatCountRes = await fetch(`${PROXY_SERVER_URL}/api/seoul/floating?startIndex=1&endIndex=1`, { signal: AbortSignal.timeout(10000) });
        let totalCount = 44536; // fallback
        if (floatCountRes.ok) {
          const countData = await floatCountRes.json();
@@ -8780,7 +8787,7 @@ JSON으로만 응답:
        }
        // 최신 분기: 마지막 1000건 가져오기 (분기별 ~540건)
        const latestStart = Math.max(1, totalCount - 999);
-       const floatRes = await fetch(`${PROXY_SERVER_URL}/api/seoul/floating?startIndex=${latestStart}&endIndex=${totalCount}`);
+       const floatRes = await fetch(`${PROXY_SERVER_URL}/api/seoul/floating?startIndex=${latestStart}&endIndex=${totalCount}`, { signal: AbortSignal.timeout(15000) });
        if (floatRes.ok) {
          const floatData = await floatRes.json();
          const rows = floatData?.VwsmTrdarFlpopQq?.row || [];
@@ -8826,7 +8833,7 @@ JSON으로만 응답:
        const salesKws = [dongNmForSales.replace(/\d+동$/, ''), query.split(' ')[0], sgNmForSales.replace('구', '')].filter(kw => kw && kw.length >= 2);
 
        // 서울시 VwsmTrdarSelngQq (추정매출) API - 프록시에서 카페만 필터링해서 반환
-       const cafeSalesRes = await fetch(`/api/sbiz-proxy?api=seoul&service=VwsmTrdarSelngQq&stdrYyquCd=20253&industryCode=CS100010`);
+       const cafeSalesRes = await fetch(`/api/sbiz-proxy?api=seoul&service=VwsmTrdarSelngQq&stdrYyquCd=20253&industryCode=CS100010`, { signal: AbortSignal.timeout(15000) });
        if (cafeSalesRes.ok) {
          const cafeSalesRaw = await cafeSalesRes.json();
          const cafeRows = cafeSalesRaw?.data?.filteredRows || [];
@@ -10853,6 +10860,7 @@ SNS분석: ${crossData.snsAnalyStr}
            try {
              const res = await fetch('/.netlify/functions/gemini-proxy', {
                method: 'POST',
+               signal: AbortSignal.timeout(20000),
                headers: { 'Content-Type': 'application/json' },
                body: JSON.stringify({
                  contents: [{ parts: [{ text: cardPrompts[key] }] }],
@@ -11659,7 +11667,8 @@ ${JSON.stringify(regionData, null, 2)}
      let addressInfo = null;
      try {
        const geoResponse = await fetch(
-         `/api/ncp-geo-proxy?query=${encodeURIComponent(regionName)}`
+         `/api/ncp-geo-proxy?query=${encodeURIComponent(regionName)}`,
+         { signal: AbortSignal.timeout(10000) }
        );
        const geoData = await geoResponse.json();
        if (geoData.addresses?.[0]) {
@@ -11775,7 +11784,7 @@ ${JSON.stringify(regionData, null, 2)}
          try {
            const rentResults = await Promise.allSettled(
              [...new Set(rentCandidates)].slice(0, 30).map(async (dng) => {
-               const res = await fetch(`${FIREBASE_DB}/regionData/${encodeURIComponent(dng)}.json`);
+               const res = await fetch(`${FIREBASE_DB}/regionData/${encodeURIComponent(dng)}.json`, { signal: AbortSignal.timeout(10000) });
                if (!res.ok) return null;
                const data = await res.json();
                const rent = data?.[dng]?.rent;
@@ -11864,14 +11873,14 @@ ${JSON.stringify(regionData, null, 2)}
        console.log(`[유동인구-키워드] 검색 키워드: ${searchKws.join(', ')} (행정동: ${dongShortNm})`);
 
        // 최신 분기 데이터를 동적으로 가져오기
-       const floatCountRes = await fetch(`${PROXY_SERVER_URL}/api/seoul/floating?startIndex=1&endIndex=1`);
+       const floatCountRes = await fetch(`${PROXY_SERVER_URL}/api/seoul/floating?startIndex=1&endIndex=1`, { signal: AbortSignal.timeout(10000) });
        let totalCount = 44536;
        if (floatCountRes.ok) {
          const countData = await floatCountRes.json();
          totalCount = countData?.VwsmTrdarFlpopQq?.list_total_count || 44536;
        }
        const latestStart = Math.max(1, totalCount - 999);
-       const floatRes = await fetch(`${PROXY_SERVER_URL}/api/seoul/floating?startIndex=${latestStart}&endIndex=${totalCount}`);
+       const floatRes = await fetch(`${PROXY_SERVER_URL}/api/seoul/floating?startIndex=${latestStart}&endIndex=${totalCount}`, { signal: AbortSignal.timeout(15000) });
        if (floatRes.ok) {
          const floatData = await floatRes.json();
          const rows = floatData?.VwsmTrdarFlpopQq?.row || [];
@@ -14735,6 +14744,7 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  `https://vision.googleapis.com/v1/images:annotate?key=${GOOGLE_VISION_API_KEY}`,
  {
  method: 'POST',
+ signal: AbortSignal.timeout(15000),
  headers: { 'Content-Type': 'application/json' },
  body: JSON.stringify({
  requests: [{
@@ -15495,7 +15505,7 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  const fetchNaverArticles = async (cortarNo, lat, lon, page = 1) => {
  try {
  const url = `/.netlify/functions/naver-proxy?type=article&cortarNo=${cortarNo}&lat=${lat}&lon=${lon}&z=14&page=${page}`;
- const response = await fetch(url);
+ const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
  const data = await response.json();
  console.log('네이버부동산 API 응답:', data);
  return data?.body || [];
@@ -15508,7 +15518,7 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  const fetchNaverArticleDetail = async (articleId) => {
  try {
  const url = `/.netlify/functions/naver-proxy?type=detail&articleId=${articleId}`;
- const response = await fetch(url);
+ const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
  const data = await response.json();
  return data?.result || null;
  } catch (e) {
@@ -16085,7 +16095,7 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  }
  let url = `/api/ncp-geo-proxy?type=directions&start=${start}&goal=${goal}&option=trafast`;
  if (waypoints) url += `&waypoints=${encodeURIComponent(waypoints)}`;
- const response = await fetch(url);
+ const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
  if (!response.ok) return null;
  const data = await response.json();
  if (data.code !== 0 || !data.route?.trafast?.[0]) return null;
@@ -22791,7 +22801,8 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
      const res = await fetch('/api/reset-password', {
        method: 'POST',
        headers: { 'Content-Type': 'application/json' },
-       body: JSON.stringify({ email: resetEmail, newPassword: '0000', adminKey: 'beancraft-admin-reset-2024' })
+       body: JSON.stringify({ email: resetEmail, newPassword: '0000', adminKey: 'beancraft-admin-reset-2024' }),
+       signal: AbortSignal.timeout(10000)
      });
      const result = await res.json();
      if (result.success) { alert(result.message); } else {
