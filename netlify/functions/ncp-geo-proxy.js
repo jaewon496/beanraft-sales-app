@@ -49,6 +49,19 @@ exports.handler = async (event) => {
         // waypoints는 "lng1,lat1|lng2,lat2" 형식 - 프론트에서 이미 encodeURIComponent 하므로 decode 후 전달
         targetUrl += `&waypoints=${decodeURIComponent(waypoints)}`;
       }
+    } else if (type === 'reverse') {
+      // Reverse Geocoding API (좌표 → 주소)
+      const coords = params.coords;
+      const output = params.output || 'json';
+      const orders = params.orders || 'legalcode';
+      if (!coords) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'coords 파라미터 필요 (lng,lat 형식)' })
+        };
+      }
+      targetUrl = `https://naveropenapi.apigw.ntruss.com/map-reversegeocode/v2/gc?coords=${coords}&output=${output}&orders=${orders}`;
     } else {
       // Geocoding API (기본)
       if (!query) {

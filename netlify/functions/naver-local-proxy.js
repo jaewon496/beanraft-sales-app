@@ -36,6 +36,7 @@ exports.handler = async (event) => {
   // [STEP F] type 파라미터: 'local' (기본) 또는 'blog'
   const searchType = event.queryStringParameters?.type || 'local';
   const display = event.queryStringParameters?.display || '5';
+  const start = event.queryStringParameters?.start || '1';
   const sort = event.queryStringParameters?.sort || (searchType === 'blog' ? 'sim' : 'random');
 
   try {
@@ -45,7 +46,7 @@ exports.handler = async (event) => {
       url = `https://openapi.naver.com/v1/search/blog.json?query=${encodeURIComponent(query)}&display=${display}&sort=${sort}`;
     } else {
       // 기존 로컬 검색 API
-      url = `https://openapi.naver.com/v1/search/local.json?query=${encodeURIComponent(query)}&display=${display}&sort=${sort}`;
+      url = `https://openapi.naver.com/v1/search/local.json?query=${encodeURIComponent(query)}&display=${display}&start=${start}&sort=${sort}`;
     }
 
     const response = await fetch(url, {

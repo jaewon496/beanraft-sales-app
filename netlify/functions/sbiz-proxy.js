@@ -163,33 +163,65 @@ exports.handler = async (event, context) => {
       // industryCode 또는 filterField가 있으면 전체 데이터를 서버에서 수집 후 필터링
       if (industryCode || filterField) {
         const allRows = [];
-        const batchLimit = Math.min(parseInt(maxBatch) || 22, 150); // LOCALDATA는 최대 150배치(15만건)
-        const fetchBatch = (si, ei) => new Promise((resolve, reject) => {
+        const batchLimit = Math.min(parseInt(maxBatch) || 22, 150);
+        const TIME_LIMIT_MS = 22000; // Netlify 26초 타임아웃 전에 반환 (4초 여유)
+        const PARALLEL_SIZE = 5; // 동시 요청 수
+
+        const fetchBatch = (si, ei) => new Promise((resolve) => {
           const batchUrl = `http://openapi.seoul.go.kr:8088/${seoulApiKey}/json/${svc}/${si}/${ei}${quarter}`;
-          http.get(batchUrl, { timeout: 15000 }, (res) => {
+          const req = http.get(batchUrl, { timeout: 10000 }, (res) => {
             let body = '';
             res.on('data', chunk => body += chunk);
             res.on('end', () => { try { resolve(JSON.parse(body)); } catch(e) { resolve(null); } });
-          }).on('error', () => resolve(null));
+          });
+          req.on('error', () => resolve(null));
+          req.on('timeout', () => { req.destroy(); resolve(null); });
         });
 
-        // 1000건씩 순차 수집
-        for (let si = 1; si <= batchLimit * 1000; si += 1000) {
-          try {
-            const batch = await fetchBatch(si, si + 999);
+        const filterRow = (row) => {
+          if (industryCode) return row.SVC_INDUTY_CD === industryCode;
+          if (filterField && filterValue) return (row[filterField] || '').includes(filterValue);
+          return true;
+        };
+
+        // 먼저 첫 배치로 전체 건수 확인
+        const firstBatch = await fetchBatch(1, 1000);
+        const totalCount = firstBatch?.[svc]?.list_total_count || 0;
+        const firstRows = firstBatch?.[svc]?.row || [];
+        if (firstRows.length > 0) {
+          allRows.push(...firstRows.filter(filterRow));
+        }
+
+        // 실제 필요한 배치 수 계산 (전체 건수 기반, batchLimit 제한)
+        const totalBatches = Math.min(Math.ceil(totalCount / 1000), batchLimit);
+        console.log(`[seoul-filter] ${svc}: total=${totalCount}, batches=${totalBatches}, parallel=${PARALLEL_SIZE}`);
+
+        // 나머지 배치를 병렬 그룹으로 수집 (시간 제한 적용)
+        let timedOut = false;
+        for (let groupStart = 1001; groupStart <= totalBatches * 1000; groupStart += PARALLEL_SIZE * 1000) {
+          if (Date.now() - startTime > TIME_LIMIT_MS) {
+            timedOut = true;
+            console.log(`[seoul-filter] 시간 제한 도달 (${Date.now() - startTime}ms), 수집 중단. 현재 ${allRows.length}건`);
+            break;
+          }
+
+          // 병렬 배치 생성
+          const batchPromises = [];
+          for (let i = 0; i < PARALLEL_SIZE; i++) {
+            const si = groupStart + i * 1000;
+            if (si > totalBatches * 1000) break;
+            batchPromises.push(fetchBatch(si, si + 999));
+          }
+
+          const results = await Promise.all(batchPromises);
+          let emptyCount = 0;
+          for (const batch of results) {
             const rows = batch?.[svc]?.row || [];
-            if (rows.length === 0) break;
-            let filtered;
-            if (industryCode) {
-              filtered = rows.filter(r => r.SVC_INDUTY_CD === industryCode);
-            } else if (filterField && filterValue) {
-              // 범용 필터: filterField 컬럼에 filterValue가 포함된 행만 수집
-              filtered = rows.filter(r => (r[filterField] || '').includes(filterValue));
-            } else {
-              filtered = rows;
-            }
-            allRows.push(...filtered);
-          } catch(e) { break; }
+            if (rows.length === 0) { emptyCount++; continue; }
+            allRows.push(...rows.filter(filterRow));
+          }
+          // 모든 배치가 비어있으면 더 이상 데이터 없음
+          if (emptyCount === results.length) break;
         }
 
         return {
@@ -197,7 +229,7 @@ exports.handler = async (event, context) => {
           headers: corsHeaders,
           body: JSON.stringify({
             success: true,
-            data: { filteredRows: allRows, totalFiltered: allRows.length, industryCode, filterField, filterValue, quarter: stdrYyquCd },
+            data: { filteredRows: allRows, totalFiltered: allRows.length, industryCode, filterField, filterValue, quarter: stdrYyquCd, partial: timedOut },
             elapsedMs: Date.now() - startTime
           })
         };
