@@ -1068,7 +1068,12 @@ async function fetchSeoulSalesByAdstrdCd(adstrdCodes, quarter) {
         dongSalesMap[code] = { totalSales: 0, storeCount: 0, rows: [] };
       }
 
-      const monthSales = Number(row.MDWK_SELNG_AMT || 0) + Number(row.WKEND_SELNG_AMT || 0);
+      // THSMON_SELNG_AMT = 당월매출금액(원), 가장 정확한 월별 매출
+      // fallback: MDWK_SELNG_AMT + WKEND_SELNG_AMT = 분기 전체 매출(원) → 3으로 나눠 월 환산
+      const thsmon = Number(row.THSMON_SELNG_AMT || 0);
+      const monthSales = thsmon > 0
+        ? thsmon
+        : (Number(row.MDWK_SELNG_AMT || 0) + Number(row.WKEND_SELNG_AMT || 0)) / 3;
       dongSalesMap[code].totalSales += monthSales;
       dongSalesMap[code].storeCount += Number(row.STOR_CO || 1);
       dongSalesMap[code].rows.push(row);
