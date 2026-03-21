@@ -10788,13 +10788,27 @@ JSON으로만 응답:
            return 0;
          })();
 
+         // OpenUB 건물별 매출 기반 동 평균 계산 (L1/L2 레이어 추정값 평균)
+         const openubDongAvg = (() => {
+           const estimates = collectedData.salesEstimates;
+           if (!Array.isArray(estimates)) return 0;
+           const openubEstimates = estimates
+             .filter(e => (e.layer === 'L1' || e.layer === 'L2') && e.estimated > 0)
+             .map(e => e.estimated);
+           if (openubEstimates.length === 0) return 0;
+           const avg = Math.round(openubEstimates.reduce((s, v) => s + v, 0) / openubEstimates.length);
+           console.log('[매출추정-반경] OpenUB 동 평균 계산: L1/L2 카페 ' + openubEstimates.length + '개, 평균 ' + avg + '만원');
+           return avg;
+         })();
+
          const radiusSalesResult = await calculateRadiusAvgSales({
            lat: coordinates.lat,
            lng: coordinates.lng,
            radius: userRadius,
            cafes: cafesWithDongCd,
            nearbyDongs: collectedData.dongInfo?.nearbyDongs || [],
-           dongAvgCafeSales: sbizDongAvg
+           dongAvgCafeSales: sbizDongAvg,
+           openubDongAvg
          });
 
          // 결과를 collectedData에 저장

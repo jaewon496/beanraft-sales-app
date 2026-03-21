@@ -1177,6 +1177,7 @@ function getSidoCorrectionFactor(dongCd) {
  * @param {Array} params.cafes - 반경 내 카페 목록 [{name, lat, lng, dongCd, ...}]
  * @param {Array} params.nearbyDongs - 인접 동 목록 [{dongCd, dongNm, ...}]
  * @param {number} [params.dongAvgCafeSales] - 소상공인365 동 평균 매출 (만원, fallback용)
+ * @param {number} [params.openubDongAvg] - OpenUB 건물별 매출 기반 동 평균 (만원, 가장 신뢰도 높음)
  * @returns {Promise<Object>} { avgSales, dongSalesMap, confidence, sources, details }
  */
 export async function calculateRadiusAvgSales({
@@ -1185,7 +1186,8 @@ export async function calculateRadiusAvgSales({
   radius = 500,
   cafes = [],
   nearbyDongs = [],
-  dongAvgCafeSales = 0
+  dongAvgCafeSales = 0,
+  openubDongAvg = 0
 }) {
   const result = {
     avgSales: 0,
@@ -1265,6 +1267,7 @@ export async function calculateRadiusAvgSales({
 
   // 사용 가능한 소스별 동 평균 후보 수집
   const referenceAvgs = [];
+  if (openubDongAvg > 0) referenceAvgs.push(openubDongAvg);
   if (hasFftcData && fftcAvgSales > 0) referenceAvgs.push(fftcAvgSales);
   if (dongAvgCafeSales > 0) referenceAvgs.push(dongAvgCafeSales);
   const referenceMedian = referenceAvgs.length > 0
@@ -1300,17 +1303,18 @@ export async function calculateRadiusAvgSales({
     }
 
     // 다중 소스 가중 블렌딩
-    // 가중치: 서울열린데이터 0.4, 공정위 0.3, 소상공인365 0.3
+    // 가중치: OpenUB 0.5 (건물별 실매출, 최고 신뢰도), 서울열린데이터 0.15, 공정위 0.15, 소상공인365 0.2
     const sources = [];
-    if (seoulAvg > 0) sources.push({ avg: seoulAvg, weight: 0.4, name: 'seoul_opendata' });
-    if (hasFftcData && fftcAvgSales > 0) sources.push({ avg: fftcAvgSales, weight: 0.3, name: 'fftc' });
+    if (openubDongAvg > 0) sources.push({ avg: openubDongAvg, weight: 0.5, name: 'openub' });
+    if (seoulAvg > 0) sources.push({ avg: seoulAvg, weight: 0.15, name: 'seoul_opendata' });
+    if (hasFftcData && fftcAvgSales > 0) sources.push({ avg: fftcAvgSales, weight: 0.15, name: 'fftc' });
     if (dongAvgCafeSales > 0) {
       let sbizAvg = dongAvgCafeSales;
       if (!isSeoul) {
         const correction = getSidoCorrectionFactor(adstrdCd);
         sbizAvg = Math.round(dongAvgCafeSales * correction);
       }
-      sources.push({ avg: sbizAvg, weight: 0.3, name: isSeoul ? 'sbiz' : 'sbiz_corrected' });
+      sources.push({ avg: sbizAvg, weight: 0.2, name: isSeoul ? 'sbiz' : 'sbiz_corrected' });
     }
 
     if (sources.length > 0) {
@@ -1318,6 +1322,7 @@ export async function calculateRadiusAvgSales({
       const totalWeight = sources.reduce((s, src) => s + src.weight, 0);
       dongAvg = Math.round(sources.reduce((s, src) => s + src.avg * (src.weight / totalWeight), 0));
       source = sources.map(s => s.name).join('+');
+      console.log('[매출추정-반경] 동 ' + adstrdCd + ' 블렌딩: ' + sources.map(s => s.name + '=' + s.avg + '만원(w' + (s.weight/totalWeight*100).toFixed(0) + '%)').join(', ') + ' -> ' + dongAvg + '만원');
     }
 
     if (dongAvg > 0) {
@@ -1342,7 +1347,10 @@ export async function calculateRadiusAvgSales({
     result.avgSales = dongAvgCafeSales;
   }
 
-  // 소상공인365 소스 추가
+  // 소스 목록 추가
+  if (openubDongAvg > 0 && !result.sources.includes('openub')) {
+    result.sources.push('openub');
+  }
   if (dongAvgCafeSales > 0 && !result.sources.includes('sbiz')) {
     result.sources.push('sbiz');
   }
@@ -1354,9 +1362,10 @@ export async function calculateRadiusAvgSales({
   let confidenceScore = 0;
 
   // 기본 점수: 소스별
-  if (hasSeoulData) confidenceScore += 0.3;
-  if (hasFftcData) confidenceScore += 0.2;
-  if (dongAvgCafeSales > 0) confidenceScore += 0.15;
+  if (openubDongAvg > 0) confidenceScore += 0.35;
+  if (hasSeoulData) confidenceScore += 0.15;
+  if (hasFftcData) confidenceScore += 0.15;
+  if (dongAvgCafeSales > 0) confidenceScore += 0.1;
 
   // 동 커버리지 보너스
   if (totalDongs > 0) {
