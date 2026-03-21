@@ -1068,21 +1068,30 @@ async function fetchSeoulSalesByAdstrdCd(adstrdCodes, quarter) {
         dongSalesMap[code] = { totalSales: 0, storeCount: 0, rows: [] };
       }
 
-      // THSMON_SELNG_AMT = 당월매출금액(원), 가장 정확한 월별 매출
+      // THSMON_SELNG_AMT = 당월매출금액(원) — 동 전체 업종 합계
       // fallback: MDWK_SELNG_AMT + WKEND_SELNG_AMT = 분기 전체 매출(원) → 3으로 나눠 월 환산
       const thsmon = Number(row.THSMON_SELNG_AMT || 0);
       const monthSales = thsmon > 0
         ? thsmon
         : (Number(row.MDWK_SELNG_AMT || 0) + Number(row.WKEND_SELNG_AMT || 0)) / 3;
       dongSalesMap[code].totalSales += monthSales;
-      dongSalesMap[code].storeCount += Number(row.STOR_CO || 1);
+      // STOR_CO가 VwsmAdstrdSelngW API에 없을 수 있음 → 0이면 추후 cafesByDong 카운트로 대체
+      const storCo = Number(row.STOR_CO || 0);
+      dongSalesMap[code].storeCount += storCo;
       dongSalesMap[code].rows.push(row);
     }
 
     // 평균 매출 계산 (만원 단위)
+    // storeCount=0이면 STOR_CO 필드가 API에 없었다는 뜻 → avgSales는 caller에서 cafesByDong으로 재계산
     for (const code of Object.keys(dongSalesMap)) {
       const d = dongSalesMap[code];
-      d.avgSales = d.storeCount > 0 ? Math.round(d.totalSales / d.storeCount / 10000) : 0;
+      if (d.storeCount > 0) {
+        d.avgSales = Math.round(d.totalSales / d.storeCount / 10000);
+      } else {
+        // storeCount 미제공 → totalSales(원)만 보존, avgSales는 0으로 두고 caller에서 처리
+        d.avgSales = 0;
+        console.warn(`[매출추정] 서울 열린데이터 STOR_CO 없음 (${code}): totalSales=${Math.round(d.totalSales/10000)}만원, rows=${d.rows.length}개`);
+      }
     }
 
     return dongSalesMap;
@@ -1258,7 +1267,15 @@ export async function calculateRadiusAvgSales({
 
     // L1: 서울 열린데이터 우선
     if (hasSeoulData && seoulSalesMap[adstrdCd]) {
-      dongAvg = seoulSalesMap[adstrdCd].avgSales;
+      const seoulEntry = seoulSalesMap[adstrdCd];
+      if (seoulEntry.avgSales > 0) {
+        // STOR_CO가 있어서 API 측에서 이미 per-store 평균 계산됨
+        dongAvg = seoulEntry.avgSales;
+      } else if (seoulEntry.totalSales > 0 && cafeCount > 0) {
+        // STOR_CO 없음 → 수집된 카페 수로 나누어 per-cafe 평균 산출
+        dongAvg = Math.round(seoulEntry.totalSales / cafeCount / 10000);
+        console.log(`[매출추정-반경] 서울 열린데이터 per-cafe 재계산: totalSales=${Math.round(seoulEntry.totalSales/10000)}만원 / ${cafeCount}개 = ${dongAvg}만원`);
+      }
       source = 'seoul_opendata';
     }
     // L2: 공정위 지역별 매출
