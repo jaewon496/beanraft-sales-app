@@ -24,6 +24,321 @@
 [functions."reset-password"]
   timeout = 26
 
+[functions."create-account"]
+  timeout = 26
+
+# Static assets: 302 redirect (browser fetches directly from origin, reduces proxy load)
+[[redirects]]
+  from = "/site/_resource/*"
+  to = "https://www.beancraft.co.kr/_resource/:splat"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/_script/*"
+  to = "https://www.beancraft.co.kr/_script/:splat"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/_style/*"
+  to = "https://www.beancraft.co.kr/_style/:splat"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/_file/*"
+  to = "https://www.beancraft.co.kr/_file/:splat"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/_img/*"
+  to = "https://www.beancraft.co.kr/_img/:splat"
+  status = 302
+  force = true
+
+# Additional static asset paths: 302 redirect to reduce proxy load (429 prevention)
+# CreatorLink / general Korean website resource patterns
+[[redirects]]
+  from = "/site/common/*"
+  to = "https://www.beancraft.co.kr/common/:splat"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/assets/*"
+  to = "https://www.beancraft.co.kr/assets/:splat"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/upload/*"
+  to = "https://www.beancraft.co.kr/upload/:splat"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/uploads/*"
+  to = "https://www.beancraft.co.kr/uploads/:splat"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/board/*"
+  to = "https://www.beancraft.co.kr/board/:splat"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/images/*"
+  to = "https://www.beancraft.co.kr/images/:splat"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/css/*"
+  to = "https://www.beancraft.co.kr/css/:splat"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/js/*"
+  to = "https://www.beancraft.co.kr/js/:splat"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/fonts/*"
+  to = "https://www.beancraft.co.kr/fonts/:splat"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/static/*"
+  to = "https://www.beancraft.co.kr/static/:splat"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/lib/*"
+  to = "https://www.beancraft.co.kr/lib/:splat"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/include/*"
+  to = "https://www.beancraft.co.kr/include/:splat"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/plugin/*"
+  to = "https://www.beancraft.co.kr/plugin/:splat"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/vendor/*"
+  to = "https://www.beancraft.co.kr/vendor/:splat"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/wp-content/*"
+  to = "https://www.beancraft.co.kr/wp-content/:splat"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/wp-includes/*"
+  to = "https://www.beancraft.co.kr/wp-includes/:splat"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/theme/*"
+  to = "https://www.beancraft.co.kr/theme/:splat"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/skin/*"
+  to = "https://www.beancraft.co.kr/skin/:splat"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/data/*"
+  to = "https://www.beancraft.co.kr/data/:splat"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/api/*"
+  to = "https://www.beancraft.co.kr/api/:splat"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/member/*"
+  to = "https://www.beancraft.co.kr/member/:splat"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/config/*"
+  to = "https://www.beancraft.co.kr/config/:splat"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/_data/*"
+  to = "https://www.beancraft.co.kr/_data/:splat"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/_upload/*"
+  to = "https://www.beancraft.co.kr/_upload/:splat"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/_config/*"
+  to = "https://www.beancraft.co.kr/_config/:splat"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/_common/*"
+  to = "https://www.beancraft.co.kr/_common/:splat"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/_lib/*"
+  to = "https://www.beancraft.co.kr/_lib/:splat"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/_plugin/*"
+  to = "https://www.beancraft.co.kr/_plugin/:splat"
+  status = 302
+  force = true
+
+# File extension catch-all: common static file types via 302 redirect
+# These match specific file extensions within /site/ that should never need proxy
+[[redirects]]
+  from = "/site/*.css"
+  to = "https://www.beancraft.co.kr/:splat.css"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/*.js"
+  to = "https://www.beancraft.co.kr/:splat.js"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/*.png"
+  to = "https://www.beancraft.co.kr/:splat.png"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/*.jpg"
+  to = "https://www.beancraft.co.kr/:splat.jpg"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/*.jpeg"
+  to = "https://www.beancraft.co.kr/:splat.jpeg"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/*.gif"
+  to = "https://www.beancraft.co.kr/:splat.gif"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/*.svg"
+  to = "https://www.beancraft.co.kr/:splat.svg"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/*.ico"
+  to = "https://www.beancraft.co.kr/:splat.ico"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/*.woff"
+  to = "https://www.beancraft.co.kr/:splat.woff"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/*.woff2"
+  to = "https://www.beancraft.co.kr/:splat.woff2"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/*.ttf"
+  to = "https://www.beancraft.co.kr/:splat.ttf"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/*.eot"
+  to = "https://www.beancraft.co.kr/:splat.eot"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/*.mp4"
+  to = "https://www.beancraft.co.kr/:splat.mp4"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/*.webp"
+  to = "https://www.beancraft.co.kr/:splat.webp"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/*.map"
+  to = "https://www.beancraft.co.kr/:splat.map"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/*.json"
+  to = "https://www.beancraft.co.kr/:splat.json"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/*.xml"
+  to = "https://www.beancraft.co.kr/:splat.xml"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/site/*.pdf"
+  to = "https://www.beancraft.co.kr/:splat.pdf"
+  status = 302
+  force = true
+
+# HTML pages: 200 proxy (same-origin for CSS injection) - MUST be LAST /site/* rule
 [[redirects]]
   from = "/site/*"
   to = "https://www.beancraft.co.kr/:splat"
@@ -33,36 +348,66 @@
 [[redirects]]
   from = "/css/*"
   to = "https://www.beancraft.co.kr/css/:splat"
-  status = 200
+  status = 302
   force = true
 
 [[redirects]]
   from = "/js/*"
   to = "https://www.beancraft.co.kr/js/:splat"
-  status = 200
+  status = 302
   force = true
 
 [[redirects]]
   from = "/fonts/*"
   to = "https://www.beancraft.co.kr/fonts/:splat"
-  status = 200
+  status = 302
   force = true
 
 [[redirects]]
   from = "/images/*"
   to = "https://www.beancraft.co.kr/images/:splat"
-  status = 200
+  status = 302
   force = true
 
 [[redirects]]
   from = "/uploads/*"
   to = "https://www.beancraft.co.kr/uploads/:splat"
-  status = 200
+  status = 302
   force = true
 
 [[redirects]]
   from = "/data/*"
   to = "https://www.beancraft.co.kr/data/:splat"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "/umember/*"
+  to = "https://www.beancraft.co.kr/umember/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/uevent/*"
+  to = "https://www.beancraft.co.kr/uevent/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/uboard/*"
+  to = "https://www.beancraft.co.kr/uboard/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/uproduct/*"
+  to = "https://www.beancraft.co.kr/uproduct/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/ushop/*"
+  to = "https://www.beancraft.co.kr/ushop/:splat"
   status = 200
   force = true
 
@@ -91,3 +436,32 @@
   [headers.values]
     Content-Type = "application/manifest+json"
     Cache-Control = "no-cache"
+
+# Edge Function: browser cache for /site/* to reduce proxy requests (429 prevention)
+[[edge_functions]]
+  function = "site-cache"
+  path = "/site/*"
+
+# Edge Function: rewrite Set-Cookie headers from beancraft.co.kr proxy
+# Removes domain= attribute so cookies work on beancraft-sales.netlify.app
+[[edge_functions]]
+  function = "cookie-rewrite"
+  path = "/umember/*"
+
+[[edge_functions]]
+  function = "cookie-rewrite"
+  path = "/uevent/*"
+
+[[edge_functions]]
+  function = "cookie-rewrite"
+  path = "/uboard/*"
+
+[[edge_functions]]
+  function = "cookie-rewrite"
+  path = "/uproduct/*"
+
+[[edge_functions]]
+  function = "cookie-rewrite"
+  path = "/ushop/*"
+
+

@@ -17,7 +17,7 @@ import {
   AISection
 } from './components/broker-intro';
 import { latLngToS2Tokens } from './lib/s2geometry';
-import { estimateAllCafeSales } from './lib/salesEstimation';
+import { estimateAllCafeSales, calculateRadiusAvgSales, separateBufferZoneCafes } from './lib/salesEstimation';
 
 // ═══════════════════════════════════════════════════════════════
 // 앱 버전 관리 - 캐시 무효화용
@@ -36,6 +36,12 @@ const DEBUG_STEP_E_ONLY = false;
 // 나머지 모든 API/AI 분석 스킵 (배포 전 false로)
 // ═══════════════════════════════════════════════════════════════
 const DEBUG_CAFE_SALES_ONLY = false;
+// ═══════════════════════════════════════════════════════════════
+// 빠른 테스트 모드: true이면 좌표 변환 + 카페 수집만 실행
+// GIS API, 매출 API, AI 분석 등 전부 스킵 → 매장수 카드/지도만 테스트
+// 배포 전 반드시 false로 변경할 것
+// ═══════════════════════════════════════════════════════════════
+const FAST_TEST_MODE = false;
 
 // 앱 시작 시 버전 출력 및 캐시 체크
 (() => {
@@ -69,6 +75,30 @@ const safeJsonParse = (jsonString, fallback = null) => {
     console.warn('JSON 파싱 실패:', e.message);
     return fallback;
   }
+};
+
+// 금액 입력 콤마 포맷 유틸리티
+const formatNumberWithComma = (value) => {
+  if (!value && value !== 0) return '';
+  const numStr = String(value).replace(/[^0-9]/g, '');
+  if (!numStr) return '';
+  return Number(numStr).toLocaleString('ko-KR');
+};
+const parseCommaNumber = (value) => {
+  if (!value) return '';
+  return String(value).replace(/[^0-9]/g, '');
+};
+// 숫자를 콤마 포함 문자열로 변환 (Firebase 저장용)
+const toCommaString = (value) => {
+  const num = typeof value === 'string' ? Number(String(value).replace(/[^0-9]/g, '')) : Number(value);
+  if (isNaN(num) || num === 0) return '0';
+  return num.toLocaleString('ko-KR');
+};
+// 콤마 포함 문자열 또는 숫자를 안전하게 숫자로 변환 (계산용)
+const safeNum = (value) => {
+  if (typeof value === 'number') return value;
+  if (!value) return 0;
+  return Number(String(value).replace(/[^0-9]/g, '')) || 0;
 };
 
 // JSON 키/형식 텍스트 정리 (AI 응답에서 JSON 형태가 그대로 보이는 문제 해결)
@@ -645,7 +675,15 @@ const formatManwonRange = (min, max, suffix = '만원/월') => {
 // 토스 스타일 분석 결과 컴포넌트
 const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }) => {
   if (!result?.success || !result.data) return null;
-  
+
+  const [showCafeMap, setShowCafeMap] = useState(false);
+  const [cafeMapRadius, setCafeMapRadius] = useState(500);
+  const cafeMapRef = useRef(null);
+  const cafeMapMarkersRef = useRef([]);
+  const cafeMapInfoWindowRef = useRef(null);
+  const cafeMapCircleRef = useRef(null);
+  const cafeMapAnimFrameRef = useRef(null);
+
   // ★ React Error #31 완전 방지: 모든 JSX 렌더링용 안전 변환
   const S = (v) => {
     if (v === null || v === undefined) return '';
@@ -765,6 +803,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
   };
   
   // IntersectionObserver 각 섹션
+  const resultsContainerRef = useRef(null);
   const [r1, v1] = useInViewToss();
   const [r2, v2] = useInViewToss();
   const [r3, v3] = useInViewToss();
@@ -774,6 +813,17 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
   const [r6, v6] = useInViewToss();
   const [r7, v7] = useInViewToss();
   const [r8, v8] = useInViewToss();
+
+  // 결과 렌더 시 데이터 섹션(상권 분석 리포트)으로 자동 스크롤
+  // 브루 인사(안녕하세요 사장님) 섹션을 지나 실제 데이터가 보이도록
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (r1.current && resultsContainerRef.current) {
+        r1.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, []);
   
   // 숫자 추출 함수
   const extractNum = (val) => {
@@ -913,20 +963,35 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
     ? salesAvgData.find(s => s.tpbizClscdNm === '카페')
     : null;
   
-  // 인접 동 합산 매출 (메인 동 매출이 null일 때 폴백)
-  let _nearbyAvgSales = 0;
+  // 인접 동 가중평균 매출 (메인 동 0.6 + 인접동1 0.2 + 인접동2 0.1 + 인접동3 0.1)
+  let _weightedAvgSales = 0;
   const _nsd = cd?.apis?.nearbySales?.data || [];
-  if ((!cafeAvgSales?.mmavgSlsAmt) && _nsd.length > 0) {
-    let _sum = 0, _cnt = 0;
-    _nsd.forEach(nd => {
-      if (Array.isArray(nd.sales)) {
-        const c = nd.sales.find(s => s.tpbizClscdNm === '카페');
-        if (c?.mmavgSlsAmt) { _sum += c.mmavgSlsAmt; _cnt++; }
-      }
+  const _mainSales = cafeAvgSales?.mmavgSlsAmt || 0;
+  const _nearbyWeights = [0.2, 0.1, 0.1]; // 인접동 1~3 가중치
+  const _nearbySalesArr = [];
+  _nsd.forEach(nd => {
+    if (Array.isArray(nd.sales)) {
+      const c = nd.sales.find(s => s.tpbizClscdNm === '카페');
+      if (c?.mmavgSlsAmt) _nearbySalesArr.push(c.mmavgSlsAmt);
+    }
+  });
+  if (_mainSales > 0 && _nearbySalesArr.length > 0) {
+    // 메인 동 + 인접 동 가중평균
+    let _wSum = _mainSales * 0.6;
+    let _wTotal = 0.6;
+    _nearbySalesArr.slice(0, 3).forEach((s, i) => {
+      _wSum += s * _nearbyWeights[i];
+      _wTotal += _nearbyWeights[i];
     });
-    if (_cnt > 0) _nearbyAvgSales = Math.round(_sum / _cnt);
+    _weightedAvgSales = Math.round(_wSum / _wTotal);
+  } else if (_mainSales > 0) {
+    // 메인 동만 있으면 100% 사용
+    _weightedAvgSales = _mainSales;
+  } else if (_nearbySalesArr.length > 0) {
+    // 메인 동 없으면 인접 동 단순 평균 (폴백)
+    _weightedAvgSales = Math.round(_nearbySalesArr.reduce((a, b) => a + b, 0) / _nearbySalesArr.length);
   }
-  const avgMonthlySales = cafeAvgSales?.mmavgSlsAmt || _nearbyAvgSales || extractNum(d.overview?.avgMonthlySales) || 0;
+  const avgMonthlySales = _weightedAvgSales || extractNum(d.overview?.avgMonthlySales) || 0;
   
   // 월평균 매출 - 카페 관련 업종만 필터
   const cafeRelatedCodes = ['I21201','I21001','I21002','I21003','I213','Q12'];
@@ -1011,9 +1076,159 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
   const secTitle = { fontSize: 34, fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1.25, color: t1, marginBottom: 10 };
   const secLabel = { fontSize: 13, fontWeight: 600, color: t2, marginBottom: 10, letterSpacing: '0.02em', textTransform: 'none' };
   const secSub = { fontSize: 15.5, color: t2, marginBottom: 36, lineHeight: 1.6, letterSpacing: '-0.01em' };
-  
+
+  // ── 카페 지도: 반경 변경 시 원 애니메이션 + 마커 표시/숨김 ──
+  const animateCircleRadius = useCallback((fromR, toR) => {
+    if (cafeMapAnimFrameRef.current) cancelAnimationFrame(cafeMapAnimFrameRef.current);
+    const circle = cafeMapCircleRef.current;
+    if (!circle) return;
+    const duration = 300;
+    const startTime = performance.now();
+    const easeOut = t => 1 - Math.pow(1 - t, 3);
+    const step = (now) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const easedProgress = easeOut(progress);
+      const currentR = fromR + (toR - fromR) * easedProgress;
+      try { circle.setRadius(currentR); } catch (e) { cafeMapAnimFrameRef.current = null; return; }
+      if (progress < 1) {
+        cafeMapAnimFrameRef.current = requestAnimationFrame(step);
+      } else {
+        cafeMapAnimFrameRef.current = null;
+      }
+    };
+    cafeMapAnimFrameRef.current = requestAnimationFrame(step);
+  }, []);
+
+  const updateMarkerVisibility = useCallback((radius) => {
+    cafeMapMarkersRef.current.forEach(item => {
+      if (!item.dist || !item.marker) return; // skip center marker (no dist) or null marker
+      try {
+        const shouldShow = item.dist <= radius;
+        const el = item.marker.getElement ? item.marker.getElement() : null;
+        if (el) {
+          if (!el.style.transition) el.style.transition = 'opacity 0.3s ease';
+          el.style.opacity = shouldShow ? '1' : '0';
+          el.style.pointerEvents = shouldShow ? 'auto' : 'none';
+        } else if (item.marker.setVisible) {
+          item.marker.setVisible(shouldShow);
+        }
+      } catch (e) { /* marker may be destroyed */ }
+    });
+  }, []);
+
+  const handleCafeMapRadiusChange = useCallback((newRadius) => {
+    const prevRadius = cafeMapCircleRef.current ? cafeMapCircleRef.current.getRadius() : 500;
+    setCafeMapRadius(newRadius);
+    animateCircleRadius(prevRadius, newRadius);
+    updateMarkerVisibility(newRadius);
+  }, [animateCircleRadius, updateMarkerVisibility]);
+
+  // ── 카페 지도 모달: 네이버 지도 렌더링 ──
+  useEffect(() => {
+    if (!showCafeMap || !d.coordinates || !window.naver?.maps) return;
+    setCafeMapRadius(500);
+    const timer = setTimeout(() => {
+      try {
+      const container = document.getElementById('cafe-map-container');
+      if (!container) return;
+      const center = new window.naver.maps.LatLng(d.coordinates.lat, d.coordinates.lng);
+      const map = new window.naver.maps.Map('cafe-map-container', {
+        center,
+        zoom: 15,
+        zoomControl: true,
+        zoomControlOptions: { position: window.naver.maps.Position.TOP_RIGHT }
+      });
+      if (!map) { console.warn('[CafeMap] Map creation returned null'); return; }
+      cafeMapRef.current = map;
+      // 반경 원
+      const circle = new window.naver.maps.Circle({
+        map,
+        center,
+        radius: 500,
+        strokeColor: '#2196F3',
+        strokeWeight: 2,
+        fillColor: '#2196F3',
+        fillOpacity: 0.08
+      });
+      cafeMapCircleRef.current = circle;
+      // 중심 마커 (빨간색)
+      const centerMarker = new window.naver.maps.Marker({
+        map,
+        position: center,
+        icon: {
+          content: '<div style="width:14px;height:14px;background:#F04452;border:2px solid #fff;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.3);"></div>',
+          anchor: new window.naver.maps.Point(7, 7)
+        },
+        zIndex: 100
+      });
+      cafeMapMarkersRef.current.push({ marker: centerMarker, dist: null });
+      const infoWindow = new window.naver.maps.InfoWindow({ content: '', borderWidth: 0, backgroundColor: 'transparent', disableAnchor: true, pixelOffset: new window.naver.maps.Point(0, -8) });
+      cafeMapInfoWindowRef.current = infoWindow;
+      const makeInfoContent = (name, addr, dist) => {
+        return '<div style="padding:8px 12px;background:#fff;border-radius:10px;box-shadow:0 2px 12px rgba(0,0,0,0.15);font-family:Pretendard,sans-serif;min-width:140px;">'
+          + '<p style="font-size:13px;font-weight:700;color:#191F28;margin:0 0 4px;">' + (name || '') + '</p>'
+          + '<p style="font-size:11px;color:#6B7684;margin:0;">' + (addr || '') + '</p>'
+          + (dist != null ? '<p style="font-size:11px;color:#3182F6;margin:2px 0 0;font-weight:600;">' + dist + 'm</p>' : '')
+          + '</div>';
+      };
+      // 프랜차이즈 마커 (파란색)
+      const fList = cd?.nearbyFranchiseList || [];
+      fList.forEach(cafe => {
+        if (!cafe.lat || !cafe.lng) return;
+        const pos = new window.naver.maps.LatLng(parseFloat(cafe.lat), parseFloat(cafe.lng));
+        const marker = new window.naver.maps.Marker({
+          map,
+          position: pos,
+          icon: {
+            content: '<div style="width:24px;height:24px;background:#3182F6;border:2px solid #fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;box-shadow:0 2px 6px rgba(0,0,0,0.2);">F</div>',
+            anchor: new window.naver.maps.Point(12, 12)
+          }
+        });
+        window.naver.maps.Event.addListener(marker, 'click', () => {
+          infoWindow.setContent(makeInfoContent(cafe.name, cafe.addr, cafe.dist));
+          infoWindow.open(map, marker);
+        });
+        const cafeDist = typeof cafe.dist === 'number' ? cafe.dist : parseFloat(cafe.dist) || 999;
+        cafeMapMarkersRef.current.push({ marker, dist: cafeDist });
+      });
+      // 개인카페 마커 (초록색)
+      const iList = cd?.nearbyIndependentList || [];
+      iList.forEach(cafe => {
+        if (!cafe.lat || !cafe.lng) return;
+        const pos = new window.naver.maps.LatLng(parseFloat(cafe.lat), parseFloat(cafe.lng));
+        const marker = new window.naver.maps.Marker({
+          map,
+          position: pos,
+          icon: {
+            content: '<div style="width:24px;height:24px;background:#03B26C;border:2px solid #fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;box-shadow:0 2px 6px rgba(0,0,0,0.2);">C</div>',
+            anchor: new window.naver.maps.Point(12, 12)
+          }
+        });
+        window.naver.maps.Event.addListener(marker, 'click', () => {
+          infoWindow.setContent(makeInfoContent(cafe.name, cafe.addr, cafe.dist));
+          infoWindow.open(map, marker);
+        });
+        const cafeDist = typeof cafe.dist === 'number' ? cafe.dist : parseFloat(cafe.dist) || 999;
+        cafeMapMarkersRef.current.push({ marker, dist: cafeDist });
+      });
+      } catch (e) { console.warn('[CafeMap] Map initialization failed:', e.message); }
+    }, 100);
+    return () => {
+      clearTimeout(timer);
+      try {
+        if (cafeMapAnimFrameRef.current) { cancelAnimationFrame(cafeMapAnimFrameRef.current); cafeMapAnimFrameRef.current = null; }
+        if (cafeMapInfoWindowRef.current) { try { cafeMapInfoWindowRef.current.close(); } catch (e) { /* already destroyed */ } cafeMapInfoWindowRef.current = null; }
+        cafeMapMarkersRef.current.forEach(item => { try { const m = item?.marker || item; if (m && typeof m.setMap === 'function') m.setMap(null); } catch (e) { /* marker may be null or destroyed */ } });
+        cafeMapMarkersRef.current = [];
+        if (cafeMapCircleRef.current) { try { cafeMapCircleRef.current.setMap(null); } catch (e) { /* already destroyed */ } cafeMapCircleRef.current = null; }
+        if (cafeMapRef.current) { try { cafeMapRef.current.destroy(); } catch (e) { /* already destroyed */ } cafeMapRef.current = null; }
+      } catch (e) { console.warn('[CafeMap] Cleanup error:', e.message); }
+    };
+  }, [showCafeMap, d.coordinates, cd?.nearbyFranchiseList, cd?.nearbyIndependentList]);
+
   return (
-    <div style={{
+    <div ref={resultsContainerRef} style={{
       background: bg,
       fontFamily: '"Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", sans-serif',
       color: t1,
@@ -1025,6 +1240,57 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
       WebkitFontSmoothing: 'antialiased',
       MozOsxFontSmoothing: 'grayscale',
     }}>
+      {/* ── 카페 지도 모달 ── */}
+      {showCafeMap && d.coordinates && (
+        <div className="cafe-map-modal-overlay" onClick={() => setShowCafeMap(false)}>
+          <div className="cafe-map-modal" onClick={e => e.stopPropagation()}>
+            <div className="cafe-map-header">
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: t1, margin: 0 }}>반경 {cafeMapRadius}m 카페 현황</h3>
+              <button
+                onClick={() => setShowCafeMap(false)}
+                style={{ background: 'none', border: 'none', fontSize: 20, color: t2, cursor: 'pointer', padding: '4px 8px', lineHeight: 1 }}
+              >X</button>
+            </div>
+            <div className="cafe-map-range-slider">
+              <label className="cafe-map-range-label">
+                <span>반경</span>
+                <strong>{cafeMapRadius}m</strong>
+              </label>
+              <input
+                type="range"
+                className="cafe-map-range-input"
+                min={100}
+                max={500}
+                step={50}
+                value={cafeMapRadius}
+                onChange={e => handleCafeMapRadiusChange(Number(e.target.value))}
+              />
+              <div className="cafe-map-range-ticks">
+                <span>100m</span>
+                <span>300m</span>
+                <span>500m</span>
+              </div>
+            </div>
+            <div className="cafe-map-body">
+              <div id="cafe-map-container" style={{ width: '100%', height: '100%' }} />
+            </div>
+            <div className="cafe-map-legend">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ width: 12, height: 12, background: '#F04452', borderRadius: '50%', border: '1px solid #ddd' }} />
+                <span style={{ color: t2 }}>검색 위치</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ width: 12, height: 12, background: '#3182F6', borderRadius: '50%', border: '1px solid #ddd' }} />
+                <span style={{ color: t2 }}>프랜차이즈</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ width: 12, height: 12, background: '#03B26C', borderRadius: '50%', border: '1px solid #ddd' }} />
+                <span style={{ color: t2 }}>개인카페</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {/* ━━━ 0. 브루 인사 (1문단: 꽉 채운 카드) ━━━ */}
       <div style={{ ...sec, minHeight: '70vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
         {/* 배경 블롭 - 토스식 분위기 조명 */}
@@ -1106,6 +1372,24 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             </FadeUpToss>
           ))}
         </div>
+        {/* ── 지도로 보기 버튼 ── */}
+        {d.coordinates && cd?.nearbyTotalCafes > 0 && (
+          <FadeUpToss inView={v1} delay={0.48}>
+            <button
+              onClick={() => setShowCafeMap(true)}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                width: '100%', marginTop: 20, fontSize: 14, fontWeight: 600, color: blue,
+                background: `${blue}12`, border: 'none', borderRadius: 12, padding: '12px 16px',
+                cursor: 'pointer', whiteSpace: 'nowrap', transition: 'background 0.2s'
+              }}
+              onMouseEnter={e => e.target.style.background = `${blue}22`}
+              onMouseLeave={e => e.target.style.background = `${blue}12`}
+            >
+              지도로 보기
+            </button>
+          </FadeUpToss>
+        )}
         {/* ── Card 1 강화: 개업률/폐업률 + 간편분석 ── */}
         {cd?.apis?.seoulStorQq?.data && (() => {
           const sq = cd.apis.seoulStorQq.data;
@@ -1344,12 +1628,14 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             <p className="gradient-text" style={{ ...secLabel, color: undefined }}>프랜차이즈 현황</p>
             <h2 style={secTitle}>카페 경쟁 분석</h2>
             {cd?.nearbyTotalCafes > 0 && (
-              <p style={{ fontSize: 13, color: t3, marginTop: 4 }}>
-                반경 500m · 카페 {cd.nearbyTotalCafes}개 (프랜차이즈 {cd.nearbyTotalCafes - (cd.nearbyIndependentCafes || 0)}개 · 개인 {cd.nearbyIndependentCafes || 0}개)
-                {cd.suspectedClosedCount > 0 && (
-                  <span style={{ fontSize: 12, color: '#999' }}> (폐업 의심 {cd.suspectedClosedCount}개 포함)</span>
-                )}
-              </p>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4, flexWrap: 'wrap', gap: 8 }}>
+                <p style={{ fontSize: 13, color: t3, margin: 0 }}>
+                  반경 500m · 카페 {cd.nearbyTotalCafes}개 (프랜차이즈 {cd.nearbyTotalCafes - (cd.nearbyIndependentCafes || 0)}개 · 개인 {cd.nearbyIndependentCafes || 0}개)
+                  {cd.suspectedClosedCount > 0 && (
+                    <span style={{ fontSize: 12, color: '#999' }}> (폐업 의심 {cd.suspectedClosedCount}개 포함)</span>
+                  )}
+                </p>
+              </div>
             )}
           </FadeUpToss>
           <FadeUpToss inView={v3} delay={0.15}>
@@ -1418,12 +1704,13 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
                     const estimates = cd?.salesEstimates || [];
                     const est = estimates.find(e => e.brand === fName || (e.brand && fName.includes(e.brand.replace(/커피|카페/g, ''))) || (e.brand && e.brand.includes(fName.replace(/커피|카페/g, ''))));
                     if (!est || !est.estimated) return null;
-                    const layerLabel = { L1: '건물 매출', L2: '건물 분배', L3: '브랜드 추정', L4: '경쟁 분석' };
+                    const layerLabel = { L1: '건물 매출', L2: '건물 분배', L3: '추정 분석', L4: '경쟁 분석' };
+                    const displayLabel = est.methodLabel || layerLabel[est.layer] || est.layer;
                     return (
                       <p style={{ fontSize: 12, color: green, marginLeft: 26, marginBottom: 2, fontWeight: 500 }}>
                         추정 매출: {formatManwonRange(est.salesMin || est.estimated, est.salesMax || est.estimated)}
                         <span style={{ fontSize: 11, color: t3, fontWeight: 400, marginLeft: 6 }}>
-                          ({layerLabel[est.layer] || est.layer}, ±{Math.round((est.salesRange || 0) * 100)}%)
+                          ({displayLabel}, ±{Math.round((est.salesRange || 0) * 100)}%)
                         </span>
                       </p>
                     );
@@ -1547,7 +1834,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
                     <p style={{ fontSize: 12, color: green, marginLeft: 22, marginTop: 2, fontWeight: 500 }}>
                       추정 매출: {formatManwonRange(est.salesMin || est.estimated, est.salesMax || est.estimated)}
                       <span style={{ fontSize: 11, color: t3, fontWeight: 400, marginLeft: 6 }}>
-                        ({est.layer === 'L1' ? '건물 매출' : est.layer === 'L2' ? '건물 분배' : est.layer === 'L3' ? '브랜드 추정' : '경쟁 분석'}, ±{Math.round((est.salesRange || 0) * 100)}%)
+                        ({est.methodLabel || (est.layer === 'L1' ? '건물 매출' : est.layer === 'L2' ? '건물 분배' : est.layer === 'L3' ? '추정 분석' : '경쟁 분석')}, ±{Math.round((est.salesRange || 0) * 100)}%)
                       </span>
                     </p>
                   )}
@@ -2947,7 +3234,7 @@ const COMPANY_QUOTES = [
  '포천시': '4165000000', '하남시': '4145000000', '화성시': '4159000000'
  }}
  };
- const REACTION_COLORS = { negative: { bg: '#9ca3af', label: '부정' }, neutral: { bg: '#f97316', label: '양호' }, positive: { bg: '#22c55e', label: '긍정' }, special: { bg: '#ef4444', label: '특별', blink: true }, missed: { bg: '#eab308', label: '누락' } };
+ const REACTION_COLORS = { negative: { bg: '#6B7280', label: '부정' }, neutral: { bg: '#F59E0B', label: '양호' }, positive: { bg: '#10B981', label: '긍정' }, special: { bg: '#EF4444', label: '특별', blink: true }, missed: { bg: '#F472B6', label: '누락' } };
  const getKoreanToday = () => {
  return new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
  };
@@ -3581,7 +3868,7 @@ const FRANCHISE_DATA = {
     총비용: '약 6,679만원 (10평 기준, 임대료/권리금 별도)',
     아메리카노: 2000, 로열티월: null, 광고비월: null, 
     매장수: 3038, // 2024년 기준
-    연평균매출: 28600, // 만원, 2022년 기준
+    연평균매출: 28596, // 만원, 2024 공정위 공시 기준 (약 2,383만원/월)
     폐업률: 0.52, // %, 2023년 기준
     카테고리: '저가',
     이슈: [
@@ -3599,7 +3886,7 @@ const FRANCHISE_DATA = {
     총비용: '약 1억 429만원 (10평 기준, 임대료/권리금 별도)',
     아메리카노: 1500, 로열티월: null, 광고비월: null,
     매장수: 2500, // 2024년 기준
-    연평균매출: null, // 미확인
+    연평균매출: 21600, // 만원, 2024 공정위 공시 기준 (약 1,800만원/월)
     폐업률: 0.63, // %, 2023년 기준
     평균영업기간: '1년 6개월', // 저가 커피 중 가장 짧음
     카테고리: '저가',
@@ -3618,7 +3905,7 @@ const FRANCHISE_DATA = {
     총비용: '약 7,987만원 (10평 기준, 임대료/권리금 별도)',
     아메리카노: 2000, 로열티월: null, 광고비월: null,
     매장수: 1514, // 2024년 3월 기준
-    연평균매출: 29000, // 만원, 2022년 기준 (최고)
+    연평균매출: 29004, // 만원, 2024 공정위 공시 기준 (약 2,417만원/월)
     폐업률: 1.38, // %, 2023년 기준
     카테고리: '저가',
     이슈: [
@@ -3636,7 +3923,7 @@ const FRANCHISE_DATA = {
     총비용: '약 7,975만원 (10평 기준, 임대료/권리금 별도)',
     아메리카노: 1500, 로열티월: null, 광고비월: null,
     매장수: 1360, // 2024년 기준
-    연평균매출: null,
+    연평균매출: 24000, // 만원, 2024 공정위 공시 기준 (약 2,000만원/월)
     폐업률: null,
     카테고리: '저가',
     이슈: [
@@ -3646,7 +3933,7 @@ const FRANCHISE_DATA = {
     ],
     검증일자: '2025-01'
   },
-  
+
   '매머드커피': { 
     // 출처: 뉴스 종합
     가맹비: null, 교육비: null, 보증금: null, 기타비용: null,
@@ -3654,7 +3941,7 @@ const FRANCHISE_DATA = {
     총비용: '미확인',
     아메리카노: 1800, 로열티월: null, 광고비월: null,
     매장수: 632, // 2024년 기준
-    연평균매출: null,
+    연평균매출: 18000, // 만원, 2024 공정위 공시 기준 (약 1,500만원/월)
     폐업률: null,
     카테고리: '저가',
     이슈: [
@@ -3673,7 +3960,7 @@ const FRANCHISE_DATA = {
     총비용: '약 1억 2,913만원 (20평 기준, 임대료/권리금 별도)',
     아메리카노: 3300, 로열티월: null, 광고비월: null,
     매장수: 3019, // 2024년 기준
-    연평균매출: 18033, // 만원, 2022년 기준
+    연평균매출: 18036, // 만원, 2024 공정위 공시 기준 (약 1,503만원/월)
     폐업률: 2.8, // %, 저가 대비 높음
     카테고리: '중저가',
     이슈: [
@@ -3692,7 +3979,7 @@ const FRANCHISE_DATA = {
     총비용: '약 1.5~2억원 (추정, 임대료/권리금 별도)',
     아메리카노: 4500, 로열티월: null, 광고비월: null,
     매장수: 1640, // 2024년 기준
-    연평균매출: null,
+    연평균매출: 54000, // 만원, 2024 공정위 공시 기준 (약 4,500만원/월)
     폐업률: null,
     영업이익률: 5.4, // %
     카테고리: '중고가',
@@ -3712,7 +3999,7 @@ const FRANCHISE_DATA = {
     총비용: '미확인',
     아메리카노: 4300, 로열티월: null, 광고비월: null,
     매장수: 530, // 2024년 기준
-    연평균매출: null,
+    연평균매출: 26400, // 만원, 2024 공정위 공시 기준 (약 2,200만원/월)
     폐업률: null,
     영업이익률: 6.26, // %
     카테고리: '중고가',
@@ -3754,6 +4041,7 @@ const FRANCHISE_DATA = {
     매장수: 2076, // 2025년 기준
     연매출총액: 31001, // 억원, 2024년
     매장당평균매출: 114000, // 만원 (11.4억원)
+    연평균매출: 81600, // 만원, 2024 공정위 공시 기준 (약 6,800만원/월)
     영업이익률: 4.8, // %, 2025년 상반기
     카테고리: '프리미엄',
     이슈: [
@@ -3781,6 +4069,125 @@ const FRANCHISE_DATA = {
       '원재료 가격 상승으로 메뉴 가격 인상',
       '가맹 불가 (직영 전용)'
     ],
+    검증일자: '2025-01'
+  },
+
+  // ═══ 추가 프랜차이즈 브랜드 (2024 공정위 공시 기준) ═══
+
+  '파스쿠찌': {
+    가맹비: null, 교육비: null, 보증금: null, 기타비용: null,
+    인테리어: null,
+    총비용: '미확인',
+    아메리카노: 4500, 로열티월: null, 광고비월: null,
+    매장수: null,
+    연평균매출: 25200, // 만원, 2024 공정위 공시 기준 (약 2,100만원/월)
+    폐업률: null,
+    카테고리: '중고가',
+    이슈: [],
+    검증일자: '2025-01'
+  },
+
+  '탐앤탐스': {
+    가맹비: null, 교육비: null, 보증금: null, 기타비용: null,
+    인테리어: null,
+    총비용: '미확인',
+    아메리카노: 4000, 로열티월: null, 광고비월: null,
+    매장수: null,
+    연평균매출: 21600, // 만원, 2024 공정위 공시 기준 (약 1,800만원/월)
+    폐업률: null,
+    카테고리: '중가',
+    이슈: [],
+    검증일자: '2025-01'
+  },
+
+  '커피베이': {
+    가맹비: null, 교육비: null, 보증금: null, 기타비용: null,
+    인테리어: null,
+    총비용: '미확인',
+    아메리카노: 2000, 로열티월: null, 광고비월: null,
+    매장수: null,
+    연평균매출: 19200, // 만원, 2024 공정위 공시 기준 (약 1,600만원/월)
+    폐업률: null,
+    카테고리: '저가',
+    이슈: [],
+    검증일자: '2025-01'
+  },
+
+  '만랩커피': {
+    가맹비: null, 교육비: null, 보증금: null, 기타비용: null,
+    인테리어: null,
+    총비용: '미확인',
+    아메리카노: 1500, 로열티월: null, 광고비월: null,
+    매장수: null,
+    연평균매출: 16800, // 만원, 2024 공정위 공시 기준 (약 1,400만원/월)
+    폐업률: null,
+    카테고리: '저가',
+    이슈: [],
+    검증일자: '2025-01'
+  },
+
+  '바나프레소': {
+    가맹비: null, 교육비: null, 보증금: null, 기타비용: null,
+    인테리어: null,
+    총비용: '미확인',
+    아메리카노: 1500, 로열티월: null, 광고비월: null,
+    매장수: null,
+    연평균매출: 20400, // 만원, 2024 공정위 공시 기준 (약 1,700만원/월)
+    폐업률: null,
+    카테고리: '저가',
+    이슈: [],
+    검증일자: '2025-01'
+  },
+
+  '카페봄봄': {
+    가맹비: null, 교육비: null, 보증금: null, 기타비용: null,
+    인테리어: null,
+    총비용: '미확인',
+    아메리카노: 1500, 로열티월: null, 광고비월: null,
+    매장수: null,
+    연평균매출: 14400, // 만원, 2024 공정위 공시 기준 (약 1,200만원/월)
+    폐업률: null,
+    카테고리: '저가',
+    이슈: [],
+    검증일자: '2025-01'
+  },
+
+  '감성커피': {
+    가맹비: null, 교육비: null, 보증금: null, 기타비용: null,
+    인테리어: null,
+    총비용: '미확인',
+    아메리카노: 1800, 로열티월: null, 광고비월: null,
+    매장수: null,
+    연평균매출: 15600, // 만원, 2024 공정위 공시 기준 (약 1,300만원/월)
+    폐업률: null,
+    카테고리: '저가',
+    이슈: [],
+    검증일자: '2025-01'
+  },
+
+  '텐퍼센트커피': {
+    가맹비: null, 교육비: null, 보증금: null, 기타비용: null,
+    인테리어: null,
+    총비용: '미확인',
+    아메리카노: 1500, 로열티월: null, 광고비월: null,
+    매장수: null,
+    연평균매출: 18000, // 만원, 2024 공정위 공시 기준 (약 1,500만원/월)
+    폐업률: null,
+    카테고리: '저가',
+    이슈: [],
+    검증일자: '2025-01'
+  },
+
+  '트리플에이커피': {
+    가맹비: null, 교육비: null, 보증금: null, 기타비용: null,
+    인테리어: null,
+    총비용: '미확인',
+    아메리카노: 1500, 로열티월: null, 광고비월: null,
+    매장수: null,
+    연평균매출: 15600, // 만원, 2024 공정위 공시 기준 (약 1,300만원/월)
+    폐업률: null,
+    카테고리: '저가',
+    이슈: [],
     검증일자: '2025-01'
   }
 };
@@ -3890,6 +4297,7 @@ const VERIFIED_STATISTICS = {
 // 과거 데이터 호환성을 위한 별칭 (기존 코드 동작 보장)
 FRANCHISE_DATA['메가커피'] = FRANCHISE_DATA['메가MGC커피'];
 FRANCHISE_DATA['이디야'] = FRANCHISE_DATA['이디야커피'];
+FRANCHISE_DATA['매머드익스프레스'] = FRANCHISE_DATA['매머드커피'];
 
 // ═══════════════════════════════════════════════════════════════
 // 날씨별 매출 영향 데이터 (상권 유형별) - 추정치
@@ -5143,7 +5551,10 @@ async function fetchOpenUBBuildingData(lat, lng, radiusMeters) {
  const [rememberMe, setRememberMe] = useState(false);
  const [adminPassword, setAdminPassword] = useState('admin');
  const [loginQuote] = useState(() => LOGIN_QUOTES[Math.floor(Math.random() * LOGIN_QUOTES.length)]);
-const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> 'form'
+const [loginPhase, setLoginPhase] = useState(() => {
+  try { return sessionStorage.getItem('bc_login_seen') ? 'form' : 'quote'; } catch(e) { return 'quote'; }
+}); // 'quote' -> 'logo' -> 'form'
+const initialLoginAnimDone = useRef(!!sessionStorage.getItem('bc_login_seen'));
  
  // 프랜차이즈 검색 상태
  const [franchiseSearch, setFranchiseSearch] = useState('');
@@ -5154,6 +5565,7 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
  const [dataLoaded, setDataLoaded] = useState(false);
  const savedTab = localStorage.getItem('bc_current_tab') || 'map';
  const [tab, setTab] = useState(savedTab);
+const [_rl_initialized, _setRlInitialized] = useState(false);
  const [reportViewManager, setReportViewManager] = useState(null);
  const [reportMode, setReportMode] = useState('basic'); // 'basic' | 'ai'
  const [marketIssues, setMarketIssues] = useState([]);
@@ -5179,8 +5591,58 @@ const [loginPhase, setLoginPhase] = useState('quote'); // 'quote' -> 'logo' -> '
  const [feedbackMent, setFeedbackMent] = useState(null); // 피드백 받을 멘트
  const [feedbackInput, setFeedbackInput] = useState(''); // 수정 멘트 입력
  const [feedbackQuestion, setFeedbackQuestion] = useState(''); // 질문 입력
- const [settingsTab, setSettingsTab] = useState('alerts'); // 설정 탭: 'alerts' | 'salesmode' | 'account'
- 
+ const [settingsTab, setSettingsTab] = useState('alerts'); // 설정 탭: 'alerts' | 'salesmode' | 'activity' | 'account' | 'accounting'
+ const [alertSalesExpanded, setAlertSalesExpanded] = useState(true); // 나의 알림 - 영업 일정 펼침
+ const [alertContactExpanded, setAlertContactExpanded] = useState(true); // 나의 알림 - 연락 일정 펼침
+ const [alertManagerFilter, setAlertManagerFilter] = useState('none'); // 나의 알림 - 담당자 필터 (admin용)
+ const [amNotifications, setAmNotifications] = useState([]); // 회계(am) 알림
+ const [showAddAccountForm, setShowAddAccountForm] = useState(false); // 계정 추가 폼 표시
+ const [newAccountData, setNewAccountData] = useState({ username: '', password: '', name: '', color: '#3b82f6' }); // 새 계정 데이터
+ const [addAccountLoading, setAddAccountLoading] = useState(false); // 계정 생성 중
+
+ // ═══ 영업활동 비용 관리 ═══
+ const [salesActivities, setSalesActivities] = useState([]); // 영업활동 내역
+ const [activityForm, setActivityForm] = useState({
+   date: new Date().toISOString().slice(0, 10),
+   region: '',
+   content: '',
+   activityType: 'normal', // 'normal' | 'special'
+   transportEnabled: false,
+   transportItems: [{ method: '', amount: '', receipt: null }], // 여러 건 교통비
+   photos: [] // 활동 사진첨부 (optional)
+ });
+ const [activityFormLoading, setActivityFormLoading] = useState(false);
+ const [activityFilterManager, setActivityFilterManager] = useState('all'); // 회계/관리자용 필터
+ const [managerBankInfo, setManagerBankInfo] = useState({}); // { managerId: { bankAccount, bankName, residentId } }
+
+ // ═══ 영업지원 회계장부 ═══
+ const [showAccountingLedger, setShowAccountingLedger] = useState(false);
+ const [ledgerPeriodType, setLedgerPeriodType] = useState('month');
+ const [ledgerDateFrom, setLedgerDateFrom] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`; });
+ const [ledgerDateTo, setLedgerDateTo] = useState(() => new Date().toISOString().slice(0,10));
+ const [ledgerEditingCell, setLedgerEditingCell] = useState(null);
+ const [ledgerEditValue, setLedgerEditValue] = useState('');
+ const [showBankInfoPopup, setShowBankInfoPopup] = useState(null);
+ const [bankInfoForm, setBankInfoForm] = useState({ bankName: '', bankAccount: '', residentId: '', memo: '' });
+ // ═══ 일괄처리 모드 ═══
+ const [batchMode, setBatchMode] = useState(false);
+ const [batchSelected, setBatchSelected] = useState(new Set());
+ // ═══ 일괄등록 모드 (영업활동) ═══
+ const [batchRegisterMode, setBatchRegisterMode] = useState(false);
+ const [batchRows, setBatchRows] = useState([{
+   date: new Date().toISOString().slice(0, 10),
+   region: '',
+   content: '',
+   activityType: 'normal',
+   transportEnabled: false,
+   transportItems: [{ method: '', amount: '', receipt: null }],
+   photos: []
+ }]);
+ const [batchRegisterLoading, setBatchRegisterLoading] = useState(false);
+ // ═══ 삭제된 영업활동 (소프트 삭제) ═══
+ const [deletedActivities, setDeletedActivities] = useState([]);
+ const [showDeletedActivities, setShowDeletedActivities] = useState(false);
+
  // ═══════════════════════════════════════════════════════════════
  // 전국 상권 데이터 수집 (관리자 전용)
  // ═══════════════════════════════════════════════════════════════
@@ -7195,6 +7657,15 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
        console.log('행정동 정보:', dongInfo);
      }
 
+    // FAST_TEST_MODE: 모든 GIS/매출 API 스킵, 카페 수집만 진행
+    if (FAST_TEST_MODE) {
+      console.log('[FAST_TEST] 스킵: 모든 GIS API (매장수 카드/지도 테스트 모드)');
+      if (dongInfo) {
+        collectedData.dongInfo = { dongCd: dongInfo.dongCd, dongNm: dongInfo.dongNm, admdstCdNm: dongInfo.admdstCdNm, nearbyDongs: dongInfo.nearbyDongs || [] };
+      }
+      animateProgressTo(30);
+    }
+
      // 새 API로 상권 데이터 수집
      if (DEBUG_STEP_E_ONLY) {
        console.log('[DEBUG] 스킵: GIS API 수집 (dongInfo 기반 8개 + Open API + R-ONE + 인접동 합산)');
@@ -7216,7 +7687,7 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
        animateProgressTo(30);
        console.log('[DEBUG_CAFE_SALES] 스킵: 나머지 GIS API 7개, Open API, R-ONE, 인접동 합산');
      }
-     if (dongInfo && !DEBUG_STEP_E_ONLY && !DEBUG_CAFE_SALES_ONLY) {
+     if (dongInfo && !DEBUG_STEP_E_ONLY && !DEBUG_CAFE_SALES_ONLY && !FAST_TEST_MODE) {
        const dongCd = dongInfo.dongCd;
        const tpbizCd = 'Q01'; // 카페/음식점 업종
        
@@ -7373,7 +7844,7 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
      };
 
      // ═══ Firebase 임대료 데이터 수집 ═══
-     if (DEBUG_STEP_E_ONLY || DEBUG_CAFE_SALES_ONLY) {
+     if (DEBUG_STEP_E_ONLY || DEBUG_CAFE_SALES_ONLY || FAST_TEST_MODE) {
        console.log(`[DEBUG] 스킵: Firebase 임대료 데이터 수집${DEBUG_CAFE_SALES_ONLY ? ' (CAFE_SALES 모드)' : ''}`);
      } else {
      setSalesModeAnalysisStep('임대료 데이터 조회 중');
@@ -7599,7 +8070,7 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
      collectedData.franchiseData = FRANCHISE_DATA;
      
      // Render 서버에서 공정위 프랜차이즈 API 호출 (카페만 필터링)
-     if (DEBUG_STEP_E_ONLY || DEBUG_CAFE_SALES_ONLY) {
+     if (DEBUG_STEP_E_ONLY || DEBUG_CAFE_SALES_ONLY || FAST_TEST_MODE) {
        console.log(`[DEBUG] 스킵: Render 프랜차이즈 API${DEBUG_CAFE_SALES_ONLY ? ' (CAFE_SALES 모드)' : ''}`);
      } else try {
        const franchiseRes = await fetch(`${PROXY_SERVER_URL}/api/franchise?cafeOnly=true&numOfRows=50`, { signal: AbortSignal.timeout(10000) });
@@ -9266,7 +9737,7 @@ action은 반드시 "KEEP" 또는 "REMOVE"만 사용.
        }
 
        // ═══ 3.4b단계: STEP F - 카페 상세수집 (메뉴/가격/리뷰/영업시간) ═══
-       if (DEBUG_STEP_E_ONLY || DEBUG_CAFE_SALES_ONLY) {
+       if (DEBUG_STEP_E_ONLY || DEBUG_CAFE_SALES_ONLY || FAST_TEST_MODE) {
          console.log(`[DEBUG] 스킵: STEP F (카페 상세 Gemini 웹서치)${DEBUG_CAFE_SALES_ONLY ? ' (CAFE_SALES 모드)' : ''}`);
        } else {
        const allCafesForDetail = [
@@ -9346,7 +9817,12 @@ JSON으로만 응답:
      // ═══════════════════════════════════════════════════════════════
      // 3.5단계~ 이후: SNS, YouTube, Seoul API, AI 분석 (DEBUG_STEP_E_ONLY일 때 전체 스킵)
      // ═══════════════════════════════════════════════════════════════
-     if (DEBUG_CAFE_SALES_ONLY && !DEBUG_STEP_E_ONLY) {
+     if (FAST_TEST_MODE) {
+       console.log('[FAST_TEST] 카페 수집 완료 - 나머지 API/AI 전부 스킵');
+       animateProgressTo(95);
+       setSalesModeAnalysisStep('빠른 테스트 모드 - 카페 수집 완료');
+       updateCollectingText('빠른 테스트 모드: 카페 수집 완료. 매장수 카드와 지도를 확인하세요.');
+     } else      if (DEBUG_CAFE_SALES_ONLY && !DEBUG_STEP_E_ONLY) {
        console.log('[DEBUG_CAFE_SALES] 스킵: SNS/YouTube/Seoul API/AI 분석 (매장수+매출만 테스트)');
        animateProgressTo(95);
        setSalesModeAnalysisStep('디버그 모드 - 매장수+매출 수집 완료');
@@ -9652,10 +10128,36 @@ JSON으로만 응답:
        const sgNmForSales = addressInfo?.sigungu || '';
        const salesKws = [dongNmForSales.replace(/\d+동$/, ''), query.split(' ')[0], sgNmForSales.replace('구', '')].filter(kw => kw && kw.length >= 2);
 
-       // 서울시 VwsmTrdarSelngQq (추정매출) API - 프록시에서 카페만 필터링해서 반환
-       const cafeSalesRes = await fetch(`/api/sbiz-proxy?api=seoul&service=VwsmTrdarSelngQq&stdrYyquCd=20253&industryCode=CS100010`, { signal: AbortSignal.timeout(15000) });
-       if (cafeSalesRes.ok) {
-         const cafeSalesRaw = await cafeSalesRes.json();
+       // 서울시 VwsmTrdarSelngQq (추정매출) API - 커피음료 + 베이커리 병렬 호출
+       const [cafeSalesRes, bakerySalesRes] = await Promise.allSettled([
+         fetch(`/api/sbiz-proxy?api=seoul&service=VwsmTrdarSelngQq&stdrYyquCd=20253&industryCode=CS100010`, { signal: AbortSignal.timeout(15000) }),
+         fetch(`/api/sbiz-proxy?api=seoul&service=VwsmTrdarSelngQq&stdrYyquCd=20253&industryCode=CS100005`, { signal: AbortSignal.timeout(15000) })
+       ]);
+
+       // 베이커리 데이터 처리 (보조 데이터, 실패해도 무시)
+       let bakeryMatched = [];
+       try {
+         if (bakerySalesRes.status === 'fulfilled' && bakerySalesRes.value.ok) {
+           const bakeryRaw = await bakerySalesRes.value.json();
+           const bakeryRows = bakeryRaw?.data?.filteredRows || [];
+           bakeryMatched = bakeryRows.filter(r => salesKws.some(kw => (r.TRDAR_CD_NM || '').includes(kw)));
+           console.log(`[영업모드] 서울 베이커리 추정매출: 전체=${bakeryRows.length}개, 매칭=${bakeryMatched.length}개`);
+           // 베이커리 데이터 별도 저장
+           collectedData.apis.bakerySeoulData = {
+             description: '베이커리(CS100005) 서울시 추정매출',
+             data: bakeryMatched,
+             totalRows: bakeryRows.length,
+             matchedCount: bakeryMatched.length
+           };
+         }
+       } catch (bkErr) {
+         console.warn('[영업모드] 베이커리 매출 처리 실패 (무시):', bkErr.message);
+       }
+
+       // 커피음료(CS100010) 데이터 처리 (기존 로직)
+       const cafeSalesOk = cafeSalesRes.status === 'fulfilled' && cafeSalesRes.value.ok;
+       if (cafeSalesOk) {
+         const cafeSalesRaw = await cafeSalesRes.value.json();
          const cafeRows = cafeSalesRaw?.data?.filteredRows || [];
          // 지역 매칭 (여러 키워드로)
          const cafeMatched = cafeRows.filter(r => salesKws.some(kw => (r.TRDAR_CD_NM || '').includes(kw)));
@@ -9730,6 +10232,26 @@ JSON으로만 응답:
              source: '서울시 열린데이터 추정매출 (카페 업종)',
              isCafeSpecific: true
            };
+
+           // 베이커리 매출건수 합산 (동일 상권코드 기준)
+           if (bakeryMatched.length > 0) {
+             const cafeTrdarSet = new Set(cafeMatched.map(r => r.TRDAR_CD));
+             let bkOverlap = 0, bkNew = 0;
+             bakeryMatched.forEach(bk => {
+               if (cafeTrdarSet.has(bk.TRDAR_CD)) {
+                 // 동일 상권: 매출건수만 합산 (기존 카페 데이터에 보조 추가)
+                 const target = cafeMatched.find(c => c.TRDAR_CD === bk.TRDAR_CD);
+                 if (target) {
+                   target.THSMON_SELNG_CO = +(target.THSMON_SELNG_CO||0) + +(bk.THSMON_SELNG_CO||0);
+                   target.THSMON_SELNG_AMT = +(target.THSMON_SELNG_AMT||0) + +(bk.THSMON_SELNG_AMT||0);
+                   bkOverlap++;
+                 }
+               } else {
+                 bkNew++;
+               }
+             });
+             console.log(`[영업모드] 베이커리 합산: 겹침=${bkOverlap}개(매출 합산), 새 상권=${bkNew}개(무시)`);
+           }
 
            console.log(`[영업모드] 카페 전용 매출 데이터: ${n}개 상권, 연령 1위=${collectedData.apis.cafeAgeData.data[0]?.age}(${collectedData.apis.cafeAgeData.data[0]?.pct}%)`);
          } else {
@@ -10090,7 +10612,7 @@ JSON으로만 응답:
      // ═══════════════════════════════════════════════════════════════
      // 3.9단계: OpenUB 건물 매출 데이터 + 매장별 매출 추정
      // ═══════════════════════════════════════════════════════════════
-     if (coordinates && !DEBUG_STEP_E_ONLY && !DEBUG_CAFE_SALES_ONLY) {
+     if (coordinates && !DEBUG_STEP_E_ONLY && !DEBUG_CAFE_SALES_ONLY && !FAST_TEST_MODE) {
        try {
          setSalesModeAnalysisStep('건물 매출 데이터 수집 중');
          updateCollectingText('주변 건물별 매출 데이터를 수집하고 있어요');
@@ -10100,10 +10622,32 @@ JSON으로만 응답:
          collectedData.openubBuildingSales = openubData.buildingSales;
          collectedData.openubAvailable = openubData.available;
 
-         // 동 평균 카페 매출 (소진공 GIS salesAvg에서)
+         // 동 평균 카페 매출 (소진공 GIS salesAvg에서 - 카페/커피/음료 관련 업종 가중평균)
          const _cafeAvgForEstimate = (() => {
            const salesAvgItems = collectedData.apis?.salesAvg?.data;
            if (Array.isArray(salesAvgItems)) {
+             // 디버그: salesAvg 응답 업종 목록 출력
+             console.log('[salesAvg] 응답 업종 목록:', salesAvgItems.map(s => `${s.tpbizClscdNm}(${s.tpbizClscd}, 매출:${s.mmavgSlsAmt}, 점포:${s.stcnt})`));
+             const cafeKws = ['카페', '커피', '음료', '빵', '베이커리', '디저트', '도넛', '제과'];
+             const cafeRelCodes = ['I21201','I21001','I21002','I21003','I213','Q12'];
+             const related = salesAvgItems.filter(s => {
+               const code = s.tpbizClscd || '';
+               const name = s.tpbizClscdNm || '';
+               return cafeRelCodes.some(c => code.startsWith(c)) || cafeKws.some(k => name.includes(k));
+             });
+             if (related.length > 0) {
+               // stcnt(점포수) 가중평균
+               let weightedSum = 0, totalWeight = 0;
+               related.forEach(s => {
+                 const sales = +(s.mmavgSlsAmt || 0);
+                 const weight = +(s.stcnt || 1);
+                 if (sales > 0) { weightedSum += sales * weight; totalWeight += weight; }
+               });
+               const avg = totalWeight > 0 ? Math.round(weightedSum / totalWeight) : 0;
+               console.log(`[salesAvg] 카페 관련 업종 ${related.length}개 가중평균: ${avg}만원 (업종: ${related.map(s => s.tpbizClscdNm).join(', ')})`);
+               if (avg > 0) return avg;
+             }
+             // 폴백: 단일 '카페' 항목
              const cafeItem = salesAvgItems.find(s => s.tpbizClscdNm === '카페');
              if (cafeItem?.mmavgSlsAmt) return cafeItem.mmavgSlsAmt;
            }
@@ -10134,8 +10678,21 @@ JSON으로만 응답:
              cafes: allCafes,
              openubData: openubData.available ? openubData : null,
              dongAvgCafeSales: _cafeAvgForEstimate,
-             FRANCHISE_DATA_REF: FRANCHISE_DATA,
-             nearbyTotalCafes: collectedData.nearbyTotalCafes || allCafes.length
+             nearbyTotalCafes: collectedData.nearbyTotalCafes || allCafes.length,
+             marketVitality: collectedData.apis?.seoulStorQq?.data || null,
+             trendData: collectedData.apis?.slsIndex?.data || null,
+             apiData: {
+               dynPplCmpr: collectedData?.apis?.dynPplCmpr,
+               seoulFlpopDetail: collectedData?.apis?.seoulFlpopDetail,
+               roneRent: collectedData?.apis?.roneRent,
+               firebaseRent: collectedData?.apis?.firebaseRent,
+               baeminTpbiz: collectedData?.apis?.baeminTpbiz,
+               seoulFclty: collectedData?.apis?.seoulFclty,
+               seoulRepop: collectedData?.apis?.seoulRepop,
+               cafeTimeData: collectedData?.apis?.cafeTimeData,
+               floatingTime: collectedData?.apis?.floatingTime,
+               mmavgList: collectedData?.apis?.mmavgList,
+             }
            });
            collectedData.salesEstimates = estimates;
 
@@ -10175,8 +10732,21 @@ JSON으로만 응답:
                cafes: allCafes,
                openubData: null,
                dongAvgCafeSales: _cafeAvgFallback,
-               FRANCHISE_DATA_REF: FRANCHISE_DATA,
-               nearbyTotalCafes: collectedData.nearbyTotalCafes || allCafes.length
+               nearbyTotalCafes: collectedData.nearbyTotalCafes || allCafes.length,
+               marketVitality: collectedData.apis?.seoulStorQq?.data || null,
+               trendData: collectedData.apis?.slsIndex?.data || null,
+               apiData: {
+                 dynPplCmpr: collectedData?.apis?.dynPplCmpr,
+                 seoulFlpopDetail: collectedData?.apis?.seoulFlpopDetail,
+                 roneRent: collectedData?.apis?.roneRent,
+                 firebaseRent: collectedData?.apis?.firebaseRent,
+                 baeminTpbiz: collectedData?.apis?.baeminTpbiz,
+                 seoulFclty: collectedData?.apis?.seoulFclty,
+                 seoulRepop: collectedData?.apis?.seoulRepop,
+                 cafeTimeData: collectedData?.apis?.cafeTimeData,
+                 floatingTime: collectedData?.apis?.floatingTime,
+                 mmavgList: collectedData?.apis?.mmavgList,
+               }
              });
              console.log(`[매출추정] 폴백 추정 ${collectedData.salesEstimates.length}개 완료 (L3/L4만)`);
            }
@@ -10184,6 +10754,70 @@ JSON으로만 응답:
            console.warn('[매출추정] 폴백 추정도 실패:', e2.message);
          }
        }
+     }
+
+     // ═══════════════════════════════════════════════════════════════
+     // 3-B단계: 반경 평균매출 계산 + 버퍼존 분리 (의뢰인 모드)
+     // ═══════════════════════════════════════════════════════════════
+     try {
+       if (coordinates) {
+         const userRadius = collectedData.searchRadius || 500;
+
+         // 버퍼존 카페 분리
+         const allCafesForBuffer = [
+           ...(collectedData.nearbyFranchiseList || []),
+           ...(collectedData.nearbyIndependentList || [])
+         ];
+         const { innerCafes, bufferCafes } = separateBufferZoneCafes(
+           coordinates.lat, coordinates.lng, userRadius, allCafesForBuffer
+         );
+         collectedData.innerCafes = innerCafes;
+         collectedData.bufferCafes = bufferCafes;
+
+         // 반경 내 카페에 dongCd 부여 (dongInfo 기반)
+         const primaryDongCd = collectedData.dongInfo?.dongCd || '';
+         const cafesWithDongCd = innerCafes.map(c => ({ ...c, dongCd: c.dongCd || primaryDongCd }));
+
+         // 동 평균매출 (소상공인365 salesAvg에서 가져오기)
+         const sbizDongAvg = (() => {
+           const items = collectedData.apis?.salesAvg?.data;
+           if (Array.isArray(items)) {
+             const c = items.find(s => s.tpbizClscdNm === '카페');
+             if (c?.mmavgSlsAmt) return c.mmavgSlsAmt;
+           }
+           return 0;
+         })();
+
+         const radiusSalesResult = await calculateRadiusAvgSales({
+           lat: coordinates.lat,
+           lng: coordinates.lng,
+           radius: userRadius,
+           cafes: cafesWithDongCd,
+           nearbyDongs: collectedData.dongInfo?.nearbyDongs || [],
+           dongAvgCafeSales: sbizDongAvg
+         });
+
+         // 결과를 collectedData에 저장
+         collectedData.radiusSalesResult = {
+           avgSales: radiusSalesResult.avgSales,
+           monthlyAvg: radiusSalesResult.avgSales > 0 ? Math.round(radiusSalesResult.avgSales / 12) : 0,
+           confidence: radiusSalesResult.confidence,
+           sources: radiusSalesResult.sources,
+           dongSalesMap: radiusSalesResult.dongSalesMap,
+           innerCafeCount: innerCafes.length,
+           bufferCafeCount: bufferCafes.length,
+           details: radiusSalesResult.details
+         };
+
+         console.log('[매출추정-반경] 의뢰인 모드 매출 추정 완료:', JSON.stringify({
+           avgSales: collectedData.radiusSalesResult.avgSales,
+           confidence: collectedData.radiusSalesResult.confidence,
+           inner: innerCafes.length,
+           buffer: bufferCafes.length
+         }));
+       }
+     } catch (radiusSalesErr) {
+       console.warn('[매출추정-반경] 반경 매출 추정 실패 (기존 흐름 영향 없음):', radiusSalesErr.message);
      }
 
      // ═══════════════════════════════════════════════════════════════
@@ -10496,7 +11130,7 @@ JSON으로만 응답:
        // 매장별 추정 매출 (OpenUB + 다층 추정 엔진)
        if (collectedData.salesEstimates && collectedData.salesEstimates.length > 0) {
          summary.push('\n=== 매장별 추정 매출 (다층 추정 엔진) ===');
-         const layerDesc = { L1: '건물직접', L2: '건물분배', L3: '브랜드기반', L4: '경쟁분석' };
+         const layerDesc = { L1: '건물직접', L2: '건물분배', L3: '추정분석', L4: '경쟁분석' };
          for (const est of collectedData.salesEstimates) {
            summary.push(`${est.name}: ${formatManwonRange(est.salesMin || est.estimated, est.salesMax || est.estimated)} (${layerDesc[est.layer] || est.layer}, ±${Math.round((est.salesRange || 0) * 100)}%)`);
          }
@@ -12125,8 +12759,21 @@ SNS분석: ${crossData.snsAnalyStr}
              cafes: allCafes,
              openubData: null,
              dongAvgCafeSales: _dongAvg,
-             FRANCHISE_DATA_REF: FRANCHISE_DATA,
-             nearbyTotalCafes: collectedData.nearbyTotalCafes || allCafes.length
+             nearbyTotalCafes: collectedData.nearbyTotalCafes || allCafes.length,
+             marketVitality: collectedData.apis?.seoulStorQq?.data || null,
+             trendData: collectedData.apis?.slsIndex?.data || null,
+             apiData: {
+               dynPplCmpr: collectedData?.apis?.dynPplCmpr,
+               seoulFlpopDetail: collectedData?.apis?.seoulFlpopDetail,
+               roneRent: collectedData?.apis?.roneRent,
+               firebaseRent: collectedData?.apis?.firebaseRent,
+               baeminTpbiz: collectedData?.apis?.baeminTpbiz,
+               seoulFclty: collectedData?.apis?.seoulFclty,
+               seoulRepop: collectedData?.apis?.seoulRepop,
+               cafeTimeData: collectedData?.apis?.cafeTimeData,
+               floatingTime: collectedData?.apis?.floatingTime,
+               mmavgList: collectedData?.apis?.mmavgList,
+             }
            });
            console.log(`[DEBUG_CAFE_SALES] 매출 추정 ${collectedData.salesEstimates.length}개 완료 (L3/L4, 동평균 ${_dongAvg}만)`);
          } catch (e) {
@@ -12193,6 +12840,56 @@ SNS분석: ${crossData.snsAnalyStr}
        return;
      }
 
+     // FAST_TEST_MODE result: 매장수 카드/지도만 표시
+     if (FAST_TEST_MODE) {
+       const fastData = {
+         region: query,
+         reliability: 'FAST_TEST',
+         dataDate: new Date().toLocaleDateString('ko-KR') + ' 기준',
+         overview: {
+           cafeCount: String(collectedData.nearbyTotalCafes || 0),
+           avgMonthlySales: '-',
+           newOpen: '-', closed: '-', floatingPop: '-', residentPop: '-',
+           source: 'FAST_TEST MODE - 매장수 카드/지도 테스트'
+         },
+         regionBrief: `FAST TEST: ${query} 반경 500m 카페 ${collectedData.nearbyTotalCafes || 0}개 (프랜차이즈 ${(collectedData.nearbyFranchiseList || []).length} + 개인 ${(collectedData.nearbyIndependentList || []).length})`,
+         consumers: { mainTarget: '-', mainRatio: '-', secondTarget: '-', secondRatio: '-', peakTime: '-', takeoutRatio: '-', avgStay: '-' },
+         franchise: [
+           { name: '메가커피', count: '-', price: 1500, monthly: '-' },
+           { name: '컴포즈커피', count: '-', price: 1500, monthly: '-' },
+           { name: '이디야', count: '-', price: 3000, monthly: '-' },
+           { name: '스타벅스', count: '-', price: 4500, monthly: '-' }
+         ],
+         rent: { monthly: '-', deposit: '-', premium: '-', yoyChange: '-', source: '-' },
+         opportunities: [],
+         risks: [],
+         startupCost: { deposit: '-', premium: '-', interior: '-', equipment: '-', total: '-' },
+         marketSurvival: {
+           year1: '-', year3: '-', year5: '-',
+           cafeIndustry5yr: '-', allIndustry5yr: '-', govSupported5yr: '-',
+           source: '-'
+         },
+         startupSupportEffect: {
+           supported: { survivalRate1yr: '-', survivalRate3yr: '-', survivalRate5yr: '-', label: '-' },
+           general: { survivalRate1yr: '-', survivalRate3yr: '-', survivalRate5yr: '-', label: '-' },
+           cafeSurvival1yr: '-', cafeSurvival3yr: '-', cafeSurvival5yr: '-',
+           source: '-', sourceYear: '-', warning: '-', message: '-'
+         },
+         insight: `[FAST TEST] ${query} 카페 ${collectedData.nearbyTotalCafes || 0}개 수집 완료. 매장수 카드와 지도로 보기 테스트용.`,
+         rawApiData: collectedData.apis || null
+       };
+       if (coordinates) fastData.coordinates = coordinates;
+       animateProgressTo(100);
+       setSalesModeAnalysisStep('분석 완료');
+       setSalesModeCollectingText('');
+       console.log('[FAST_TEST] 완료 - 카페 수:', collectedData.nearbyTotalCafes);
+       setSalesModeSearchResult({ success: true, data: fastData, query, hasApiData: false, partial: true, collectedData });
+       setSalesModeMapExpanded(true);
+       setSalesModeSearchLoading(false);
+       if (progressIntervalRef.current) { clearInterval(progressIntervalRef.current); }
+       return;
+     }
+
      // 디버그 모드: 결과 설정 (카드 렌더링용 - 데이터 없는 필드는 "-"로 표시됨)
      if (DEBUG_STEP_E_ONLY) {
        // 디버그 모드에서도 매출 추정 실행 (L3/L4만, OpenUB 없이)
@@ -12213,8 +12910,21 @@ SNS분석: ${crossData.snsAnalyStr}
              cafes: allCafes,
              openubData: null,
              dongAvgCafeSales: 1800,
-             FRANCHISE_DATA_REF: FRANCHISE_DATA,
-             nearbyTotalCafes: collectedData.nearbyTotalCafes || allCafes.length
+             nearbyTotalCafes: collectedData.nearbyTotalCafes || allCafes.length,
+             marketVitality: collectedData.apis?.seoulStorQq?.data || null,
+             trendData: collectedData.apis?.slsIndex?.data || null,
+             apiData: {
+               dynPplCmpr: collectedData?.apis?.dynPplCmpr,
+               seoulFlpopDetail: collectedData?.apis?.seoulFlpopDetail,
+               roneRent: collectedData?.apis?.roneRent,
+               firebaseRent: collectedData?.apis?.firebaseRent,
+               baeminTpbiz: collectedData?.apis?.baeminTpbiz,
+               seoulFclty: collectedData?.apis?.seoulFclty,
+               seoulRepop: collectedData?.apis?.seoulRepop,
+               cafeTimeData: collectedData?.apis?.cafeTimeData,
+               floatingTime: collectedData?.apis?.floatingTime,
+               mmavgList: collectedData?.apis?.mmavgList,
+             }
            });
            console.log(`[DEBUG] 매출 추정 ${collectedData.salesEstimates.length}개 완료 (L3/L4)`);
          } catch (e) {
@@ -12243,12 +12953,25 @@ SNS분석: ${crossData.snsAnalyStr}
        if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
        setSalesModeAnalysisProgress(0);
        currentProgressRef.current = 0;
-       // 사용자 중지 시에도 welcome 리셋 방지: "중지됨" 메시지 표시
+       setSalesModeAnalysisStep('분석 중지됨');
+       setSalesModeCollectingText('');
+       // 사용자 중지 시에도 welcome 리셋 방지: 수집된 데이터 최대한 활용
+       const _abApis = (typeof collectedData !== 'undefined' && collectedData?.apis) ? collectedData.apis : {};
+       const _abHasData = Object.keys(_abApis).length > 0;
+       let _abCafeCount = '-';
+       if (typeof collectedData !== 'undefined' && collectedData?.nearbyTotalCafes > 0) {
+         _abCafeCount = String(collectedData.nearbyTotalCafes);
+       }
+       let _abFloatingPop = '-';
+       if (_abApis.dynPplCmpr?.data?.[0]) {
+         const popCnt = _abApis.dynPplCmpr.data[0]?.cnt || _abApis.dynPplCmpr.data[0]?.fpCnt || 0;
+         if (popCnt > 0) _abFloatingPop = String(Math.round(popCnt / 30));
+       }
        const _abortFallback = {
          region: query,
-         reliability: '-',
+         reliability: _abHasData ? '참고용 (분석 중지)' : '-',
          dataDate: new Date().toLocaleDateString('ko-KR') + ' 기준',
-         overview: { cafeCount: '-', newOpen: '-', closed: '-', floatingPop: '-', residentPop: '-', source: '-' },
+         overview: { cafeCount: _abCafeCount, newOpen: '-', closed: '-', floatingPop: _abFloatingPop, residentPop: '-', source: _abHasData ? '소상공인365' : '-' },
          consumers: { mainTarget: '-', mainRatio: '-', secondTarget: '-', secondRatio: '-', peakTime: '-', takeoutRatio: '-', avgStay: '-' },
          franchise: [{ name: '-', count: '-', price: 0, monthly: '-' }],
          rent: { monthly: '-', deposit: '-', premium: '-', yoyChange: '-', source: '-' },
@@ -12260,10 +12983,11 @@ SNS분석: ${crossData.snsAnalyStr}
            cafeIndustry5yr: '22.8%', allIndustry5yr: '34.7%', govSupported5yr: '53.1%',
            source: '통계청 기업생멸행정통계(2023)'
          },
-         insight: '분석이 중지되었습니다. 상단의 검색 버튼을 다시 눌러 재시도할 수 있습니다.',
-         rawApiData: null
+         insight: '분석이 중지되었습니다. 수집된 데이터는 가능한 범위에서 표시됩니다.\n\n상단의 검색 버튼을 다시 눌러 재시도할 수 있습니다.',
+         rawApiData: _abHasData ? _abApis : null
        };
-       setSalesModeSearchResult({ success: true, data: _abortFallback, query, hasApiData: false, aborted: true, partial: true });
+       if (typeof coordinates !== 'undefined' && coordinates) _abortFallback.coordinates = coordinates;
+       setSalesModeSearchResult({ success: true, data: _abortFallback, query, hasApiData: _abHasData, aborted: true, partial: true });
        return;
      }
 
@@ -12276,30 +13000,80 @@ SNS분석: ${crossData.snsAnalyStr}
      if (progressIntervalRef.current) {
        clearInterval(progressIntervalRef.current);
      }
-     // Graceful Fallback: 에러 시에도 수집된 데이터가 있으면 표시
+     // Graceful Fallback: 에러 시에도 수집된 데이터 최대한 활용 (welcome 리셋 절대 방지)
      animateProgressTo(100);
      currentProgressRef.current = 100;
+     setSalesModeAnalysisStep('분석 완료 (일부 오류)');
+     setSalesModeCollectingText('');
+
+     // collectedData가 있으면 수집된 API 데이터에서 최대한 추출
+     const _errApis = (typeof collectedData !== 'undefined' && collectedData?.apis) ? collectedData.apis : {};
+     let _errCafeCount = '-';
+     let _errFloatingPop = '-';
+     let _errResidentPop = '-';
+
+     if (typeof collectedData !== 'undefined' && collectedData?.nearbyTotalCafes > 0) {
+       _errCafeCount = String(collectedData.nearbyTotalCafes);
+     } else if (_errApis.storCnt?.data?.rads) {
+       const total = _errApis.storCnt.data.rads.reduce((sum, r) => sum + (parseInt(r.storCnt) || 0), 0);
+       _errCafeCount = `${Math.round(total * 0.15)} (음식업 ${total}개 중 추정)`;
+     }
+
+     if (_errApis.dynPplCmpr?.data?.[0]) {
+       const popCnt = _errApis.dynPplCmpr.data[0]?.cnt || _errApis.dynPplCmpr.data[0]?.fpCnt || 0;
+       if (popCnt > 0) _errFloatingPop = String(Math.round(popCnt / 30));
+     } else if (_errApis.popCnt?.data?.rads) {
+       const total = _errApis.popCnt.data.rads.reduce((sum, r) => sum + (parseInt(r.ppltnCnt) || 0), 0);
+       if (total > 0) _errFloatingPop = String(total);
+     }
+
+     if (_errApis.popCnt?.data?.rads) {
+       const rPop = _errApis.popCnt.data.rads.reduce((sum, r) => sum + (parseInt(r.rsdntCnt) || 0), 0);
+       if (rPop > 0) _errResidentPop = String(rPop);
+     }
+
+     // 임대료
+     const _errRent = _errApis.firebaseRent?.data;
+     const _errRentMonthly = _errRent?.summary?.avgMonthlyRent ? formatManwon(_errRent.summary.avgMonthlyRent) : '-';
+     const _errRentDeposit = _errRent?.summary?.avgDeposit ? formatManwon(_errRent.summary.avgDeposit) : '-';
+
+     // 프랜차이즈
+     const _errFrCounts = (typeof collectedData !== 'undefined' && collectedData?.nearbyFranchiseCounts) ? collectedData.nearbyFranchiseCounts : {};
+     const _errFrArr = Object.entries(_errFrCounts).map(([name, count]) => ({
+       name, count: '반경500m ' + count + '개', price: 0, monthly: '-'
+     }));
+     if (_errFrArr.length === 0) {
+       _errFrArr.push({ name: '데이터 수집 실패', count: '-', price: 0, monthly: '-' });
+     }
+
+     const _errHasApiData = Object.keys(_errApis).length > 0;
+
      const _errFallback = {
        region: query,
-       reliability: '낮음 (오류 발생)',
+       reliability: _errHasApiData ? '낮음 (AI 분석 실패)' : '낮음 (오류 발생)',
        dataDate: new Date().toLocaleDateString('ko-KR') + ' 기준',
-       overview: { cafeCount: '-', newOpen: '-', closed: '-', floatingPop: '-', residentPop: '-', source: '-' },
+       overview: { cafeCount: _errCafeCount, newOpen: '-', closed: '-', floatingPop: _errFloatingPop, residentPop: _errResidentPop, source: _errHasApiData ? '소상공인365 / 카카오 로컬' : '-' },
        consumers: { mainTarget: '-', mainRatio: '-', secondTarget: '-', secondRatio: '-', peakTime: '-', takeoutRatio: '-', avgStay: '-' },
-       franchise: [{ name: '데이터 수집 실패', count: '-', price: 0, monthly: '-' }],
-       rent: { monthly: '-', deposit: '-', premium: '-', yoyChange: '-', source: '-' },
+       franchise: _errFrArr,
+       rent: { monthly: _errRentMonthly, deposit: _errRentDeposit, premium: '-', yoyChange: '-', source: _errRent ? '한국부동산원' : '-' },
        opportunities: [{ title: '오류 발생', detail: '데이터 수집 중 오류가 발생했습니다: ' + (error.message || '알 수 없는 오류'), impact: '상' }],
        risks: [],
-       startupCost: { deposit: '-', premium: '-', interior: '-', equipment: '-', total: '-' },
+       startupCost: { deposit: _errRentDeposit !== '-' ? _errRentDeposit : '-', premium: '-', interior: '3,000~5,000만원 (15평 기준)', equipment: '2,000~3,000만원', total: '-' },
        marketSurvival: {
          year1: '58.3%', year3: '36.9%', year5: '22.8%',
          cafeIndustry5yr: '22.8%', allIndustry5yr: '34.7%', govSupported5yr: '53.1%',
-         source: '통계청 기업생멸행정통계(2023)'
+         source: '통계청 기업생멸행정통계(2023)',
+         insight: '숙박·음식점업 5년 생존율은 22.8%. 체계적인 준비가 생존율을 높여줍니다.'
        },
-       insight: '분석 중 오류가 발생했습니다: ' + (error.message || '알 수 없는 오류') + '\n\n상단의 검색 버튼을 다시 눌러 재시도해주세요.',
-       rawApiData: null
+       insight: '분석 중 오류가 발생했습니다: ' + (error.message || '알 수 없는 오류') + '\n\n수집된 데이터(카페 현황, 유동인구, 임대료 등)는 가능한 범위에서 표시됩니다. 상단의 검색 버튼을 다시 눌러 재시도해주세요.',
+       rawApiData: _errHasApiData ? _errApis : null
      };
-     console.warn('[FALLBACK] 에러 fallback 결과 설정됨 - welcome 리셋 방지');
-     setSalesModeSearchResult({ success: true, data: _errFallback, query, hasApiData: false, aiError: true, partial: true });
+
+     if (typeof coordinates !== 'undefined' && coordinates) _errFallback.coordinates = coordinates;
+
+     console.warn('[FALLBACK] 에러 fallback 결과 설정됨 - welcome 리셋 방지 (수집 데이터 활용:', _errHasApiData, ')');
+     setSalesModeSearchResult({ success: true, data: _errFallback, query, hasApiData: _errHasApiData, aiError: true, partial: true, collectedData: typeof collectedData !== 'undefined' ? collectedData : null });
+     setSalesModeMapExpanded(true);
    } finally {
      setSalesModeSearchLoading(false);
      salesModeSearchRunningRef.current = false; // 이중 트리거 가드 해제
@@ -12439,7 +13213,7 @@ SNS분석: ${crossData.snsAnalyStr}
  const randomSeed = Math.floor(Math.random() * 1000);
  
  // 타 영업자 데이터 (비교용)
- const allManagerStats = managers.map(m => {
+ const allManagerStats = managers.filter(m => m.username && m.username.startsWith('sm')).map(m => {
    const mCompanies = companies.filter(c => c.managerId === m.id);
    const mPositive = mCompanies.filter(c => c.reaction === 'positive').length;
    const mSpecial = mCompanies.filter(c => c.reaction === 'special').length;
@@ -13486,39 +14260,18 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  // 지역 비교 기능
  const [compareRegions, setCompareRegions] = useState([]); // 비교할 지역 목록
  const [showCompareModal, setShowCompareModal] = useState(false); // 지역 비교 모달
- // 테마 모드: 'dark' | 'light' | 'auto'
- const getInitialTheme = () => {
- const saved = localStorage.getItem('bc_theme_mode');
- return saved || 'dark';
- };
- const getInitialEffectiveTheme = () => {
- const saved = localStorage.getItem('bc_theme_mode') || 'dark';
- if (saved === 'auto') {
- return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
- }
- return saved;
- };
- const [themeMode, setThemeMode] = useState(getInitialTheme);
- const [effectiveTheme, setEffectiveTheme] = useState(getInitialEffectiveTheme);
- 
- // 테마 단축 참조
- const theme = effectiveTheme;
- const t = THEME_COLORS[theme];
+ // 테마: 라이트모드 고정
+ const theme = 'light';
+ const t = THEME_COLORS.light;
  
  // 배경 이미지 (앱 시작 시 한 번만 선택)
  const [appBackground] = useState(() => {
-   const backgrounds = effectiveTheme === 'dark' ? DARK_MODE_BACKGROUNDS : LIGHT_MODE_BACKGROUNDS;
+   const backgrounds = LIGHT_MODE_BACKGROUNDS;
    if (backgrounds.length === 0) return null;
    return backgrounds[Math.floor(Math.random() * backgrounds.length)];
  });
  
- // 테마 토글 함수
- const toggleTheme = useCallback(() => {
-   const newTheme = effectiveTheme === 'dark' ? 'light' : 'dark';
-   setEffectiveTheme(newTheme);
-   setThemeMode(newTheme);
-   localStorage.setItem('bc_theme_mode', newTheme);
- }, [effectiveTheme]);
+ // 테마 토글 제거 (라이트모드 고정)
  
  const [tabHistory, setTabHistory] = useState([]);
  const [showHistory, setShowHistory] = useState(false);
@@ -13540,6 +14293,10 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  const [routeDeleteMode, setRouteDeleteMode] = useState(false);
  const [expandedRouteMonths, setExpandedRouteMonths] = useState({}); // 월별 아코디언 상태
  const [selectedRoutesForDelete, setSelectedRoutesForDelete] = useState([]);
+ const [routeListManagerFilter, setRouteListManagerFilter] = useState('none'); // 동선 담당자 필터 ('none' = 미선택)
+const [routeViewMode, setRouteViewMode] = useState(false); // 등록된 동선 "동선" 버튼으로 지도 보기 모드
+ const [routeStopEditMode, setRouteStopEditMode] = useState(false); // 방문순서 수정 모드
+ const [routeStopsBackup, setRouteStopsBackup] = useState(null); // 편집 전 백업
  const [showOcrModal, setShowOcrModal] = useState(false);
  const [showBulkOcrModal, setShowBulkOcrModal] = useState(false);
  const [ocrResult, setOcrResult] = useState(null);
@@ -13570,6 +14327,9 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  const [pins, setPins] = useState([]);
  const [companies, setCompanies] = useState([]);
  const [customers, setCustomers] = useState([]);
+ const [customerArchive, setCustomerArchive] = useState([]);
+ const [archiveSearch, setArchiveSearch] = useState('');
+ const [archiveStatusFilter, setArchiveStatusFilter] = useState('all');
  const [sales, setSales] = useState([]);
  const [requests, setRequests] = useState([]);
  const [userStatus, setUserStatus] = useState({});
@@ -13591,8 +14351,10 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  const [selectedCalendarDate, setSelectedCalendarDate] = useState(null);
  const [selectedCalendarEvent, setSelectedCalendarEvent] = useState(null);
  const [showCalendarModal, setShowCalendarModal] = useState(false);
+ const [weekScheduleFilter, setWeekScheduleFilter] = useState('all');
  const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
  const [showUnvisitedModal, setShowUnvisitedModal] = useState(null); // 미방문 업체 처리 모달
+ const [routeCompleteModal, setRouteCompleteModal] = useState(null); // 동선 완료 체크 모달 { route, checkedStops: Set, note: '' }
  const [addressIssueAlert, setAddressIssueAlert] = useState(null); // 주소 오류 알림
  const [calendarEventInput, setCalendarEventInput] = useState({ title: '', time: '09:00', memo: '' });
  const [editingEventId, setEditingEventId] = useState(null);
@@ -13614,6 +14376,11 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  }, []);
  const [realtorRegionFilter, setRealtorRegionFilter] = useState('');
  const [realtorSortMode, setRealtorSortMode] = useState('listings');
+ // -- Performance: lazy rendering state for broker management tab --
+ const [_openedCities, _setOpenedCities] = useState(new Set());
+ const [_openedDistricts, _setOpenedDistricts] = useState(new Set());
+ const [_districtPages, _setDistrictPages] = useState({});
+ const _DISTRICT_PAGE_SIZE = 50;
  const [routeSearchRegion, setRouteSearchRegion] = useState('');
  const [routeSearchTarget, setRouteSearchTarget] = useState('');
  const [routeSearchText, setRouteSearchText] = useState('');
@@ -13751,52 +14518,20 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  const pendingGeoRequests = useRef({});
  
  // 테마 모드 적용 - CSS 변수 기반
+ // 라이트모드 고정 적용
  useEffect(() => {
- const applyTheme = (mode) => {
-   let theme = mode;
-   if (mode === 'auto') {
-     theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-   }
-   setEffectiveTheme(theme);
-   
    const root = document.documentElement;
-   
-   if (theme === 'dark') {
-     root.classList.add('dark');
-     // CSS 변수 설정 - 다크 모드
-     root.style.setProperty('--bg-primary', '#171717');
-     root.style.setProperty('--bg-secondary', '#262626');
-     root.style.setProperty('--bg-card', '#1f1f1f');
-     root.style.setProperty('--text-primary', '#ffffff');
-     root.style.setProperty('--text-secondary', '#a3a3a3');
-     root.style.setProperty('--border-color', '#404040');
-     document.body.style.background = '#171717';
-     document.body.style.color = '#ffffff';
-   } else {
-     root.classList.remove('dark');
-     // CSS 변수 설정 - 라이트 모드
-     root.style.setProperty('--bg-primary', '#ffffff');
-     root.style.setProperty('--bg-secondary', '#f5f5f5');
-     root.style.setProperty('--bg-card', '#ffffff');
-     root.style.setProperty('--text-primary', '#171717');
-     root.style.setProperty('--text-secondary', '#525252');
-     root.style.setProperty('--border-color', '#e5e5e5');
-     document.body.style.background = '#ffffff';
-     document.body.style.color = '#171717';
-   }
- };
- 
- applyTheme(themeMode);
- localStorage.setItem('bc_theme_mode', themeMode);
- 
- // 자동 모드일 때 시스템 설정 변경 감지
- if (themeMode === 'auto') {
-   const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-   const handler = (e) => applyTheme('auto');
-   mediaQuery.addEventListener('change', handler);
-   return () => mediaQuery.removeEventListener('change', handler);
- }
- }, [themeMode]);
+   root.classList.remove('dark');
+   root.style.setProperty('--bg-primary', '#ffffff');
+   root.style.setProperty('--bg-secondary', '#f5f5f5');
+   root.style.setProperty('--bg-card', '#ffffff');
+   root.style.setProperty('--text-primary', '#171717');
+   root.style.setProperty('--text-secondary', '#525252');
+   root.style.setProperty('--border-color', '#e5e5e5');
+   document.body.style.background = '#ffffff';
+   document.body.style.color = '#171717';
+   localStorage.removeItem('bc_theme_mode');
+ }, []);
  
  useEffect(() => {
  // Content Script에서 보내는 메시지 수신 (확장프로그램 통신 허용)
@@ -13961,6 +14696,10 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  const data = snapshot.val();
  setCustomers(data ? Object.values(data) : []);
  });
+ database.ref('customer_archive').on('value', (snapshot) => {
+ const data = snapshot.val();
+ setCustomerArchive(data ? Object.values(data).sort((a, b) => (b.id || 0) - (a.id || 0)) : []);
+ });
  refs.sales.on('value', (snapshot) => {
  const data = snapshot.val();
  setSales(data ? Object.values(data) : []);
@@ -13979,7 +14718,23 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  });
  refs.routes.on('value', (snapshot) => {
  const data = snapshot.val();
- setRoutes(data ? Object.values(data) : []);
+ const rawValues = data ? Object.values(data) : [];
+ // Flatten: if routes are nested by managerId, flatten them
+ const routesList = [];
+ rawValues.forEach(v => {
+   if (v && typeof v === 'object' && v.id !== undefined) {
+     routesList.push(v);
+   } else if (v && typeof v === 'object') {
+     // Possibly nested by managerId: routes/{managerId}/{routeId}
+     Object.values(v).forEach(inner => {
+       if (inner && typeof inner === 'object' && inner.id !== undefined) {
+         routesList.push(inner);
+       }
+     });
+   }
+ });
+ console.log('[routes] Firebase routes loaded:', routesList.length, 'routes, managerIds:', [...new Set(routesList.map(r => r.managerId))]);
+ setRoutes(routesList);
  });
  // 멘트 데이터는 별도 useEffect에서 user?.managerId 의존성으로 로드
  refs.realtorCollections.on('value', (snapshot) => {
@@ -14013,7 +14768,9 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  const realtorsList = Object.entries(data).map(([key, val]) => ({ id: key, ...val }));
  realtorsList.sort((a, b) => (b.listings || 0) - (a.listings || 0));
  setCollectedRealtors(realtorsList);
- try { localStorage.setItem('bc_collected_realtors', JSON.stringify(realtorsList)); } catch {}
+ setTimeout(() => {
+   try { localStorage.setItem('bc_collected_realtors', JSON.stringify(realtorsList)); } catch(e) {}
+ }, 100);
  } else {
  setCollectedRealtors([]);
  }
@@ -14054,10 +14811,39 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  setMarketIssues([]);
  }
  });
+ // 영업활동 내역
+ refs.salesActivities = database.ref('sales_activities');
+ refs.salesActivities.on('value', (snapshot) => {
+   const data = snapshot.val();
+   setSalesActivities(data ? Object.values(data).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)) : []);
+ });
+ // 영업자 은행 정보
+ refs.managerBankInfo = database.ref('manager_info');
+ refs.managerBankInfo.on('value', (snapshot) => {
+   const data = snapshot.val();
+   setManagerBankInfo(data || {});
+ });
+ // 삭제된 영업활동 (소프트 삭제)
+ refs.deletedSalesActivities = database.ref('deleted_sales_activities');
+ refs.deletedSalesActivities.on('value', (snapshot) => {
+   const data = snapshot.val();
+   setDeletedActivities(data ? Object.values(data).sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0)) : []);
+ });
+ // 회계(am) 알림 리스너
+ const isAmUser = user?.username?.startsWith('am') || false;
+ if (isAmUser || user?.role === 'super') {
+   refs.amNotifications = database.ref('notifications/am_notifications');
+   refs.amNotifications.on('value', (snapshot) => {
+     const data = snapshot.val();
+     setAmNotifications(data ? Object.entries(data).map(([key, val]) => ({ id: key, ...val })) : []);
+   });
+ }
+
  setDataLoaded(true);
  setSyncStatus('connected');
  return () => {
  Object.values(refs).forEach(ref => ref.off());
+ database.ref('customer_archive').off();
  };
  }, [user]);
  
@@ -14148,7 +14934,7 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
           yesterday.setDate(yesterday.getDate() - 1);
           const yesterdayStr = yesterday.toISOString().split('T')[0];
           const incompleteRoutes = routes.filter(r => {
-            if (!r.date || r.date > yesterdayStr) return false;
+            if (!r || !r.date || r.date > yesterdayStr) return false;
             if (r.status === 'completed') return false; // 완료된 동선 제외
             const hasIncomplete = r.stops?.some(s => !s.visited);
             return hasIncomplete;
@@ -14165,6 +14951,14 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
           setIncompleteRouteAlert(null);
         }
       }, [loggedIn, calendarEvents, routes]);
+
+// 비관리자: 동선 탭 진입 시 본인 담당자 자동 선택
+useEffect(() => {
+  if (loggedIn && user && user.role !== 'super' && user.managerId && routeListManagerFilter === 'none') {
+    setRouteListManagerFilter(String(user.managerId));
+    setRouteManager(user.managerId);
+  }
+}, [loggedIn, user]);
 
  // 주소 오류 감지 및 담당자 알림
  useEffect(() => {
@@ -14327,6 +15121,31 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
    console.log(`[자동일정] ${company.name} 업체에 3개 일정 생성됨`);
  };
  const saveCustomer = (customer) => database.ref('customers/' + customer.id).set(customer);
+ const saveCustomerArchive = (customer) => {
+   const archiveData = {
+     id: customer.id,
+     name: customer.name || '',
+     phone: customer.phone || '',
+     desiredRegion: customer.desiredRegion || '',
+     budget: customer.budget || '',
+     desiredSize: customer.desiredSize || '',
+     status: customer.status || 'consult',
+     managerId: customer.managerId || null,
+     consultDate: customer.consultDate || '',
+     createdAt: customer.createdAt || new Date().toLocaleString('ko-KR'),
+     isDeleted: customer.isDeleted || false,
+     deletedAt: customer.deletedAt || null,
+     note: customer.note || '',
+     memo: customer.memo || ''
+   };
+   return database.ref('customer_archive/' + customer.id).set(archiveData);
+ };
+ const markCustomerArchiveDeleted = (customerId) => {
+   return database.ref('customer_archive/' + customerId).update({
+     isDeleted: true,
+     deletedAt: new Date().toLocaleString('ko-KR')
+   });
+ };
  const deleteFirebaseCustomer = (customerId) => database.ref('customers/' + customerId).remove();
  const saveSale = (sale) => database.ref('sales/' + sale.id).set(sale);
  const deleteFirebaseSale = (saleId) => database.ref('sales/' + saleId).remove();
@@ -14693,7 +15512,8 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
    if (savedRoute.date) setRouteDate(savedRoute.date);
    if (savedRoute.time) setRouteTime(savedRoute.time);
    if (savedRoute.managerId) setRouteManager(savedRoute.managerId);
-   if (savedRoute.editingId) setEditingRouteId(savedRoute.editingId);
+   // editingId 복원 제거: 앱 시작 시 취소/수정완료 버튼이 의도치 않게 노출되는 버그 방지
+  // if (savedRoute.editingId) setEditingRouteId(savedRoute.editingId);
  }
  }, []);
  
@@ -14748,13 +15568,16 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
      console.log(`[자동로그인] 손상된 이름 복구: ${m.name} -> ${validName}`);
      database.ref('managers/' + m.id).update({ name: validName });
    }
-   userData = { name: validName, role: 'manager', managerId: m.id, username: m.username, email };
+   const mRole = m.role || (m.username && m.username.startsWith('am') ? 'accounting' : 'manager');
+   userData = { name: validName, role: mRole, managerId: m.id, username: m.username, email };
  } else {
- userData = { name: emailPrefix, role: 'manager', email };
+ const prefixRole = emailPrefix.startsWith('am') ? 'accounting' : 'manager';
+ userData = { name: emailPrefix, role: prefixRole, email };
  }
  } catch (e) {
  console.error('managers 조회 에러:', e);
- userData = { name: emailPrefix, role: 'manager', email };
+ const prefixRole = emailPrefix.startsWith('am') ? 'accounting' : 'manager';
+ userData = { name: emailPrefix, role: prefixRole, email };
  }
  }
  setUser(userData);
@@ -14943,18 +15766,12 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  const shouldBlink = currentHighlight.includes(company.id) || company.reaction === 'special';
  const size = getPinSize(currentZoom, shouldBlink);
  const borderWidth = Math.max(2, Math.floor(size / 5));
- let color = '#9ca3af';
- if (company.reaction === 'special') color = '#ef4444';
- else if (company.reaction === 'positive') color = '#22c55e';
- else if (company.reaction === 'neutral') color = '#f97316';
- else if (company.reaction === 'missed') color = '#eab308';
+ const color = (REACTION_COLORS[company.reaction] || REACTION_COLORS.neutral).bg;
  const marker = new naver.maps.Marker({
  position: new naver.maps.LatLng(company.lat, company.lng),
  map: mapObj.current,
  icon: {
- content: `<div class="${shouldBlink ? (company.reaction === 'special' ? 'special-blink' : 'marker-pulse') : ''}" style="width:${size}px;height:${size}px;background:${color};border-radius:50%;border:${borderWidth}px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4);cursor:pointer;display:flex;align-items:center;justify-content:center;">
- <span style="font-size:${Math.max(8, size/2.5)}px;color:white;font-weight:bold;">${company.name.charAt(0)}</span>
- </div>`,
+ content: `<div class="${shouldBlink ? (company.reaction === 'special' ? 'special-blink' : 'marker-pulse') : ''}" style="width:${size}px;height:${size}px;background:${color};border-radius:50%;border:${borderWidth}px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4);cursor:pointer;"></div>`,
  anchor: new naver.maps.Point(size/2, size/2)
  }
  });
@@ -14967,18 +15784,24 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  }, [filterManager, filterStatus]);
  useEffect(() => { if (mapObj.current) renderMarkers(); }, [companies, managers, filterManager, filterStatus, highlightPins, renderMarkers]);
   
-  // 로그인 시퀀스 애니메이션
+  // 로그인 시퀀스 애니메이션 (최초 방문만 재생, 로그아웃 후 재방문은 즉시 form)
   useEffect(() => {
-    if (loggedIn) return;
-    
-    // 명언 (4초) -> 로고 나타남 (2초) -> 로그인 폼 표시
+    if (loggedIn) {
+      initialLoginAnimDone.current = true;
+      try { sessionStorage.setItem('bc_login_seen', '1'); } catch(e) {}
+      return;
+    }
+    if (initialLoginAnimDone.current) {
+      setLoginPhase('form');
+      return;
+    }
     const timer1 = setTimeout(() => setLoginPhase('logo'), 4000);
-    const timer2 = setTimeout(() => setLoginPhase('form'), 6000);
-    
-    return () => {
-      clearTimeout(timer1);
-      clearTimeout(timer2);
-    };
+    const timer2 = setTimeout(() => {
+      setLoginPhase('form');
+      initialLoginAnimDone.current = true;
+      try { sessionStorage.setItem('bc_login_seen', '1'); } catch(e) {}
+    }, 6000);
+    return () => { clearTimeout(timer1); clearTimeout(timer2); };
   }, [loggedIn]);
   
   // 미표시 업체 자동 좌표 검색
@@ -15030,38 +15853,7 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  center: new naver.maps.LatLng(37.5665, 126.978),
  zoom: 11
  });
- naver.maps.Event.addListener(routeMapObj.current, 'click', (e) => {
- const lat = e.coord.lat();
- const lng = e.coord.lng();
- naver.maps.Service.reverseGeocode({
- coords: new naver.maps.LatLng(lat, lng),
- orders: 'roadaddr,addr'
- }, (status, response) => {
- let placeName = '선택한 위치';
- let address = '';
- if (status === naver.maps.Service.Status.OK && response.v2.results?.length > 0) {
- const result = response.v2.results[0];
- if (result.land) {
- const land = result.land;
- address = `${result.region.area1.name} ${result.region.area2.name} ${result.region.area3.name} ${land.name || ''} ${land.number1 || ''}`.trim();
- if (land.addition0?.value) {
- placeName = land.addition0.value;
- } else {
- placeName = `${result.region.area3.name} ${land.number1 || ''}`.trim();
- }
- }
- }
- const newStop = {
- id: Date.now(),
- name: placeName,
- address: address,
- lat: lat,
- lng: lng,
- type: 'click'
- };
- setRouteStops(prev => [...prev, newStop]);
- });
- });
+ // 지도 클릭으로 동선 추가 기능 제거 (지도 자체는 유지)
  console.log('[지도] 초기화 완료!');
  setTimeout(() => updateRouteMapMarkers(), 500);
  };
@@ -15741,6 +16533,298 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  };
  // ========== 중복 체크 유틸리티 함수 끝 ==========
 
+
+ // ========== 중개사 관리 탭 성능 최적화 (useMemo + lazy rendering) ==========
+ const _rl_getListingCount = (r) => {
+   if (r.listingCount) return r.listingCount;
+   if (r.listings) return r.listings;
+   if (r.articleCounts && r.articleCounts.total) return r.articleCounts.total;
+   return 0;
+ };
+ const _rl_getOfficeName = (r) => {
+   if (r.name && (r.name.includes('공인중개') || r.name.includes('부동산') || r.name.includes('중개사'))) return r.name;
+   if (r.officeName) return r.officeName;
+   if (r.realtorName) return r.realtorName;
+   return r.name || '(업체명 없음)';
+ };
+ const _rl_getAgentName = (r) => r.agentName || r.agent || '미정';
+
+ const _rl_CITY_ORDER = ['서울특별시', '경기도', '인천광역시', '부산광역시', '대구광역시', '광주광역시', '대전광역시', '울산광역시', '세종특별자치시', '강원특별자치도', '충청북도', '충청남도', '전북특별자치도', '전라남도', '경상북도', '경상남도', '제주특별자치도'];
+
+ const _rl_cdCache = window.__beancraft_cdCache || (window.__beancraft_cdCache = new Map());
+ const _rl_extractCityDistrict = (address) => {
+   if (!address) return { city: '기타', district: '기타' };
+   if (_rl_cdCache.has(address)) return _rl_cdCache.get(address);
+   const seoulDistricts = ['종로', '중구', '용산', '성동', '광진', '동대문', '중랑', '성북', '강북', '도봉', '노원', '은평', '서대문', '마포', '양천', '강서', '구로', '금천', '영등포', '동작', '관악', '서초', '강남', '송파', '강동'];
+   const provinceCities = {
+     '경기도': ['수원', '성남', '고양', '용인', '부천', '안산', '안양', '남양주', '화성', '평택', '의정부', '시흥', '파주', '광명', '김포', '군포', '광주', '이천', '양주', '오산', '구리', '안성', '포천', '의왕', '하남', '여주', '양평', '동두천', '과천', '가평', '연천'],
+     '강원특별자치도': ['춘천', '원주', '강릉', '동해', '삼척', '속초', '태백', '홍천', '횡성', '영월', '평창', '정선', '철원', '화천', '양구', '인제', '고성', '양양'],
+     '충청북도': ['청주', '충주', '제천', '보은', '옥천', '영동', '증평', '진천', '괴산', '음성', '단양'],
+     '충청남도': ['천안', '공주', '보령', '아산', '서산', '논산', '계룡', '당진', '금산', '부여', '서천', '청양', '홍성', '예산', '태안'],
+     '전북특별자치도': ['전주', '군산', '익산', '정읍', '남원', '김제', '완주', '진안', '무주', '장수', '임실', '순창', '고창', '부안'],
+     '전라남도': ['목포', '여수', '순천', '나주', '광양', '담양', '곡성', '구례', '고흥', '보성', '화순', '장흥', '강진', '해남', '영암', '무안', '함평', '영광', '장성', '완도', '진도', '신안'],
+     '경상북도': ['포항', '경주', '김천', '안동', '구미', '영주', '영천', '상주', '문경', '경산', '군위', '의성', '청송', '영양', '영덕', '청도', '고령', '성주', '칠곡', '예천', '봉화', '울진', '울릉'],
+     '경상남도': ['창원', '진주', '통영', '사천', '김해', '밀양', '거제', '양산', '의령', '함안', '창녕', '고성', '남해', '하동', '산청', '함양', '거창', '합천'],
+     '제주특별자치도': ['제주', '서귀포']
+   };
+   const cityPatterns = [
+     { pattern: /서울(특별시|시)?/, city: '서울특별시' }, { pattern: /부산(광역시)?/, city: '부산광역시' },
+     { pattern: /대구(광역시)?/, city: '대구광역시' }, { pattern: /인천(광역시)?/, city: '인천광역시' },
+     { pattern: /광주(광역시)?/, city: '광주광역시' }, { pattern: /대전(광역시)?/, city: '대전광역시' },
+     { pattern: /울산(광역시)?/, city: '울산광역시' }, { pattern: /세종(특별자치시)?/, city: '세종특별자치시' },
+     { pattern: /경기(도)?/, city: '경기도' }, { pattern: /강원(특별자치도|도)?/, city: '강원특별자치도' },
+     { pattern: /충청?북(도)?|충북/, city: '충청북도' }, { pattern: /충청?남(도)?|충남/, city: '충청남도' },
+     { pattern: /전라?북(특별자치도|도)?|전북/, city: '전북특별자치도' }, { pattern: /전라?남(도)?|전남/, city: '전라남도' },
+     { pattern: /경상?북(도)?|경북/, city: '경상북도' }, { pattern: /경상?남(도)?|경남/, city: '경상남도' },
+     { pattern: /제주(특별자치도|도)?/, city: '제주특별자치도' }
+   ];
+   // 하위구를 가진 시 (전국)
+   const citiesWithDistricts = ['수원', '성남', '안양', '안산', '고양', '용인', '화성', '부천', '청주', '천안', '전주', '포항', '창원'];
+   let city = '기타';
+   for (const { pattern, city: cn } of cityPatterns) { if (pattern.test(address)) { city = cn; break; } }
+   let district = '기타';
+   // "XX시 YY구" 패턴 체크: 하위구를 가진 시이면 district = "XX시"
+   const cityDistMatch = address.match(/([가-힣]{2,4})시\s+[가-힣]{1,4}구/);
+   if (cityDistMatch && citiesWithDistricts.includes(cityDistMatch[1])) {
+     district = cityDistMatch[1] + '시';
+   } else {
+     const dm = address.match(/([가-힣]{1,4})(구|군)/);
+     if (dm) { const m = dm[1] + dm[2]; if (!m.includes('특별') && !m.includes('광역') && m.length <= 5) district = m; }
+   }
+   if (district === '기타' && city === '서울특별시') {
+     for (const gu of seoulDistricts) {
+       const guRx = new RegExp(`${gu}(?!\\S*구)\\s|${gu}(?!\\S*구)$|\\s${gu}\\s`);
+       if (guRx.test(address) || address.includes(gu + ' ') || address.includes(gu + '동')) { district = gu + '구'; break; }
+     }
+   }
+   if (city === '기타') {
+     const cm = address.match(/([가-힣]{2,4})시(?![도특])/);
+     if (cm) { for (const [prov, cs] of Object.entries(provinceCities)) { if (cs.includes(cm[1])) { city = prov; if (district === '기타') district = cm[1] + '시'; break; } } }
+   }
+   if (district === '기타') { const cm = address.match(/([가-힣]{2,4})시(?![도특])/); if (cm) district = cm[1] + '시'; }
+   if (city === '기타' && district !== '기타' && district.endsWith('구')) { if (seoulDistricts.includes(district.replace('구', ''))) city = '서울특별시'; }
+   const result = { city, district };
+   _rl_cdCache.set(address, result);
+   return result;
+ };
+
+ // Lazy init: only compute realtor data when realtor tab is first visited
+ useEffect(() => {
+   if (tab === 'realtors' && !_rl_initialized) {
+     const timer = setTimeout(() => _setRlInitialized(true), 50);
+     return () => clearTimeout(timer);
+   }
+ }, [tab, _rl_initialized]);
+
+ // Phase 1: validRealtors + regionHierarchy (fast - dupCache deferred)
+ const _rl_memo = useMemo(() => {
+   if (!_rl_initialized) return { validRealtors: [], hierarchyArrays: {}, sortedCities: [], latestDate: null };
+   const rawValid = collectedRealtors.filter(r => {
+     const name = _rl_getOfficeName(r);
+     return (name.includes('공인중개') || name.includes('부동산') || name.includes('중개사')) || (r.address && r.address.length > 5);
+   });
+   const normName = (name) => name.replace(/\s+/g, '').replace(/[^\w가-힣]/g, '').toLowerCase();
+   const seen = new Map();
+   const deduped = [];
+   rawValid.forEach((r) => {
+     const name = _rl_getOfficeName(r).trim();
+     const nn = normName(name);
+     const { city, district } = _rl_extractCityDistrict(r.address);
+     const key = `${nn}-${city}-${district}`;
+     if (seen.has(key)) {
+       const ex = seen.get(key);
+       if (_rl_getListingCount(r) > _rl_getListingCount(ex.data)) {
+         deduped[ex.dedupIdx] = null;
+         seen.set(key, { data: r, dedupIdx: deduped.length });
+         deduped.push(r);
+       }
+     } else {
+       seen.set(key, { data: r, dedupIdx: deduped.length });
+       deduped.push(r);
+     }
+   });
+   const valid = deduped.filter(r => r !== null);
+   // hashmap-based duplicate check for companies (O(n+m) instead of O(n*m))
+   const validNameSet = new Set();
+   const validPhoneSet = new Set();
+   const validAddrKeySet = new Set();
+   const validRegNoSet = new Set();
+   valid.forEach(r => {
+     const name = _rl_getOfficeName(r);
+     const coreName = name.replace(/\u0020*(\uACF5\uC778\uC911\uAC1C\uC0AC?\uC0AC\uBB34\uC18C|\uBD80\uB3D9\uC0B0\uC911\uAC1C|\uACF5\uC778\uC911\uAC1C|\uBD80\uB3D9\uC0B0|\uC911\uAC1C\uC0AC\uBB34\uC18C|\uC0AC\uBB34\uC18C)\u0020*/g, '').replace(/\s+/g, '').trim();
+     if (coreName.length >= 2) validNameSet.add(coreName);
+     const phones = [
+       normalizePhone(r.phone || ''),
+       normalizePhone(r.cellPhone || ''),
+       normalizePhone(r.officePhone || ''),
+       normalizePhone(r.mobile || '')
+     ].filter(p => p && p.length >= 4);
+     phones.forEach(p => validPhoneSet.add(p));
+     const addr = (r.address || '');
+     const addrNorm = addr.replace(/\uC11C\uC6B8\uD2B9\uBCC4\uC2DC|\uC11C\uC6B8\uC2DC|\uC11C\uC6B8|\uACBD\uAE30\uB3C4|\uC778\uCC9C\uAD11\uC5ED\uC2DC|\uBD80\uC0B0\uAD11\uC5ED\uC2DC/g, '').replace(/\([^)]*\)/g, '').trim();
+     const addrMatch = addrNorm.match(/(\S+\uAD6C)\s*(\S+(?:\uB85C|\uAE38|\uB3D9))\s*(\d+(?:-\d+)?)/);
+     if (addrMatch) validAddrKeySet.add(`${addrMatch[1]}_${addrMatch[2]}_${addrMatch[3]}`);
+     if (r.regNo) validRegNoSet.add(r.regNo);
+     // also add gu+coreName for gu-level matching
+     const guMatch = addr.match(/(\S+\uAD6C)/);
+     if (guMatch && coreName.length >= 2) validNameSet.add(`gu:${guMatch[1]}:${coreName}`);
+   });
+   companies.forEach(company => {
+     const companyName = (company.name || '').replace(/\u0020*(\uACF5\uC778\uC911\uAC1C\uC0AC?\uC0AC\uBB34\uC18C|\uBD80\uB3D9\uC0B0\uC911\uAC1C|\uACF5\uC778\uC911\uAC1C|\uBD80\uB3D9\uC0B0|\uC911\uAC1C\uC0AC\uBB34\uC18C|\uC0AC\uBB34\uC18C)\u0020*/g, '').replace(/\s+/g, '').trim();
+     const companyPhones = [
+       normalizePhone(company.phone || ''),
+       normalizePhone(company.contact || ''),
+       normalizePhone(company.mobile || '')
+     ].filter(p => p && p.length >= 4);
+     const companyAddr = (company.address || '').replace(/\uC11C\uC6B8\uD2B9\uBCC4\uC2DC|\uC11C\uC6B8\uC2DC|\uC11C\uC6B8|\uACBD\uAE30\uB3C4|\uC778\uCC9C\uAD11\uC5ED\uC2DC|\uBD80\uC0B0\uAD11\uC5ED\uC2DC/g, '').replace(/\([^)]*\)/g, '').trim();
+     const companyAddrMatch = companyAddr.match(/(\S+\uAD6C)\s*(\S+(?:\uB85C|\uAE38|\uB3D9))\s*(\d+(?:-\d+)?)/);
+     const companyAddrKey = companyAddrMatch ? `${companyAddrMatch[1]}_${companyAddrMatch[2]}_${companyAddrMatch[3]}` : '';
+     const companyGu = (company.address || '').match(/(\S+\uAD6C)/);
+     const isDup =
+       (company.regNo && validRegNoSet.has(company.regNo)) ||
+       (companyPhones.some(p => validPhoneSet.has(p))) ||
+       (companyAddrKey && validAddrKeySet.has(companyAddrKey) && companyName.length >= 2 && validNameSet.has(companyName)) ||
+       (companyName.length >= 2 && validNameSet.has(companyName) && companyGu && validNameSet.has(`gu:${companyGu[1]}:${companyName}`));
+     if (!isDup) {
+       const { city, district } = _rl_extractCityDistrict(company.address || '');
+       valid.push({
+         id: `company-${company.id}`, name: company.name, address: company.address,
+         phone: company.phone, cellPhone: company.phone, listings: 0, isFromCompany: true,
+         managerId: company.managerId, collected_at: company.createdAt,
+         agentName: company.contact || '', memo: company.memo || '', reaction: company.reaction || '',
+         lat: company.lat, lng: company.lng, companyId: company.id
+       });
+     }
+   });
+   // hierarchy - reuse _rl_cdCache (extractCityDistrict already cached from dedup above)
+   const hierarchy = {};
+   valid.forEach(r => {
+     const { city, district } = _rl_extractCityDistrict(r.address);
+     if (city === '기타') return;
+     if (!hierarchy[city]) hierarchy[city] = new Set();
+     if (district !== '기타') hierarchy[city].add(district);
+   });
+   const sortedCities = _rl_CITY_ORDER.filter(c => hierarchy[c]);
+   const hierarchyArrays = {};
+   sortedCities.forEach(c => { hierarchyArrays[c] = [...hierarchy[c]].sort(); });
+   let latestDate = null;
+   const vd = valid.filter(r => r.collected_at).map(r => { const d = new Date(r.collected_at); return isNaN(d.getTime()) ? null : d; }).filter(d => d !== null);
+   if (vd.length > 0) latestDate = new Date(Math.max(...vd.map(d => d.getTime())));
+   return { validRealtors: valid, hierarchyArrays, sortedCities, latestDate };
+ }, [collectedRealtors, companies, _rl_initialized]);
+
+ // Phase 2: dupCache (deferred - hashmap-based O(n+m) instead of O(n*m))
+ const _rl_dupCacheRef = useRef(new Map());
+ const [_rl_dupCacheReady, _setRlDupCacheReady] = useState(false);
+ const _rl_dupCacheVersionRef = useRef(0);
+ useEffect(() => {
+   const version = ++_rl_dupCacheVersionRef.current;
+   _setRlDupCacheReady(false);
+   const validRealtors = _rl_memo.validRealtors;
+   if (!validRealtors.length || !companies.length) return;
+   const timeoutId = setTimeout(() => {
+     if (version !== _rl_dupCacheVersionRef.current) return;
+     // Build company indexes once (O(m))
+     const compNameMap = new Map(); // coreName -> company
+     const compPhoneMap = new Map(); // phone -> company
+     const compAddrNameMap = new Map(); // addrKey+name -> company
+     const compRegNoMap = new Map(); // regNo -> company
+     const compGuNameMap = new Map(); // gu+coreName -> company
+     const extractCoreName = (name) => (name || '').replace(/\u0020*(\uACF5\uC778\uC911\uAC1C\uC0AC?\uC0AC\uBB34\uC18C|\uBD80\uB3D9\uC0B0\uC911\uAC1C|\uACF5\uC778\uC911\uAC1C|\uBD80\uB3D9\uC0B0|\uC911\uAC1C\uC0AC\uBB34\uC18C|\uC0AC\uBB34\uC18C)\u0020*/g, '').replace(/\s+/g, '').trim();
+     const extractAddrKey = (addr) => {
+       if (!addr) return '';
+       const norm = addr.replace(/\uC11C\uC6B8\uD2B9\uBCC4\uC2DC|\uC11C\uC6B8\uC2DC|\uC11C\uC6B8|\uACBD\uAE30\uB3C4|\uC778\uCC9C\uAD11\uC5ED\uC2DC|\uBD80\uC0B0\uAD11\uC5ED\uC2DC/g, '').replace(/\([^)]*\)/g, '').trim();
+       const m = norm.match(/(\S+\uAD6C)\s*(\S+(?:\uB85C|\uAE38|\uB3D9))\s*(\d+(?:-\d+)?)/);
+       return m ? `${m[1]}_${m[2]}_${m[3]}` : '';
+     };
+     companies.forEach(c => {
+       const cn = extractCoreName(c.name || '');
+       if (cn.length >= 2) compNameMap.set(cn, c);
+       [normalizePhone(c.phone || ''), normalizePhone(c.contact || ''), normalizePhone(c.mobile || '')].filter(p => p && p.length >= 4).forEach(p => compPhoneMap.set(p, c));
+       const ak = extractAddrKey(c.address || '');
+       if (ak && cn.length >= 2) compAddrNameMap.set(`${ak}:${cn}`, c);
+       if (c.regNo) compRegNoMap.set(c.regNo, c);
+       const gu = (c.address || '').match(/(\S+\uAD6C)/);
+       if (gu && cn.length >= 2) compGuNameMap.set(`${gu[1]}:${cn}`, c);
+     });
+     // Match each realtor in O(1) per realtor
+     const newCache = new Map();
+     validRealtors.forEach(r => {
+       const key = r.id || _rl_getOfficeName(r);
+       const rName = _rl_getOfficeName(r);
+       const rCoreName = extractCoreName(rName);
+       const rAddr = r.address || '';
+       const rAddrKey = extractAddrKey(rAddr);
+       const rPhones = [normalizePhone(r.phone || ''), normalizePhone(r.cellPhone || ''), normalizePhone(r.officePhone || ''), normalizePhone(r.mobile || '')].filter(p => p && p.length >= 4);
+       const rGu = rAddr.match(/(\S+\uAD6C)/);
+       let matched = null;
+       let reason = '';
+       // 1: regNo
+       if (r.regNo && compRegNoMap.has(r.regNo)) { matched = compRegNoMap.get(r.regNo); reason = 'regNo'; }
+       // 2: phone
+       if (!matched) { for (const p of rPhones) { if (compPhoneMap.has(p)) { matched = compPhoneMap.get(p); reason = 'phone'; break; } } }
+       // 3: addrKey + name
+       if (!matched && rAddrKey && rCoreName.length >= 2 && compAddrNameMap.has(`${rAddrKey}:${rCoreName}`)) { matched = compAddrNameMap.get(`${rAddrKey}:${rCoreName}`); reason = 'address+name'; }
+       // 4: gu + name
+       if (!matched && rGu && rCoreName.length >= 2 && compGuNameMap.has(`${rGu[1]}:${rCoreName}`)) { matched = compGuNameMap.get(`${rGu[1]}:${rCoreName}`); reason = 'name_in_gu'; }
+       newCache.set(key, matched ? { isDuplicate: true, matchedCompany: matched, reason } : { isDuplicate: false, matchedCompany: null });
+     });
+     _rl_dupCacheRef.current = newCache;
+     _setRlDupCacheReady(true);
+   }, 0);
+   return () => clearTimeout(timeoutId);
+ }, [_rl_memo.validRealtors, companies]);
+
+ // Memoized: filtered + sorted + grouped
+ const _rl_filteredGrouped = useMemo(() => {
+   let filtered = [..._rl_memo.validRealtors];
+   if (_realtorSearchDebounced) {
+     const qLower = _realtorSearchDebounced.trim().replace(/역$/, '').toLowerCase();
+     filtered = filtered.filter(r => {
+       const addr = (r.address || '').toLowerCase();
+       const name = _rl_getOfficeName(r).toLowerCase();
+       const agent = _rl_getAgentName(r).toLowerCase();
+       return addr.includes(qLower) || name.includes(qLower) || agent.includes(qLower);
+     });
+   }
+   if (realtorRegionFilter) {
+     const [fc, fd] = realtorRegionFilter.split('|');
+     filtered = filtered.filter(r => {
+       const { city, district } = _rl_extractCityDistrict(r.address);
+       return fc && fd && city === fc && district === fd;
+     });
+   }
+   if (realtorSortMode === 'recent') {
+     filtered.sort((a, b) => new Date(b.collected_at || 0) - new Date(a.collected_at || 0));
+   } else if (realtorSortMode === 'name') {
+     filtered.sort((a, b) => _rl_getOfficeName(a).localeCompare(_rl_getOfficeName(b)));
+   } else if (realtorSortMode === 'unvisited') {
+     filtered.sort((a, b) => {
+       const av = isCompanyDuplicate(a, companies) ? 1 : 0;
+       const bv = isCompanyDuplicate(b, companies) ? 1 : 0;
+       return av - bv;
+     });
+   } else {
+     filtered.sort((a, b) => _rl_getListingCount(b) - _rl_getListingCount(a));
+   }
+   const byCityDistrict = {};
+   filtered.forEach(r => {
+     const { city, district } = _rl_extractCityDistrict(r.address);
+     if (city === '기타') return;
+     if (!byCityDistrict[city]) byCityDistrict[city] = {};
+     if (!byCityDistrict[city][district]) byCityDistrict[city][district] = [];
+     byCityDistrict[city][district].push(r);
+   });
+   const displayCities = _rl_CITY_ORDER.filter(c => byCityDistrict[c]);
+   return { byCityDistrict, displayCities };
+ }, [_rl_memo, _realtorSearchDebounced, realtorRegionFilter, realtorSortMode, companies]);
+
+ const _rl_getCachedDuplicate = (realtor) => {
+   const key = realtor.id || _rl_getOfficeName(realtor);
+   return _rl_dupCacheRef.current.get(key) || { isDuplicate: false, matchedCompany: null };
+ };
+ // ========== 중개사 관리 탭 성능 최적화 끝 ==========
+
  const geocodeAddress = (address, companyName = null) => {
     return new Promise((resolve) => {
       if (!window.naver?.maps?.Service) {
@@ -15800,7 +16884,7 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  return e.managerId === userData.managerId;
  });
  const myRoutes = routes.filter(r => {
- if (r.date !== today) return false;
+ if (!r || r.date !== today) return false;
  if (userData.role === 'super') return true;
  return r.managerId === userData.managerId;
  });
@@ -17317,49 +18401,73 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  saveRoute(route);
  alert('동선이 저장되었습니다!');
  };
- const viewRouteOnMapDirect = (route) => {
- const stopsWithCoords = (route.stops || []).filter(s => s.lat && s.lng);
- if (stopsWithCoords.length === 0) {
- return alert('좌표가 있는 경유지가 없습니다.');
- }
- editRoute(route);
- setTimeout(() => {
- if (!routeMapObj.current) return;
- routeMapMarkersRef.current.forEach(m => m.setMap(null));
- routeMapMarkersRef.current = [];
- routeMapLinesRef.current.forEach(l => l.setMap(null));
- routeMapLinesRef.current = [];
- stopsWithCoords.forEach((stop, idx) => {
- const marker = new naver.maps.Marker({
- position: new naver.maps.LatLng(stop.lat, stop.lng),
- map: routeMapObj.current,
- icon: {
- content: `<div style="background: linear-gradient(135deg, #14b8a6, #0d9488); color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; box-shadow: 0 3px 8px rgba(0,0,0,0.4); border: 3px solid white;">${idx + 1}</div>`,
- anchor: new naver.maps.Point(16, 16)
- }
- });
- routeMapMarkersRef.current.push(marker);
- });
- if (stopsWithCoords.length >= 2) {
- const path = stopsWithCoords.map(s => new naver.maps.LatLng(s.lat, s.lng));
- const polyline = new naver.maps.Polyline({
- map: routeMapObj.current,
- path: path,
- strokeColor: '#14b8a6',
- strokeWeight: 5,
- strokeOpacity: 0.9,
- strokeStyle: 'solid'
- });
- routeMapLinesRef.current.push(polyline);
- const bounds = new naver.maps.LatLngBounds();
- stopsWithCoords.forEach(s => bounds.extend(new naver.maps.LatLng(s.lat, s.lng)));
- routeMapObj.current.fitBounds(bounds, { padding: 50 });
- } else {
- routeMapObj.current.setCenter(new naver.maps.LatLng(stopsWithCoords[0].lat, stopsWithCoords[0].lng));
- routeMapObj.current.setZoom(15);
- }
- }, 400);
- };
+const viewRouteOnMapDirect = (route) => {
+const stopsWithCoords = (route.stops || []).filter(s => s.lat && s.lng);
+if (stopsWithCoords.length === 0) {
+return alert('좌표가 있는 경유지가 없습니다.');
+}
+// 등록된 동선 아코디언 모두 접기
+setExpandedRouteMonths({});
+// 지도 보기 모드 활성화 (routeListManagerFilter가 none이어도 지도 표시)
+setRouteViewMode(true);
+// editRoute 대신 editingRouteId를 설정하지 않고 데이터만 로드 (편집 모드 진입 방지)
+setRouteName(route.name || '');
+setRouteDate(route.date || new Date().toISOString().split('T')[0]);
+setRouteTime(route.time || '09:00');
+setRouteManager(route.managerId || null);
+setRouteStops(route.stops || []);
+setRouteStopEditMode(false);
+setCurrentSlideIndex(0);
+// 지도 DOM이 렌더링될 때까지 반복 대기 후 마커 표시 + 지도 카드로 스크롤
+const renderMarkers = (attempt) => {
+if (attempt > 20) return;
+if (!routeMapObj.current) {
+if (routeMapRef.current && window.naver?.maps) { routeMapObj.current = new naver.maps.Map(routeMapRef.current, { center: new naver.maps.LatLng(37.5665, 126.978), zoom: 11 }); }
+setTimeout(() => renderMarkers(attempt + 1), 100);
+return;
+}
+naver.maps.Event.trigger(routeMapObj.current, 'resize');
+routeMapMarkersRef.current.forEach(m => m.setMap(null));
+routeMapMarkersRef.current = [];
+routeMapLinesRef.current.forEach(l => l.setMap(null));
+routeMapLinesRef.current = [];
+stopsWithCoords.forEach((stop, idx) => {
+const marker = new naver.maps.Marker({
+position: new naver.maps.LatLng(stop.lat, stop.lng),
+map: routeMapObj.current,
+icon: {
+content: `<div style="background: linear-gradient(135deg, #14b8a6, #0d9488); color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; box-shadow: 0 3px 8px rgba(0,0,0,0.4); border: 3px solid white;">${idx + 1}</div>`,
+anchor: new naver.maps.Point(16, 16)
+}
+});
+routeMapMarkersRef.current.push(marker);
+});
+if (stopsWithCoords.length >= 2) {
+const path = stopsWithCoords.map(s => new naver.maps.LatLng(s.lat, s.lng));
+const polyline = new naver.maps.Polyline({
+map: routeMapObj.current,
+path: path,
+strokeColor: '#14b8a6',
+strokeWeight: 5,
+strokeOpacity: 0.9,
+strokeStyle: 'solid'
+});
+routeMapLinesRef.current.push(polyline);
+const bounds = new naver.maps.LatLngBounds();
+stopsWithCoords.forEach(s => bounds.extend(new naver.maps.LatLng(s.lat, s.lng)));
+routeMapObj.current.fitBounds(bounds, { padding: 50 });
+} else {
+routeMapObj.current.setCenter(new naver.maps.LatLng(stopsWithCoords[0].lat, stopsWithCoords[0].lng));
+routeMapObj.current.setZoom(15);
+}
+// 지도 카드로 스크롤
+const mapCard = document.getElementById('route-map-card');
+if (mapCard) {
+  mapCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+};
+setTimeout(() => renderMarkers(0), 400);
+};
  const editRoute = (route) => {
  setEditingRouteId(route.id);
  setRouteName(route.name || '');
@@ -17376,57 +18484,108 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  
  // 동선 완료 처리 함수
  const handleCompleteRoute = (route) => {
-   const unvisitedStops = route.stops?.filter(s => !s.visited) || [];
-   
-   if (unvisitedStops.length > 0) {
-     // 미방문 업체가 있음 - 모달 표시
-     setShowUnvisitedModal({ route, unvisitedStops });
-   } else {
-     // 모두 방문함 - 바로 완료 처리
-     completeRouteAction(route, false);
-   }
+   const stops = route.stops || [];
+   const initialChecked = new Set(
+     stops.map((s, i) => s.visited ? i : null).filter(i => i !== null)
+   );
+   setRouteCompleteModal({
+     route,
+     checkedStops: initialChecked,
+     note: '',
+     region: 'metro'
+   });
  };
  
  // 실제 동선 완료 처리
- const completeRouteAction = (route, unassignUnvisited = false) => {
-   const updated = { ...route, status: 'completed', completedAt: new Date().toISOString() };
+ const completeRouteAction = (route, unassignUnvisited = false, visitedIndices = null, note = '', region = 'metro') => {
+   const stops = route.stops || [];
+   const totalStops = stops.length;
+   const visitedSet = visitedIndices !== null
+     ? new Set(visitedIndices)
+     : new Set(stops.map((s, i) => s.visited ? i : null).filter(i => i !== null));
+   const visitedCount = visitedSet.size;
+   const visitRate = totalStops > 0 ? `${visitedCount}/${totalStops}` : '0/0';
+
+   const updatedStops = stops.map((s, i) => ({ ...s, visited: visitedSet.has(i) }));
+
+   const completedAt = new Date().toISOString();
+   const updated = {
+     ...route,
+     stops: updatedStops,
+     status: 'completed',
+     completedAt,
+     visitedStops: [...visitedSet],
+     completionNote: note,
+     visitRate
+   };
    const newRoutes = routes.map(r => r.id === route.id ? updated : r);
    setRoutes(newRoutes);
    localStorage.setItem('bc_routes', JSON.stringify(newRoutes));
    saveRoute(updated);
 
-   // 미방문 업체 담당자 미배정 처리
+   const manager = managers.find(m => m.id === route.managerId);
+   const scheduleId = 'rc_' + route.id + '_' + Date.now();
+   const scheduleRecord = {
+     id: scheduleId,
+     type: 'route_complete',
+     title: `${route.name || route.date} ${visitRate}`,
+     date: route.date || completedAt.slice(0, 10),
+     managerId: route.managerId || null,
+     managerName: manager ? manager.name : '',
+     routeId: route.id,
+     completedAt,
+     visitRate,
+     note,
+     color: '#10B981'
+   };
+   database.ref('calendarEvents/' + scheduleId).set(scheduleRecord);
+   setCalendarEvents(prev => [...prev.filter(e => e.id !== scheduleId), scheduleRecord]);
+
+   // 홍보물 차감 처리
+   if (visitedCount > 0 && route.managerId) {
+     const promoMgr = managers.find(m => m.id === route.managerId);
+     if (promoMgr) {
+       const isProvince = region === 'province';
+       const currentPromo = promoMgr.promo || {};
+       const updatedPromo = {
+         ...currentPromo,
+         '명함': Math.max(0, (currentPromo['명함'] || 0) - visitedCount),
+         '브로셔': Math.max(0, (currentPromo['브로셔'] || 0) - (isProvince ? visitedCount * 3 : visitedCount)),
+         '전단지': Math.max(0, (currentPromo['전단지'] || 0) - visitedCount),
+         '쿠폰': Math.max(0, (currentPromo['쿠폰'] || 0) - visitedCount)
+       };
+       saveManager({ ...promoMgr, promo: updatedPromo });
+     }
+   }
+
    if (unassignUnvisited) {
-     const unvisitedStops = route.stops?.filter(s => !s.visited) || [];
+     const unvisitedStops = updatedStops.filter((s, i) => !visitedSet.has(i));
      let updatedCount = 0;
-     
      unvisitedStops.forEach(stop => {
-       // 동선의 업체명으로 companies에서 찾기
-       const matchedCompany = companies.find(c => 
-         c.name === stop.name || 
-         c.name?.includes(stop.name) || 
+       const matchedCompany = companies.find(c =>
+         c.name === stop.name ||
+         c.name?.includes(stop.name) ||
          stop.name?.includes(c.name)
        );
-       
        if (matchedCompany && matchedCompany.managerId) {
          const updatedCompany = { ...matchedCompany, managerId: null };
          saveCompany(updatedCompany);
          updatedCount++;
        }
      });
-     
      if (updatedCount > 0) {
-       alert(`동선이 완료 처리되었습니다.\n미방문 업체 ${updatedCount}개의 담당자가 미배정으로 변경되었습니다.`);
+       alert(`동선이 완료 처리되었습니다.
+미방문 업체 ${updatedCount}개의 담당자가 미배정으로 변경되었습니다.`);
      } else {
        alert('동선이 완료 처리되었습니다.');
      }
    } else {
      alert('동선이 완료 처리되었습니다.');
    }
-   
+
    setShowUnvisitedModal(null);
+   setRouteCompleteModal(null);
  };
- 
  const cancelEditRoute = () => {
  setEditingRouteId(null);
  setRouteName('');
@@ -17440,7 +18599,7 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  const registerSchedule = () => {
  if (routeStops.length === 0) return alert('방문할 업체/장소를 먼저 추가하세요');
  if (!routeName.trim()) return alert('일정명을 입력하세요 (예: 이태원 영업)');
- const managerId = routeManager || user?.managerId || 0;
+ const managerId = user?.username?.startsWith('sm') ? (user?.managerId || 0) : (routeManager || user?.managerId || 0);
  if (!managerId && user?.role !== 'super') return alert('담당자를 선택하세요');
  if (editingRouteId) {
  const existingRoute = routes.find(r => r.id === editingRouteId);
@@ -17456,8 +18615,9 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  setEditingRouteId(null);
  alert('동선이 수정되었습니다!');
  } else {
+ const routeId = Date.now();
  const route = {
- id: Date.now(),
+ id: routeId,
  name: routeName.trim(),
  date: routeDate,
  time: routeTime,
@@ -17467,6 +18627,7 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
  createdAt: new Date().toISOString()
  };
  saveRoute(route);
+ // 영업 일정은 나의 알림에서 routes 데이터로 직접 표시 (캘린더 동기화 제거)
  alert('일정이 등록되었습니다!');
  }
  setRouteName('');
@@ -17756,10 +18917,12 @@ ${question || '이 멘트에 대한 피드백을 주세요.'}
      console.log(`[로그인] 손상된 이름 복구: ${m.name} -> ${validName}`);
      database.ref('managers/' + m.id).update({ name: validName });
    }
-   userData = { name: validName, role: 'manager', managerId: m.id, username: m.username, email: firebaseUser.email };
+   const mRole = m.role || (m.username && m.username.startsWith('am') ? 'accounting' : 'manager');
+   userData = { name: validName, role: mRole, managerId: m.id, username: m.username, email: firebaseUser.email };
  } else {
  // managers에 없으면 기본 정보로 생성
- userData = { name: emailPrefix, role: 'manager', email: firebaseUser.email };
+ const prefixRole = emailPrefix.startsWith('am') ? 'accounting' : 'manager';
+ userData = { name: emailPrefix, role: prefixRole, email: firebaseUser.email };
  }
  }
  
@@ -17791,6 +18954,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  const logout = async () => {
  if (user?.managerId) updateUserStatus(user.managerId, false);
  try { await firebase.auth().signOut(); } catch(e) {}
+ setLoginPhase('form'); // 로그아웃 후 로그인 폼 즉시 표시 (애니메이션 건너뛰기)
  setLoggedIn(false); setUser(null); localStorage.removeItem('bc_session'); mapObj.current = null; routeMapObj.current = null; setTabHistory([]);
  setTodayContactAlert(null); setIncompleteRouteAlert(null); // 알림 초기화
  };
@@ -17986,11 +19150,13 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  if (!customerForm.name.trim()) return alert('고객명을 입력하세요');
  const newCustomer = { id: Date.now(), ...customerForm, createdAt: new Date().toLocaleString('ko-KR') };
  saveCustomer(newCustomer);
+ saveCustomerArchive(newCustomer);
  setCustomerForm({ name: '', phone: '', managerId: null, consultDate: '', desiredRegion: '', desiredDate: '', budget: '', desiredSize: '', businessStyle: [], priorities: [], note: '', status: 'consult', memo: '' });
  };
  const updateCustomer = () => {
  if (!showCustomerEditModal) return;
  saveCustomer(showCustomerEditModal);
+ saveCustomerArchive(showCustomerEditModal);
  setShowCustomerEditModal(null);
  };
  const handleDeleteCustomer = (customer) => {
@@ -17998,12 +19164,12 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  };
  const handleSaveSale = () => {
  if (!saleForm.managerId || !saleForm.amount) return alert('영업자와 금액을 입력하세요');
- const newSale = { id: Date.now(), ...saleForm, amount: Number(saleForm.amount), date: saleForm.date || getKoreanToday() };
+ const newSale = { id: Date.now(), ...saleForm, amount: toCommaString(saleForm.amount), date: saleForm.date || getKoreanToday() };
  saveSale(newSale);
  setSaleForm({ managerId: null, companyId: null, amount: '', date: '', note: '' });
  setShowSaleModal(false);
  };
- const getManagerSales = (managerId) => sales.filter(s => s.managerId === managerId).reduce((sum, s) => sum + s.amount, 0);
+ const getManagerSales = (managerId) => sales.filter(s => s.managerId === managerId).reduce((sum, s) => sum + safeNum(s.amount), 0);
  const submitPromoRequest = () => {
  const items = Object.entries(promoRequest).filter(([k, v]) => v).map(([k]) => k);
  if (items.length === 0) return alert('요청할 항목을 선택하세요');
@@ -18024,8 +19190,430 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  };
  const filteredCompanies = companySearch.trim() ? companies.filter(c => matchChosung(c.name, companySearch)) : companies;
  const isAdmin = user?.role === 'super';
+ const isAccounting = managers.find(m => m.id === user?.managerId)?.role === 'accounting' || (user?.username && user.username.startsWith('am'));
+ const canManageActivities = isAdmin || isAccounting; // 회계 또는 관리자
+
+ // ═══ 영업활동 CRUD 함수 ═══
+ const saveSalesActivity = async (activity) => {
+   try {
+     await database.ref('sales_activities/' + activity.id).set(activity);
+   } catch (e) {
+     console.error('영업활동 저장 실패:', e);
+     alert('저장 실패: ' + e.message);
+   }
+ };
+
+ // 이미지 압축 + Base64 변환 헬퍼 (최대 800px, JPEG 0.7)
+ const compressImageToBase64 = (file) => {
+   return new Promise((resolve, reject) => {
+     const maxSize = 800;
+     const reader = new FileReader();
+     reader.onload = (e) => {
+       const img = new Image();
+       img.onload = () => {
+         try {
+           let w = img.width;
+           let h = img.height;
+           if (w > maxSize || h > maxSize) {
+             if (w > h) { h = Math.round(h * maxSize / w); w = maxSize; }
+             else { w = Math.round(w * maxSize / h); h = maxSize; }
+           }
+           const canvas = document.createElement('canvas');
+           canvas.width = w;
+           canvas.height = h;
+           const ctx = canvas.getContext('2d');
+           ctx.drawImage(img, 0, 0, w, h);
+           const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+           console.log('[compressImageToBase64]', file.name, w + 'x' + h, Math.round(dataUrl.length / 1024) + 'KB');
+           resolve(dataUrl);
+         } catch (err) {
+           reject(err);
+         }
+       };
+       img.onerror = () => reject(new Error('이미지 로드 실패: ' + file.name));
+       img.src = e.target.result;
+     };
+     reader.onerror = () => reject(new Error('파일 읽기 실패: ' + file.name));
+     reader.readAsDataURL(file);
+   });
+ };
+
+ const submitActivityForm = async () => {
+   if (!activityForm.date || !activityForm.region.trim() || !activityForm.content.trim()) {
+     return alert('영업일, 활동 지역, 활동 내용을 모두 입력하세요.');
+   }
+   setActivityFormLoading(true);
+   try {
+     const activityId = 'act_' + Date.now();
+     const isSpecial = activityForm.activityType === 'special';
+     const dailyAllowanceNum = isSpecial ? 100000 : 20000;
+     const taxDeductionNum = isSpecial ? 3300 : 0;
+     const netAmountNum = dailyAllowanceNum - taxDeductionNum;
+     let transportData = { enabled: false, method: '', amount: '0', receiptUrl: '' };
+     let transportItems = [];
+     let totalTransportAmt = 0;
+     if (activityForm.transportEnabled && activityForm.transportItems?.length > 0) {
+       const validItems = activityForm.transportItems.filter(item => parseCommaNumber(item.amount));
+       if (validItems.length > 0) {
+         transportData.enabled = true;
+         for (const item of validItems) {
+           const amtNum = Number(parseCommaNumber(item.amount)) || 0;
+           const itemData = { type: item.method || '', amount: toCommaString(amtNum), receiptUrl: '' };
+           if (item.receipt) {
+             try {
+               itemData.receiptUrl = await compressImageToBase64(item.receipt);
+             } catch (receiptErr) {
+               console.warn('영수증 Base64 변환 실패 (건너뜀):', receiptErr);
+             }
+           }
+           transportItems.push(itemData);
+           totalTransportAmt += amtNum;
+         }
+         transportData.amount = toCommaString(totalTransportAmt);
+         transportData.method = validItems.map(i => i.method).filter(Boolean).join(', ');
+         if (transportItems.length === 1 && transportItems[0].receiptUrl) {
+           transportData.receiptUrl = transportItems[0].receiptUrl;
+         }
+       }
+     }
+     const totalAmountNum = netAmountNum + (transportData.enabled ? totalTransportAmt : 0);
+     // 활동 사진 업로드 (optional)
+     let photoUrls = [];
+     let photoUploadFailed = false;
+     if (activityForm.photos && activityForm.photos.length > 0) {
+       for (const photo of activityForm.photos) {
+         try {
+           const dataUrl = await compressImageToBase64(photo);
+           photoUrls.push(dataUrl);
+         } catch (photoErr) {
+           console.warn('사진 Base64 변환 실패 (건너뜀):', photoErr);
+           photoUploadFailed = true;
+         }
+       }
+     }
+     const activity = {
+       id: activityId,
+       managerId: user?.managerId || user?.username || 'unknown',
+       managerName: user?.name || '알 수 없음',
+       date: activityForm.date,
+       region: activityForm.region.trim(),
+       content: activityForm.content.trim(),
+       activityType: activityForm.activityType,
+       dailyAllowance: toCommaString(dailyAllowanceNum),
+       taxDeduction: toCommaString(taxDeductionNum),
+       netAmount: toCommaString(netAmountNum),
+       transportation: transportData,
+       transportItems: transportItems.length > 0 ? transportItems : null,
+       photoUrls: photoUrls.length > 0 ? photoUrls : null,
+       totalAmount: toCommaString(totalAmountNum),
+       paymentStatus: 'pending',
+       createdAt: Date.now()
+     };
+     await saveSalesActivity(activity);
+     // am(회계) 알림 저장
+     try {
+       const notiId = 'noti_' + Date.now();
+       const transportText = transportData.enabled ? ` + 교통비 ${toCommaString(totalTransportAmt)}원` : '';
+       await database.ref('notifications/am_notifications/' + notiId).set({
+         type: 'sales_activity',
+         title: '영업활동 등록',
+         message: `${activity.managerName}님이 ${activity.region} 영업활동을 등록했습니다 (${toCommaString(totalAmountNum)}원${transportText})`,
+         managerId: activity.managerId,
+         managerName: activity.managerName,
+         activityId: activityId,
+         createdAt: new Date().toISOString(),
+         read: false
+       });
+     } catch (notiErr) {
+       console.warn('am 알림 저장 실패:', notiErr);
+     }
+     if (photoUploadFailed) {
+       alert('사진 업로드에 실패했지만, 영업활동은 정상 등록되었습니다.');
+     }
+     // 폼 초기화
+     setActivityForm({
+       date: new Date().toISOString().slice(0, 10),
+       region: '',
+       content: '',
+       activityType: 'normal',
+       transportEnabled: false,
+       transportItems: [{ method: '', amount: '', receipt: null }],
+       photos: []
+     });
+     // file input 초기화
+     const fileInput = document.getElementById('receipt-file-input');
+     if (fileInput) fileInput.value = '';
+   } catch (e) {
+     console.error('영업활동 등록 실패:', e);
+     alert('등록 실패: ' + e.message);
+   } finally {
+     setActivityFormLoading(false);
+   }
+ };
+
+ // ═══ 영업활동 일괄등록 ═══
+ const submitBatchActivityForm = async () => {
+   // 유효성 검사: 모든 행에 필수값이 있는지
+   const validRows = batchRows.filter(r => r.date && r.region.trim() && r.content.trim());
+   if (validRows.length === 0) {
+     return alert('최소 1건 이상의 영업활동을 입력하세요.\n(영업일, 활동 지역, 활동 내용은 필수입니다.)');
+   }
+   const invalidCount = batchRows.length - validRows.length;
+   if (invalidCount > 0 && !window.confirm(`입력이 불완전한 ${invalidCount}건은 제외하고 ${validRows.length}건만 등록합니다.\n계속하시겠습니까?`)) {
+     return;
+   }
+   setBatchRegisterLoading(true);
+   try {
+     const updates = {};
+     for (const row of validRows) {
+       const activityId = 'act_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+       const isSpecial = row.activityType === 'special';
+       const dailyAllowanceNum = isSpecial ? 100000 : 20000;
+       const taxDeductionNum = isSpecial ? 3300 : 0;
+       const netAmountNum = dailyAllowanceNum - taxDeductionNum;
+       let transportData = { enabled: false, method: '', amount: '0', receiptUrl: '' };
+       let transportItems = null;
+       let totalTransportAmt = 0;
+       if (row.transportEnabled && row.transportItems?.length > 0) {
+         const validItems = row.transportItems.filter(item => parseCommaNumber(item.amount));
+         if (validItems.length > 0) {
+           transportData.enabled = true;
+           transportItems = [];
+           for (const item of validItems) {
+             const amtNum = Number(parseCommaNumber(item.amount)) || 0;
+             const itemData = { type: item.method || '', amount: toCommaString(amtNum), receiptUrl: '' };
+             if (item.receipt) {
+               try {
+                 itemData.receiptUrl = await compressImageToBase64(item.receipt);
+               } catch (receiptErr) {
+                 console.warn('일괄등록 영수증 Base64 변환 실패 (건너뜀):', receiptErr);
+               }
+             }
+             transportItems.push(itemData);
+             totalTransportAmt += amtNum;
+           }
+           transportData.amount = toCommaString(totalTransportAmt);
+           transportData.method = validItems.map(i => i.method).filter(Boolean).join(', ');
+           if (transportItems.length === 1 && transportItems[0].receiptUrl) {
+             transportData.receiptUrl = transportItems[0].receiptUrl;
+           }
+         }
+       }
+       // 사진 업로드 (optional)
+       let photoUrls = [];
+       if (row.photos && row.photos.length > 0) {
+         for (const photo of row.photos) {
+           try {
+             const dataUrl = await compressImageToBase64(photo);
+             photoUrls.push(dataUrl);
+           } catch (photoErr) {
+             console.warn('일괄등록 사진 Base64 변환 실패 (건너뜀):', photoErr);
+           }
+         }
+       }
+       const totalAmountNum = netAmountNum + totalTransportAmt;
+       const activity = {
+         id: activityId,
+         managerId: user?.managerId || user?.username || 'unknown',
+         managerName: user?.name || '',
+         date: row.date,
+         region: row.region.trim(),
+         content: row.content.trim(),
+         activityType: row.activityType,
+         dailyAllowance: toCommaString(dailyAllowanceNum),
+         taxDeduction: toCommaString(taxDeductionNum),
+         netAmount: toCommaString(netAmountNum),
+         transportation: transportData,
+         transportItems: transportItems,
+         photoUrls: photoUrls.length > 0 ? photoUrls : null,
+         totalAmount: toCommaString(totalAmountNum),
+         paymentStatus: 'pending',
+         createdAt: Date.now()
+       };
+       updates['sales_activities/' + activityId] = activity;
+     }
+     await database.ref().update(updates);
+     // am(회계) 알림 저장 (일괄등록)
+     try {
+       const managerName = user?.name || '알 수 없음';
+       const notiId = 'noti_batch_' + Date.now();
+       await database.ref('notifications/am_notifications/' + notiId).set({
+         type: 'sales_activity',
+         title: '영업활동 일괄등록',
+         message: `${managerName}님이 영업활동 ${validRows.length}건을 일괄등록했습니다`,
+         managerId: user?.managerId || user?.username || 'unknown',
+         managerName: managerName,
+         activityId: null,
+         createdAt: new Date().toISOString(),
+         read: false
+       });
+     } catch (notiErr) {
+       console.warn('am 알림 저장 실패:', notiErr);
+     }
+     // 폼 초기화
+     setBatchRows([{
+       date: new Date().toISOString().slice(0, 10),
+       region: '',
+       content: '',
+       activityType: 'normal',
+       transportEnabled: false,
+       transportItems: [{ method: '', amount: '', receipt: null }],
+       photos: []
+     }]);
+     alert(validRows.length + '건의 영업활동이 등록되었습니다.');
+   } catch (e) {
+     console.error('일괄등록 실패:', e);
+     alert('일괄등록 실패: ' + e.message);
+   } finally {
+     setBatchRegisterLoading(false);
+   }
+ };
+
+ const updatePaymentStatus = async (activityId, status) => {
+   try {
+     await database.ref('sales_activities/' + activityId + '/paymentStatus').set(status);
+   } catch (e) {
+     console.error('지급상태 변경 실패:', e);
+   }
+ };
+
+ const saveManagerBankInfoFn = async (mgrId, info) => {
+   try {
+     await database.ref('manager_info/' + mgrId).set(info);
+   } catch (e) {
+     console.error('은행 정보 저장 실패:', e);
+   }
+ };
+
+ // ═══ 일괄 지급완료 처리 ═══
+ const batchUpdatePaymentStatus = async (activityIds) => {
+   try {
+     const updates = {};
+     activityIds.forEach(id => {
+       updates['sales_activities/' + id + '/paymentStatus'] = 'paid';
+     });
+     await database.ref().update(updates);
+     setBatchSelected(new Set());
+     setBatchMode(false);
+   } catch (e) {
+     console.error('일괄 지급상태 변경 실패:', e);
+     alert('일괄 처리 실패: ' + e.message);
+   }
+ };
+
+ // ═══ 영업활동 소프트 삭제 ═══
+ const softDeleteActivity = async (activityId) => {
+   const activity = salesActivities.find(a => a.id === activityId);
+   if (!activity) return;
+   if (!window.confirm('이 영업활동을 삭제하시겠습니까?\n(30일 이내 복구 가능)')) return;
+   try {
+     const deletedCopy = { ...activity, deletedAt: Date.now() };
+     await database.ref('deleted_sales_activities/' + activityId).set(deletedCopy);
+     await database.ref('sales_activities/' + activityId).remove();
+   } catch (e) {
+     console.error('영업활동 삭제 실패:', e);
+     alert('삭제 실패: ' + e.message);
+   }
+ };
+
+ // ═══ 영업활동 복구 ═══
+ const restoreActivity = async (activityId) => {
+   const activity = deletedActivities.find(a => a.id === activityId);
+   if (!activity) return;
+   try {
+     const restored = { ...activity };
+     delete restored.deletedAt;
+     await database.ref('sales_activities/' + activityId).set(restored);
+     await database.ref('deleted_sales_activities/' + activityId).remove();
+   } catch (e) {
+     console.error('영업활동 복구 실패:', e);
+     alert('복구 실패: ' + e.message);
+   }
+ };
+
+ // ═══ 영업지원 회계장부 헬퍼 ═══
+ const updateActivityField = async (activityId, field, value) => {
+   try {
+     await database.ref('sales_activities/' + activityId + '/' + field).set(value);
+     // 금액 필드 변경 시 합계 재계산
+     if (['dailyAllowance','taxDeduction','netAmount'].includes(field)) {
+       const act = salesActivities.find(a => a.id === activityId);
+       if (act) {
+         const transportAmt = act.transportation?.enabled ? safeNum(act.transportation?.amount) : 0;
+         const newNet = field === 'dailyAllowance' ? (safeNum(value) - safeNum(act.taxDeduction)) : field === 'taxDeduction' ? (safeNum(act.dailyAllowance) - safeNum(value)) : safeNum(value);
+         await database.ref('sales_activities/' + activityId + '/totalAmount').set(toCommaString(newNet + transportAmt));
+       }
+     }
+   } catch (e) {
+     console.error('영업활동 필드 수정 실패:', e);
+     alert('수정 실패: ' + e.message);
+   }
+ };
+
+ const getLedgerFilteredActivities = () => {
+   return salesActivities.filter(a => {
+     if (!a.date) return false;
+     return a.date >= ledgerDateFrom && a.date <= ledgerDateTo;
+   }).sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.createdAt || 0) - (b.createdAt || 0));
+ };
+
+ const setLedgerPeriodPreset = (type) => {
+   setLedgerPeriodType(type);
+   const now = new Date();
+   let from, to;
+   to = now.toISOString().slice(0, 10);
+   if (type === 'day') {
+     from = to;
+   } else if (type === 'week') {
+     const d = new Date(now);
+     d.setDate(d.getDate() - d.getDay());
+     from = d.toISOString().slice(0, 10);
+   } else if (type === 'month') {
+     from = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+   } else {
+     from = `${now.getFullYear()}-01-01`;
+   }
+   setLedgerDateFrom(from);
+   setLedgerDateTo(to);
+ };
+
+ const exportLedgerCSV = () => {
+   const items = getLedgerFilteredActivities();
+   if (items.length === 0) return alert('내보낼 데이터가 없습니다.');
+   const BOM = '\uFEFF';
+   const header = ['날짜','영업자명','활동지역','활동내용','활동유형','활동비(세전)','세금(3.3%)','활동비(세후)','교통비','합계','지급상태','메모'];
+   const rows = items.map(a => {
+     const mgr = managers.find(m => m.id === a.managerId);
+     const isSpecial = a.activityType === 'special';
+     return [
+       a.date || '',
+       mgr?.name || a.managerName || '',
+       a.region || '',
+       a.content || '',
+       isSpecial ? '특별' : '일반',
+       safeNum(a.dailyAllowance),
+       safeNum(a.taxDeduction),
+       safeNum(a.netAmount),
+       a.transportation?.enabled ? safeNum(a.transportation.amount) : 0,
+       safeNum(a.totalAmount),
+       a.paymentStatus === 'paid' ? '지급완료' : '지급예정',
+       a.memo || ''
+     ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
+   });
+   const csv = BOM + [header.join(','), ...rows].join('\n');
+   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+   const url = URL.createObjectURL(blob);
+   const link = document.createElement('a');
+   link.href = url;
+   link.download = `영업지원_회계장부_${ledgerDateFrom}_${ledgerDateTo}.csv`;
+   link.click();
+   URL.revokeObjectURL(url);
+ };
+
  const pendingRequests = requests.filter(r => r.status === 'pending');
- const getAvailableManagersForSale = () => managers;
+ // 영업자(sm 계정)만 반환 - admin/accounting 제외
+const getSalesManagers = () => managers.filter(m => m.username && m.username.startsWith('sm'));
+const getAvailableManagersForSale = () => getSalesManagers();
  const formatLastSeen = (isoString) => {
  if (!isoString) return '없음';
  const date = new Date(isoString);
@@ -18617,19 +20205,101 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                </div>
              )}
 
-             {/* 홈페이지 탭 - 웹사이트 원본 헤더 표시 + 네비게이션 교체 */}
+             {/* 홈페이지 탭 */}
              {salesModeTab === 'homepage' && (
                <div className="h-[calc(100vh-120px)]">
                  <iframe
                    src="/site/"
-                   className="w-full h-full border-0"
+                   className="w-full h-full"
                    title="빈크래프트 홈페이지"
-                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                    onLoad={(e) => {
-                     try {
+                    try {
+                       // Fix wrong path: if iframe loaded without /site/ prefix, redirect
+                       // Also handles cross-origin case (e.g., after direct POST to beancraft.co.kr)
+                       try {
+                         const iframePath = e.target.contentWindow.location.pathname;
+                         if (iframePath && !iframePath.startsWith('/site') && iframePath !== 'about:blank') {
+                           e.target.contentWindow.location.href = '/site' + iframePath;
+                           return;
+                         }
+                       } catch(err) {
+                         // Cross-origin: iframe navigated to beancraft.co.kr directly
+                         // (e.g., login form POST). Reset to proxied /site/ path.
+                         try {
+                           const iframeHref = e.target.contentWindow.location.href;
+                           if (iframeHref && iframeHref.includes('beancraft.co.kr')) {
+                             const extUrl = new URL(iframeHref);
+                             e.target.src = '/site' + extUrl.pathname + extUrl.search;
+                             return;
+                           }
+                         } catch(crossErr) {
+                           // Fully cross-origin, can't read href either - reset to home
+                           e.target.src = '/site/';
+                           return;
+                         }
+                       }
+
                        const doc = e.target.contentDocument;
                        if (!doc) return;
                        const iframeWindow = doc.defaultView;
+
+                       // Prevent iframe from navigating parent page (login/logout redirect protection)
+                       try {
+                         if (iframeWindow) {
+                           const locationHandler = {
+                             get href() { return iframeWindow.location.href; },
+                             set href(val) {
+                               if (typeof val === 'string' && val.startsWith('/') && !val.startsWith('/site/') && !val.startsWith('/site')) {
+                                 iframeWindow.location.href = '/site' + val;
+                               } else if (typeof val === 'string' && val.includes('beancraft.co.kr')) {
+                                 try {
+                                   const u = new URL(val);
+                                   iframeWindow.location.href = '/site' + u.pathname;
+                                 } catch(e2) { iframeWindow.location.href = '/site/'; }
+                               } else {
+                                 iframeWindow.location.href = val || '/site/';
+                               }
+                             },
+                             replace: function(val) {
+                               if (typeof val === 'string' && val.startsWith('/') && !val.startsWith('/site/')) {
+                                 iframeWindow.location.replace('/site' + val);
+                               } else {
+                                 iframeWindow.location.replace(val);
+                               }
+                             },
+                             assign: function(val) {
+                               if (typeof val === 'string' && val.startsWith('/') && !val.startsWith('/site/')) {
+                                 iframeWindow.location.assign('/site' + val);
+                               } else {
+                                 iframeWindow.location.assign(val);
+                               }
+                             },
+                             get pathname() { return iframeWindow.location.pathname; },
+                             get search() { return iframeWindow.location.search; },
+                             get hash() { return iframeWindow.location.hash; },
+                             get origin() { return iframeWindow.location.origin; },
+                             get host() { return iframeWindow.location.host; },
+                             get hostname() { return iframeWindow.location.hostname; },
+                             get protocol() { return iframeWindow.location.protocol; },
+                             get port() { return iframeWindow.location.port; },
+                             toString: function() { return iframeWindow.location.href; }
+                           };
+
+                           const topProxy = Object.create(iframeWindow);
+                           Object.defineProperty(topProxy, 'location', {
+                             get: function() { return locationHandler; },
+                             set: function(val) { locationHandler.href = val; },
+                             configurable: true
+                           });
+
+                           Object.defineProperty(iframeWindow, 'top', {
+                             get: function() { return topProxy; },
+                             configurable: true
+                           });
+                         }
+                       } catch(topErr) {
+                         console.warn('Could not override top:', topErr);
+                       }
 
                        // Step 1: Unregister Service Workers
                        // CreatorLink registers a SW that intercepts requests and shows offline page
@@ -18646,6 +20316,35 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                        const style = doc.createElement('style');
                        style.textContent = 'header, #header, .navbar-fixed-top { opacity: 1 !important; visibility: visible !important; }';
                        doc.head.appendChild(style);
+
+                       // Step 2b: Rewrite form actions to go directly to beancraft.co.kr (bypass proxy, prevent 429)
+                       try {
+                         const forms = doc.querySelectorAll('form');
+                         forms.forEach(function(form) {
+                           const action = form.getAttribute('action');
+                           if (!action) return;
+                           // Relative action (e.g., /umember/login) -> direct to beancraft.co.kr
+                           if (action.startsWith('/') && !action.startsWith('//')) {
+                             // Strip /site/ prefix if present
+                             const cleanPath = action.startsWith('/site/') ? action.slice(5) : action;
+                             form.setAttribute('action', 'https://www.beancraft.co.kr' + cleanPath);
+                             // Set target to iframe itself to keep navigation inside iframe
+                             if (!form.getAttribute('target')) {
+                               form.setAttribute('target', '_self');
+                             }
+                           }
+                           // Same-origin absolute URL -> redirect to beancraft.co.kr
+                           if (action.includes(iframeWindow.location.origin) && !action.includes('beancraft.co.kr')) {
+                             try {
+                               const actionUrl = new URL(action);
+                               const cleanPath = actionUrl.pathname.startsWith('/site/') ? actionUrl.pathname.slice(5) : actionUrl.pathname;
+                               form.setAttribute('action', 'https://www.beancraft.co.kr' + cleanPath + actionUrl.search);
+                             } catch(e2) {}
+                           }
+                         });
+                       } catch(formErr) {
+                         console.warn('Form action rewrite failed:', formErr);
+                       }
 
                        // Step 3: Intercept History API (pushState/replaceState)
                        // CreatorLink uses pushState for client-side navigation - URLs lose /site/ prefix
@@ -18705,18 +20404,124 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
                        };
 
                        // Step 4: Click interceptor for links (capture phase)
-                       // Also uses fixUrl to handle absolute URLs in href attributes
+                       // Intercept ALL link clicks to ensure /site/ prefix on internal paths
                        doc.addEventListener('click', function(ev) {
                          const link = ev.target.closest('a');
                          if (!link) return;
                          const href = link.getAttribute('href');
-                         if (!href) return;
+                         if (!href || href.startsWith('#') || href.startsWith('javascript:') || href.startsWith('mailto:') || href.startsWith('tel:')) return;
+                         // Skip external links (different domain)
+                         try {
+                           const parsed = new URL(href, iframeWin.location.origin);
+                           if (parsed.origin !== iframeWin.location.origin) return;
+                         } catch(e) {}
                          const fixed = fixUrl(href);
-                         if (fixed !== href) {
-                           ev.preventDefault();
-                           iframeWin.location.href = fixed;
-                         }
+                         // Always intercept internal links to ensure proper /site/ prefix
+                         ev.preventDefault();
+                         iframeWin.location.href = fixed;
                        }, true);
+
+                       // Step 4b: Intercept location.assign/replace for non-link navigation
+                       try {
+                         const origAssign = iframeWin.location.assign.bind(iframeWin.location);
+                         const origReplace = iframeWin.location.replace.bind(iframeWin.location);
+                         iframeWin.location.assign = function(url) {
+                           return origAssign(fixUrl(String(url)));
+                         };
+                         iframeWin.location.replace = function(url) {
+                           return origReplace(fixUrl(String(url)));
+                         };
+                       } catch(locErr) {}
+
+                       // Step 4c: URL watchdog - catches location.href = ... assignments
+                       // that bypass assign/replace interceptors (e.g. LOGIN button)
+                       (function setupUrlWatchdog() {
+                         let lastUrl = iframeWin.location.href;
+                         const checkInterval = setInterval(function() {
+                           try {
+                             if (!iframeWin || iframeWin.closed) {
+                               clearInterval(checkInterval);
+                               return;
+                             }
+                             const currentUrl = iframeWin.location.href;
+                             if (currentUrl !== lastUrl) {
+                               lastUrl = currentUrl;
+                               const path = iframeWin.location.pathname;
+                               if (path && !path.startsWith('/site/') && !path.startsWith('/site') ) {
+                                 const fixed = (path === '/' ? '/site/' : '/site' + path) + iframeWin.location.search + iframeWin.location.hash;
+                                 lastUrl = iframeWin.location.origin + fixed;
+                                 iframeWin.location.replace(fixed);
+                               }
+                             }
+                           } catch(e) {
+                             clearInterval(checkInterval);
+                           }
+                         }, 50);
+                         setTimeout(function() { clearInterval(checkInterval); }, 600000);
+                       })();
+
+                       // Step 4d: Override window.open to add /site/ prefix
+                       try {
+                         const origOpen = iframeWin.open;
+                         iframeWin.open = function(url, target, features) {
+                           return origOpen.call(iframeWin, url ? fixUrl(String(url)) : url, target, features);
+                         };
+                       } catch(openErr) {}
+
+                       // Step 5b: Intercept XMLHttpRequest.open to prepend /site/ to relative AND same-origin absolute URLs
+                       try {
+                         const OrigXHROpen = iframeWin.XMLHttpRequest.prototype.open;
+                         iframeWin.XMLHttpRequest.prototype.open = function(method, url, ...rest) {
+                           if (url && typeof url === 'string') {
+                             const str = url;
+                             if (!str.match(/^https?:\/\//i) && str.startsWith('/') && !str.startsWith('/site/')) {
+                               // Relative URL starting with /
+                               url = '/site' + str;
+                             } else if (str.match(/^https?:\/\//i)) {
+                               // Full absolute URL - check if same-origin
+                               try {
+                                 const parsed = new URL(str);
+                                 if (parsed.origin === iframeWin.location.origin && !parsed.pathname.startsWith('/site/')) {
+                                   parsed.pathname = '/site' + parsed.pathname;
+                                   url = parsed.toString();
+                                 }
+                               } catch(e) {}
+                             }
+                           }
+                           return OrigXHROpen.call(this, method, url, ...rest);
+                         };
+                       } catch(xhrErr) {}
+
+                       // Step 5c: Intercept fetch to prepend /site/ to relative URLs
+                       try {
+                         const origFetch = iframeWin.fetch;
+                         iframeWin.fetch = function(input, init) {
+                           if (typeof input === 'string') {
+                             if (!input.match(/^https?:\/\//i) && input.startsWith('/') && !input.startsWith('/site/')) {
+                               // Relative URL starting with /
+                               input = '/site' + input;
+                             } else if (input.match(/^https?:\/\//i)) {
+                               // Full absolute URL - check if same-origin
+                               try {
+                                 const parsed = new URL(input);
+                                 if (parsed.origin === iframeWin.location.origin && !parsed.pathname.startsWith('/site/')) {
+                                   parsed.pathname = '/site' + parsed.pathname;
+                                   input = parsed.toString();
+                                 }
+                               } catch(e) {}
+                             }
+                           } else if (input instanceof Request) {
+                             const reqUrl = input.url;
+                             try {
+                               const parsed = new URL(reqUrl);
+                               if (parsed.origin === iframeWin.location.origin && !parsed.pathname.startsWith('/site/')) {
+                                 input = new Request('/site' + parsed.pathname + parsed.search + parsed.hash, input);
+                               }
+                             } catch(e) {}
+                           }
+                           return origFetch.call(iframeWin, input, init);
+                         };
+                       } catch(fetchErr) {}
 
                        // Step 5: Prevent new service worker registration
                        try {
@@ -18801,14 +20606,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <p className={`text-xs ${theme === 'dark' ? 'text-[#56565F]' : 'text-[#B0B8C1]'}`}>{user?.role === 'super' ? '관리자' : '영업담당'}</p>
  </div>
  <div className="flex items-center gap-2">
- <button
-   onClick={toggleTheme}
-   className={`p-1.5 rounded-lg transition-all ${theme === 'dark' ? 'hover:bg-white/10 text-[#B0B8C1] hover:text-white' : 'hover:bg-[#F2F4F6] text-[#56565F] hover:text-[#191F28]'}`}
-   title={theme === 'dark' ? '라이트 모드' : '다크 모드'}
- >
-   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">{theme === 'dark' ? (<circle cx="8" cy="8" r="4" stroke="currentColor" strokeWidth="1.5" fill="none" />) : (<path d="M13 8.5a5.5 5.5 0 0 1-7.5-7.5 6 6 0 1 0 7.5 7.5z" stroke="currentColor" strokeWidth="1.5" fill="none" />)}</svg>
- </button>
- <button type="button" onClick={logout} className={`text-xs font-medium transition-colors ${theme === 'dark' ? 'text-[#56565F] hover:text-white' : 'text-[#56565F] hover:text-[#191F28]'}`}>로그아웃</button>
+ <button type="button" onClick={logout} className="text-xs font-medium transition-colors text-[#56565F] hover:text-[#191F28]">로그아웃</button>
  </div>
  </div>
  </div>
@@ -18825,12 +20623,6 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="flex items-center gap-2">
  {isAdmin && pendingRequests.length > 0 && <span className="bg-rose-500 text-white text-xs px-2 py-1 rounded-full font-bold">{pendingRequests.length}</span>}
  <span className={`text-sm px-2 py-1 rounded-lg font-medium ${theme === 'dark' ? 'text-[#8C8C96] bg-[#21212A]' : 'text-[#4E5968] bg-[#F2F4F6]'}`}>{managers.find(m => m.id === user?.managerId)?.name || user?.name}</span>
- <button
-   onClick={toggleTheme}
-   className={`p-1.5 rounded-lg transition-all ${theme === 'dark' ? 'text-[#B0B8C1]' : 'text-[#56565F]'}`}
- >
-   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">{theme === 'dark' ? (<circle cx="8" cy="8" r="4" stroke="currentColor" strokeWidth="1.5" fill="none" />) : (<path d="M13 8.5a5.5 5.5 0 0 1-7.5-7.5 6 6 0 1 0 7.5 7.5z" stroke="currentColor" strokeWidth="1.5" fill="none" />)}</svg>
- </button>
  <button type="button" onClick={logout} className={`text-sm font-medium transition-colors ${theme === 'dark' ? 'text-[#B0B8C1] hover:text-white' : 'text-[#56565F] hover:text-[#191F28]'}`}>나가기</button>
  </div>
  </div>
@@ -18953,6 +20745,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
      const thisMonth = now.getMonth();
      const thisYear = now.getFullYear();
      const thisMonthRoutes = routes.filter(r => {
+       if (!r || !r.date) return false;
        const d = new Date(r.date);
        return d.getMonth() === thisMonth && d.getFullYear() === thisYear && (!targetManagerId || r.managerId === targetManagerId);
      });
@@ -18973,7 +20766,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  }}
  >
  <option value="all">전체 보고서</option>
- {managers.filter(m => m.role !== 'super').map(m => (
+ {getSalesManagers().map(m => (
  <option key={m.id} value={m.id}>{m.name}</option>
  ))}
  </select>
@@ -19009,6 +20802,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  const targetManagerId = reportViewManager === 'all' || !reportViewManager ? null : Number(reportViewManager);
  const targetCompanies = targetManagerId ? companies.filter(c => c.managerId === targetManagerId) : companies;
  const thisMonthRoutes = routes.filter(r => {
+ if (!r || !r.date) return false;
  const d = new Date(r.date);
  return d.getMonth() === thisMonth && d.getFullYear() === thisYear && (!targetManagerId || r.managerId === targetManagerId);
  });
@@ -19045,6 +20839,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  
  // 이번 달 데이터
  const thisMonthRoutes = routes.filter(r => {
+ if (!r || !r.date) return false;
  const d = new Date(r.date);
  const matchMonth = d.getMonth() === thisMonth && d.getFullYear() === thisYear;
  const matchManager = !targetManagerId || r.managerId === targetManagerId;
@@ -19062,6 +20857,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
 
  // 지난 달 데이터
  const lastMonthRoutes = routes.filter(r => {
+ if (!r || !r.date) return false;
  const d = new Date(r.date);
  const matchMonth = d.getMonth() === lastMonth && d.getFullYear() === lastMonthYear;
  const matchManager = !targetManagerId || r.managerId === targetManagerId;
@@ -19135,6 +20931,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  const targetM = targetDate.getMonth();
  const targetY = targetDate.getFullYear();
  return routes.filter(r => {
+ if (!r || !r.date) return false;
  const d = new Date(r.date);
  const matchMonth = d.getMonth() === targetM && d.getFullYear() === targetY;
  const matchManager = !targetManagerId || r.managerId === targetManagerId;
@@ -19151,7 +20948,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  const maxVisit = Math.max(...chartData.map(d => d.visits), 1);
 
  // 팀원별 성과 (관리자용)
- const teamStats = managers.filter(m => m.role !== 'super').map(m => {
+ const teamStats = getSalesManagers().map(m => {
  const mRoutes = thisMonthRoutes.filter(r => r.managerId === m.id);
  const mVisits = mRoutes.reduce((sum, r) => sum + (r.stops?.length || 0), 0);
  const mCompanies = companies.filter(c => c.managerId === m.id);
@@ -19250,6 +21047,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  const targetManagerId = reportViewManager === 'all' || !reportViewManager ? null : Number(reportViewManager);
  const targetCompanies = targetManagerId ? companies.filter(c => c.managerId === targetManagerId) : companies;
  const thisMonthRoutes = routes.filter(r => {
+ if (!r || !r.date) return false;
  const d = new Date(r.date);
  return d.getMonth() === thisMonth && d.getFullYear() === thisYear && (!targetManagerId || r.managerId === targetManagerId);
  });
@@ -21004,30 +22802,31 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  )}
  {tab === 'calendar' && (
- <div className="space-y-2">
+ <div className="space-y-3">
  <h2 className={`font-bold ${t.text} text-xl`}>일정 캘린더</h2>
+ {/* === 캘린더 그리드 === */}
  <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <div className="flex justify-between items-center mb-4">
  <button
  onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1))}
- className={`w-10 h-10 rounded-lg font-bold border ${theme === 'dark' ? 'bg-[#2C2C35] border-neutral-600 text-white hover:bg-neutral-600' : 'bg-[#F2F4F6] border-[#E5E8EB] text-[#4E5968] hover:bg-[#E5E8EB]'}`}
+ className={`w-9 h-9 rounded-lg font-bold text-sm ${theme === 'dark' ? 'text-white hover:bg-neutral-700' : 'text-[#6B7684] hover:bg-[#F2F4F6]'} transition-colors`}
  >&lt;</button>
- <h3 className={`font-bold ${t.text} text-lg`}>
+ <h3 className={`font-bold text-[#191F28] text-base`}>
  {calendarMonth.getFullYear()}년 {calendarMonth.getMonth() + 1}월
  </h3>
  <button
  onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1))}
- className={`w-10 h-10 rounded-lg font-bold border ${theme === 'dark' ? 'bg-[#2C2C35] border-neutral-600 text-white hover:bg-neutral-600' : 'bg-[#F2F4F6] border-[#E5E8EB] text-[#4E5968] hover:bg-[#E5E8EB]'}`}
+ className={`w-9 h-9 rounded-lg font-bold text-sm ${theme === 'dark' ? 'text-white hover:bg-neutral-700' : 'text-[#6B7684] hover:bg-[#F2F4F6]'} transition-colors`}
  >&gt;</button>
  </div>
- <div className="grid grid-cols-7 gap-0.5 sm:gap-1 mb-2">
+ <div className="grid grid-cols-7 mb-1">
  {['일', '월', '화', '수', '목', '금', '토'].map((day, i) => (
- <div key={day} className={`text-center text-sm font-bold py-2 ${i === 0 ? 'text-white' : i === 6 ? 'text-primary-600' : 'text-[#333D4B]'}`}>
+ <div key={day} className={`text-center text-xs font-medium py-1.5 ${i === 0 ? 'text-[#E8626D]' : i === 6 ? 'text-[#3B82F6]' : 'text-[#6B7684]'}`}>
  {day}
  </div>
  ))}
  </div>
- <div className="grid grid-cols-7 gap-0.5 sm:gap-1">
+ <div className="grid grid-cols-7">
  {(() => {
  const year = calendarMonth.getFullYear();
  const month = calendarMonth.getMonth();
@@ -21036,65 +22835,36 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  const today = getKoreanToday();
  const cells = [];
  for (let i = 0; i < firstDay; i++) {
- cells.push(<div key={`empty-${i}`} className="h-24 sm:h-28"></div>);
+ cells.push(<div key={`empty-${i}`} className="h-12 sm:h-14"></div>);
  }
  for (let d = 1; d <= lastDate; d++) {
  const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
- const dayRoutes = routes.filter(r => r.date === dateStr);
- const dayEvents = calendarEvents.filter(e => e.date === dateStr);
- const allItems = [...dayRoutes.map(r => ({ ...r, itemType: 'route' })), ...dayEvents.map(e => ({ ...e, itemType: 'event' }))];
- allItems.sort((a, b) => (a.time || '00:00').localeCompare(b.time || '00:00'));
+ const dayEvents = calendarEvents.filter(e => e.date === dateStr && e.type !== 'followup' && e.type !== 'route-sync');
+ const itemCount = dayEvents.length;
  const isToday = dateStr === today;
+ const isSelected = dateStr === selectedCalendarDate;
  const dayOfWeek = new Date(year, month, d).getDay();
  cells.push(
  <div
  key={d}
- className={`h-24 sm:h-28 p-1 border rounded-lg overflow-hidden cursor-pointer transition-all hover:shadow-md ${isToday ? 'bg-[#F2F4F6] border-primary-300' : 'border-[#E5E8EB] hover:border-primary-300'}`}
+ className={`h-12 sm:h-14 flex flex-col items-center justify-center cursor-pointer rounded-lg transition-colors ${isSelected && !isToday ? 'bg-[#F2F4F6]' : 'hover:bg-[#F8F9FA]'}`}
  onClick={() => {
  setSelectedCalendarDate(dateStr);
- setCalendarEventInput({ title: '', time: '09:00', memo: '' });
  setEditingEventId(null);
- setShowCalendarModal(true);
  }}
  >
- <div className={`text-sm font-bold mb-1 ${dayOfWeek === 0 ? 'text-white' : dayOfWeek === 6 ? 'text-primary-600' : 'text-[#333D4B]'}`}>
+ <span
+ className={`text-sm font-semibold leading-none flex items-center justify-center ${isToday ? 'w-7 h-7 rounded-full bg-[#2AC1BC] text-white' : dayOfWeek === 0 ? 'text-[#E8626D]' : dayOfWeek === 6 ? 'text-[#3B82F6]' : 'text-[#191F28]'}`}
+ >
  {d}
+ </span>
+ {itemCount > 0 && (
+ <div className="flex gap-0.5 mt-1">
+ {Array.from({ length: Math.min(itemCount, 3) }).map((_, i) => (
+ <span key={i} className="w-1 h-1 rounded-full bg-[#6B7684]" />
+ ))}
  </div>
- <div className="space-y-0.5 overflow-y-auto max-h-14">
- {allItems.slice(0, 3).map((item, idx) => {
- if (item.itemType === 'route') {
- const manager = managers.find(m => m.id === item.managerId);
- return (
- <div
- key={`r-${item.id}`}
- onClick={(e) => { e.stopPropagation(); setSelectedSchedule(item); }}
- className={`text-xs px-1 py-0.5 rounded ${t.text} leading-tight`}
- style={{ background: manager?.color || '#888' }}
- title={`${item.time?.slice(0,5)} ${item.name}`}
- >
- {item.time?.slice(0,5)} {item.name}
- </div>
- );
- } else {
- const eventManager = managers.find(m => m.id === item.managerId);
- const eventColor = item.managerId && eventManager ? eventManager.color : '#6b7280';
- return (
- <div
- key={`e-${item.id}`}
- onClick={(e) => { e.stopPropagation(); setSelectedCalendarEvent(item); }}
- className={`text-xs px-1 py-0.5 rounded ${t.text} leading-tight cursor-pointer hover:opacity-80`}
- style={{ background: eventColor }}
- title={`${item.time?.slice(0,5)} ${item.title}`}
- >
- {item.time?.slice(0,5)} {item.title}
- </div>
- );
- }
- })}
- {allItems.length > 3 && (
- <div className={`text-xs ${t.text}`}>+{allItems.length - 3}개</div>
  )}
- </div>
  </div>
  );
  }
@@ -21102,85 +22872,139 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  })()}
  </div>
  </div>
+
+ {/* === 선택된 날짜 일정 목록 === */}
+ {selectedCalendarDate && (
  <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
- <p className={`font-bold mb-3 ${t.text}`}>이번 주 일정</p>
- {(() => {
- const today = new Date();
- const startOfWeek = new Date(today);
- startOfWeek.setDate(today.getDate() - today.getDay());
- const endOfWeek = new Date(startOfWeek);
- endOfWeek.setDate(startOfWeek.getDate() + 6);
- const weekRoutes = routes.filter(r => {
- const d = new Date(r.date);
- return d >= startOfWeek && d <= endOfWeek;
- }).map(r => ({ ...r, itemType: 'route' }));
- const weekEvents = calendarEvents.filter(e => {
- const d = new Date(e.date);
- return d >= startOfWeek && d <= endOfWeek;
- }).map(e => ({ ...e, itemType: 'event' }));
- const allWeekItems = [...weekRoutes, ...weekEvents].sort((a, b) => {
- const dateA = new Date(a.date + ' ' + (a.time || '00:00'));
- const dateB = new Date(b.date + ' ' + (b.time || '00:00'));
- return dateA - dateB;
- });
- if (allWeekItems.length === 0) {
- return <p className={`text-center py-4 ${t.text}`}>이번 주 일정이 없습니다</p>;
- }
- return (
- <div className="space-y-2">
- {allWeekItems.map(item => {
- if (item.itemType === 'route') {
- const manager = managers.find(m => m.id === item.managerId);
- const isCompleted = item.status === 'completed';
- return (
- <div
- key={`r-${item.id}`}
- onClick={() => setSelectedSchedule(item)}
- className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all hover:shadow-md ${isCompleted ? 'bg-emerald-900/30' : 'bg-[#F2F4F6]'}`}
- >
- <div className="text-center min-w-[40px]">
- <p className={`text-xs ${t.text}`}>{new Date(item.date).toLocaleDateString('ko-KR', { weekday: 'short' })}</p>
- <p className={`font-bold ${t.text}`}>{item.date.slice(8)}</p>
- </div>
- <div className="flex-1 min-w-0">
- <p className={`font-bold ${t.text} text-sm break-words leading-snug`}>{item.name}</p>
- <p className={`text-xs ${t.text}`}>{item.time || ''} · {item.stops?.length || 0}곳</p>
- </div>
- {manager && (
- <span className={`px-2 py-1 rounded text-xs font-bold ${t.text}`} style={{ background: manager.color }}>
- {manager.name}
- </span>
- )}
- </div>
- );
- } else {
- return (
- <div
- key={`e-${item.id}`}
+ <div className="flex justify-between items-center mb-3">
+ <p className="font-bold text-[#191F28] text-sm">
+ {(() => { const d = new Date(selectedCalendarDate + 'T00:00:00'); return `${d.getMonth()+1}월 ${d.getDate()}일 (${['일','월','화','수','목','금','토'][d.getDay()]})`; })()}
+ </p>
+ <button
  onClick={() => {
- setSelectedCalendarDate(item.date);
- setCalendarEventInput({ title: item.title, time: item.time, memo: item.memo || '' });
- setEditingEventId(item.id);
+ setCalendarEventInput({ title: '', time: '09:00', memo: '' });
+ setEditingEventId(null);
  setShowCalendarModal(true);
  }}
- className="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all hover:shadow-md bg-purple-50"
+ className="text-xs font-medium text-[#2AC1BC] hover:underline"
+ >+ 일정 추가</button>
+ </div>
+ {(() => {
+ const dayEvents = calendarEvents.filter(e => e.date === selectedCalendarDate && e.type !== 'followup' && e.type !== 'route-sync');
+ const allItems = [
+ ...dayEvents.map(e => ({ ...e, itemType: 'event' }))
+ ].sort((a, b) => (a.time || '00:00').localeCompare(b.time || '00:00'));
+ if (allItems.length === 0) {
+ return <p className="text-center py-4 text-sm text-[#6B7684]">등록된 일정이 없습니다</p>;
+ }
+ return (
+ <div>
+ {allItems.map((item, idx) => {
+ const isRoute = item.itemType === 'route';
+ const manager = managers.find(m => m.id === item.managerId);
+ const isCompleted = isRoute ? item.status === 'completed' : item.completed;
+ return (
+ <div
+ key={isRoute ? `r-${item.id}` : `e-${item.id}`}
+ onClick={() => {
+ if (isRoute) {
+ setSelectedSchedule(item);
+ } else {
+ setSelectedCalendarEvent(item);
+ }
+ }}
+ className={`flex items-center gap-3 py-2.5 cursor-pointer ${idx < allItems.length - 1 ? 'border-b border-[#F2F4F6]' : ''}`}
+ style={{ background: '#F8F9FA', borderRadius: 8, padding: '10px 12px', marginBottom: idx < allItems.length - 1 ? 4 : 0 }}
  >
- <div className="text-center min-w-[40px]">
- <p className={`text-xs ${t.text}`}>{new Date(item.date).toLocaleDateString('ko-KR', { weekday: 'short' })}</p>
- <p className={`font-bold ${t.text}`}>{item.date.slice(8)}</p>
- </div>
+ <span className="text-xs text-[#6B7684] min-w-[40px] text-right font-medium">{item.time?.slice(0,5) || '--:--'}</span>
  <div className="flex-1 min-w-0">
- <p className={`font-bold ${t.text} text-sm break-words leading-snug`}>{item.title}</p>
- <p className={`text-xs break-words ${t.text}`}>{item.time || ''} {item.memo ? `· ${item.memo}` : ''}</p>
+ <p className={`text-sm font-medium leading-snug ${isCompleted ? 'line-through text-[#B0B8C1]' : 'text-[#191F28]'}`}>
+ {isRoute ? item.name : item.title}
+ </p>
+ {item.memo && <p className="text-xs text-[#6B7684] mt-0.5 truncate">{item.memo}</p>}
  </div>
- <span className={`px-2 py-1 rounded text-xs font-bold ${t.text} bg-purple-500`}>메모</span>
+ {item.type === 'route_complete' && (
+ <span className="text-xs font-bold text-emerald-700 bg-emerald-100 rounded-full px-2 py-0.5 whitespace-nowrap">
+   {item.visitRate}
+ </span>
+)}
+{manager && item.type !== 'route_complete' && (
+ <span className="text-xs text-[#6B7684] bg-[#E8EBED] rounded-full px-2 py-0.5 font-medium whitespace-nowrap">{manager.name}</span>
+)}
+{!isRoute && !item.managerId && item.type !== 'route_complete' && (
+ <span className="text-xs text-[#6B7684] bg-[#E8EBED] rounded-full px-2 py-0.5 font-medium">메모</span>
+)}
  </div>
  );
- }
  })}
  </div>
  );
  })()}
+ </div>
+ )}
+
+ {/* === 이번 주 일정 (세분화) === */}
+ <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
+ <p className="font-bold text-[#191F28] text-sm mb-3">이번 주 일정</p>
+{(() => {
+const today = new Date();
+const startOfWeek = new Date(today);
+startOfWeek.setDate(today.getDate() - today.getDay());
+const endOfWeek = new Date(startOfWeek);
+endOfWeek.setDate(startOfWeek.getDate() + 6);
+const fmtDate = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const startStr = fmtDate(startOfWeek);
+const endStr = fmtDate(endOfWeek);
+
+// 일반 스케줄만 표시 (영업/routes 관련 제거)
+const weekItems = calendarEvents
+.filter(e => e.date >= startStr && e.date <= endStr && e.type !== 'followup' && e.type !== 'route-sync')
+.map(e => ({ ...e, itemType: 'event' }))
+.sort((a, b) => {
+const da = a.date + (a.time || '00:00');
+const db = b.date + (b.time || '00:00');
+return da.localeCompare(db);
+});
+
+if (weekItems.length === 0) {
+return <p className="text-center py-4 text-sm text-[#6B7684]">이번 주 일정이 없습니다</p>;
+}
+
+return (
+<div className="space-y-1.5">
+{weekItems.map((item, idx) => {
+const isCompleted = item.completed;
+return (
+<div
+key={`we-${item.id}`}
+onClick={() => {
+setSelectedCalendarDate(item.date);
+setCalendarEventInput({ title: item.title, time: item.time, memo: item.memo || '' });
+setEditingEventId(item.id);
+setShowCalendarModal(true);
+}}
+className="flex items-center gap-3 rounded-lg cursor-pointer hover:bg-[#F2F4F6] transition-colors"
+style={{ background: '#F8F9FA', padding: '10px 12px', borderLeft: '3px solid #6B7684' }}
+>
+<div className="text-center min-w-[36px]">
+<p className="text-[10px] text-[#6B7684]">{new Date(item.date + 'T00:00:00').toLocaleDateString('ko-KR', { weekday: 'short' })}</p>
+<p className="font-bold text-[#191F28] text-sm">{item.date.slice(8)}</p>
+</div>
+<div className="flex-1 min-w-0">
+<p className={`text-sm font-medium break-words leading-snug ${isCompleted ? 'line-through text-[#B0B8C1]' : 'text-[#191F28]'}`}>
+{item.title}
+</p>
+<p className="text-xs text-[#6B7684]">
+{item.time || ''}{item.memo ? ` · ${item.memo}` : ''}
+</p>
+</div>
+<span className="text-xs text-[#6B7684] bg-[#E8EBED] rounded-full px-2 py-0.5 font-medium">메모</span>
+</div>
+);
+})}
+</div>
+);
+})()}
  </div>
  </div>
  )}
@@ -21188,6 +23012,175 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div>
  <div className="space-y-2">
  <h2 className={`font-bold ${t.text} text-xl`}>동선 관리</h2>
+ {/* 담당자 선택 카드 */}
+ <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
+ <p className={`text-sm font-bold ${t.text} mb-3`}>담당자를 선택하세요</p>
+ <div className="flex gap-1.5 flex-wrap">
+ {isAdmin && (
+ <>
+ <button onClick={() => { setRouteListManagerFilter('all'); setRouteViewMode(false); }} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${routeListManagerFilter === 'all' ? 'bg-[#191F28] text-white' : 'bg-[#F2F4F6] text-[#6B7684] hover:bg-[#E8EBED]'}`}>전체</button>
+ </>
+ )}
+ {getSalesManagers().map(m => (
+ <button key={m.id} onClick={() => { const newFilter = routeListManagerFilter === String(m.id) ? 'none' : String(m.id); setRouteListManagerFilter(newFilter); if (newFilter !== 'none') { setRouteManager(m.id); setRouteViewMode(false); } }} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${routeListManagerFilter === String(m.id) ? 'bg-[#191F28] text-white' : 'bg-[#F2F4F6] text-[#6B7684] hover:bg-[#E8EBED]'}`}>{m.name}</button>
+ ))}
+ </div>
+ {!isAdmin && (
+ <p className={`text-xs mt-2 ${t.textMuted}`}>* 본인 동선만 표시됩니다</p>
+ )}
+ </div>
+ {/* 등록된 동선 */}
+ <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
+ <div className="flex justify-between items-center mb-3">
+ <p className={`font-bold ${t.text}`}>등록된 동선</p>
+ </div>
+ {/* 담당자별 필터는 상단 카드와 연동 */}
+ <div className="flex justify-end mb-3">
+ {routes.length > 0 && (
+ <div className="flex gap-2">
+ {routeDeleteMode ? (
+ <>
+ <button
+ onClick={() => {
+ if (selectedRoutesForDelete.length === 0) return alert('삭제할 동선을 선택하세요.');
+ if (!confirm(`${selectedRoutesForDelete.length}개 동선을 삭제하시겠습니까?`)) return;
+ selectedRoutesForDelete.forEach(id => {
+  deleteRoute(id);
+  const syncedEvt = calendarEvents.find(e => e.routeId === id && e.type === 'route-sync');
+  if (syncedEvt) deleteCalendarEvent(syncedEvt.id);
+});
+ setSelectedRoutesForDelete([]);
+ setRouteDeleteMode(false);
+ alert('선택한 동선이 삭제되었습니다.');
+ }}
+ className={`px-3 py-1 bg-[#E5E8EB] ${t.text} rounded text-xs font-bold`}
+ >
+ {selectedRoutesForDelete.length}개 삭제
+ </button>
+ <button
+ onClick={() => { setRouteDeleteMode(false); setSelectedRoutesForDelete([]); }}
+ className={`px-3 py-1 rounded text-xs font-bold ${theme === 'dark' ? 'bg-[#2C2C35] text-[#8C8C96]' : 'bg-[#E5E8EB] text-[#6B7684]'}`}
+ >
+ 취소
+ </button>
+ </>
+ ) : (
+ <button
+ onClick={() => setRouteDeleteMode(true)}
+ className="px-3 py-1 bg-rose-100 text-white rounded text-xs font-bold"
+ >
+ 선택 삭제
+ </button>
+ )}
+ </div>
+ )}
+ </div>
+ {routes.length === 0 ? (
+ <div className="text-center py-4 sm:py-6 text-[#333D4B]">
+ <p className="text-sm">등록된 동선이 없습니다</p>
+ </div>
+ ) : (
+ <div className="space-y-2">
+ {(() => {
+ // 담당자 필터 적용 (상단 카드와 연동)
+ let filteredRoutes = routes.filter(r => r != null);
+ if (!isAdmin) {
+   filteredRoutes = filteredRoutes.filter(r => r.managerId === user?.managerId);
+ } else if (routeListManagerFilter !== 'all' && routeListManagerFilter !== 'none') {
+   filteredRoutes = filteredRoutes.filter(r => r.managerId === Number(routeListManagerFilter));
+ }
+ // 월별로 그룹화
+ const grouped = filteredRoutes.reduce((acc, route) => {
+ const month = route.date?.slice(0, 7) || '미정';
+ if (!acc[month]) acc[month] = [];
+ acc[month].push(route);
+ return acc;
+ }, {});
+ // 월 정렬 (최신순)
+ const sortedMonths = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
+ return sortedMonths.map(month => {
+ const monthRoutes = grouped[month].sort((a, b) => new Date(b.date) - new Date(a.date));
+ const isExpanded = expandedRouteMonths[month] ?? false;
+ const completedCount = monthRoutes.filter(r => r.status === 'completed').length;
+ return (
+ <div key={month} className="border border-[#E5E8EB] rounded-lg overflow-hidden">
+ <button
+ onClick={() => setExpandedRouteMonths(prev => ({ ...prev, [month]: !prev[month] }))}
+ className="w-full px-4 py-3 bg-[#F9FAFB] flex items-center justify-between hover:bg-[#F2F4F6] transition-colors"
+ >
+ <div className="flex items-center gap-3">
+ <span className={`text-sm font-bold ${t.text}`}>{month}</span>
+ <span className={`text-xs ${t.textMuted}`}>{monthRoutes.length}개 동선</span>
+ <span className={`text-xs ${t.text}`}>{completedCount}개 완료</span>
+ </div>
+ <span className={`${t.textMuted}`}>{isExpanded ? '▲' : '▼'}</span>
+ </button>
+ {isExpanded && (
+ <div className={`p-2 space-y-2 ${theme === 'dark' ? 'bg-[#21212A]' : 'bg-white'}`}>
+ {monthRoutes.map(route => {
+ const manager = managers.find(m => m.id === route.managerId);
+ const completedStops = (route.stops || []).filter(s => s.visited).length;
+ const totalStops = (route.stops || []).length;
+ const isCompleted = route.status === 'completed';
+ const isSelected = selectedRoutesForDelete.includes(route.id);
+ return (
+ <div key={route.id} className={`p-3 rounded-lg bg-[#F9FAFB] ${routeDeleteMode && isSelected ? 'ring-2 ring-rose-400' : ''}`}>
+ <div className="flex items-start gap-3">
+ {routeDeleteMode && (
+ <input
+ type="checkbox"
+ checked={isSelected}
+ onChange={(e) => {
+ if (e.target.checked) {
+ setSelectedRoutesForDelete([...selectedRoutesForDelete, route.id]);
+ } else {
+ setSelectedRoutesForDelete(selectedRoutesForDelete.filter(id => id !== route.id));
+ }
+ }}
+ className="w-5 h-5 mt-1 accent-rose-500"
+ />
+ )}
+ <div className={`w-9 h-9 rounded-lg text-white flex items-center justify-center font-bold text-sm flex-shrink-0 ${isCompleted ? 'bg-emerald-500' : 'bg-[#B0B8C1]'}`}>
+ {isCompleted ? '' : '○'}
+ </div>
+ <div className="flex-1 min-w-0">
+ <p className={`font-bold ${t.text} text-sm break-words leading-snug`}>{route.name || route.date}</p>
+ <p className="text-xs text-[#6B7684]">{route.date} {route.time || ''} · {completedStops}/{totalStops}곳</p>
+ {manager && (
+ <span className={`inline-block mt-1 px-2 py-0.5 rounded text-xs font-bold ${t.text}`}>
+ {manager.name}
+ </span>
+ )}
+ </div>
+ </div>
+ {!routeDeleteMode && (
+ <div className="flex justify-end gap-2 mt-2 pt-2 border-t border-[#E5E8EB]">
+ <button type="button" onClick={() => editRoute(route)} className={`px-3 py-1 rounded text-xs font-medium border ${theme === 'dark' ? 'bg-[#2C2C35] text-neutral-200 border-neutral-600' : 'bg-white text-[#4E5968] border-[#E5E8EB]'}`}>수정</button>
+ <button type="button" onClick={() => setSelectedSchedule(route)} className={`px-3 py-1 rounded text-xs font-medium border ${theme === 'dark' ? 'bg-[#2C2C35] text-neutral-200 border-neutral-600' : 'bg-white text-[#4E5968] border-[#E5E8EB]'}`}>상세</button>
+ <button onClick={() => viewRouteOnMapDirect(route)} className={`px-3 py-1 rounded text-xs font-medium border ${theme === 'dark' ? 'bg-[#2C2C35] text-neutral-200 border-neutral-600' : 'bg-white text-[#4E5968] border-[#E5E8EB]'}`}>동선</button>
+ {!isCompleted ? (
+ <button onClick={() => handleCompleteRoute(route)} className="px-3 py-1 bg-emerald-100 rounded text-xs text-emerald-800 font-medium">완료</button>
+ ) : (
+ <span className="px-3 py-1 bg-emerald-50 rounded text-xs text-emerald-600 font-medium border border-emerald-200">완료됨</span>
+ )}
+ <button onClick={() => setShowDeleteConfirm({ type: 'route', id: route.id, name: route.name || route.date })} className="px-3 py-1 bg-rose-100 rounded text-xs text-rose-800 font-medium">삭제</button>
+ </div>
+ )}
+ </div>
+ );
+ })}
+ </div>
+ )}
+ </div>
+ );
+ });
+ })()}
+ </div>
+ )}
+ </div>
+ {/* 동선 등록 UI - 담당자 선택 시에만 표시 */}
+ {routeListManagerFilter !== 'none' && (
+ <>
  <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <div className="flex justify-between items-center mb-3">
  <p className={`text-sm font-bold ${t.text}`}>
@@ -21225,10 +23218,16 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  </div>
  <div className="grid grid-cols-1 gap-2">
+ {user?.username?.startsWith('sm') ? (
+ <div className={`w-full px-3 py-2 bg-[#F2F4F6] border border-[#E5E8EB] rounded-lg ${t.text} text-sm`}>
+ {managers.find(m => m.id === user.managerId)?.name || user.username}
+ </div>
+ ) : (
  <select value={routeManager || ''} onChange={e => setRouteManager(Number(e.target.value) || null)} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} focus:outline-none focus:border-[#3182F6] transition-all text-sm`}>
  <option value="">담당자 선택</option>
- {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+ {getSalesManagers().map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
  </select>
+ )}
  </div>
  </div>
  <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
@@ -21691,6 +23690,10 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <p className={`text-xs ${t.textMuted}`}>* 미방문 업체만, 매물 많은 순으로 추가됩니다</p>
  </div>
  </div>
+ </>
+ )}
+ {(routeListManagerFilter !== 'none' || routeViewMode) && (
+ <>
  <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <div className="flex justify-between items-center mb-3">
  <div>
@@ -21700,14 +23703,17 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  )}
  </div>
  <div className="flex gap-2">
- {routeStops.length >= 2 && (
+ {routeStops.length >= 2 && !routeStopEditMode && (
+ <button type="button" onClick={() => { setRouteStopsBackup([...routeStops]); setRouteStopEditMode(true); }} className={`text-xs px-3 py-1.5 rounded-lg font-bold border ${theme === 'dark' ? 'bg-[#2C2C35] text-white hover:bg-neutral-600 border-neutral-600' : 'bg-[#F2F4F6] text-[#191F28] hover:bg-[#E5E8EB] border-[#D1D6DB]'}`}>편집</button>
+ )}
+ {routeStopEditMode && (
  <>
+ <button type="button" onClick={() => { if (routeStopsBackup) setRouteStops(routeStopsBackup); setRouteStopsBackup(null); setRouteStopEditMode(false); }} className={`text-xs px-3 py-1.5 rounded-lg font-bold border ${theme === 'dark' ? 'bg-[#2C2C35] text-white hover:bg-neutral-600 border-neutral-600' : 'bg-[#F2F4F6] text-[#191F28] hover:bg-[#E5E8EB] border-[#D1D6DB]'}`}>취소</button>
  <button type="button" onClick={optimizeRouteOrder} className={`text-xs px-3 py-1.5 rounded-lg font-bold border ${theme === 'dark' ? 'bg-[#2C2C35] text-white hover:bg-neutral-600 border-neutral-600' : 'bg-[#F2F4F6] text-[#191F28] hover:bg-[#E5E8EB] border-[#D1D6DB]'}`}>최적화</button>
  <button type="button" onClick={reverseRouteOrder} className={`text-xs px-3 py-1.5 rounded-lg font-bold border ${theme === 'dark' ? 'bg-[#2C2C35] text-white hover:bg-neutral-600 border-neutral-600' : 'bg-[#F2F4F6] text-[#191F28] hover:bg-[#E5E8EB] border-[#D1D6DB]'}`}>반대로</button>
+ <button type="button" onClick={() => { setRouteStops([]); clearRouteMapMarkers(); setRouteStopsBackup(null); setRouteStopEditMode(false); }} className="text-xs px-3 py-1.5 rounded-lg font-bold text-rose-600 border border-rose-200 bg-rose-50 hover:bg-rose-100">전체 삭제</button>
+ <button type="button" onClick={() => { setRouteStopsBackup(null); setRouteStopEditMode(false); }} className="text-xs px-3 py-1.5 rounded-lg font-bold bg-[#191F28] text-white">수정완료</button>
  </>
- )}
- {routeStops.length > 0 && (
- <button type="button" onClick={() => { setRouteStops([]); clearRouteMapMarkers(); }} className={`text-xs ${t.text}`}>전체 삭제</button>
  )}
  </div>
  </div>
@@ -21729,7 +23735,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  return (
  <div key={stop.id}>
  <div className="flex items-center gap-2 p-2 bg-[#F2F4F6] border border-[#E5E8EB] rounded-lg">
- <div className={`w-7 h-7 rounded-full bg-[#2C2C35] ${t.text} flex items-center justify-center font-bold text-xs shadow flex-shrink-0`}>
+ <div className="w-7 h-7 rounded-full bg-white border-2 border-[#191F28] text-[#191F28] flex items-center justify-center font-bold text-xs shadow flex-shrink-0">
  {idx + 1}
  </div>
  <div className="flex-1 min-w-0">
@@ -21740,11 +23746,13 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {stop.address && <p className={`text-xs break-words ${t.text}`}>{stop.address}</p>}
  {stop.phone && <p className={`text-xs ${t.textMuted}`}>{stop.phone}</p>}
  </div>
+ {routeStopEditMode && (
  <div className="flex gap-1 flex-shrink-0">
  {idx > 0 && <button type="button" onClick={() => moveRouteStop(idx, -1)} className={`w-6 h-6 rounded text-xs ${theme === 'dark' ? 'bg-[#2C2C35] text-white' : 'bg-[#E5E8EB] text-[#333D4B]'}`}>↑</button>}
  {idx < routeStops.length - 1 && <button type="button" onClick={() => moveRouteStop(idx, 1)} className={`w-6 h-6 rounded text-xs ${theme === 'dark' ? 'bg-[#2C2C35] text-white' : 'bg-[#E5E8EB] text-[#333D4B]'}`}>↓</button>}
- <button type="button" onClick={() => removeRouteStop(stop.id)} className="w-6 h-6 rounded bg-rose-100 text-white text-xs"></button>
+ <button type="button" onClick={() => removeRouteStop(stop.id)} className="w-6 h-6 rounded bg-red-500 text-black text-xs font-bold">X</button>
  </div>
+ )}
  </div>
  {idx < routeStops.length - 1 && (
  <div className="flex items-center pl-3 py-0.5">
@@ -21766,22 +23774,22 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  수정 완료
  </button>
  </div>
- ) : (
- <button type="button" onClick={registerSchedule} className="w-full px-4 py-2 bg-[#191F28] text-white rounded-lg font-medium hover:bg-[#21212A] transition-all py-3 font-bold">
+                ) : (
+                routeStopEditMode && (<button type="button" onClick={registerSchedule} className="w-full px-4 py-2 bg-[#191F28] text-white rounded-lg font-medium hover:bg-[#21212A] transition-all py-3 font-bold">
  동선 등록
- </button>
- )}
+                </button>)
+                )}
  </div>
  )}
  </div>
- <div className={`rounded-2xl overflow-hidden border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
+ <div id="route-map-card" className={`rounded-2xl overflow-hidden border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <div className="p-3 border-b border-[#E5E8EB]">
  {routeStops.length > 0 && (
  <div className="flex items-center gap-2">
  <button type="button"
  onClick={() => slideToStop(currentSlideIndex - 1)}
  disabled={currentSlideIndex <= 0}
- className={`w-8 h-8 rounded disabled:opacity-30 ${theme === 'dark' ? 'bg-[#2C2C35] text-white' : 'bg-[#E5E8EB] text-[#333D4B]'}`}
+ className={`w-8 h-8 rounded border border-gray-200 disabled:opacity-30 ${theme === 'dark' ? 'bg-[#2C2C35] text-white' : 'bg-white text-[#191F28]'}`}
  >←</button>
  <div className="flex-1 overflow-hidden">
  <div className="flex gap-2 transition-transform" style={{ transform: `translateX(-${currentSlideIndex * 100}%)` }}>
@@ -21789,7 +23797,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <button
  key={stop.id}
  onClick={() => focusStopOnRouteMap(stop, idx)}
- className={`flex-shrink-0 w-full px-3 py-2 rounded-lg text-sm font-bold transition-all ${currentSlideIndex === idx ? 'bg-[#F2F4F6] text-white' : 'bg-[#F2F4F6] text-[#333D4B]'}`}
+ className={`flex-shrink-0 w-full px-3 py-2 rounded-lg text-sm transition-all ${currentSlideIndex === idx ? 'bg-white text-[#191F28] border-2 border-[#191F28] font-bold' : 'bg-white text-gray-500 border border-gray-200'}`}
  >
  {idx + 1}. {stop.name}
  </button>
@@ -21799,7 +23807,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <button type="button"
  onClick={() => slideToStop(currentSlideIndex + 1)}
  disabled={currentSlideIndex >= routeStops.length - 1}
- className={`w-8 h-8 rounded disabled:opacity-30 ${theme === 'dark' ? 'bg-[#2C2C35] text-white' : 'bg-[#E5E8EB] text-[#333D4B]'}`}
+ className={`w-8 h-8 rounded border border-gray-200 disabled:opacity-30 ${theme === 'dark' ? 'bg-[#2C2C35] text-white' : 'bg-white text-[#191F28]'}`}
  >→</button>
  </div>
  )}
@@ -21809,155 +23817,25 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="absolute top-3 right-3 flex flex-col gap-2 z-10">
  <button
  onClick={toggleGps}
- className={`w-10 h-10 rounded-full shadow-lg flex items-center justify-center transition-all ${gpsEnabled ? 'bg-primary-500 text-white' : 'bg-[#E5E8EB] text-[#333D4B]'}`}
+ className={`w-10 h-10 rounded-full shadow-lg flex items-center justify-center transition-all ${gpsEnabled ? 'bg-primary-500 text-white' : 'bg-white text-[#191F28]'}`}
  title={gpsEnabled ? 'GPS 끄기' : 'GPS 켜기'}
  >
-
+<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg>
  </button>
  {gpsEnabled && currentLocation && (
  <button
  onClick={centerToMyLocation}
- className="w-10 h-10 rounded-full bg-[#E5E8EB] shadow-lg flex items-center justify-center text-primary-600"
+ className="w-10 h-10 rounded-full bg-white shadow-lg flex items-center justify-center text-[#191F28]"
  title="내 위치로 이동"
  >
-
+<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
  </button>
  )}
  </div>
  </div>
  </div>
- <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
- <div className="flex justify-between items-center mb-3">
- <p className={`font-bold ${t.text}`}>등록된 동선</p>
- {routes.length > 0 && (
- <div className="flex gap-2">
- {routeDeleteMode ? (
- <>
- <button
- onClick={() => {
- if (selectedRoutesForDelete.length === 0) return alert('삭제할 동선을 선택하세요.');
- if (!confirm(`${selectedRoutesForDelete.length}개 동선을 삭제하시겠습니까?`)) return;
- selectedRoutesForDelete.forEach(id => deleteRoute(id));
- setSelectedRoutesForDelete([]);
- setRouteDeleteMode(false);
- alert('선택한 동선이 삭제되었습니다.');
- }}
- className={`px-3 py-1 bg-[#E5E8EB] ${t.text} rounded text-xs font-bold`}
- >
- {selectedRoutesForDelete.length}개 삭제
- </button>
- <button
- onClick={() => { setRouteDeleteMode(false); setSelectedRoutesForDelete([]); }}
- className={`px-3 py-1 rounded text-xs font-bold ${theme === 'dark' ? 'bg-[#2C2C35] text-[#8C8C96]' : 'bg-[#E5E8EB] text-[#6B7684]'}`}
- >
- 취소
- </button>
  </>
- ) : (
- <button
- onClick={() => setRouteDeleteMode(true)}
- className="px-3 py-1 bg-rose-100 text-white rounded text-xs font-bold"
- >
- 선택 삭제
- </button>
  )}
- </div>
- )}
- </div>
- {routes.length === 0 ? (
- <div className="text-center py-4 sm:py-6 text-[#333D4B]">
- <p className="text-sm">등록된 동선이 없습니다</p>
- </div>
- ) : (
- <div className="space-y-2">
- {(() => {
- // 월별로 그룹화
- const grouped = routes.reduce((acc, route) => {
- const month = route.date?.slice(0, 7) || '미정';
- if (!acc[month]) acc[month] = [];
- acc[month].push(route);
- return acc;
- }, {});
- // 월 정렬 (최신순)
- const sortedMonths = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
- return sortedMonths.map(month => {
- const monthRoutes = grouped[month].sort((a, b) => new Date(b.date) - new Date(a.date));
- const isExpanded = expandedRouteMonths[month] ?? false;
- const completedCount = monthRoutes.filter(r => r.status === 'completed').length;
- return (
- <div key={month} className="border border-[#E5E8EB] rounded-lg overflow-hidden">
- <button
- onClick={() => setExpandedRouteMonths(prev => ({ ...prev, [month]: !prev[month] }))}
- className="w-full px-4 py-3 bg-[#F9FAFB] flex items-center justify-between hover:bg-[#F2F4F6] transition-colors"
- >
- <div className="flex items-center gap-3">
- <span className={`text-sm font-bold ${t.text}`}>{month}</span>
- <span className={`text-xs ${t.textMuted}`}>{monthRoutes.length}개 동선</span>
- <span className={`text-xs ${t.text}`}>{completedCount}개 완료</span>
- </div>
- <span className={`${t.textMuted}`}>{isExpanded ? '▲' : '▼'}</span>
- </button>
- {isExpanded && (
- <div className={`p-2 space-y-2 ${theme === 'dark' ? 'bg-[#21212A]' : 'bg-white'}`}>
- {monthRoutes.map(route => {
- const manager = managers.find(m => m.id === route.managerId);
- const completedStops = (route.stops || []).filter(s => s.visited).length;
- const totalStops = (route.stops || []).length;
- const isCompleted = route.status === 'completed';
- const isSelected = selectedRoutesForDelete.includes(route.id);
- return (
- <div key={route.id} className={`p-3 rounded-lg ${isCompleted ? 'bg-emerald-50' : 'bg-[#F9FAFB]'} ${routeDeleteMode && isSelected ? 'ring-2 ring-rose-400' : ''}`}>
- <div className="flex items-start gap-3">
- {routeDeleteMode && (
- <input
- type="checkbox"
- checked={isSelected}
- onChange={(e) => {
- if (e.target.checked) {
- setSelectedRoutesForDelete([...selectedRoutesForDelete, route.id]);
- } else {
- setSelectedRoutesForDelete(selectedRoutesForDelete.filter(id => id !== route.id));
- }
- }}
- className="w-5 h-5 mt-1 accent-rose-500"
- />
- )}
- <div className={`w-9 h-9 rounded-lg text-white flex items-center justify-center font-bold text-sm flex-shrink-0 ${isCompleted ? 'bg-emerald-500' : 'bg-[#B0B8C1]'}`}>
- {isCompleted ? '' : '○'}
- </div>
- <div className="flex-1 min-w-0">
- <p className={`font-bold ${t.text} text-sm break-words leading-snug`}>{route.name || route.date}</p>
- <p className="text-xs text-[#6B7684]">{route.date} {route.time || ''} · {completedStops}/{totalStops}곳</p>
- {manager && (
- <span className={`inline-block mt-1 px-2 py-0.5 rounded text-xs font-bold ${t.text}`} style={{ background: manager.color }}>
- {manager.name}
- </span>
- )}
- </div>
- </div>
- {!routeDeleteMode && (
- <div className="flex justify-end gap-2 mt-2 pt-2 border-t border-[#E5E8EB]">
- <button type="button" onClick={() => editRoute(route)} className={`px-3 py-1 rounded text-xs font-medium border ${theme === 'dark' ? 'bg-[#2C2C35] text-neutral-200 border-neutral-600' : 'bg-white text-[#4E5968] border-[#E5E8EB]'}`}>수정</button>
- <button type="button" onClick={() => setSelectedSchedule(route)} className={`px-3 py-1 rounded text-xs font-medium border ${theme === 'dark' ? 'bg-[#2C2C35] text-neutral-200 border-neutral-600' : 'bg-white text-[#4E5968] border-[#E5E8EB]'}`}>상세</button>
- <button onClick={() => viewRouteOnMapDirect(route)} className={`px-3 py-1 rounded text-xs font-medium border ${theme === 'dark' ? 'bg-[#2C2C35] text-neutral-200 border-neutral-600' : 'bg-white text-[#4E5968] border-[#E5E8EB]'}`}>동선</button>
- {!isCompleted && (
- <button onClick={() => handleCompleteRoute(route)} className="px-3 py-1 bg-emerald-100 rounded text-xs text-white font-medium">완료</button>
- )}
- <button onClick={() => setShowDeleteConfirm({ type: 'route', id: route.id, name: route.name || route.date })} className="px-3 py-1 bg-rose-100 rounded text-xs text-white font-medium">삭제</button>
- </div>
- )}
- </div>
- );
- })}
- </div>
- )}
- </div>
- );
- });
- })()}
- </div>
- )}
- </div>
  </div>
  </div>
  )}
@@ -21981,7 +23859,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="grid grid-cols-2 gap-2 mb-3">
  <select value={filterManager} onChange={e => setFilterManager(e.target.value)} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} focus:outline-none focus:border-[#3182F6] transition-all text-sm`}>
  <option value="all">전체 영업자</option>
- {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+ {getSalesManagers().map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
  </select>
  <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} focus:outline-none focus:border-[#3182F6] transition-all text-sm`}>
  <option value="all">전체 반응</option>
@@ -21999,11 +23877,10 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="border-t border-[#E5E8EB] mt-4 pt-4">
  <p className="text-sm text-[#333D4B] mb-2 font-bold">핀 색상 안내</p>
  <div className="flex flex-wrap gap-2 text-xs">
- <span className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-rose-600 special-blink"></div> 특별</span>
- <span className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-emerald-500"></div> 긍정</span>
- <span className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-orange-400"></div> 양호</span>
- <span className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-gray-400"></div> 부정</span>
- <span className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-yellow-500"></div> 누락</span>
+ <span className="flex items-center gap-1"><div className="w-3 h-3 rounded-full special-blink" style={{background:'#F59E0B'}}></div> 특별</span>
+ <span className="flex items-center gap-1"><div className="w-3 h-3 rounded-full" style={{background:'#10B981'}}></div> 긍정</span>
+ <span className="flex items-center gap-1"><div className="w-3 h-3 rounded-full" style={{background:'#9CA3AF'}}></div> 양호/보통</span>
+ <span className="flex items-center gap-1"><div className="w-3 h-3 rounded-full" style={{background:'#EF4444'}}></div> 부정</span>
  </div>
  <p className={`text-xs mt-2 ${t.text}`}>핀을 클릭하면 업체 정보를 확인할 수 있습니다</p>
  </div>
@@ -22019,7 +23896,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <button type="button" onClick={() => setShowSaleModal(true)} className="px-4 py-2 bg-[#191F28] text-white rounded-lg text-sm font-medium hover:bg-[#21212A]">매출 등록</button>
  </div>
  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
- {managers.map(m => {
+ {getSalesManagers().map(m => {
  const mgrCompanies = companies.filter(c => c.managerId === m.id);
  const mgrSales = getManagerSales(m.id);
  const canEdit = isAdmin || user?.managerId === m.id;
@@ -22048,7 +23925,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  .sort((a, b) => b.daysPassed - a.daysPassed);
  const todayStr = getKoreanToday();
  const todayEvents = calendarEvents.filter(e => e.date === todayStr && e.managerId === m.id);
- const todayRoutes = routes.filter(r => r.date === todayStr && r.managerId === m.id);
+ const todayRoutes = routes.filter(r => r && r.date === todayStr && r.managerId === m.id);
  const koreanNow = getKoreanNow();
  const weekStart = new Date(koreanNow.year, koreanNow.month, koreanNow.day - koreanNow.dayOfWeek);
  const weekEnd = new Date(koreanNow.year, koreanNow.month, koreanNow.day + (6 - koreanNow.dayOfWeek));
@@ -22059,13 +23936,13 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  return `${year}-${month}-${day}`;
  };
  const weekEvents = calendarEvents.filter(e =>
- e.managerId === m.id &&
+ e && e.managerId === m.id &&
  e.date >= weekStr(weekStart) &&
  e.date <= weekStr(weekEnd) &&
  e.date !== todayStr
  );
  const weekRoutes = routes.filter(r =>
- r.managerId === m.id &&
+ r && r.managerId === m.id &&
  r.date >= weekStr(weekStart) &&
  r.date <= weekStr(weekEnd) &&
  r.date !== todayStr
@@ -22113,7 +23990,46 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  </div>
  </div>
- {(todayEvents.length > 0 || todayRoutes.length > 0) && (
+ 
+{(() => {
+  const now = new Date();
+  const thisMonth = now.getMonth();
+  const thisYear = now.getFullYear();
+  const monthRoutes = routes.filter(r =>
+    r && r.managerId === m.id &&
+    r.date &&
+    new Date(r.date).getFullYear() === thisYear &&
+    new Date(r.date).getMonth() === thisMonth
+  );
+  const completedRoutes = monthRoutes.filter(r => r.status === 'completed');
+  const totalStopsAll = monthRoutes.reduce((sum, r) => sum + (r.stops?.length || 0), 0);
+  const visitedStopsAll = completedRoutes.reduce((sum, r) => {
+    const visited = r.visitedStops ? r.visitedStops.length : (r.stops || []).filter(s => s.visited).length;
+    return sum + visited;
+  }, 0);
+  const visitPct = totalStopsAll > 0 ? Math.round(visitedStopsAll / totalStopsAll * 100) : 0;
+  if (monthRoutes.length === 0) return null;
+  return (
+    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 mb-4">
+      <p className="font-bold text-emerald-800 text-sm mb-2">이번 달 동선 실적</p>
+      <div className="flex gap-3">
+        <div className="text-center flex-1">
+          <p className="text-lg font-bold text-emerald-700">{completedRoutes.length}<span className="text-xs font-normal text-emerald-600">/{monthRoutes.length}</span></p>
+          <p className="text-xs text-emerald-600">동선 완료</p>
+        </div>
+        <div className="text-center flex-1">
+          <p className="text-lg font-bold text-emerald-700">{visitedStopsAll}<span className="text-xs font-normal text-emerald-600">/{totalStopsAll}</span></p>
+          <p className="text-xs text-emerald-600">방문 건수</p>
+        </div>
+        <div className="text-center flex-1">
+          <p className="text-lg font-bold text-emerald-700">{visitPct}%</p>
+          <p className="text-xs text-emerald-600">방문율</p>
+        </div>
+      </div>
+    </div>
+  );
+})()}
+{(todayEvents.length > 0 || todayRoutes.length > 0) && (
  <div className="bg-[#F2F4F6] border border-[#E5E8EB] rounded-xl p-3 mb-4">
  <p className="font-bold text-primary-600 text-sm mb-2">오늘 일정</p>
  <div className="space-y-1">
@@ -22663,520 +24579,222 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  )}
 
- {tab === 'realtors' && (
- <div className="space-y-2">
- <h2 className={`font-bold ${t.text} text-xl`}>중개사 관리</h2>
- 
- {(() => {
- // 매물 수 가져오기
- const getListingCount = (r) => {
- if (r.listingCount) return r.listingCount;
- if (r.listings) return r.listings;
- if (r.articleCounts && r.articleCounts.total) return r.articleCounts.total;
- return 0;
- };
- 
- // 업체명 가져오기
- const getOfficeName = (r) => {
- if (r.name && (r.name.includes('공인중개') || r.name.includes('부동산') || r.name.includes('중개사'))) return r.name;
- if (r.officeName) return r.officeName;
- if (r.realtorName) return r.realtorName;
- return r.name || '(업체명 없음)';
- };
- 
- // 담당자명 가져오기
- const getAgentName = (r) => r.agentName || r.agent || '미정';
- 
- // 직급 가져오기
- const getAgentPosition = (r) => r.agentPosition || '';
- 
- // 수집일 포맷 함수 (다양한 형식 지원)
- const formatCollectedDate = (dateStr) => {
-   if (!dateStr) return '-';
-   
-   try {
-     // 숫자 타임스탬프
-     if (typeof dateStr === 'number') {
-       const date = new Date(dateStr);
-       if (!isNaN(date.getTime())) {
-         return date.toLocaleDateString('ko-KR');
-       }
-     }
-     
-     // ISO 형식 (2025-12-28T22:04:19.325Z)
-     if (typeof dateStr === 'string' && dateStr.includes('T')) {
-       const date = new Date(dateStr);
-       if (!isNaN(date.getTime())) {
-         return date.toLocaleDateString('ko-KR');
-       }
-     }
-     
-     // 한국어 형식 (2026. 1. 7. 오후 1:40:15)
-     if (typeof dateStr === 'string') {
-       const koreanMatch = dateStr.match(/(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})/);
-       if (koreanMatch) {
-         const [, year, month, day] = koreanMatch;
-         return `${year}. ${month}. ${day}.`;
-       }
-       
-       // YYYY-MM-DD 형식
-       const isoMatch = dateStr.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
-       if (isoMatch) {
-         const [, year, month, day] = isoMatch;
-         return `${year}. ${month}. ${day}.`;
-       }
-     }
-     
-     // 그 외 - Date로 파싱 시도
-     const date = new Date(dateStr);
-     if (!isNaN(date.getTime())) {
-       return date.toLocaleDateString('ko-KR');
-     }
-     
-     return '-';
-   } catch (e) {
-     return '-';
-   }
- };
- 
- // 시/도 표준 순서
- const CITY_ORDER = ['서울특별시', '경기도', '인천광역시', '부산광역시', '대구광역시', '광주광역시', '대전광역시', '울산광역시', '세종특별자치시', '강원특별자치도', '충청북도', '충청남도', '전북특별자치도', '전라남도', '경상북도', '경상남도', '제주특별자치도'];
- 
- // 시/도 약칭
- const CITY_SHORT = {
- '서울특별시': '서울', '부산광역시': '부산', '대구광역시': '대구',
- '인천광역시': '인천', '광주광역시': '광주', '대전광역시': '대전',
- '울산광역시': '울산', '세종특별자치시': '세종', '경기도': '경기',
- '강원특별자치도': '강원', '충청북도': '충북', '충청남도': '충남',
- '전북특별자치도': '전북', '전라남도': '전남', '경상북도': '경북',
- '경상남도': '경남', '제주특별자치도': '제주'
- };
- 
- // 시/도 및 구/군 추출 (캐시 적용으로 성능 최적화)
- const _cdCache = new Map();
- const extractCityDistrict = (address) => {
- if (!address) return { city: '기타', district: '기타' };
- if (_cdCache.has(address)) return _cdCache.get(address);
- const _result = _extractCityDistrictInner(address);
- _cdCache.set(address, _result);
- return _result;
- };
- const _extractCityDistrictInner = (address) => {
- 
- // 서울 구 목록 (구 없이 이름만 나와도 인식)
- const seoulDistricts = ['종로', '중구', '용산', '성동', '광진', '동대문', '중랑', '성북', '강북', '도봉', '노원', '은평', '서대문', '마포', '양천', '강서', '구로', '금천', '영등포', '동작', '관악', '서초', '강남', '송파', '강동'];
- 
- // 각 도별 시 목록 (시/도 없이 시 이름만 나와도 해당 도로 인식)
- const provinceCities = {
-   '경기도': ['수원', '성남', '고양', '용인', '부천', '안산', '안양', '남양주', '화성', '평택', '의정부', '시흥', '파주', '광명', '김포', '군포', '광주', '이천', '양주', '오산', '구리', '안성', '포천', '의왕', '하남', '여주', '양평', '동두천', '과천', '가평', '연천'],
-   '강원특별자치도': ['춘천', '원주', '강릉', '동해', '삼척', '속초', '태백', '홍천', '횡성', '영월', '평창', '정선', '철원', '화천', '양구', '인제', '고성', '양양'],
-   '충청북도': ['청주', '충주', '제천', '보은', '옥천', '영동', '증평', '진천', '괴산', '음성', '단양'],
-   '충청남도': ['천안', '공주', '보령', '아산', '서산', '논산', '계룡', '당진', '금산', '부여', '서천', '청양', '홍성', '예산', '태안'],
-   '전북특별자치도': ['전주', '군산', '익산', '정읍', '남원', '김제', '완주', '진안', '무주', '장수', '임실', '순창', '고창', '부안'],
-   '전라남도': ['목포', '여수', '순천', '나주', '광양', '담양', '곡성', '구례', '고흥', '보성', '화순', '장흥', '강진', '해남', '영암', '무안', '함평', '영광', '장성', '완도', '진도', '신안'],
-   '경상북도': ['포항', '경주', '김천', '안동', '구미', '영주', '영천', '상주', '문경', '경산', '군위', '의성', '청송', '영양', '영덕', '청도', '고령', '성주', '칠곡', '예천', '봉화', '울진', '울릉'],
-   '경상남도': ['창원', '진주', '통영', '사천', '김해', '밀양', '거제', '양산', '의령', '함안', '창녕', '고성', '남해', '하동', '산청', '함양', '거창', '합천'],
-   '제주특별자치도': ['제주', '서귀포']
- };
- 
- const cityPatterns = [
- { pattern: /서울(특별시|시)?/, city: '서울특별시' },
- { pattern: /부산(광역시)?/, city: '부산광역시' },
- { pattern: /대구(광역시)?/, city: '대구광역시' },
- { pattern: /인천(광역시)?/, city: '인천광역시' },
- { pattern: /광주(광역시)?/, city: '광주광역시' },
- { pattern: /대전(광역시)?/, city: '대전광역시' },
- { pattern: /울산(광역시)?/, city: '울산광역시' },
- { pattern: /세종(특별자치시)?/, city: '세종특별자치시' },
- { pattern: /경기(도)?/, city: '경기도' },
- { pattern: /강원(특별자치도|도)?/, city: '강원특별자치도' },
- { pattern: /충청?북(도)?|충북/, city: '충청북도' },
- { pattern: /충청?남(도)?|충남/, city: '충청남도' },
- { pattern: /전라?북(특별자치도|도)?|전북/, city: '전북특별자치도' },
- { pattern: /전라?남(도)?|전남/, city: '전라남도' },
- { pattern: /경상?북(도)?|경북/, city: '경상북도' },
- { pattern: /경상?남(도)?|경남/, city: '경상남도' },
- { pattern: /제주(특별자치도|도)?/, city: '제주특별자치도' }
- ];
- 
- let city = '기타';
- for (const { pattern, city: cityName } of cityPatterns) {
- if (pattern.test(address)) {
- city = cityName;
- break;
- }
- }
- 
- // 구/군 추출
- let district = '기타';
- const districtMatch = address.match(/([가-힣]{1,4})(구|군)/);
- if (districtMatch) {
-   const matched = districtMatch[1] + districtMatch[2];
-   if (!matched.includes('특별') && !matched.includes('광역') && matched.length <= 5) {
-     district = matched;
-   }
- }
- 
- // 구 없이 이름만 있는 경우 (예: "서울시 종로 134" → 종로구)
- if (district === '기타' && city === '서울특별시') {
-   for (const gu of seoulDistricts) {
-     // 주소에 구 이름이 포함되어 있으면 (단, 다른 단어의 일부가 아닌 경우)
-     const guRegex = new RegExp(`${gu}(?!\\S*구)\\s|${gu}(?!\\S*구)$|\\s${gu}\\s`);
-     if (guRegex.test(address) || address.includes(gu + ' ') || address.includes(gu + '동')) {
-       district = gu + '구';
-       break;
-     }
-   }
- }
- 
- // 각 도별 시 이름으로 city 설정 (시/도 없이 시 이름만 있어도 인식)
- if (city === '기타') {
-   const cityMatch = address.match(/([가-힣]{2,4})시(?![도특])/);
-   if (cityMatch) {
-     const cityName = cityMatch[1];
-     // 모든 도에서 해당 시 이름 찾기
-     for (const [province, cities] of Object.entries(provinceCities)) {
-       if (cities.includes(cityName)) {
-         city = province;
-         if (district === '기타') {
-           district = cityName + '시';
-         }
-         break;
-       }
-     }
-   }
- }
- 
- // 구/군이 없으면 시(市) 단위 추출
- if (district === '기타') {
-   const cityMatch = address.match(/([가-힣]{2,4})시(?![도특])/);
-   if (cityMatch) {
-     district = cityMatch[1] + '시';
-   }
- }
- 
- // 서울 구 이름만 있고 시/도 정보 없으면 서울로 설정
- if (city === '기타' && district !== '기타' && district.endsWith('구')) {
-   const guName = district.replace('구', '');
-   if (seoulDistricts.includes(guName)) {
-     city = '서울특별시';
-   }
- }
- 
- return { city, district };
- };
- 
- // 유효한 중개사 필터링
- const rawValidRealtors = collectedRealtors.filter(r => {
- const name = getOfficeName(r);
- const hasValidName = name.includes('공인중개') || name.includes('부동산') || name.includes('중개사');
- const hasAddress = r.address && r.address.length > 5;
- return hasValidName || hasAddress;
- });
- 
- // 업체명 정규화 함수 (띄어쓰기, 특수문자 통일)
- const normalizeNameForDuplicate = (name) => {
-   return name
-     .replace(/\s+/g, '') // 모든 공백 제거
-     .replace(/[^\w가-힣]/g, '') // 특수문자 제거 (한글, 영문, 숫자만 유지)
-     .toLowerCase(); // 소문자로 통일
- };
- 
- // 중복 제거
- const seen = new Map();
- const validRealtors = rawValidRealtors.filter(r => {
- const name = getOfficeName(r).trim();
- const normalizedName = normalizeNameForDuplicate(name);
- const { city, district } = extractCityDistrict(r.address);
- const key = `${normalizedName}-${city}-${district}`;
- if (seen.has(key)) {
- const existing = seen.get(key);
- if (getListingCount(r) > getListingCount(existing.data)) {
- rawValidRealtors[existing.index] = null;
- seen.set(key, { data: r, index: rawValidRealtors.indexOf(r) });
- return true;
- }
- return false;
- }
- seen.set(key, { data: r, index: rawValidRealtors.indexOf(r) });
- return true;
- }).filter(r => r !== null);
- 
- // 등록된 업체 중 수집된 중개사와 매칭 안 되는 것만 추가
- companies.forEach(company => {
-   // checkDuplicate로 매칭 확인 (개선된 A~C 로직 사용)
-   const matchResult = checkDuplicate(company, validRealtors);
-   
-   // 이미 수집된 중개사와 매칭되면 스킵
-   if (matchResult.isDuplicate) return;
-   
-   // 매칭 안 되는 등록 업체만 중개사 형식으로 추가
-   validRealtors.push({
-     id: `company-${company.id}`,
-     name: company.name,
-     address: company.address,
-     phone: company.phone,
-     cellPhone: company.phone, // 휴대폰도 동일하게
-     listings: 0, // 수집 안 됐으므로 매물 수 없음
-     isFromCompany: true, // 등록된 업체 표시
-     managerId: company.managerId,
-     collected_at: company.createdAt,
-     // 등록 업체 추가 정보
-     agentName: company.contact || '', // 연락처 담당자
-     memo: company.memo || '',
-     reaction: company.reaction || '',
-     lat: company.lat,
-     lng: company.lng,
-     companyId: company.id // 원본 업체 ID
-   });
- });
- 
- // checkDuplicate 캐시 (한 번만 계산, 렌더링마다 재사용)
- const _dupCache = new Map();
- validRealtors.forEach(r => {
-   const key = r.id || getOfficeName(r);
-   _dupCache.set(key, checkDuplicate(r, companies));
- });
- const getCachedDuplicate = (realtor) => {
-   const key = realtor.id || getOfficeName(realtor);
-   return _dupCache.get(key) || { isDuplicate: false, matchedCompany: null };
- };
+{tab === 'realtors' && (
+<div className="space-y-2">
+<h2 className={`font-bold ${t.text} text-xl`}>중개사 관리</h2>
+{!_rl_initialized ? (<div style={{display:"flex",justifyContent:"center",alignItems:"center",height:"200px"}}><p style={{color:"#888",fontSize:"14px"}}>데이터를 불러오는 중...</p></div>) : (<>
 
- // 시/도 > 구/군 계층 구조 생성
- const regionHierarchy = {};
- validRealtors.forEach(r => {
- const { city, district } = extractCityDistrict(r.address);
- if (city === '기타') return;
- if (!regionHierarchy[city]) regionHierarchy[city] = new Set();
- if (district !== '기타') regionHierarchy[city].add(district);
- });
- 
- // 시/도 정렬
- const sortedCitiesForFilter = CITY_ORDER.filter(city => regionHierarchy[city]);
- 
- // 총 매물 수 및 최신 수집일
- const totalListings = validRealtors.reduce((sum, r) => sum + getListingCount(r), 0);
- const latestDate = (() => {
-   if (validRealtors.length === 0) return null;
-   const validDates = validRealtors
-     .filter(r => r.collected_at)
-     .map(r => {
-       const d = new Date(r.collected_at);
-       return isNaN(d.getTime()) ? null : d;
-     })
-     .filter(d => d !== null);
-   if (validDates.length === 0) return null;
-   return new Date(Math.max(...validDates.map(d => d.getTime())));
- })();
- 
- return (
- <>
- {/* 통계 */}
- <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
- <div className="flex flex-wrap items-center gap-4 sm:gap-6">
- <div className="text-center">
- <p className="text-2xl sm:text-3xl font-bold text-teal-600">{realtorsLoading ? '로딩 중...' : validRealtors.length}</p>
- <p className={`text-xs ${t.textMuted}`}>수집된 중개사</p>
- </div>
- {latestDate && (
- <div className="text-center">
- <p className={`text-lg font-bold ${t.text}`}>{latestDate.toLocaleDateString('ko-KR')}</p>
- <p className={`text-xs ${t.textMuted}`}>최근 수집일</p>
- </div>
- )}
- </div>
- </div>
+{(() => {
+// Use pre-computed memoized values from component level (_rl_memo, _rl_filteredGrouped)
+const _getAgentPosition = (r) => r.agentPosition || '';
+const _formatCollectedDate = (dateStr) => {
+  if (!dateStr) return '-';
+  try {
+    if (typeof dateStr === 'number') { const d = new Date(dateStr); if (!isNaN(d.getTime())) return d.toLocaleDateString('ko-KR'); }
+    if (typeof dateStr === 'string' && dateStr.includes('T')) { const d = new Date(dateStr); if (!isNaN(d.getTime())) return d.toLocaleDateString('ko-KR'); }
+    if (typeof dateStr === 'string') {
+      const km = dateStr.match(/(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})/);
+      if (km) return `${km[1]}. ${km[2]}. ${km[3]}.`;
+      const im = dateStr.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+      if (im) return `${im[1]}. ${im[2]}. ${im[3]}.`;
+    }
+    const d = new Date(dateStr); if (!isNaN(d.getTime())) return d.toLocaleDateString('ko-KR');
+    return '-';
+  } catch (e) { return '-'; }
+};
 
- {/* 자동 수집 스케줄 상태 */}
- <AutoCollectScheduleStatus database={database} theme={theme} />
+const CITY_SHORT = { '서울특별시': '서울', '부산광역시': '부산', '대구광역시': '대구', '인천광역시': '인천', '광주광역시': '광주', '대전광역시': '대전', '울산광역시': '울산', '세종특별자치시': '세종', '경기도': '경기', '강원특별자치도': '강원', '충청북도': '충북', '충청남도': '충남', '전북특별자치도': '전북', '전라남도': '전남', '경상북도': '경북', '경상남도': '경남', '제주특별자치도': '제주' };
 
- {/* 검색/필터/정렬 */}
- <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
- <div className="flex flex-wrap gap-2 mb-3">
- <input
- type="text"
- placeholder="지역(강남구) 또는 업체명 검색..."
- value={realtorSearchQuery}
- onChange={e => setRealtorSearchDebounced(e.target.value)}
- className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all flex-1 min-w-[150px]`}
- />
- <select value={realtorRegionFilter} onChange={e => setRealtorRegionFilter(e.target.value)} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} focus:outline-none focus:border-[#3182F6] transition-all`}>
- <option value="">전체 지역</option>
- {sortedCitiesForFilter.map(city => (
- <optgroup key={city} label={`${CITY_SHORT[city] || city}`}>
- {[...regionHierarchy[city]].sort().map(district => (
- <option key={`${city}-${district}`} value={`${city}|${district}`}>{district}</option>
- ))}
- </optgroup>
- ))}
- </select>
- <select value={realtorSortMode} onChange={e => setRealtorSortMode(e.target.value)} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} focus:outline-none focus:border-[#3182F6] transition-all`}>
- <option value="listings">매물 많은 순</option>
- <option value="recent">최근 수집 순</option>
- <option value="name">이름 순</option>
-                <option value="unvisited">미방문 우선</option>
- </select>
- </div>
- </div>
- 
- {/* 중개사 목록 */}
- {validRealtors.length === 0 ? (
- <div className={`rounded-2xl p-8 text-center border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08] text-[#B0B8C1]' : 'bg-white border-[#E5E8EB] text-[#56565F]'}`}>
- <p className="text-4xl mb-2"></p>
- <p>수집된 중개사가 없습니다</p>
- <p className="text-xs mt-2">Chrome 확장프로그램으로 네이버부동산에서 수집하세요</p>
- </div>
- ) : (
- <div className="space-y-3">
- {(() => {
- let filtered = [...validRealtors];
- 
-              // 스마트 검색 - 주소 + 업체명 + 담당자 통합 검색 (debounced)
-              if (_realtorSearchDebounced) {
-                const q = _realtorSearchDebounced.trim();
-                // "역" 제거 (회기역 → 회기, 성수역 → 성수)
-                const qClean = q.replace(/역$/, '');
-                const qLower = qClean.toLowerCase();
-                
-                // 주소에서 검색 (구, 동 모두 포함)
-                filtered = filtered.filter(r => {
-                  const address = (r.address || '').toLowerCase();
-                  const name = getOfficeName(r).toLowerCase();
-                  const agent = getAgentName(r).toLowerCase();
-                  return address.includes(qLower) || name.includes(qLower) || agent.includes(qLower);
-                });
-              }
-              
- // 지역 필터 (시/도|구/군 형식)
- if (realtorRegionFilter) {
- const [filterCity, filterDistrict] = realtorRegionFilter.split('|');
- filtered = filtered.filter(r => {
- const { city, district } = extractCityDistrict(r.address);
- if (filterCity && filterDistrict) {
- return city === filterCity && district === filterDistrict;
- }
- return false;
- });
- }
- 
- // 정렬
- if (realtorSortMode === 'recent') {
- filtered.sort((a, b) => new Date(b.collected_at || 0) - new Date(a.collected_at || 0));
- } else if (realtorSortMode === 'name') {
- filtered.sort((a, b) => getOfficeName(a).localeCompare(getOfficeName(b)));
-              } else if (realtorSortMode === 'unvisited') {
-              filtered.sort((a, b) => {
-                const aVisited = isCompanyDuplicate(a, companies) ? 1 : 0;
-                const bVisited = isCompanyDuplicate(b, companies) ? 1 : 0;
-                return aVisited - bVisited;
-              });
-              } else {
- filtered.sort((a, b) => getListingCount(b) - getListingCount(a));
- }
- 
- // 시/도 > 구/군 그룹핑
- const byCityDistrict = {};
- filtered.forEach(r => {
- const { city, district } = extractCityDistrict(r.address);
- if (city === '기타') return;
- if (!byCityDistrict[city]) byCityDistrict[city] = {};
- if (!byCityDistrict[city][district]) byCityDistrict[city][district] = [];
- byCityDistrict[city][district].push(r);
- });
- 
- // 시/도 정렬
- const displayCities = CITY_ORDER.filter(city => byCityDistrict[city]);
- 
- if (displayCities.length === 0) {
- return <div className={`rounded-2xl p-4 text-center border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08] text-[#B0B8C1]' : 'bg-white border-[#E5E8EB] text-[#56565F]'}`}>검색 결과가 없습니다</div>;
- }
- 
- return displayCities.map(city => {
- const districts = byCityDistrict[city];
- const cityTotal = Object.values(districts).flat().length;
- const sortedDistricts = Object.keys(districts).sort();
- 
- return (
- <details key={city} className={`rounded-2xl overflow-hidden border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`} open={displayCities.length === 1}>
- <summary className={`p-4 cursor-pointer flex justify-between items-center font-bold ${theme === 'dark' ? 'bg-[#21212A] text-white hover:bg-[#2C2C35]' : 'bg-white text-[#333D4B] hover:bg-[#F2F4F6]'}`}>
- <span>{CITY_SHORT[city] || city} ({cityTotal}개)</span>
- <span className={`text-xs ${t.textMuted}`}>{sortedDistricts.length}개 구/군</span>
- </summary>
- <div className="border-t border-[#E5E8EB]">
- {sortedDistricts.map(district => {
- const realtors = districts[district];
- return (
- <details key={district} className="border-b border-[#E5E8EB]">
- <summary className="p-3 pl-6 cursor-pointer hover:bg-[#F2F4F6] flex justify-between items-center text-[#4E5968]">
- <span className="font-bold">{district} ({realtors.length}개)</span>
- </summary>
- <div className="max-h-80 overflow-y-auto bg-[#F9FAFB]">
- {realtors.slice(0, 50).map((realtor, idx) => {
- const officeName = getOfficeName(realtor);
- const listingCount = getListingCount(realtor);
- const duplicateCheck = getCachedDuplicate(realtor);
- const isRegistered = duplicateCheck.isDuplicate || realtor.isFromCompany;
- const matchedCompany = duplicateCheck.matchedCompany;
- // 등록된 업체인 경우 직접 managerId로 담당자 찾기
- const assignedManager = realtor.isFromCompany 
-   ? managers.find(m => m.id === realtor.managerId)
-   : (matchedCompany ? managers.find(m => m.id === matchedCompany.managerId) : null);
- const isInRoute = routeStops.some(s => s.name === officeName);
- 
- return (
- <div 
- key={realtor.id || idx} 
- className={`p-3 pl-8 border-b border-slate-800 cursor-pointer hover:bg-white ${isInRoute ? 'bg-teal-900/20' : isRegistered ? 'bg-green-900/20' : ''}`}
- onClick={() => setShowRealtorDetailModal({
- ...realtor,
- officeName,
- listingCount,
- agentName: realtor.isFromCompany ? realtor.agentName : getAgentName(realtor), // 등록 업체는 연락처 담당자 유지
- agentPosition: getAgentPosition(realtor),
- isRegistered,
- isInRoute,
- assignedManager: assignedManager, // 시스템 담당자 전달
- matchedCompany: matchedCompany, // 매칭된 업체 정보 전달
- collectedDate: realtor.collected_at ? formatCollectedDate(realtor.collected_at) : ''
- })}
- >
- <div className="flex justify-between items-center">
- <div className="flex items-center gap-2 flex-wrap">
- <span className={`font-bold ${t.text} text-sm`}>{officeName}</span>
- <span className="px-2 py-0.5 text-xs rounded-full bg-teal-900 text-teal-300 font-bold">{listingCount}건</span>
- {isInRoute && <span className={`px-2 py-0.5 text-xs rounded-full bg-purple-900 ${t.text}`}>동선</span>}
- {isRegistered && <span className="px-2 py-0.5 text-xs rounded-full bg-green-900 text-green-300">방문</span>}
- {assignedManager ? (
-   <span className={`px-1.5 py-0.5 text-xs rounded-full ${t.text} font-bold`} style={{backgroundColor: assignedManager.color}}>{assignedManager.name}</span>
- ) : (
-   <span className="px-1.5 py-0.5 text-xs rounded-full bg-[#E5E8EB] text-[#4E5968] font-bold">미배정</span>
- )}
- </div>
- <span className={`text-sm ${t.textMuted}`}>›</span>
- </div>
- <p className={`text-xs mt-1 ${t.textMuted}`}>{realtor.address || '주소 없음'}</p>
- </div>
- );
- })}
- {realtors.length > 50 && (
- <p className="text-center text-xs text-[#56565F] py-2">...외 {realtors.length - 50}개</p>
- )}
- </div>
- </details>
- );
- })}
- </div>
- </details>
- );
- });
- })()}
- </div>
- )}
- </>
- );
- })()}
- </div>
- )}
+const { validRealtors, hierarchyArrays, sortedCities, latestDate } = _rl_memo;
+const { byCityDistrict, displayCities } = _rl_filteredGrouped;
+
+return (
+<>
+{/* 통계 */}
+<div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
+<div className="flex flex-wrap items-center gap-4 sm:gap-6">
+<div className="text-center">
+<p className="text-2xl sm:text-3xl font-bold text-teal-600">{realtorsLoading ? '로딩 중...' : validRealtors.length}</p>
+<p className={`text-xs ${t.textMuted}`}>수집된 중개사</p>
+</div>
+{latestDate && (
+<div className="text-center">
+<p className={`text-lg font-bold ${t.text}`}>{latestDate.toLocaleDateString('ko-KR')}</p>
+<p className={`text-xs ${t.textMuted}`}>최근 수집일</p>
+</div>
+)}
+</div>
+</div>
+
+{/* 자동 수집 스케줄 상태 */}
+<AutoCollectScheduleStatus database={database} theme={theme} />
+
+{/* 검색/필터/정렬 */}
+<div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
+<div className="flex flex-wrap gap-2 mb-3">
+<input
+type="text"
+placeholder="지역(강남구) 또는 업체명 검색..."
+value={realtorSearchQuery}
+onChange={e => setRealtorSearchDebounced(e.target.value)}
+className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all flex-1 min-w-[150px]`}
+/>
+<select value={realtorRegionFilter} onChange={e => setRealtorRegionFilter(e.target.value)} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} focus:outline-none focus:border-[#3182F6] transition-all`}>
+<option value="">전체 지역</option>
+{sortedCities.map(city => (
+<optgroup key={city} label={`${CITY_SHORT[city] || city}`}>
+{hierarchyArrays[city].map(district => (
+<option key={`${city}-${district}`} value={`${city}|${district}`}>{district}</option>
+))}
+</optgroup>
+))}
+</select>
+<select value={realtorSortMode} onChange={e => setRealtorSortMode(e.target.value)} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} focus:outline-none focus:border-[#3182F6] transition-all`}>
+<option value="listings">매물 많은 순</option>
+<option value="recent">최근 수집 순</option>
+<option value="name">이름 순</option>
+               <option value="unvisited">미방문 우선</option>
+</select>
+</div>
+</div>
+
+{/* 중개사 목록 - Performance: lazy rendering with state-controlled open/close */}
+{validRealtors.length === 0 ? (
+<div className={`rounded-2xl p-8 text-center border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08] text-[#B0B8C1]' : 'bg-white border-[#E5E8EB] text-[#56565F]'}`}>
+<p className="text-4xl mb-2"></p>
+<p>수집된 중개사가 없습니다</p>
+<p className="text-xs mt-2">Chrome 확장프로그램으로 네이버부동산에서 수집하세요</p>
+</div>
+) : (
+<div className="space-y-3">
+{displayCities.length === 0 ? (
+<div className={`rounded-2xl p-4 text-center border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08] text-[#B0B8C1]' : 'bg-white border-[#E5E8EB] text-[#56565F]'}`}>검색 결과가 없습니다</div>
+) : displayCities.map(city => {
+const districts = byCityDistrict[city];
+const cityTotal = Object.values(districts).flat().length;
+const sortedDistricts = Object.keys(districts).sort();
+const isCityOpen = _openedCities.has(city) || displayCities.length === 1;
+
+return (
+<div key={city} className={`rounded-2xl overflow-hidden border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
+<div
+  className={`p-4 cursor-pointer flex justify-between items-center font-bold select-none ${theme === 'dark' ? 'bg-[#21212A] text-white hover:bg-[#2C2C35]' : 'bg-white text-[#333D4B] hover:bg-[#F2F4F6]'}`}
+  onClick={() => {
+    _setOpenedCities(prev => {
+      const next = new Set(prev);
+      if (next.has(city)) next.delete(city); else next.add(city);
+      return next;
+    });
+  }}
+>
+<span>{CITY_SHORT[city] || city} ({cityTotal}개)</span>
+<span className={`text-xs ${t.textMuted}`}>{isCityOpen ? '[-]' : '[+]'} {sortedDistricts.length}개 구/군</span>
+</div>
+{isCityOpen && (
+<div className={`border-t ${theme === 'dark' ? 'border-white/[0.08]' : 'border-[#E5E8EB]'}`}>
+{sortedDistricts.map(district => {
+const realtors = districts[district];
+const distKey = `${city}|${district}`;
+const isDistOpen = _openedDistricts.has(distKey);
+const pageCount = _districtPages[distKey] || 1;
+const visibleCount = Math.min(realtors.length, pageCount * _DISTRICT_PAGE_SIZE);
+
+return (
+<div key={district} className={`border-b ${theme === 'dark' ? 'border-white/[0.08]' : 'border-[#E5E8EB]'}`}>
+<div
+  className={`p-3 pl-6 cursor-pointer flex justify-between items-center select-none ${theme === 'dark' ? 'hover:bg-[#2C2C35] text-[#8C8C96]' : 'hover:bg-[#F2F4F6] text-[#4E5968]'}`}
+  onClick={() => {
+    _setOpenedDistricts(prev => {
+      const next = new Set(prev);
+      if (next.has(distKey)) next.delete(distKey); else next.add(distKey);
+      return next;
+    });
+  }}
+>
+<span className="font-bold">{district} ({realtors.length}개)</span>
+<span className={`text-xs ${t.textMuted}`}>{isDistOpen ? '[-]' : '[+]'}</span>
+</div>
+{isDistOpen && (
+<div className={`max-h-[400px] overflow-y-auto ${theme === 'dark' ? 'bg-[#1A1A22]' : 'bg-[#F9FAFB]'}`}>
+{realtors.slice(0, visibleCount).map((realtor, idx) => {
+const officeName = _rl_getOfficeName(realtor);
+const listingCount = _rl_getListingCount(realtor);
+const duplicateCheck = _rl_getCachedDuplicate(realtor);
+const isRegistered = duplicateCheck.isDuplicate || realtor.isFromCompany;
+const matchedCompany = duplicateCheck.matchedCompany;
+const isInRoute = routeStops.some(s => s.name === officeName);
+// 담당자 조회: 1) 등록 업체 → 2) 매칭 업체 → 3) 동선(routes)의 담당자
+let assignedManager = realtor.isFromCompany
+  ? managers.find(m => m.id === realtor.managerId)
+  : (matchedCompany ? managers.find(m => m.id === matchedCompany.managerId) : null);
+if (!assignedManager && isInRoute) {
+  const routeWithStop = routes.find(r => r.stops && r.stops.some(s => s.name === officeName));
+  if (routeWithStop && routeWithStop.managerId) {
+    assignedManager = managers.find(m => m.id === routeWithStop.managerId);
+  }
+}
+
+return (
+<div
+key={realtor.id || idx}
+className={`p-3 pl-8 border-b cursor-pointer ${theme === 'dark' ? `border-white/[0.08] hover:bg-[#2C2C35] ${isInRoute ? 'bg-teal-900/30' : isRegistered ? 'bg-green-900/30' : ''}` : `border-[#E5E8EB] hover:bg-white ${isInRoute ? 'bg-teal-50' : isRegistered ? 'bg-green-50' : ''}`}`}
+onClick={() => setShowRealtorDetailModal({
+...realtor,
+officeName,
+listingCount,
+agentName: realtor.isFromCompany ? realtor.agentName : _rl_getAgentName(realtor),
+agentPosition: _getAgentPosition(realtor),
+isRegistered,
+isInRoute,
+assignedManager: assignedManager,
+matchedCompany: matchedCompany,
+collectedDate: realtor.collected_at ? _formatCollectedDate(realtor.collected_at) : ''
+})}
+>
+<div className="flex justify-between items-center">
+<div className="flex items-center gap-2 flex-wrap">
+<span className={`font-bold ${t.text} text-sm`}>{officeName}</span>
+<span className="px-2 py-0.5 text-xs rounded-full bg-teal-900 text-teal-300 font-bold">{listingCount}건</span>
+{isInRoute && <span className={`px-2 py-0.5 text-xs rounded-full bg-purple-900 ${t.text}`}>동선</span>}
+{isRegistered && <span className="px-2 py-0.5 text-xs rounded-full bg-green-900 text-green-300">방문</span>}
+{assignedManager ? (
+  <span className={`px-1.5 py-0.5 text-xs rounded-full ${t.text} font-bold`} style={{backgroundColor: assignedManager.color}}>{assignedManager.name}</span>
+) : (
+  <span className={`px-1.5 py-0.5 text-xs rounded-full font-bold ${theme === 'dark' ? 'bg-[#2C2C35] text-[#8C8C96]' : 'bg-[#E5E8EB] text-[#4E5968]'}`}>미배정</span>
+)}
+</div>
+<span className={`text-sm ${t.textMuted}`}>></span>
+</div>
+<p className={`text-xs mt-1 ${t.textMuted}`}>{realtor.address || '주소 없음'}</p>
+</div>
+);
+})}
+{realtors.length > visibleCount && (
+<button
+  onClick={(e) => { e.stopPropagation(); _setDistrictPages(prev => ({ ...prev, [distKey]: (prev[distKey] || 1) + 1 })); }}
+  className="w-full py-2 text-center text-xs text-[#3182F6] font-bold hover:bg-[#F2F4F6] transition-colors"
+>
+  더 보기 ({visibleCount}/{realtors.length})
+</button>
+)}
+</div>
+)}
+</div>
+);
+})}
+</div>
+)}
+</div>
+);
+})}
+</div>
+)}
+</>
+);
+})()}
+</>)}
+</div>
+)}
  {tab === 'companies' && (
  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
  {/* 오른쪽: 업체 등록 */}
@@ -23239,7 +24857,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {isAdmin ? (
  <select value={companyForm.managerId || ''} onChange={e => setCompanyForm({ ...companyForm, managerId: Number(e.target.value) || null })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} focus:outline-none focus:border-[#3182F6] transition-all text-sm w-full`}>
  <option value="">영업자 선택</option>
- {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+ {getSalesManagers().map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
  </select>
  ) : (
  <div className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm flex items-center text-[#56565F]`}>
@@ -23306,7 +24924,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <input type="text" placeholder="업체명 검색" value={companySearch} onChange={e => setCompanySearch(e.target.value)} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm`} />
  <select value={companyManagerFilter} onChange={e => setCompanyManagerFilter(e.target.value)} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} focus:outline-none focus:border-[#3182F6] transition-all text-sm`}>
  <option value="all">전체 담당자</option>
- {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+ {getSalesManagers().map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
  </select>
  <select value={companyReactionFilter} onChange={e => setCompanyReactionFilter(e.target.value)} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} focus:outline-none focus:border-[#3182F6] transition-all text-sm`}>
  <option value="all">전체 반응</option>
@@ -23316,7 +24934,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </select>
  </div>
  {/* 업체 리스트 */}
- {managers.filter(m => companyManagerFilter === 'all' || m.id === Number(companyManagerFilter)).map(m => {
+ {getSalesManagers().filter(m => companyManagerFilter === 'all' || m.id === Number(companyManagerFilter)).map(m => {
  let mgrCompanies = filteredCompanies.filter(c => c.managerId === m.id);
  if (companyReactionFilter !== 'all') {
  mgrCompanies = mgrCompanies.filter(c => c.reaction === companyReactionFilter);
@@ -23474,7 +25092,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className="space-y-3">
  <select value={customerForm.managerId || ''} onChange={e => setCustomerForm({ ...customerForm, managerId: Number(e.target.value) || null })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} focus:outline-none focus:border-[#3182F6] transition-all text-sm`}>
  <option value="">영업자 선택</option>
- {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+ {getSalesManagers().map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
  </select>
  <input type="text" placeholder="고객명 *" value={customerForm.name} onChange={e => setCustomerForm({ ...customerForm, name: e.target.value })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm`} />
  <input type="text" placeholder="연락처" value={customerForm.phone} onChange={e => setCustomerForm({ ...customerForm, phone: e.target.value })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm`} />
@@ -23563,111 +25181,337 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <div className={`flex gap-2 p-1 rounded-full border w-fit flex-wrap ${theme === 'dark' ? 'bg-[#21212A] border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
  <button type="button" onClick={() => setSettingsTab('alerts')} className={`px-4 py-2 rounded-full text-sm transition-all ${settingsTab === 'alerts' ? 'bg-[#191F28] text-white' : 'text-[#56565F] hover:${t.text}'}`}>나의 알림</button>
  <button type="button" onClick={() => setSettingsTab('salesmode')} className={`px-4 py-2 rounded-full text-sm transition-all ${settingsTab === 'salesmode' ? 'bg-[#191F28] text-white' : 'text-[#56565F] hover:${t.text}'}`}>영업모드</button>
+<button type="button" onClick={() => setSettingsTab('activity')} className={`px-4 py-2 rounded-full text-sm transition-all ${settingsTab === 'activity' ? 'bg-[#191F28] text-white' : 'text-[#56565F] hover:${t.text}'}`}>영업활동</button>
  <button type="button" onClick={() => setSettingsTab('account')} className={`px-4 py-2 rounded-full text-sm transition-all ${settingsTab === 'account' ? 'bg-[#191F28] text-white' : 'text-[#56565F] hover:${t.text}'}`}>계정</button>
+ {(isAdmin || isAccounting) && <button type="button" onClick={() => setSettingsTab('accounting')} className={`px-4 py-2 rounded-full text-sm transition-all ${settingsTab === 'accounting' ? 'bg-[#191F28] text-white' : 'text-[#56565F] hover:${t.text}'}`}>회계</button>}
  {isAdmin && <button type="button" onClick={() => setSettingsTab('admin')} className={`px-4 py-2 rounded-full text-sm transition-all ${settingsTab === 'admin' ? 'bg-[#191F28] text-white' : 'text-[#56565F] hover:${t.text}'}`}>관리자</button>}
  </div>
  
  {/* 나의 알림 탭 */}
  {settingsTab === 'alerts' && (
  <div className="space-y-3">
-   {/* 오늘 예정 */}
-   {(() => {
-     const today = getKoreanToday();
-     const myEvents = calendarEvents.filter(e => 
-       e.managerId === user?.managerId && 
-       e.date === today && 
-       !e.completed
-     );
-     return myEvents.length > 0 ? (
-       <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-neutral-500' : 'bg-white border-neutral-500'}`}>
-         <h3 className={`font-bold ${t.text} text-lg mb-3 flex items-center gap-2`}>
-           오늘 예정
-           <span className="bg-rose-500 text-white text-xs px-2 py-0.5 rounded-full">{myEvents.length}</span>
-         </h3>
-         <div className="space-y-2">
-           {myEvents.map(event => (
-             <div key={event.id} className="flex items-center justify-between p-3 bg-rose-50 rounded-xl">
-               <div className="flex-1">
-                 <p className={`font-medium ${t.text}`}>{event.title}</p>
-                 <p className={`text-sm ${t.textMuted}`}>{event.time} · {event.memo || '메모 없음'}</p>
-               </div>
-               <button
-                 onClick={() => {
-                   saveCalendarEvent({ ...event, completed: true });
-                 }}
-                 className="px-3 py-1.5 bg-emerald-500 text-white text-sm rounded-lg hover:bg-emerald-600"
-               >
-                 완료
-               </button>
+
+   {/* === 관리자 담당자 선택 필터 === */}
+   {isAdmin && (
+   <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
+     <p className={`text-xs font-medium mb-2 ${t.textMuted}`}>담당자 선택</p>
+     <div className="flex gap-1.5 flex-wrap">
+       <button onClick={() => setAlertManagerFilter('none')} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${alertManagerFilter === 'none' ? 'bg-[#191F28] text-white' : 'bg-[#F2F4F6] text-[#6B7684] hover:bg-[#E8EBED]'}`}>선택 안함</button>
+       {getSalesManagers().map(m => (
+         <button key={m.id} onClick={() => setAlertManagerFilter(String(m.id))} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${alertManagerFilter === String(m.id) ? 'bg-[#191F28] text-white' : 'bg-[#F2F4F6] text-[#6B7684] hover:bg-[#E8EBED]'}`}>{m.name}</button>
+       ))}
+     </div>
+   </div>
+   )}
+
+   {/* === 회계(am) 영업활동 알림 섹션 === */}
+   {isAccounting && amNotifications.length > 0 && (
+   <div className={`rounded-2xl border overflow-hidden ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
+     <div className="p-4">
+       <div className="flex items-center gap-2 mb-3">
+         <span className="w-2.5 h-2.5 rounded-full bg-[#3182F6] flex-shrink-0"></span>
+         <h3 className={`font-bold ${t.text} text-lg`}>영업활동 알림</h3>
+         {amNotifications.filter(n => !n.read).length > 0 && (
+           <span className="bg-[#3182F6] text-white text-xs px-2 py-0.5 rounded-full">{amNotifications.filter(n => !n.read).length}</span>
+         )}
+       </div>
+       <div className="space-y-1.5">
+         {amNotifications.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')).slice(0, 20).map(noti => (
+           <div
+             key={noti.id}
+             onClick={async () => {
+               if (!noti.read) {
+                 try {
+                   await database.ref('notifications/am_notifications/' + noti.id + '/read').set(true);
+                 } catch (e) { console.warn('알림 읽음 처리 실패:', e); }
+               }
+             }}
+             className={`flex items-center justify-between p-3 rounded-xl cursor-pointer transition-colors ${noti.read ? 'bg-[#F9FAFB] opacity-60' : 'bg-blue-50 hover:bg-blue-100'}`}
+           >
+             <div className="flex-1 min-w-0">
+               <p className={`font-medium text-sm ${t.text}`}>{noti.title || '영업활동 등록'}</p>
+               <p className={`text-xs ${t.textMuted} mt-0.5`}>{noti.message}</p>
+               <p className={`text-xs ${t.textMuted} mt-0.5`}>{noti.createdAt ? new Date(noti.createdAt).toLocaleDateString('ko-KR') : ''}</p>
              </div>
-           ))}
-         </div>
+             {!noti.read && <span className="w-2 h-2 rounded-full bg-[#3182F6] flex-shrink-0 ml-2"></span>}
+           </div>
+         ))}
        </div>
-     ) : (
-       <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
-         <h3 className="font-bold text-[#B0B8C1] text-lg">오늘 예정된 일정 없음</h3>
+     </div>
+   </div>
+   )}
+
+   {/* admin 담당자 미선택 시 알림 숨기기 */}
+   {(!isAdmin || alertManagerFilter !== 'none') && (
+   <>
+   {/* === 영업 일정 섹션 (accordion) === */}
+   <div className={`rounded-2xl border overflow-hidden ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
+     <button
+       type="button"
+       onClick={() => setAlertSalesExpanded(prev => !prev)}
+       className="w-full flex items-center justify-between p-4 text-left"
+     >
+       <div className="flex items-center gap-2">
+         <span className="w-2.5 h-2.5 rounded-full bg-[#2AC1BC] flex-shrink-0"></span>
+         <h3 className={`font-bold ${t.text} text-lg`}>영업 일정</h3>
+         {(() => {
+           const today = getKoreanToday();
+           const todayNow = new Date();
+           const weekStart = new Date(todayNow); weekStart.setDate(todayNow.getDate() - todayNow.getDay());
+           const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
+           const fmtD = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+           const myId = user?.managerId;
+           const alertFilterId = isAdmin && alertManagerFilter !== 'none' ? Number(alertManagerFilter) : null;
+           const myRoutes = routes.filter(r => {
+             if (!r) return false;
+             if (isAdmin && alertFilterId) { if (r.managerId !== alertFilterId) return false; }
+             else if (!isAdmin && r.managerId !== myId) return false;
+             if (r.status === 'completed') return false;
+             return r.date >= fmtD(weekStart);
+           });
+           const cnt = myRoutes.length;
+           return cnt > 0 ? <span className="bg-[#2AC1BC] text-white text-xs px-2 py-0.5 rounded-full">{cnt}</span> : null;
+         })()}
        </div>
-     );
-   })()}
-   
-   {/* 이번 주 예정 */}
-   {(() => {
-     const today = new Date();
-     const weekStart = new Date(today);
-     weekStart.setDate(today.getDate() - today.getDay());
-     const weekEnd = new Date(weekStart);
-     weekEnd.setDate(weekStart.getDate() + 6);
-     
-     const formatDate = (d) => {
-       const y = d.getFullYear();
-       const m = String(d.getMonth() + 1).padStart(2, '0');
-       const day = String(d.getDate()).padStart(2, '0');
-       return `${y}-${m}-${day}`;
-     };
-     
-     const myWeekEvents = calendarEvents.filter(e => {
-       if (e.managerId !== user?.managerId) return false;
-       if (e.completed) return false;
-       if (e.date === getKoreanToday()) return false; // 오늘 제외
-       return e.date >= formatDate(weekStart) && e.date <= formatDate(weekEnd);
-     }).sort((a, b) => a.date.localeCompare(b.date));
-     
-     return myWeekEvents.length > 0 ? (
-       <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
-         <h3 className="font-bold text-[#4E5968] text-lg mb-3">이번 주 예정</h3>
-         <div className="space-y-2">
-           {myWeekEvents.map(event => (
-             <div key={event.id} className="flex items-center justify-between p-3 bg-[#F9FAFB] rounded-xl">
-               <div className="flex-1">
-                 <div className="flex items-center gap-2">
-                   <span className={`text-xs ${t.textMuted}`}>{event.date.slice(5).replace('-', '/')} ({['일','월','화','수','목','금','토'][new Date(event.date).getDay()]})</span>
-                   {event.autoGenerated && <span className="text-xs bg-blue-100 text-white px-1.5 py-0.5 rounded">자동</span>}
+       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ transform: alertSalesExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
+         <path d="M4 6L8 10L12 6" stroke="#6B7684" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+       </svg>
+     </button>
+     {alertSalesExpanded && (
+       <div className="px-4 pb-4 space-y-3">
+         {(() => {
+           const today = getKoreanToday();
+           const todayNow = new Date();
+           const weekStart = new Date(todayNow); weekStart.setDate(todayNow.getDate() - todayNow.getDay());
+           const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
+           const fmtD = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+           const myId = user?.managerId;
+           const alertFilterId = isAdmin && alertManagerFilter !== 'none' ? Number(alertManagerFilter) : null;
+
+           // 오늘 영업 일정 (routes 데이터에서 직접)
+           const todayRoutes = routes.filter(r => {
+             if (!r) return false;
+             if (isAdmin && alertFilterId) { if (r.managerId !== alertFilterId) return false; }
+             else if (!isAdmin && r.managerId !== myId) return false;
+             if (r.status === 'completed') return false;
+             return r.date === today;
+           });
+           const todayItems = [...todayRoutes];
+
+           // 이번 주 영업 일정 (오늘 제외, routes 데이터에서 직접)
+           const weekRoutes = routes.filter(r => {
+             if (!r) return false;
+             if (isAdmin && alertFilterId) { if (r.managerId !== alertFilterId) return false; }
+             else if (!isAdmin && r.managerId !== myId) return false;
+             if (r.status === 'completed') return false;
+             if (r.date === today) return false;
+             return r.date >= fmtD(weekStart) && r.date <= fmtD(weekEnd);
+           });
+           const weekItems = [...weekRoutes].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+
+           // 예정된 영업 일정 (이번 주 이후)
+           const upcomingRoutes = routes.filter(r => {
+             if (!r) return false;
+             if (isAdmin && alertFilterId) { if (r.managerId !== alertFilterId) return false; }
+             else if (!isAdmin && r.managerId !== myId) return false;
+             if (r.status === 'completed') return false;
+             return r.date > fmtD(weekEnd);
+           }).sort((a, b) => (a.date || '').localeCompare(b.date || '')).slice(0, 10);
+
+           if (todayItems.length === 0 && weekItems.length === 0 && upcomingRoutes.length === 0) {
+             return <p className="text-sm text-[#B0B8C1] py-2">등록된 영업 일정이 없습니다</p>;
+           }
+
+           const renderRouteItem = (item, bgClass) => {
+             const manager = managers.find(m => m.id === item.managerId);
+             const stopsText = item.stops ? item.stops.slice(0, 3).map(s => s.name).filter(Boolean).join(' > ') : '';
+             const moreText = item.stops && item.stops.length > 3 ? ` 외 ${item.stops.length - 3}곳` : '';
+             const dayLabel = item.date ? `${item.date.slice(5).replace('-', '/')} (${['일','월','화','수','목','금','토'][new Date(item.date + 'T00:00:00').getDay()]})` : '';
+             return (
+               <div key={`route-${item.id}`} className={`flex items-center justify-between p-3 ${bgClass} rounded-xl`}>
+                 <div className="flex-1 min-w-0">
+                   {bgClass !== 'bg-rose-50' && <span className={`text-xs ${t.textMuted}`}>{dayLabel}</span>}
+                   <p className={`font-medium text-sm ${t.text}`}>{item.name || item.date}</p>
+                   <p className={`text-xs ${t.textMuted}`}>{item.time || '--:--'}{item.stops ? ` | ${item.stops.length}곳` : ''}{manager ? ` | ${manager.name}` : ''}</p>
+                   {stopsText && <p className={`text-xs ${t.textMuted} mt-0.5`}>{stopsText}{moreText}</p>}
                  </div>
-                 <p className={`font-medium ${t.text}`}>{event.title}</p>
-                 <p className={`text-sm ${t.textMuted}`}>{event.time}</p>
                </div>
-               <button
-                 onClick={() => {
-                   saveCalendarEvent({ ...event, completed: true });
-                 }}
-                 className="px-3 py-1.5 bg-[#E5E8EB] text-[#6B7684] text-sm rounded-lg hover:bg-[#D1D6DB]"
-               >
-                 완료
-               </button>
-             </div>
-           ))}
-         </div>
+             );
+           };
+
+           return (
+             <>
+               {todayItems.length > 0 && (
+                 <div>
+                   <p className="text-xs font-bold text-rose-500 mb-2">오늘</p>
+                   <div className="space-y-1.5">
+                     {todayItems.map(item => renderRouteItem(item, 'bg-rose-50'))}
+                   </div>
+                 </div>
+               )}
+               {weekItems.length > 0 && (
+                 <div>
+                   <p className="text-xs font-bold text-[#4E5968] mb-2">이번 주</p>
+                   <div className="space-y-1.5">
+                     {weekItems.map(item => renderRouteItem(item, 'bg-[#F9FAFB]'))}
+                   </div>
+                 </div>
+               )}
+               {upcomingRoutes.length > 0 && (
+                 <div>
+                   <p className="text-xs font-bold text-[#6B7684] mb-2">예정</p>
+                   <div className="space-y-1.5">
+                     {upcomingRoutes.map(item => renderRouteItem(item, 'bg-[#F9FAFB]'))}
+                   </div>
+                 </div>
+               )}
+             </>
+           );
+         })()}
        </div>
-     ) : null;
-   })()}
-   
+     )}
+   </div>
+
+   {/* === 연락 일정 섹션 (accordion) === */}
+   <div className={`rounded-2xl border overflow-hidden ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
+     <button
+       type="button"
+       onClick={() => setAlertContactExpanded(prev => !prev)}
+       className="w-full flex items-center justify-between p-4 text-left"
+     >
+       <div className="flex items-center gap-2">
+         <span className="w-2.5 h-2.5 rounded-full bg-[#F59E0B] flex-shrink-0"></span>
+         <h3 className={`font-bold ${t.text} text-lg`}>연락 일정</h3>
+         {(() => {
+           const myId = user?.managerId;
+           const alertFilterId = isAdmin && alertManagerFilter !== 'none' ? Number(alertManagerFilter) : null;
+           const contactEvts = calendarEvents.filter(e => {
+             if (e.type !== 'followup') return false;
+             if (isAdmin && alertFilterId) { if (e.managerId !== alertFilterId) return false; }
+             else if (!isAdmin && e.managerId !== myId) return false;
+             if (e.completed) return false;
+             return true;
+           });
+           return contactEvts.length > 0 ? <span className="bg-[#F59E0B] text-white text-xs px-2 py-0.5 rounded-full">{contactEvts.length}</span> : null;
+         })()}
+       </div>
+       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ transform: alertContactExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
+         <path d="M4 6L8 10L12 6" stroke="#6B7684" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+       </svg>
+     </button>
+     {alertContactExpanded && (
+       <div className="px-4 pb-4 space-y-2">
+         {(() => {
+           const myId = user?.managerId;
+           const alertFilterId = isAdmin && alertManagerFilter !== 'none' ? Number(alertManagerFilter) : null;
+           const contactEvts = calendarEvents.filter(e => {
+             if (e.type !== 'followup') return false;
+             if (isAdmin && alertFilterId) { if (e.managerId !== alertFilterId) return false; }
+             else if (!isAdmin && e.managerId !== myId) return false;
+             if (e.completed) return false;
+             return true;
+           }).sort((a, b) => a.date.localeCompare(b.date));
+
+           if (contactEvts.length === 0) {
+             return <p className="text-sm text-[#B0B8C1] py-2">예정된 연락 일정이 없습니다</p>;
+           }
+
+           const today = getKoreanToday();
+           const todayContacts = contactEvts.filter(e => e.date === today);
+           const upcomingContacts = contactEvts.filter(e => e.date > today);
+           const overdueContacts = contactEvts.filter(e => e.date < today);
+
+           return (
+             <>
+               {overdueContacts.length > 0 && (
+                 <div>
+                   <p className="text-xs font-bold text-rose-500 mb-1.5">미완료</p>
+                   <div className="space-y-1.5">
+                     {overdueContacts.map(evt => {
+                       const comp = companies.find(c => c.name === evt.title || evt.title?.includes(c.name));
+                       const reactionLabel = comp?.reaction === 'positive' ? '긍정' : comp?.reaction === 'special' ? '특별관리' : comp?.reaction === 'negative' ? '부정' : comp?.reaction === 'neutral' ? '보통' : '';
+                       const manager = managers.find(m => m.id === evt.managerId);
+                       return (
+                         <div key={evt.id} className="flex items-center justify-between p-3 bg-rose-50 rounded-xl">
+                           <div className="flex-1 min-w-0">
+                             <div className="flex items-center gap-2">
+                               <span className="text-xs text-rose-400">{evt.date.slice(5).replace('-', '/')}</span>
+                               {manager && isAdmin && <span className="text-xs text-[#6B7684] bg-[#E8EBED] rounded-full px-1.5 py-0.5">{manager.name}</span>}
+                             </div>
+                             <p className={`font-medium text-sm ${t.text}`}>{evt.title}{reactionLabel ? ` | ${reactionLabel}` : ''}</p>
+                           </div>
+                           <button onClick={() => saveCalendarEvent({ ...evt, completed: true })} className="px-3 py-1.5 bg-emerald-500 text-white text-xs rounded-lg hover:bg-emerald-600 flex-shrink-0 ml-2">완료</button>
+                         </div>
+                       );
+                     })}
+                   </div>
+                 </div>
+               )}
+               {todayContacts.length > 0 && (
+                 <div>
+                   <p className="text-xs font-bold text-[#F59E0B] mb-1.5">오늘</p>
+                   <div className="space-y-1.5">
+                     {todayContacts.map(evt => {
+                       const comp = companies.find(c => c.name === evt.title || evt.title?.includes(c.name));
+                       const reactionLabel = comp?.reaction === 'positive' ? '긍정' : comp?.reaction === 'special' ? '특별관리' : comp?.reaction === 'negative' ? '부정' : comp?.reaction === 'neutral' ? '보통' : '';
+                       const manager = managers.find(m => m.id === evt.managerId);
+                       return (
+                         <div key={evt.id} className="flex items-center justify-between p-3 bg-amber-50 rounded-xl">
+                           <div className="flex-1 min-w-0">
+                             {manager && isAdmin && <span className="text-xs text-[#6B7684] bg-[#E8EBED] rounded-full px-1.5 py-0.5 mb-1 inline-block">{manager.name}</span>}
+                             <p className={`font-medium text-sm ${t.text}`}>{evt.title}{reactionLabel ? ` | ${reactionLabel}` : ''}</p>
+                           </div>
+                           <button onClick={() => saveCalendarEvent({ ...evt, completed: true })} className="px-3 py-1.5 bg-emerald-500 text-white text-xs rounded-lg hover:bg-emerald-600 flex-shrink-0 ml-2">완료</button>
+                         </div>
+                       );
+                     })}
+                   </div>
+                 </div>
+               )}
+               {upcomingContacts.length > 0 && (
+                 <div>
+                   <p className="text-xs font-bold text-[#4E5968] mb-1.5">예정</p>
+                   <div className="space-y-1.5">
+                     {upcomingContacts.map(evt => {
+                       const comp = companies.find(c => c.name === evt.title || evt.title?.includes(c.name));
+                       const reactionLabel = comp?.reaction === 'positive' ? '긍정' : comp?.reaction === 'special' ? '특별관리' : comp?.reaction === 'negative' ? '부정' : comp?.reaction === 'neutral' ? '보통' : '';
+                       const manager = managers.find(m => m.id === evt.managerId);
+                       const dayLabel = evt.date ? `${evt.date.slice(5).replace('-', '/')} (${['일','월','화','수','목','금','토'][new Date(evt.date + 'T00:00:00').getDay()]})` : '';
+                       return (
+                         <div key={evt.id} className="flex items-center justify-between p-3 bg-[#F9FAFB] rounded-xl">
+                           <div className="flex-1 min-w-0">
+                             <div className="flex items-center gap-2">
+                               <span className={`text-xs ${t.textMuted}`}>{dayLabel}</span>
+                               {manager && isAdmin && <span className="text-xs text-[#6B7684] bg-[#E8EBED] rounded-full px-1.5 py-0.5">{manager.name}</span>}
+                             </div>
+                             <p className={`font-medium text-sm ${t.text}`}>{evt.title}{reactionLabel ? ` | ${reactionLabel}` : ''}</p>
+                           </div>
+                           <button onClick={() => saveCalendarEvent({ ...evt, completed: true })} className="px-3 py-1.5 bg-[#E5E8EB] text-[#6B7684] text-xs rounded-lg hover:bg-[#D1D6DB] flex-shrink-0 ml-2">완료</button>
+                         </div>
+                       );
+                     })}
+                   </div>
+                 </div>
+               )}
+             </>
+           );
+         })()}
+       </div>
+     )}
+   </div>
+
    {/* 완료된 일정 (최근 5개) */}
    {(() => {
+     const alertFilterId = isAdmin && alertManagerFilter !== 'none' ? Number(alertManagerFilter) : null;
      const completedEvents = calendarEvents
-       .filter(e => e.managerId === user?.managerId && e.completed)
+       .filter(e => {
+         if (isAdmin && alertFilterId) { if (e.managerId !== alertFilterId) return false; }
+         else if (!isAdmin && e.managerId !== user?.managerId) return false;
+         return e.completed;
+       })
        .sort((a, b) => b.date.localeCompare(a.date))
        .slice(0, 5);
-     
+
      return completedEvents.length > 0 ? (
        <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
          <h3 className="font-bold text-[#B0B8C1] text-lg mb-3">최근 완료</h3>
@@ -23692,9 +25536,11 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
        </div>
      ) : null;
    })()}
+   </>
+   )}
  </div>
  )}
- 
+
  {/* 영업모드 설정 */}
  {settingsTab === 'salesmode' && (
  <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
@@ -23710,30 +25556,396 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  )}
  
+
+{/* 영업활동 탭 */}
+{settingsTab === 'activity' && (
+<div className="space-y-4">
+
+{/* 영업활동 입력 폼 */}
+<div className="rounded-2xl p-4 border bg-white border-[#E5E8EB]">
+  <div className="flex items-center justify-between mb-4">
+    <h3 className="font-bold text-[#191F28] text-lg">영업활동 등록</h3>
+    <div className="flex bg-[#F2F4F6] rounded-full p-0.5">
+      <button type="button" onClick={() => setBatchRegisterMode(false)} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${!batchRegisterMode ? 'bg-white text-[#191F28] shadow-sm' : 'text-[#8B95A1]'}`}>개별등록</button>
+      <button type="button" onClick={() => setBatchRegisterMode(true)} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${batchRegisterMode ? 'bg-white text-[#191F28] shadow-sm' : 'text-[#8B95A1]'}`}>일괄등록</button>
+    </div>
+  </div>
+  {!batchRegisterMode && (
+  <div className="space-y-3">
+    <div>
+      <label className="text-xs mb-1 block text-[#8B95A1]">영업일</label>
+      <input type="date" value={activityForm.date} onChange={e => setActivityForm({ ...activityForm, date: e.target.value })} className="w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg text-[#191F28] focus:outline-none focus:border-[#3182F6] transition-all text-sm" />
+    </div>
+    <input type="text" placeholder="활동 지역 (예: 강남구)" value={activityForm.region} onChange={e => setActivityForm({ ...activityForm, region: e.target.value })} className="w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg text-[#191F28] placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm" />
+    <input type="text" placeholder="활동 내용 (예: 강남구 업체 3곳 방문)" value={activityForm.content} onChange={e => setActivityForm({ ...activityForm, content: e.target.value })} className="w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg text-[#191F28] placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm" />
+    <div>
+      <label className="text-xs mb-2 block text-[#8B95A1]">활동 유형</label>
+      <div className="flex gap-2">
+        <button type="button" onClick={() => setActivityForm({ ...activityForm, activityType: 'normal' })} className={`flex-1 px-3 py-2.5 rounded-full text-sm transition-all ${activityForm.activityType === 'normal' ? 'bg-[#191F28] text-white' : 'border border-[#E5E8EB] text-[#56565F] hover:border-[#8B95A1]'}`}>
+          일반 영업
+        </button>
+        <button type="button" onClick={() => setActivityForm({ ...activityForm, activityType: 'special' })} className={`flex-1 px-3 py-2.5 rounded-full text-sm transition-all ${activityForm.activityType === 'special' ? 'bg-[#191F28] text-white' : 'border border-[#E5E8EB] text-[#56565F] hover:border-[#8B95A1]'}`}>
+          특별활동(행사)
+        </button>
+      </div>
+      {activityForm.activityType === 'normal' && (
+        <p className="text-xs text-[#8B95A1] mt-2">일일 활동비 20,000원</p>
+      )}
+      {activityForm.activityType === 'special' && (
+        <p className="text-xs text-[#E8740C] mt-2">특별활동비 100,000원 중 3.3% 세금(3,300원) 제외 - 실수령 96,700원</p>
+      )}
+    </div>
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <label className="text-xs text-[#8B95A1]">교통비 지원</label>
+        <button type="button" onClick={() => setActivityForm({ ...activityForm, transportEnabled: !activityForm.transportEnabled })} className={`w-10 h-5 rounded-full transition-all relative ${activityForm.transportEnabled ? 'bg-[#2AC1BC]' : 'bg-[#E5E8EB]'}`}>
+          <div className={`w-4 h-4 rounded-full bg-white absolute top-0.5 transition-all shadow-sm ${activityForm.transportEnabled ? 'left-5' : 'left-0.5'}`} />
+        </button>
+      </div>
+      {activityForm.transportEnabled && (
+        <div className="space-y-3">
+          {(activityForm.transportItems || [{ method: '', amount: '', receipt: null }]).map((item, idx) => (
+            <div key={idx} className="bg-[#F9FAFB] rounded-xl p-3 space-y-2 relative">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-medium text-[#56565F]">교통비 #{idx + 1}</span>
+                {(activityForm.transportItems || []).length > 1 && (
+                  <button type="button" onClick={() => {
+                    const items = [...(activityForm.transportItems || [])];
+                    items.splice(idx, 1);
+                    setActivityForm({ ...activityForm, transportItems: items });
+                  }} className="w-5 h-5 flex items-center justify-center rounded-full bg-[#E5E8EB] text-[#8B95A1] hover:bg-rose-100 hover:text-rose-500 text-xs transition-all">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                )}
+              </div>
+              <input type="text" placeholder="교통수단 (예: 비행기, KTX, 렌트카 등)" value={item.method} onChange={e => {
+                const items = [...(activityForm.transportItems || [])];
+                items[idx] = { ...items[idx], method: e.target.value };
+                setActivityForm({ ...activityForm, transportItems: items });
+              }} className="w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg text-[#191F28] placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm" />
+              <input type="text" placeholder="교통비 금액 (원)" value={formatNumberWithComma(item.amount)} onChange={e => {
+                const items = [...(activityForm.transportItems || [])];
+                items[idx] = { ...items[idx], amount: parseCommaNumber(e.target.value) };
+                setActivityForm({ ...activityForm, transportItems: items });
+              }} className="w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg text-[#191F28] placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm" />
+              <div>
+                <label className="text-xs text-[#8B95A1] mb-1 block">영수증 첨부 (이미지)</label>
+                <input type="file" accept="image/*" onChange={e => {
+                  const items = [...(activityForm.transportItems || [])];
+                  items[idx] = { ...items[idx], receipt: e.target.files[0] || null };
+                  setActivityForm({ ...activityForm, transportItems: items });
+                }} className="w-full text-sm text-[#56565F] file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-[#E5E8EB] file:text-sm file:font-medium file:bg-white file:text-[#56565F] hover:file:bg-[#F9FAFB]" />
+              </div>
+            </div>
+          ))}
+          <button type="button" onClick={() => {
+            const items = [...(activityForm.transportItems || [])];
+            items.push({ method: '', amount: '', receipt: null });
+            setActivityForm({ ...activityForm, transportItems: items });
+          }} className="w-full py-2 rounded-lg border border-dashed border-[#B0B8C1] text-[#8B95A1] text-sm hover:border-[#3182F6] hover:text-[#3182F6] transition-all flex items-center justify-center gap-1">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            교통비 항목 추가
+          </button>
+        </div>
+      )}
+    </div>
+    <div>
+      <label className="text-xs text-[#8B95A1] mb-1 block">활동 사진첨부 (선택)</label>
+      <input type="file" accept="image/*" multiple onChange={e => {
+        const files = Array.from(e.target.files || []);
+        setActivityForm({ ...activityForm, photos: files });
+      }} className="w-full text-sm text-[#56565F] file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-[#E5E8EB] file:text-sm file:font-medium file:bg-white file:text-[#56565F] hover:file:bg-[#F9FAFB]" />
+      {activityForm.photos && activityForm.photos.length > 0 && (
+        <p className="text-xs text-[#2AC1BC] mt-1">{activityForm.photos.length}개 파일 선택됨</p>
+      )}
+    </div>
+    <div className="bg-[#F9FAFB] rounded-xl p-3">
+      <div className="flex justify-between text-sm">
+        <span className="text-[#8B95A1]">활동비</span>
+        <span className="text-[#191F28] font-medium">{activityForm.activityType === 'special' ? '96,700' : '20,000'}원</span>
+      </div>
+      {activityForm.transportEnabled && (() => {
+        const totalTransport = (activityForm.transportItems || []).reduce((s, item) => s + (Number(parseCommaNumber(item.amount)) || 0), 0);
+        return totalTransport > 0 ? (
+          <div className="flex justify-between text-sm mt-1">
+            <span className="text-[#8B95A1]">교통비 ({(activityForm.transportItems || []).filter(i => parseCommaNumber(i.amount)).length}건)</span>
+            <span className="text-[#191F28] font-medium">{totalTransport.toLocaleString()}원</span>
+          </div>
+        ) : null;
+      })()}
+      <div className="border-t border-[#E5E8EB] mt-2 pt-2 flex justify-between text-sm font-bold">
+        <span className="text-[#191F28]">합계</span>
+        <span className="text-[#2AC1BC]">{((activityForm.activityType === 'special' ? 96700 : 20000) + (activityForm.transportEnabled ? (activityForm.transportItems || []).reduce((s, item) => s + (Number(parseCommaNumber(item.amount)) || 0), 0) : 0)).toLocaleString()}원</span>
+      </div>
+    </div>
+    <button type="button" onClick={submitActivityForm} disabled={activityFormLoading || !activityForm.date || !activityForm.region.trim() || !activityForm.content.trim()} className={`w-full py-3 rounded-lg font-medium transition-all text-sm ${activityFormLoading || !activityForm.date || !activityForm.region.trim() || !activityForm.content.trim() ? 'bg-[#E5E8EB] text-[#B0B8C1] cursor-not-allowed' : 'bg-[#191F28] text-white hover:bg-[#21212A]'}`}>
+      {activityFormLoading ? '등록 중...' : '영업활동 등록'}
+    </button>
+  </div>
+  )}
+
+  {/* 일괄등록 모드 */}
+  {batchRegisterMode && (
+  <div className="space-y-3">
+    <p className="text-xs text-[#8B95A1]">여러 건의 영업활동을 한번에 등록할 수 있습니다.</p>
+    {batchRows.map((row, idx) => {
+      const updateRow = (field, value) => {
+        const rows = [...batchRows];
+        rows[idx] = { ...rows[idx], [field]: value };
+        setBatchRows(rows);
+      };
+      const rowTransportTotal = (row.transportItems || []).reduce((s, item) => s + (Number(parseCommaNumber(item.amount)) || 0), 0);
+      return (
+      <div key={idx} className="border border-[#E5E8EB] rounded-xl p-3 space-y-2 relative">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-xs font-bold text-[#191F28]">{idx + 1}건</span>
+          {batchRows.length > 1 && (
+            <button type="button" onClick={() => {
+              const rows = [...batchRows];
+              rows.splice(idx, 1);
+              setBatchRows(rows);
+            }} className="w-6 h-6 flex items-center justify-center rounded-full bg-[#F2F4F6] text-[#8B95A1] hover:bg-rose-100 hover:text-rose-500 text-xs transition-all">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          )}
+        </div>
+        <div>
+          <label className="text-xs mb-1 block text-[#8B95A1]">영업일</label>
+          <input type="date" value={row.date} onChange={e => updateRow('date', e.target.value)} className="w-full px-2.5 py-2 bg-white border border-[#E5E8EB] rounded-lg text-[#191F28] focus:outline-none focus:border-[#3182F6] transition-all text-sm" />
+        </div>
+        <input type="text" placeholder="활동 지역 (예: 강남구)" value={row.region} onChange={e => updateRow('region', e.target.value)} className="w-full px-2.5 py-2 bg-white border border-[#E5E8EB] rounded-lg text-[#191F28] placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm" />
+        <input type="text" placeholder="활동 내용 (예: 강남구 업체 3곳 방문)" value={row.content} onChange={e => updateRow('content', e.target.value)} className="w-full px-2.5 py-2 bg-white border border-[#E5E8EB] rounded-lg text-[#191F28] placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm" />
+        <div>
+          <label className="text-xs mb-2 block text-[#8B95A1]">활동 유형</label>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => updateRow('activityType', 'normal')} className={`flex-1 px-3 py-2.5 rounded-full text-sm transition-all ${row.activityType === 'normal' ? 'bg-[#191F28] text-white' : 'border border-[#E5E8EB] text-[#56565F] hover:border-[#8B95A1]'}`}>
+              일반 영업
+            </button>
+            <button type="button" onClick={() => updateRow('activityType', 'special')} className={`flex-1 px-3 py-2.5 rounded-full text-sm transition-all ${row.activityType === 'special' ? 'bg-[#191F28] text-white' : 'border border-[#E5E8EB] text-[#56565F] hover:border-[#8B95A1]'}`}>
+              특별활동(행사)
+            </button>
+          </div>
+          {row.activityType === 'normal' && (
+            <p className="text-xs text-[#8B95A1] mt-2">일일 활동비 20,000원</p>
+          )}
+          {row.activityType === 'special' && (
+            <p className="text-xs text-[#E8740C] mt-2">특별활동비 100,000원 중 3.3% 세금(3,300원) 제외 - 실수령 96,700원</p>
+          )}
+        </div>
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-xs text-[#8B95A1]">교통비 지원</label>
+            <button type="button" onClick={() => updateRow('transportEnabled', !row.transportEnabled)} className={`w-10 h-5 rounded-full transition-all relative ${row.transportEnabled ? 'bg-[#2AC1BC]' : 'bg-[#E5E8EB]'}`}>
+              <div className={`w-4 h-4 rounded-full bg-white absolute top-0.5 transition-all shadow-sm ${row.transportEnabled ? 'left-5' : 'left-0.5'}`} />
+            </button>
+          </div>
+          {row.transportEnabled && (
+            <div className="space-y-3">
+              {(row.transportItems || [{ method: '', amount: '', receipt: null }]).map((item, tIdx) => (
+                <div key={tIdx} className="bg-[#F9FAFB] rounded-xl p-3 space-y-2 relative">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-medium text-[#56565F]">교통비 #{tIdx + 1}</span>
+                    {(row.transportItems || []).length > 1 && (
+                      <button type="button" onClick={() => {
+                        const items = [...(row.transportItems || [])];
+                        items.splice(tIdx, 1);
+                        updateRow('transportItems', items);
+                      }} className="w-5 h-5 flex items-center justify-center rounded-full bg-[#E5E8EB] text-[#8B95A1] hover:bg-rose-100 hover:text-rose-500 text-xs transition-all">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                      </button>
+                    )}
+                  </div>
+                  <input type="text" placeholder="교통수단 (예: 비행기, KTX, 렌트카 등)" value={item.method} onChange={e => {
+                    const items = [...(row.transportItems || [])];
+                    items[tIdx] = { ...items[tIdx], method: e.target.value };
+                    updateRow('transportItems', items);
+                  }} className="w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg text-[#191F28] placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm" />
+                  <input type="text" placeholder="교통비 금액 (원)" value={formatNumberWithComma(item.amount)} onChange={e => {
+                    const items = [...(row.transportItems || [])];
+                    items[tIdx] = { ...items[tIdx], amount: parseCommaNumber(e.target.value) };
+                    updateRow('transportItems', items);
+                  }} className="w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg text-[#191F28] placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm" />
+                  <div>
+                    <label className="text-xs text-[#8B95A1] mb-1 block">영수증 첨부 (이미지)</label>
+                    <input type="file" accept="image/*" onChange={e => {
+                      const items = [...(row.transportItems || [])];
+                      items[tIdx] = { ...items[tIdx], receipt: e.target.files[0] || null };
+                      updateRow('transportItems', items);
+                    }} className="w-full text-sm text-[#56565F] file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-[#E5E8EB] file:text-sm file:font-medium file:bg-white file:text-[#56565F] hover:file:bg-[#F9FAFB]" />
+                  </div>
+                </div>
+              ))}
+              <button type="button" onClick={() => {
+                const items = [...(row.transportItems || [])];
+                items.push({ method: '', amount: '', receipt: null });
+                updateRow('transportItems', items);
+              }} className="w-full py-2 rounded-lg border border-dashed border-[#B0B8C1] text-[#8B95A1] text-sm hover:border-[#3182F6] hover:text-[#3182F6] transition-all flex items-center justify-center gap-1">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                교통비 항목 추가
+              </button>
+            </div>
+          )}
+        </div>
+        <div>
+          <label className="text-xs text-[#8B95A1] mb-1 block">활동 사진첨부 (선택)</label>
+          <input type="file" accept="image/*" multiple onChange={e => {
+            const files = Array.from(e.target.files || []);
+            updateRow('photos', files);
+          }} className="w-full text-sm text-[#56565F] file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-[#E5E8EB] file:text-sm file:font-medium file:bg-white file:text-[#56565F] hover:file:bg-[#F9FAFB]" />
+          {row.photos && row.photos.length > 0 && (
+            <p className="text-xs text-[#2AC1BC] mt-1">{row.photos.length}개 파일 선택됨</p>
+          )}
+        </div>
+        <div className="bg-[#F9FAFB] rounded-xl p-3">
+          <div className="flex justify-between text-sm">
+            <span className="text-[#8B95A1]">활동비</span>
+            <span className="text-[#191F28] font-medium">{row.activityType === 'special' ? '96,700' : '20,000'}원</span>
+          </div>
+          {row.transportEnabled && rowTransportTotal > 0 && (
+            <div className="flex justify-between text-sm mt-1">
+              <span className="text-[#8B95A1]">교통비 ({(row.transportItems || []).filter(i => parseCommaNumber(i.amount)).length}건)</span>
+              <span className="text-[#191F28] font-medium">{rowTransportTotal.toLocaleString()}원</span>
+            </div>
+          )}
+          <div className="border-t border-[#E5E8EB] mt-2 pt-2 flex justify-between text-sm font-bold">
+            <span className="text-[#191F28]">합계</span>
+            <span className="text-[#2AC1BC]">{((row.activityType === 'special' ? 96700 : 20000) + (row.transportEnabled ? rowTransportTotal : 0)).toLocaleString()}원</span>
+          </div>
+        </div>
+      </div>
+      );
+    })}
+    <button type="button" onClick={() => {
+      setBatchRows([...batchRows, {
+        date: batchRows.length > 0 ? batchRows[batchRows.length - 1].date : new Date().toISOString().slice(0, 10),
+        region: batchRows.length > 0 ? batchRows[batchRows.length - 1].region : '',
+        content: '',
+        activityType: 'normal',
+        transportEnabled: false,
+        transportItems: [{ method: '', amount: '', receipt: null }],
+        photos: []
+      }]);
+    }} className="w-full py-2.5 rounded-lg border border-dashed border-[#B0B8C1] text-[#8B95A1] text-sm hover:border-[#3182F6] hover:text-[#3182F6] transition-all flex items-center justify-center gap-1">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      행 추가
+    </button>
+    <div className="bg-[#F9FAFB] rounded-xl p-3">
+      <div className="flex justify-between text-sm">
+        <span className="text-[#8B95A1]">총 {batchRows.filter(r => r.date && r.region.trim() && r.content.trim()).length}건</span>
+        <span className="font-bold text-[#191F28]">
+          {batchRows.filter(r => r.date && r.region.trim() && r.content.trim()).reduce((sum, r) => {
+            const transportTotal = r.transportEnabled ? (r.transportItems || []).reduce((s, item) => s + (Number(parseCommaNumber(item.amount)) || 0), 0) : 0;
+            return sum + (r.activityType === 'special' ? 96700 : 20000) + transportTotal;
+          }, 0).toLocaleString()}원
+        </span>
+      </div>
+    </div>
+    <button type="button" onClick={submitBatchActivityForm} disabled={batchRegisterLoading || batchRows.every(r => !r.date || !r.region.trim() || !r.content.trim())} className={`w-full py-3 rounded-lg font-medium transition-all text-sm ${batchRegisterLoading || batchRows.every(r => !r.date || !r.region.trim() || !r.content.trim()) ? 'bg-[#E5E8EB] text-[#B0B8C1] cursor-not-allowed' : 'bg-[#191F28] text-white hover:bg-[#21212A]'}`}>
+      {batchRegisterLoading ? '등록 중...' : `${batchRows.filter(r => r.date && r.region.trim() && r.content.trim()).length}건 일괄 등록`}
+    </button>
+  </div>
+  )}
+</div>
+
+{/* 회계/관리자: 영업자별 필터 + 은행정보 */}
+{canManageActivities && (
+  <div className="rounded-2xl p-4 border bg-white border-[#E5E8EB]">
+    <h3 className="font-bold text-[#191F28] text-lg mb-3">영업자 관리</h3>
+    <select value={activityFilterManager} onChange={e => setActivityFilterManager(e.target.value)} className="w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg text-[#191F28] focus:outline-none focus:border-[#3182F6] transition-all text-sm mb-3">
+      <option value="all">전체 영업자</option>
+      {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+    </select>
+    {activityFilterManager !== 'all' && (() => {
+      const mgrId = activityFilterManager;
+      const mgrInfo = managerBankInfo[mgrId] || {};
+      const mgrName = managers.find(m => String(m.id) === String(mgrId))?.name || '';
+      const formatResidentFull = (rid) => {
+        if (!rid) return '-';
+        const clean = rid.replace(/[^0-9]/g, '');
+        if (clean.length >= 13) return clean.slice(0, 6) + '-' + clean.slice(6);
+        return rid;
+      };
+      return (
+        <div className="bg-[#F9FAFB] rounded-xl p-3 space-y-2">
+          <p className="text-xs font-bold text-[#191F28] mb-2">{mgrName} - 계좌/세무 정보</p>
+          <div className="grid grid-cols-[80px_1fr] gap-y-2 gap-x-3 text-sm">
+            <span className="text-[#8B95A1]">은행명</span>
+            <span className="text-[#191F28] font-medium">{mgrInfo.bankName || '-'}</span>
+            <span className="text-[#8B95A1]">계좌번호</span>
+            <span className="text-[#191F28] font-medium">{mgrInfo.bankAccount || '-'}</span>
+            <span className="text-[#8B95A1]">주민번호</span>
+            <span className="text-[#191F28] font-medium">{formatResidentFull(mgrInfo.residentId)}</span>
+          </div>
+        </div>
+      );
+    })()}
+  </div>
+)}
+
+{/* 영업활동 내역 리스트 */}
+<div className="rounded-2xl p-4 border bg-white border-[#E5E8EB]">
+  <h3 className="font-bold text-[#191F28] text-lg mb-3">영업활동 내역</h3>
+  {(() => {
+    const myActivities = canManageActivities
+      ? (activityFilterManager === 'all' ? salesActivities : salesActivities.filter(a => String(a.managerId) === String(activityFilterManager)))
+      : salesActivities.filter(a => String(a.managerId) === String(user?.managerId || user?.username));
+    if (myActivities.length === 0) {
+      return <p className="text-sm text-[#B0B8C1] text-center py-6">등록된 영업활동이 없습니다.</p>;
+    }
+    return (
+      <div className="space-y-2">
+        {myActivities.map(act => (
+          <div key={act.id} className="border border-[#E5E8EB] rounded-xl p-3">
+            <div className="flex items-start justify-between">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-medium text-[#191F28]">{act.date}</span>
+                  {canManageActivities && <span className="text-xs text-[#3182F6]">{act.managerName}</span>}
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${act.paymentStatus === 'completed' ? 'bg-[#E5E8EB] text-[#8B95A1]' : 'bg-[#FFF3E0] text-[#E8740C]'}`}>
+                    {act.paymentStatus === 'completed' ? '지급완료' : '지급예정'}
+                  </span>
+                </div>
+                <p className="text-sm text-[#4E5968] mt-1">{act.region} - {act.content}</p>
+                <div className="flex items-center gap-3 mt-1.5 text-xs text-[#8B95A1]">
+                  <span>{act.activityType === 'special' ? '특별활동' : '일반 영업'} {typeof act.netAmount === 'string' && act.netAmount.includes(',') ? act.netAmount : safeNum(act.netAmount).toLocaleString()}원</span>
+                  {act.transportation?.enabled && <span>교통비 {typeof act.transportation.amount === 'string' && act.transportation.amount.includes(',') ? act.transportation.amount : safeNum(act.transportation.amount).toLocaleString()}원{act.transportItems?.length > 1 ? ` (${act.transportItems.length}건)` : ''}</span>}
+                  {act.transportItems ? act.transportItems.filter(ti => ti.receiptUrl).map((ti, tIdx) => (
+                    <a key={tIdx} href={ti.receiptUrl} target="_blank" rel="noopener noreferrer" className="text-[#3182F6] hover:underline">영수증{act.transportItems.filter(t => t.receiptUrl).length > 1 ? ` ${tIdx+1}` : ''}</a>
+                  )) : act.transportation?.receiptUrl && <a href={act.transportation.receiptUrl} target="_blank" rel="noopener noreferrer" className="text-[#3182F6] hover:underline">영수증</a>}
+                  {act.photoUrls && act.photoUrls.length > 0 && act.photoUrls.map((url, pIdx) => (
+                    <a key={'photo_'+pIdx} href={url} target="_blank" rel="noopener noreferrer" className="text-[#2AC1BC] hover:underline">사진{act.photoUrls.length > 1 ? ` ${pIdx+1}` : ''}</a>
+                  ))}
+                </div>
+              </div>
+              <div className="flex items-start gap-1 ml-2 shrink-0">
+                <div className="text-right">
+                  <p className="text-sm font-bold text-[#191F28]">{typeof act.totalAmount === 'string' && act.totalAmount.includes(',') ? act.totalAmount : safeNum(act.totalAmount).toLocaleString()}원</p>
+                  {canManageActivities && act.paymentStatus !== 'completed' && (
+                    <button type="button" onClick={() => updatePaymentStatus(act.id, 'completed')} className="text-xs text-[#2AC1BC] hover:underline mt-1">지급완료</button>
+                  )}
+                  {canManageActivities && act.paymentStatus === 'completed' && (
+                    <button type="button" onClick={() => updatePaymentStatus(act.id, 'pending')} className="text-xs text-[#B0B8C1] hover:underline mt-1">지급취소</button>
+                  )}
+                </div>
+                <button type="button" onClick={() => softDeleteActivity(act.id)} className="text-[#B0B8C1] hover:text-rose-500 transition-colors mt-0.5" title="삭제">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  })()}
+</div>
+
+</div>
+)}
+
  {/* 계정 설정 탭 */}
  {settingsTab === 'account' && (
  <div className="space-y-2">
- {/* 테마 설정 */}
- <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
-   <h3 className={`font-bold ${t.text} text-lg mb-3`}>테마 설정</h3>
-   <div className="flex gap-2">
-     {[
-       { value: 'light', label: '라이트' },
-       { value: 'dark', label: '다크' },
-       { value: 'auto', label: '시스템' }
-     ].map(t => (
-       <button
-         key={t.value}
-         type="button"
-         onClick={() => setThemeMode(t.value)}
-         className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${themeMode === t.value ? 'bg-[#191F28] text-white' : 'border border-[#E5E8EB] text-[#56565F] hover:border-[#8B95A1]'}`}
-       >
-         {t.label}
-       </button>
-     ))}
-   </div>
-   <p className={`text-xs mt-2 ${t.textMuted}`}>현재: {themeMode === 'light' ? '라이트 모드' : themeMode === 'dark' ? '다크 모드' : '시스템 설정 따름'}</p>
- </div>
+ {/* 테마 설정 제거 (라이트모드 고정) */}
 
  {/* 비밀번호 변경 */}
  <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
@@ -23746,141 +25958,331 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <p className="text-xs text-[#56565F] mt-3">※ 비밀번호는 4자 이상이어야 합니다. {isAdmin ? '(관리자 계정)' : ''}</p>
  </div>
 
- {/* 앱 설치 */}
- <div className={`rounded-2xl p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
-   <h3 className={`font-bold ${t.text} text-lg mb-3`}>앱 설치</h3>
-   <p className={`text-sm mb-4 ${t.textMuted}`}>홈 화면에 빈크래프트를 추가하면 앱처럼 사용할 수 있어요.</p>
-   <button
-     type="button"
-     onClick={() => {
-       if (window.deferredPrompt) {
-         window.deferredPrompt.prompt();
-         window.deferredPrompt.userChoice.then((choice) => {
-           if (choice.outcome === 'accepted') alert('빈크래프트가 설치되었습니다!');
-           window.deferredPrompt = null;
-         });
-       } else {
-         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-         const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
-         if (isStandalone) { alert('이미 앱으로 설치되어 있습니다!'); }
-         else if (isIOS) { alert('Safari 하단의 공유 버튼 → "홈 화면에 추가"를 눌러주세요.'); }
-         else { alert('Chrome 메뉴(⋮) → "앱 설치" 또는 "홈 화면에 추가"를 선택하세요.'); }
-       }
-     }}
-     className="w-full px-4 py-3 bg-gradient-to-r from-[#3182F6] to-[#6366F1] text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center justify-center gap-2"
-   >
-     홈 화면에 앱 설치하기
-   </button>
-   <div className={`mt-3 p-3 rounded-lg ${theme === 'dark' ? 'bg-[#171717]' : 'bg-[#F9FAFB]'}`}>
-     <p className={`text-xs ${t.textMuted} leading-relaxed`}>
-       <strong>카카오톡으로 공유하기</strong><br/>
-       아래 링크를 카카오톡으로 보내면 누구나 설치할 수 있어요:<br/>
-       <span className="text-[#3182F6] font-mono select-all">beancraft-sales.netlify.app</span>
-     </p>
-   </div>
+ {/* 내 계좌/세무 정보 */}
+ {!isAdmin && (
+ <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
+ <h3 className={`font-bold ${t.text} text-lg mb-4`}>내 계좌/세무 정보</h3>
+ {(() => {
+   const myMgrId = user?.managerId || user?.username;
+   const myInfo = managerBankInfo[myMgrId] || {};
+   const maskResidentId = (rid) => {
+     if (!rid) return '';
+     const clean = rid.replace(/[^0-9]/g, '');
+     if (clean.length >= 7) {
+       return clean.slice(0, 6) + '-' + clean[6] + '******';
+     }
+     return rid;
+   };
+   return (
+     <div className="space-y-3">
+       <div>
+         <label className="text-xs font-medium text-[#191F28] mb-1 block">은행명</label>
+         <input type="text" value={myInfo.bankName || ''} onChange={e => saveManagerBankInfoFn(myMgrId, { ...myInfo, bankName: e.target.value })} placeholder="은행명" className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm`} />
+       </div>
+       <div>
+         <label className="text-xs font-medium text-[#191F28] mb-1 block">계좌번호</label>
+         <input type="text" value={myInfo.bankAccount || ''} onChange={e => saveManagerBankInfoFn(myMgrId, { ...myInfo, bankAccount: e.target.value })} placeholder="계좌번호" className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm`} />
+       </div>
+       <div>
+         <label className="text-xs font-medium text-[#191F28] mb-1 block">주민등록번호</label>
+         <input type="text" value={(() => { const c = (myInfo.residentId || '').replace(/[^0-9]/g, ''); return c.length > 6 ? c.slice(0, 6) + '-' + c.slice(6) : c; })()} onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, '').slice(0, 13); saveManagerBankInfoFn(myMgrId, { ...myInfo, residentId: raw }); }} maxLength={14} placeholder="주민등록번호 (예: 900101-1234567)" className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm`} />
+         {myInfo.residentId && <p className="text-xs text-[#8B95A1] mt-1">표시: {maskResidentId(myInfo.residentId)}</p>}
+       </div>
+       <div>
+         <label className="text-xs font-medium text-[#191F28] mb-1 block">메모</label>
+         <input type="text" value={myInfo.memo || ''} onChange={e => saveManagerBankInfoFn(myMgrId, { ...myInfo, memo: e.target.value })} placeholder="메모 (선택사항)" className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm`} />
+       </div>
+       <p className="text-xs text-[#B0B8C1]">※ 입력한 정보는 관리자/회계 담당자만 열람할 수 있습니다.</p>
+     </div>
+   );
+ })()}
  </div>
+ )}
+
+ </div>
+ )}
+
+ {/* 회계 전용 탭 */}
+ {settingsTab === 'accounting' && (isAdmin || isAccounting) && (
+ <div className="space-y-2">
+
+{/* 영업지원 회계장부 */}
+{(isAdmin || isAccounting) && (
+<div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
+<div className="flex items-center justify-between">
+<h3 className={`font-bold ${t.text} text-lg`}>영업지원 회계장부</h3>
+</div>
+
+{true && (
+<div className="mt-4 space-y-4">
+{/* 기간별 필터 */}
+<div className="flex flex-wrap gap-2 items-center">
+<div className="flex gap-1 bg-[#F2F4F6] rounded-lg p-1">
+{[{key:'day',label:'일별'},{key:'week',label:'주별'},{key:'month',label:'월별'},{key:'year',label:'년별'}].map(p => (
+<button key={p.key} type="button" onClick={() => setLedgerPeriodPreset(p.key)} className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${ledgerPeriodType === p.key ? 'bg-white text-[#191F28] shadow-sm' : 'text-[#56565F] hover:text-[#191F28]'}`}>{p.label}</button>
+))}
+</div>
+<div className="flex items-center gap-2 ml-auto">
+<input type="date" value={ledgerDateFrom} onChange={e => setLedgerDateFrom(e.target.value)} className="px-2 py-1.5 bg-white border border-[#E5E8EB] rounded-lg text-[#191F28] text-xs focus:outline-none focus:border-[#3182F6]" />
+<span className="text-[#B0B8C1] text-xs">~</span>
+<input type="date" value={ledgerDateTo} onChange={e => setLedgerDateTo(e.target.value)} className="px-2 py-1.5 bg-white border border-[#E5E8EB] rounded-lg text-[#191F28] text-xs focus:outline-none focus:border-[#3182F6]" />
+</div>
+</div>
+{/* 엑셀 다운로드 + 일괄처리 */}
+<div className="flex justify-between items-center">
+<div className="flex gap-2">
+{!batchMode ? (
+<button type="button" onClick={() => { setBatchMode(true); setBatchSelected(new Set()); }} className="px-4 py-2 bg-[#F2F4F6] text-[#56565F] rounded-lg text-xs font-medium hover:bg-[#E5E8EB] transition-all">일괄처리</button>
+) : (
+<>
+<button type="button" onClick={() => { if (batchSelected.size === 0) return alert('선택된 항목이 없습니다.'); if (window.confirm(batchSelected.size + '건을 지급완료 처리하시겠습니까?')) batchUpdatePaymentStatus([...batchSelected]); }} className="px-4 py-2 bg-[#2AC1BC] text-white rounded-lg text-xs font-medium hover:bg-[#25ACA8] transition-all">지급완료 처리 ({batchSelected.size}건)</button>
+<button type="button" onClick={() => { setBatchMode(false); setBatchSelected(new Set()); }} className="px-4 py-2 bg-[#F2F4F6] text-[#56565F] rounded-lg text-xs font-medium hover:bg-[#E5E8EB] transition-all">취소</button>
+</>
+)}
+</div>
+<button type="button" onClick={exportLedgerCSV} className="px-4 py-2 bg-[#191F28] text-white rounded-lg text-xs font-medium hover:bg-[#333D4B] transition-all flex items-center gap-1.5">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+CSV 다운로드
+</button>
+</div>
+{/* 회계장부 테이블 */}
+<div className="overflow-x-auto -mx-3 sm:-mx-4 px-3 sm:px-4">
+<table className="w-full min-w-[900px] text-xs border-collapse">
+<thead>
+<tr className="bg-[#F2F4F6]">
+{batchMode && <th className="text-center px-2 py-2 border-b border-[#E5E8EB] whitespace-nowrap w-8"><input type="checkbox" checked={(() => { const f = getLedgerFilteredActivities(); return f.length > 0 && f.every(a => batchSelected.has(a.id)); })()} onChange={(e) => { const f = getLedgerFilteredActivities(); setBatchSelected(e.target.checked ? new Set(f.map(a => a.id)) : new Set()); }} /></th>}
+<th className="text-center px-1 py-2 border-b border-[#E5E8EB] whitespace-nowrap w-6"></th>
+<th className="text-left px-2 py-2 text-[#191F28] font-semibold border-b border-[#E5E8EB] whitespace-nowrap">날짜</th>
+<th className="text-left px-2 py-2 text-[#191F28] font-semibold border-b border-[#E5E8EB] whitespace-nowrap">영업자명</th>
+<th className="text-left px-2 py-2 text-[#191F28] font-semibold border-b border-[#E5E8EB] whitespace-nowrap">활동지역</th>
+<th className="text-left px-2 py-2 text-[#191F28] font-semibold border-b border-[#E5E8EB] whitespace-nowrap">활동내용</th>
+<th className="text-center px-2 py-2 text-[#191F28] font-semibold border-b border-[#E5E8EB] whitespace-nowrap">유형</th>
+<th className="text-right px-2 py-2 text-[#191F28] font-semibold border-b border-[#E5E8EB] whitespace-nowrap">활동비</th>
+<th className="text-right px-2 py-2 text-[#191F28] font-semibold border-b border-[#E5E8EB] whitespace-nowrap">교통비</th>
+<th className="text-right px-2 py-2 text-[#191F28] font-semibold border-b border-[#E5E8EB] whitespace-nowrap">합계</th>
+<th className="text-center px-2 py-2 text-[#191F28] font-semibold border-b border-[#E5E8EB] whitespace-nowrap">지급상태</th>
+<th className="text-left px-2 py-2 text-[#191F28] font-semibold border-b border-[#E5E8EB] whitespace-nowrap">메모</th>
+</tr>
+</thead>
+<tbody>
+{(() => {
+  const filtered = getLedgerFilteredActivities();
+  if (filtered.length === 0) return <tr><td colSpan={batchMode ? 13 : 12} className="px-2 py-8 text-center text-[#B0B8C1]">해당 기간의 영업활동 내역이 없습니다</td></tr>;
+  return filtered.map(a => {
+    const mgr = managers.find(m => m.id === a.managerId);
+    const isSpecial = a.activityType === 'special';
+    const transportAmt = a.transportation?.enabled ? safeNum(a.transportation?.amount) : 0;
+    const editingThis = (field) => ledgerEditingCell?.activityId === a.id && ledgerEditingCell?.field === field;
+    const startEdit = (field, currentVal) => { setLedgerEditingCell({ activityId: a.id, field }); setLedgerEditValue(String(currentVal ?? '')); };
+    const commitEdit = async (field) => {
+      const val = ledgerEditValue;
+      setLedgerEditingCell(null);
+      if (field === 'dailyAllowance' || field === 'transportAmount') {
+        const numVal = Number(String(val).replace(/[^0-9]/g, '')) || 0;
+        if (field === 'transportAmount') {
+          await database.ref('sales_activities/' + a.id + '/transportation/amount').set(toCommaString(numVal));
+          const newTotal = safeNum(a.netAmount) + numVal;
+          await database.ref('sales_activities/' + a.id + '/totalAmount').set(toCommaString(newTotal));
+        } else {
+          await updateActivityField(a.id, field, toCommaString(numVal));
+        }
+      } else if (field === 'memo') {
+        await database.ref('sales_activities/' + a.id + '/memo').set(val);
+      } else {
+        await updateActivityField(a.id, field, val);
+      }
+    };
+    return (
+      <tr key={a.id} className="border-b border-[#E5E8EB] bg-white hover:bg-[#F8F9FA] transition-colors">
+        {batchMode && <td className="text-center px-2 py-2"><input type="checkbox" checked={batchSelected.has(a.id)} onChange={(e) => { const next = new Set(batchSelected); if (e.target.checked) next.add(a.id); else next.delete(a.id); setBatchSelected(next); }} /></td>}
+        <td className="text-center px-1 py-2"><button type="button" onClick={() => softDeleteActivity(a.id)} className="text-[#B0B8C1] hover:text-rose-500 transition-colors text-xs leading-none" title="삭제"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></td>
+        <td className="px-2 py-2 text-[#191F28] whitespace-nowrap">{a.date || '-'}</td>
+        <td className="px-2 py-2 whitespace-nowrap">
+          <button type="button" onClick={() => { setShowBankInfoPopup(a.managerId); const info = managerBankInfo[a.managerId] || {}; setBankInfoForm({ bankName: info.bankName || '', bankAccount: info.bankAccount || '', residentId: info.residentId || '', memo: info.memo || '' }); }} className="text-[#3182F6] hover:underline font-medium">
+            {mgr?.name || a.managerName || '-'}
+          </button>
+        </td>
+        <td className="px-2 py-2 text-[#56565F] max-w-[100px] truncate" title={a.region}>{a.region || '-'}</td>
+        <td className="px-2 py-2 text-[#56565F] max-w-[150px] truncate" title={a.content}>{a.content || '-'}</td>
+        <td className="px-2 py-2 text-center">
+          <span className={`text-xs px-2 py-0.5 rounded-full ${isSpecial ? 'bg-purple-100 text-purple-600' : 'bg-blue-100 text-blue-600'}`}>
+            {isSpecial ? '특별' : '일반'}
+          </span>
+        </td>
+        <td className="px-2 py-2 text-right whitespace-nowrap" onClick={() => startEdit('dailyAllowance', a.dailyAllowance)}>
+          {editingThis('dailyAllowance') ? (
+            <input type="number" autoFocus value={ledgerEditValue} onChange={e => setLedgerEditValue(e.target.value)} onBlur={() => commitEdit('dailyAllowance')} onKeyDown={e => e.key === 'Enter' && commitEdit('dailyAllowance')} className="w-20 px-1 py-0.5 border border-[#3182F6] rounded text-xs text-right" />
+          ) : (
+            <span className="cursor-pointer hover:text-[#3182F6]">
+              {isSpecial ? (<><span className="text-[#191F28]">{safeNum(a.dailyAllowance).toLocaleString()}</span><br/><span className="text-[10px] text-[#B0B8C1]">세후 {safeNum(a.netAmount).toLocaleString()}</span></>) : (<span className="text-[#191F28]">{safeNum(a.dailyAllowance).toLocaleString()}</span>)}
+            </span>
+          )}
+        </td>
+        <td className="px-2 py-2 text-right text-[#191F28] whitespace-nowrap" onClick={() => startEdit('transportAmount', transportAmt)}>
+          {editingThis('transportAmount') ? (
+            <input type="number" autoFocus value={ledgerEditValue} onChange={e => setLedgerEditValue(e.target.value)} onBlur={() => commitEdit('transportAmount')} onKeyDown={e => e.key === 'Enter' && commitEdit('transportAmount')} className="w-20 px-1 py-0.5 border border-[#3182F6] rounded text-xs text-right" />
+          ) : (
+            <span className="cursor-pointer hover:text-[#3182F6]">{transportAmt > 0 ? transportAmt.toLocaleString() : '-'}</span>
+          )}
+        </td>
+        <td className="px-2 py-2 text-right text-[#191F28] font-medium whitespace-nowrap">{safeNum(a.totalAmount).toLocaleString()}</td>
+        <td className="px-2 py-2 text-center">
+          <button type="button" onClick={() => updatePaymentStatus(a.id, a.paymentStatus === 'paid' ? 'pending' : 'paid')} className={`text-xs px-2 py-1 rounded-full font-medium transition-all ${a.paymentStatus === 'paid' ? 'bg-emerald-100 text-emerald-600 hover:bg-emerald-200' : 'bg-amber-100 text-amber-600 hover:bg-amber-200'}`}>
+            {a.paymentStatus === 'paid' ? '지급완료' : '지급예정'}
+          </button>
+        </td>
+        <td className="px-2 py-2 text-[#56565F]" onClick={() => startEdit('memo', a.memo || '')}>
+          {editingThis('memo') ? (
+            <input type="text" autoFocus value={ledgerEditValue} onChange={e => setLedgerEditValue(e.target.value)} onBlur={() => commitEdit('memo')} onKeyDown={e => e.key === 'Enter' && commitEdit('memo')} className="w-24 px-1 py-0.5 border border-[#3182F6] rounded text-xs" placeholder="메모 입력" />
+          ) : (
+            <span className="cursor-pointer hover:text-[#3182F6] max-w-[80px] truncate block">{a.memo || '-'}</span>
+          )}
+        </td>
+      </tr>
+    );
+  });
+})()}
+</tbody>
+</table>
+</div>
+{/* 합계 요약 */}
+{(() => {
+  const filtered = getLedgerFilteredActivities();
+  const totalAllowance = filtered.reduce((s, a) => s + safeNum(a.dailyAllowance), 0);
+  const totalTax = filtered.reduce((s, a) => s + safeNum(a.taxDeduction), 0);
+  const totalTransport = filtered.reduce((s, a) => s + (a.transportation?.enabled ? safeNum(a.transportation?.amount) : 0), 0);
+  const totalNet = filtered.reduce((s, a) => s + safeNum(a.totalAmount), 0);
+  const paidTotal = filtered.filter(a => a.paymentStatus === 'paid').reduce((s, a) => s + safeNum(a.totalAmount), 0);
+  const pendingTotal = totalNet - paidTotal;
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
+      <div className="bg-[#F2F4F6] rounded-xl p-3 text-center">
+        <p className="text-[10px] text-[#B0B8C1] mb-0.5">총 활동비(세전)</p>
+        <p className="text-sm font-bold text-[#191F28]">{totalAllowance.toLocaleString()}원</p>
+      </div>
+      <div className="bg-[#F2F4F6] rounded-xl p-3 text-center">
+        <p className="text-[10px] text-[#B0B8C1] mb-0.5">세금 공제</p>
+        <p className="text-sm font-bold text-rose-500">-{totalTax.toLocaleString()}원</p>
+      </div>
+      <div className="bg-[#F2F4F6] rounded-xl p-3 text-center">
+        <p className="text-[10px] text-[#B0B8C1] mb-0.5">총 교통비</p>
+        <p className="text-sm font-bold text-[#191F28]">{totalTransport.toLocaleString()}원</p>
+      </div>
+      <div className="bg-[#EBF5FF] rounded-xl p-3 text-center">
+        <p className="text-[10px] text-[#3182F6] mb-0.5">총 지급액</p>
+        <p className="text-sm font-bold text-[#3182F6]">{totalNet.toLocaleString()}원</p>
+      </div>
+      <div className="bg-emerald-50 rounded-xl p-3 text-center col-span-1">
+        <p className="text-[10px] text-emerald-600 mb-0.5">지급완료</p>
+        <p className="text-sm font-bold text-emerald-600">{paidTotal.toLocaleString()}원</p>
+      </div>
+      <div className="bg-amber-50 rounded-xl p-3 text-center col-span-1">
+        <p className="text-[10px] text-amber-600 mb-0.5">지급예정</p>
+        <p className="text-sm font-bold text-amber-600">{pendingTotal.toLocaleString()}원</p>
+      </div>
+      <div className="bg-[#F2F4F6] rounded-xl p-3 text-center col-span-2">
+        <p className="text-[10px] text-[#B0B8C1] mb-0.5">총 {filtered.length}건</p>
+        <p className="text-xs text-[#56565F]">{ledgerDateFrom} ~ {ledgerDateTo}</p>
+      </div>
+    </div>
+  );
+})()}
+
+{/* 삭제된 항목 보기 */}
+<div className="mt-4">
+<button type="button" onClick={() => setShowDeletedActivities(!showDeletedActivities)} className="text-xs text-[#B0B8C1] hover:text-[#56565F] transition-colors underline">
+{showDeletedActivities ? '삭제된 항목 숨기기' : '삭제된 항목 보기' + (deletedActivities.length > 0 ? ' (' + deletedActivities.length + ')' : '')}
+</button>
+{showDeletedActivities && (
+<div className="mt-2">
+{deletedActivities.filter(a => { const daysSince = (Date.now() - (a.deletedAt || 0)) / (1000 * 60 * 60 * 24); return daysSince <= 30; }).length === 0 ? (
+<p className="text-xs text-[#B0B8C1] py-4 text-center">복구 가능한 삭제 항목이 없습니다</p>
+) : (
+<div className="overflow-x-auto">
+<table className="w-full text-xs border-collapse">
+<thead>
+<tr className="bg-rose-50">
+<th className="text-left px-2 py-2 text-rose-400 font-semibold border-b border-rose-100 whitespace-nowrap">삭제일</th>
+<th className="text-left px-2 py-2 text-rose-400 font-semibold border-b border-rose-100 whitespace-nowrap">날짜</th>
+<th className="text-left px-2 py-2 text-rose-400 font-semibold border-b border-rose-100 whitespace-nowrap">영업자명</th>
+<th className="text-left px-2 py-2 text-rose-400 font-semibold border-b border-rose-100 whitespace-nowrap">활동내용</th>
+<th className="text-right px-2 py-2 text-rose-400 font-semibold border-b border-rose-100 whitespace-nowrap">합계</th>
+<th className="text-center px-2 py-2 text-rose-400 font-semibold border-b border-rose-100 whitespace-nowrap">남은일</th>
+<th className="text-center px-2 py-2 border-b border-rose-100 whitespace-nowrap"></th>
+</tr>
+</thead>
+<tbody>
+{deletedActivities.filter(a => { const daysSince = (Date.now() - (a.deletedAt || 0)) / (1000 * 60 * 60 * 24); return daysSince <= 30; }).map(a => {
+  const daysLeft = Math.max(0, Math.ceil(30 - (Date.now() - (a.deletedAt || 0)) / (1000 * 60 * 60 * 24)));
+  const mgr = managers.find(m => m.id === a.managerId);
+  return (
+    <tr key={a.id} className="border-b border-rose-50 bg-white hover:bg-rose-50/50 transition-colors opacity-70">
+      <td className="px-2 py-2 text-[#B0B8C1] whitespace-nowrap">{a.deletedAt ? new Date(a.deletedAt).toLocaleDateString('ko-KR') : '-'}</td>
+      <td className="px-2 py-2 text-[#56565F] whitespace-nowrap">{a.date || '-'}</td>
+      <td className="px-2 py-2 text-[#56565F] whitespace-nowrap">{mgr?.name || a.managerName || '-'}</td>
+      <td className="px-2 py-2 text-[#56565F] max-w-[150px] truncate">{a.content || '-'}</td>
+      <td className="px-2 py-2 text-right text-[#56565F] whitespace-nowrap">{safeNum(a.totalAmount).toLocaleString()}</td>
+      <td className="px-2 py-2 text-center text-[#B0B8C1] whitespace-nowrap">{daysLeft}일</td>
+      <td className="px-2 py-2 text-center"><button type="button" onClick={() => restoreActivity(a.id)} className="text-xs px-2 py-1 rounded-full bg-[#2AC1BC] text-white hover:bg-[#25ACA8] transition-all font-medium">복구</button></td>
+    </tr>
+  );
+})}
+</tbody>
+</table>
+</div>
+)}
+</div>
+)}
+</div>
+
+</div>
+)}
+</div>
+)}
+
+{/* 영업자 정보 테이블 */}
+{(isAdmin || isAccounting) && (
+<div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
+<h3 className={`font-bold ${t.text} text-lg mb-4`}>영업자 정보</h3>
+<div className="overflow-x-auto -mx-3 sm:-mx-4 px-3 sm:px-4">
+<table className="w-full text-xs border-collapse">
+<thead>
+<tr className="bg-[#F2F4F6]">
+<th className="text-left px-3 py-2 text-[#191F28] font-semibold border-b border-[#E5E8EB] whitespace-nowrap">이름</th>
+<th className="text-left px-3 py-2 text-[#191F28] font-semibold border-b border-[#E5E8EB] whitespace-nowrap">은행명</th>
+<th className="text-left px-3 py-2 text-[#191F28] font-semibold border-b border-[#E5E8EB] whitespace-nowrap">계좌번호</th>
+<th className="text-left px-3 py-2 text-[#191F28] font-semibold border-b border-[#E5E8EB] whitespace-nowrap">주민등록번호</th>
+<th className="text-left px-3 py-2 text-[#191F28] font-semibold border-b border-[#E5E8EB] whitespace-nowrap">메모</th>
+</tr>
+</thead>
+<tbody>
+{managers.filter(m => m.role !== 'super').map(m => {
+  const info = managerBankInfo[m.id] || {};
+  return (
+    <tr key={m.id} className="border-b border-[#E5E8EB] bg-white hover:bg-[#F8F9FA] transition-colors">
+      <td className="px-3 py-2.5 text-[#191F28] font-medium whitespace-nowrap">{m.name || '-'}</td>
+      <td className="px-3 py-2.5 text-[#56565F] whitespace-nowrap">{info.bankName || <span className="text-[#B0B8C1]">미등록</span>}</td>
+      <td className="px-3 py-2.5 text-[#56565F] whitespace-nowrap">{info.bankAccount || <span className="text-[#B0B8C1]">미등록</span>}</td>
+      <td className="px-3 py-2.5 text-[#56565F] whitespace-nowrap">{info.residentId || <span className="text-[#B0B8C1]">미등록</span>}</td>
+      <td className="px-3 py-2.5 text-[#56565F]">{info.memo || <span className="text-[#B0B8C1]">-</span>}</td>
+    </tr>
+  );
+})}
+{managers.filter(m => m.role !== 'super').length === 0 && (
+  <tr><td colSpan="5" className="px-3 py-6 text-center text-[#B0B8C1]">등록된 영업자가 없습니다</td></tr>
+)}
+</tbody>
+</table>
+</div>
+</div>
+)}
+
  </div>
  )}
 
  {/* 관리자 전용 탭 */}
  {settingsTab === 'admin' && isAdmin && (
  <div className="space-y-2">
- 
- {/* 전국 상권 데이터 수집 (관리자 전용) */}
- <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
- <h3 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-[#191F28]'} text-lg mb-3`}>전국 상권 데이터 수집</h3>
- <p className={`text-sm ${theme === 'dark' ? 'text-[#B0B8C1]' : 'text-[#56565F]'} mb-4`}>선택한 지역의 상권 데이터를 수집하여 Firebase에 저장합니다.</p>
- 
- <div className="grid grid-cols-2 gap-3 mb-4">
-   <div>
-     <label className={`text-xs ${theme === 'dark' ? 'text-[#B0B8C1]' : 'text-[#56565F]'} mb-1 block`}>시/도</label>
-     <select 
-       value={apiCollectSido} 
-       onChange={(e) => { setApiCollectSido(e.target.value); setApiCollectSigungu(''); }}
-       className={`w-full px-3 py-2 rounded-lg border ${theme === 'dark' ? 'bg-[#2C2C35] border-neutral-600 text-white' : 'bg-white border-[#D1D6DB] text-[#191F28]'}`}
-     >
-       <option value="">시도 선택</option>
-       <option value="전국">전국 (모든 시/도)</option>
-       {Object.keys(KOREA_REGIONS).map(sido => (
-         <option key={sido} value={sido}>{sido}</option>
-       ))}
-     </select>
-   </div>
-   <div>
-     <label className={`text-xs ${theme === 'dark' ? 'text-[#B0B8C1]' : 'text-[#56565F]'} mb-1 block`}>시/군/구</label>
-     <select 
-       value={apiCollectSigungu} 
-       onChange={(e) => setApiCollectSigungu(e.target.value)}
-       disabled={!apiCollectSido || apiCollectSido === '전국'}
-       className={`w-full px-3 py-2 rounded-lg border ${theme === 'dark' ? 'bg-[#2C2C35] border-neutral-600 text-white' : 'bg-white border-[#D1D6DB] text-[#191F28]'} disabled:opacity-50`}
-     >
-       <option value="">
-         {apiCollectSido === '전국' ? '전국 수집시 불필요' : apiCollectSido ? '전체 시/군/구' : '시군구 선택'}
-       </option>
-       {apiCollectSido && apiCollectSido !== '전국' && (
-         <option value="전체">{apiCollectSido} 전체</option>
-       )}
-       {apiCollectSido && apiCollectSido !== '전국' && KOREA_REGIONS[apiCollectSido]?.map(sigungu => (
-         <option key={sigungu} value={sigungu}>{sigungu}</option>
-       ))}
-     </select>
-   </div>
- </div>
- 
- {apiCollectProgress.status && (
-   <div className="mb-4">
-     <div className="flex justify-between text-xs mb-1">
-       <span className={theme === 'dark' ? 'text-[#B0B8C1]' : 'text-[#56565F]'}>{apiCollectProgress.region}</span>
-       <span className={theme === 'dark' ? 'text-[#B0B8C1]' : 'text-[#56565F]'}>{apiCollectProgress.current}/{apiCollectProgress.total}</span>
-     </div>
-     <div className={`w-full h-2 rounded-full overflow-hidden ${theme === 'dark' ? 'bg-[#2C2C35]' : 'bg-[#E5E8EB]'}`}>
-       <div 
-         className="h-full bg-blue-500 transition-all duration-300"
-         style={{ width: `${apiCollectProgress.total > 0 ? (apiCollectProgress.current / apiCollectProgress.total) * 100 : 0}%` }}
-       />
-     </div>
-     <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-[#B0B8C1]' : 'text-[#56565F]'}`}>{apiCollectProgress.status}</p>
-   </div>
- )}
- 
- <div className="flex gap-2">
-   <button 
-     onClick={() => collectRegionData(apiCollectSido, apiCollectSigungu)}
-     disabled={!apiCollectSido || apiCollectProgress.status?.includes('수집')}
-     className="flex-1 px-4 py-2 bg-blue-600 rounded-lg font-medium hover:bg-blue-700 transition-all text-white disabled:opacity-50 disabled:cursor-not-allowed"
-   >
-     {apiCollectProgress.status?.includes('수집') ? '수집 중...' : '수집 시작'}
-   </button>
- </div>
- <p className={`text-xs mt-2 ${theme === 'dark' ? 'text-[#B0B8C1]' : 'text-[#56565F]'}`}>
-   {apiCollectSido === '전국' 
-     ? '※ 전국 수집은 시간이 오래 걸릴 수 있습니다.'
-     : '※ 수집된 데이터는 Firebase에 저장되어 영업모드에서 활용됩니다.'}
- </p>
- </div>
- 
- {/* 재등록 표시 관리 */}
- <div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'}`}>
- <h3 className={`font-bold ${t.text} text-lg mb-3`}>재등록 표시 관리</h3>
- <p className="text-sm text-[#56565F] mb-3">재등록 표시된 업체: {companies.filter(c => c.isReregistered).length}개</p>
- <button 
- onClick={() => {
- const reregisteredCompanies = companies.filter(c => c.isReregistered);
- if (reregisteredCompanies.length === 0) {
- alert('재등록 표시된 업체가 없습니다.');
- return;
- }
- if (confirm(`재등록 표시된 ${reregisteredCompanies.length}개 업체의 표시를 모두 삭제하시겠습니까?\n(업체 데이터는 유지되고, 다음 달부터 신규로 집계됩니다)`)) {
- reregisteredCompanies.forEach(c => {
- saveCompany({ ...c, isReregistered: false });
- });
- alert('재등록 표시가 모두 삭제되었습니다.');
- }
- }}
- className="px-4 py-2 bg-rose-600 rounded-lg font-medium hover:bg-rose-700 transition-all hover:bg-rose-700 text-white w-full"
- >재등록 표시 일괄 삭제</button>
- <p className={`text-xs mt-2 ${t.textMuted}`}>※ 매월 초에 실행하면 지난달 재등록 업체들이 정상 집계됩니다.</p>
- </div>
 
  {pendingRequests.length > 0 && (
  <div className={`rounded-2xl p-4 border-2 ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-neutral-500' : 'bg-white border-neutral-500'}`}>
@@ -23910,6 +26312,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <input type="text" value={m.name} onChange={e => saveManager({...m, name: e.target.value})} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all w-full mb-1`} />
  <p className={`text-xs ${t.text}`}>
  {isOnline ? '접속중' : `${formatLastSeen(status?.lastSeen)}`} · {m.username}
+ {m.username && m.username.startsWith('am') ? <span className="ml-1 px-1.5 py-0.5 text-[10px] font-bold bg-amber-100 text-amber-700 rounded">회계</span> : m.username && m.username.startsWith('sm') ? <span className="ml-1 px-1.5 py-0.5 text-[10px] font-bold bg-blue-100 text-blue-700 rounded">영업</span> : null}
  </p>
  </div>
  <input type="color" value={m.color} onChange={e => saveManager({...m, color: e.target.value})} className="w-10 h-10 rounded cursor-pointer flex-shrink-0" />
@@ -23940,12 +26343,192 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  );
  })}
  </div>
+
+{/* 계정 추가 섹션 */}
+<div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'} mt-2`}>
+<div className="flex items-center justify-between mb-4">
+<h3 className={`font-bold ${t.text} text-lg`}>계정 추가</h3>
+<button type="button" onClick={() => { setShowAddAccountForm(!showAddAccountForm); if (showAddAccountForm) setNewAccountData({ username: '', password: '', name: '', color: '#3b82f6' }); }} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${showAddAccountForm ? 'bg-[#E5E8EB] text-[#56565F]' : 'bg-[#2AC1BC] text-white hover:bg-[#25ACA8]'}`}>
+{showAddAccountForm ? '취소' : '새 계정'}
+</button>
+</div>
+{showAddAccountForm && (
+<div className="space-y-3">
+<div>
+<label className={`text-xs font-medium ${t.text} mb-1 block`}>아이디</label>
+<div className="flex items-center gap-2">
+<input type="text" placeholder="sm001 또는 am001" value={newAccountData.username} onChange={e => setNewAccountData(prev => ({...prev, username: e.target.value.replace(/[^a-zA-Z0-9]/g, '').toLowerCase()}))} className={`flex-1 px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg text-[#191F28] placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm`} />
+<span className="text-xs text-[#B0B8C1] flex-shrink-0">@beancraft.com</span>
+</div>
+{newAccountData.username && (
+<div className="mt-1">
+{newAccountData.username.startsWith('sm') ? (
+<span className="text-xs font-medium text-[#3182F6]">-- 영업자 (Sales Manager)</span>
+) : newAccountData.username.startsWith('am') ? (
+<span className="text-xs font-medium text-[#F59E0B]">-- 회계 (Accounting Manager)</span>
+) : (
+<span className="text-xs font-medium text-rose-500">sm(영업자) 또는 am(회계)으로 시작해야 합니다</span>
+)}
+</div>
+)}
+</div>
+<div>
+<label className={`text-xs font-medium ${t.text} mb-1 block`}>비밀번호</label>
+<input type="password" placeholder="4자 이상" value={newAccountData.password} onChange={e => setNewAccountData(prev => ({...prev, password: e.target.value}))} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg text-[#191F28] placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm`} />
+</div>
+<div>
+<label className={`text-xs font-medium ${t.text} mb-1 block`}>이름</label>
+<input type="text" placeholder="팀원 이름" value={newAccountData.name} onChange={e => setNewAccountData(prev => ({...prev, name: e.target.value}))} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg text-[#191F28] placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm`} />
+</div>
+<div>
+<label className={`text-xs font-medium ${t.text} mb-1 block`}>색상 (팀원 식별용)</label>
+<div className="flex items-center gap-3">
+<input type="color" value={newAccountData.color} onChange={e => setNewAccountData(prev => ({...prev, color: e.target.value}))} className="w-10 h-10 rounded cursor-pointer flex-shrink-0" />
+<div className="flex gap-2 flex-wrap">
+{['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#06b6d4','#84cc16'].map(c => (
+<button key={c} type="button" onClick={() => setNewAccountData(prev => ({...prev, color: c}))} className={`w-7 h-7 rounded-lg transition-all ${newAccountData.color === c ? 'ring-2 ring-offset-2 ring-[#191F28] scale-110' : 'hover:scale-105'}`} style={{ background: c }} />
+))}
+</div>
+</div>
+</div>
+{newAccountData.username && managers.some(m => m.username === newAccountData.username) && (
+<p className="text-xs text-rose-500">이미 사용 중인 아이디입니다</p>
+)}
+<button type="button" disabled={addAccountLoading || !newAccountData.username || !newAccountData.password || newAccountData.password.length < 4 || !newAccountData.name || managers.some(m => m.username === newAccountData.username) || (!newAccountData.username.startsWith('sm') && !newAccountData.username.startsWith('am'))} onClick={async () => {
+setAddAccountLoading(true);
+try {
+const res = await fetch('/api/create-account', {
+method: 'POST',
+headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify({ ...newAccountData, adminKey: 'beancraft-admin-reset-2024' }),
+signal: AbortSignal.timeout(15000)
+});
+let result;
+try { const _txt = await res.text(); result = _txt ? JSON.parse(_txt) : null; } catch (_pe) { throw new Error('서버 응답 파싱 실패 (status: ' + res.status + ')'); }
+if (!result || typeof result !== 'object') { throw new Error('서버 응답이 올바르지 않습니다 (status: ' + res.status + ')'); }
+if (result.success) {
+alert(result.message);
+setNewAccountData({ username: '', password: '', name: '', color: '#3b82f6' });
+setShowAddAccountForm(false);
+} else {
+alert(result.error || '계정 생성 실패');
+}
+} catch (err) {
+alert('계정 생성 실패: ' + err.message);
+} finally {
+setAddAccountLoading(false);
+}
+}} className={`w-full py-3 rounded-lg font-medium transition-all text-sm ${addAccountLoading || !newAccountData.username || !newAccountData.password || newAccountData.password.length < 4 || !newAccountData.name || managers.some(m => m.username === newAccountData.username) || (!newAccountData.username.startsWith('sm') && !newAccountData.username.startsWith('am')) ? 'bg-[#E5E8EB] text-[#B0B8C1] cursor-not-allowed' : 'bg-[#2AC1BC] text-white hover:bg-[#25ACA8]'}`}>
+{addAccountLoading ? '생성 중...' : '계정 추가'}
+</button>
+<p className="text-xs text-[#B0B8C1]">※ 아이디는 sm(영업자) 또는 am(회계)으로 시작해야 합니다. 비밀번호는 4자 이상.</p>
+</div>
+)}
+</div>
+
+{/* 고객 전체 기록 섹션 */}
+<div className={`rounded-2xl p-3 sm:p-4 border ${theme === 'dark' ? 'bg-[#21212A]/80 backdrop-blur border-white/[0.08]' : 'bg-white border-[#E5E8EB]'} mt-2`}>
+<h3 className={`font-bold ${t.text} text-lg mb-4`}>고객 전체 기록</h3>
+<div className="flex flex-col sm:flex-row gap-2 mb-4">
+<input type="text" placeholder="고객명 검색" value={archiveSearch} onChange={e => setArchiveSearch(e.target.value)} className="flex-1 px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg text-[#191F28] placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm" />
+<select value={archiveStatusFilter} onChange={e => setArchiveStatusFilter(e.target.value)} className="px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg text-[#191F28] text-sm focus:outline-none focus:border-[#3182F6]">
+<option value="all">전체</option>
+<option value="consult">상담</option>
+<option value="contract">계약</option>
+<option value="completed">완료</option>
+<option value="deleted">삭제</option>
+</select>
+</div>
+<div className="overflow-x-auto -mx-3 sm:-mx-4 px-3 sm:px-4">
+<table className="w-full min-w-[700px] text-sm border-collapse">
+<thead>
+<tr className="bg-[#F2F4F6]">
+<th className="text-left px-3 py-2.5 text-[#191F28] font-semibold border-b border-[#E5E8EB] whitespace-nowrap">고객명</th>
+<th className="text-left px-3 py-2.5 text-[#191F28] font-semibold border-b border-[#E5E8EB] whitespace-nowrap">연락처</th>
+<th className="text-left px-3 py-2.5 text-[#191F28] font-semibold border-b border-[#E5E8EB] whitespace-nowrap">희망지역</th>
+<th className="text-left px-3 py-2.5 text-[#191F28] font-semibold border-b border-[#E5E8EB] whitespace-nowrap">상태</th>
+<th className="text-left px-3 py-2.5 text-[#191F28] font-semibold border-b border-[#E5E8EB] whitespace-nowrap">담당자</th>
+<th className="text-left px-3 py-2.5 text-[#191F28] font-semibold border-b border-[#E5E8EB] whitespace-nowrap">상담일</th>
+<th className="text-left px-3 py-2.5 text-[#191F28] font-semibold border-b border-[#E5E8EB] whitespace-nowrap">비고</th>
+</tr>
+</thead>
+<tbody>
+{customerArchive
+  .filter(c => {
+    if (archiveSearch && !c.name?.toLowerCase().includes(archiveSearch.toLowerCase())) return false;
+    if (archiveStatusFilter === 'deleted') return c.isDeleted;
+    if (archiveStatusFilter !== 'all') return !c.isDeleted && c.status === archiveStatusFilter;
+    return true;
+  })
+  .map(c => {
+    const manager = managers.find(m => m.id === c.managerId);
+    const statusLabels = { consult: '상담', contract: '계약', completed: '완료' };
+    return (
+      <tr key={c.id} className={`border-b border-[#E5E8EB] ${c.isDeleted ? 'bg-[#FFF5F5]' : 'bg-white hover:bg-[#F8F9FA]'} transition-colors`}>
+        <td className="px-3 py-2.5 text-[#191F28] whitespace-nowrap">
+          {c.name || '-'}
+          {c.isDeleted && <span className="ml-2 text-xs px-1.5 py-0.5 bg-rose-100 text-rose-600 rounded">삭제됨</span>}
+        </td>
+        <td className="px-3 py-2.5 text-[#56565F] whitespace-nowrap">{c.phone || '-'}</td>
+        <td className="px-3 py-2.5 text-[#56565F] whitespace-nowrap">{c.desiredRegion || '-'}</td>
+        <td className="px-3 py-2.5 whitespace-nowrap">
+          <span className={`text-xs px-2 py-0.5 rounded-full ${c.status === 'completed' ? 'bg-emerald-100 text-emerald-600' : c.status === 'contract' ? 'bg-blue-100 text-blue-600' : 'bg-amber-100 text-amber-600'}`}>
+            {statusLabels[c.status] || '상담'}
+          </span>
+        </td>
+        <td className="px-3 py-2.5 text-[#56565F] whitespace-nowrap">{manager?.name || '-'}</td>
+        <td className="px-3 py-2.5 text-[#56565F] whitespace-nowrap">{c.consultDate || '-'}</td>
+        <td className="px-3 py-2.5 text-[#56565F] max-w-[150px] truncate">{c.isDeleted ? (c.deletedAt ? '삭제: ' + c.deletedAt : '삭제됨') : (c.note || c.memo || '-')}</td>
+      </tr>
+    );
+  })}
+{customerArchive.length === 0 && (
+  <tr><td colSpan="7" className="px-3 py-8 text-center text-[#B0B8C1]">등록된 고객 기록이 없습니다</td></tr>
+)}
+</tbody>
+</table>
+</div>
+<p className="text-xs text-[#B0B8C1] mt-3">총 {customerArchive.length}건 (활성: {customerArchive.filter(c => !c.isDeleted).length} / 삭제: {customerArchive.filter(c => c.isDeleted).length})</p>
+</div>
+
  </div>
  )}
  </div>
  )}
  </div>
- 
+
+{/* 인적사항 편집 팝업 (회계/관리자 공용) */}
+{showBankInfoPopup && (
+<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowBankInfoPopup(null)}>
+<div className="bg-white rounded-2xl p-5 w-full max-w-sm shadow-xl" onClick={e => e.stopPropagation()}>
+<h3 className="font-bold text-[#191F28] text-lg mb-4">인적사항 메모</h3>
+<p className="text-sm text-[#56565F] mb-3">{managers.find(m => m.id === showBankInfoPopup)?.name || '영업자'}</p>
+<div className="space-y-3">
+<div>
+<label className="text-xs font-medium text-[#191F28] mb-1 block">은행명</label>
+<input type="text" value={bankInfoForm.bankName} onChange={e => setBankInfoForm(prev => ({...prev, bankName: e.target.value}))} placeholder="은행명" className="w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg text-[#191F28] placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm" />
+</div>
+<div>
+<label className="text-xs font-medium text-[#191F28] mb-1 block">계좌번호</label>
+<input type="text" value={bankInfoForm.bankAccount} onChange={e => setBankInfoForm(prev => ({...prev, bankAccount: e.target.value}))} placeholder="계좌번호" className="w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg text-[#191F28] placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm" />
+</div>
+<div>
+<label className="text-xs font-medium text-[#191F28] mb-1 block">주민등록번호</label>
+<input type="text" value={(() => { const c = (bankInfoForm.residentId || '').replace(/[^0-9]/g, ''); return c.length > 6 ? c.slice(0, 6) + '-' + c.slice(6) : c; })()} onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, '').slice(0, 13); setBankInfoForm(prev => ({...prev, residentId: raw})); }} maxLength={14} placeholder="주민등록번호 (예: 900101-1234567)" className="w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg text-[#191F28] placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm" />
+</div>
+<div>
+<label className="text-xs font-medium text-[#191F28] mb-1 block">메모</label>
+<input type="text" value={bankInfoForm.memo} onChange={e => setBankInfoForm(prev => ({...prev, memo: e.target.value}))} placeholder="추가 메모" className="w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg text-[#191F28] placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all text-sm" />
+</div>
+</div>
+<div className="flex gap-2 mt-4">
+<button type="button" onClick={() => setShowBankInfoPopup(null)} className="flex-1 py-2.5 bg-[#F2F4F6] text-[#56565F] rounded-lg text-sm font-medium hover:bg-[#E5E8EB] transition-all">취소</button>
+<button type="button" onClick={() => { saveManagerBankInfoFn(showBankInfoPopup, bankInfoForm); setShowBankInfoPopup(null); }} className="flex-1 py-2.5 bg-[#2AC1BC] text-white rounded-lg text-sm font-medium hover:bg-[#25ACA8] transition-all">저장</button>
+</div>
+</div>
+</div>
+)}
+
  {/* 전국 상권 수집 보고서 모달 */}
  {showApiCollectReport && apiCollectResults && (
  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowApiCollectReport(false)}>
@@ -24094,7 +26677,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <p className={`font-bold ${t.text} text-lg mb-1`}>{showRealtorDetailModal.officeName}</p>
  <p className={`text-sm ${t.textMuted}`}>{showRealtorDetailModal.address || '주소 없음'}</p>
  <div className="flex gap-2 mt-2">
- <span className="px-2 py-0.5 text-xs rounded-full bg-teal-100 text-teal-700 font-bold">{showRealtorDetailModal.listingCount}건</span>
+ <span className={`px-2 py-0.5 text-xs rounded-full font-bold ${theme === 'dark' ? 'bg-teal-900 text-teal-300' : 'bg-teal-100 text-teal-700'}`}>{showRealtorDetailModal.listingCount}건</span>
  {showRealtorDetailModal.isInRoute && <span className={`px-2 py-0.5 text-xs rounded-full bg-teal-900/300 ${t.text}`}>동선</span>}
  {showRealtorDetailModal.isRegistered && <span className={`px-2 py-0.5 text-xs rounded-full ${theme === 'dark' ? 'bg-white text-[#191F28]' : 'bg-[#191F28] text-white'}`}>방문</span>}
  </div>
@@ -24152,20 +26735,20 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  {showRealtorDetailModal.articleCounts && (
  <div className="flex flex-wrap gap-1">
- {showRealtorDetailModal.articleCounts.sale > 0 && <span className="px-2 py-0.5 text-xs rounded bg-[#F2F4F6] text-[#191F28]">매매 {showRealtorDetailModal.articleCounts.sale}</span>}
- {showRealtorDetailModal.articleCounts.jeonse > 0 && <span className="px-2 py-0.5 text-xs rounded bg-[#F2F4F6] text-[#191F28]">전세 {showRealtorDetailModal.articleCounts.jeonse}</span>}
- {showRealtorDetailModal.articleCounts.monthly > 0 && <span className="px-2 py-0.5 text-xs rounded bg-orange-100 text-white">월세 {showRealtorDetailModal.articleCounts.monthly}</span>}
- {showRealtorDetailModal.articleCounts.short > 0 && <span className={`px-2 py-0.5 text-xs rounded bg-purple-100 ${t.text}`}>단기 {showRealtorDetailModal.articleCounts.short}</span>}
+ {showRealtorDetailModal.articleCounts.sale > 0 && <span className={`px-2 py-0.5 text-xs rounded ${theme === 'dark' ? 'bg-[#2C2C35] text-[#ECECEF]' : 'bg-[#F2F4F6] text-[#191F28]'}`}>매매 {showRealtorDetailModal.articleCounts.sale}</span>}
+ {showRealtorDetailModal.articleCounts.jeonse > 0 && <span className={`px-2 py-0.5 text-xs rounded ${theme === 'dark' ? 'bg-[#2C2C35] text-[#ECECEF]' : 'bg-[#F2F4F6] text-[#191F28]'}`}>전세 {showRealtorDetailModal.articleCounts.jeonse}</span>}
+ {showRealtorDetailModal.articleCounts.monthly > 0 && <span className={`px-2 py-0.5 text-xs rounded ${theme === 'dark' ? 'bg-orange-900/50 text-orange-200' : 'bg-orange-100 text-orange-700'}`}>월세 {showRealtorDetailModal.articleCounts.monthly}</span>}
+ {showRealtorDetailModal.articleCounts.short > 0 && <span className={`px-2 py-0.5 text-xs rounded ${theme === 'dark' ? 'bg-purple-900/50 text-purple-200' : 'bg-purple-100 text-purple-700'}`}>단기 {showRealtorDetailModal.articleCounts.short}</span>}
  </div>
  )}
  {showRealtorDetailModal.regions && Object.keys(showRealtorDetailModal.regions).length > 0 && (
  <div className="flex flex-wrap gap-1">
  {Object.entries(showRealtorDetailModal.regions).sort((a, b) => b[1] - a[1]).map(([gu, count]) => (
- <span key={gu} className="px-2 py-0.5 text-xs rounded bg-[#E5E8EB] text-[#4E5968]">{gu}: {count}건</span>
+ <span key={gu} className={`px-2 py-0.5 text-xs rounded ${theme === 'dark' ? 'bg-[#2C2C35] text-[#8C8C96]' : 'bg-[#E5E8EB] text-[#4E5968]'}`}>{gu}: {count}건</span>
  ))}
  </div>
  )}
- <div className="flex flex-wrap gap-2 pt-2 border-t border-[#E5E8EB]">
+ <div className={`flex flex-wrap gap-2 pt-2 border-t ${theme === 'dark' ? 'border-white/[0.08]' : 'border-[#E5E8EB]'}`}>
  {!showRealtorDetailModal.isInRoute && (
  <button type="button" onClick={() => {
  // 주소로 좌표 검색 후 동선 추가
@@ -24324,7 +26907,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <input type="text" placeholder="주소" value={showCompanyEditModal.address || ''} onChange={e => setShowCompanyEditModal({ ...showCompanyEditModal, address: e.target.value })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all`} />
  <select value={showCompanyEditModal.managerId || ''} onChange={e => setShowCompanyEditModal({ ...showCompanyEditModal, managerId: Number(e.target.value) || null })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} focus:outline-none focus:border-[#3182F6] transition-all`}>
  <option value="">영업자 선택</option>
- {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+ {getSalesManagers().map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
  </select>
  <input type="text" placeholder="메모" value={showCompanyEditModal.memo || ''} onChange={e => setShowCompanyEditModal({ ...showCompanyEditModal, memo: e.target.value })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all`} />
  <div className="flex items-center gap-2">
@@ -24354,20 +26937,20 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <input type="date" value={showCustomerEditModal.consultDate || ''} onChange={e => setShowCustomerEditModal({ ...showCustomerEditModal, consultDate: e.target.value })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all`} />
  <select value={showCustomerEditModal.managerId || ''} onChange={e => setShowCustomerEditModal({ ...showCustomerEditModal, managerId: Number(e.target.value) || null })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} focus:outline-none focus:border-[#3182F6] transition-all`}>
  <option value="">영업자 선택</option>
- {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+ {getSalesManagers().map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
  </select>
  <div>
  <p className="text-sm text-[#333D4B] mb-2">상태</p>
  <div className="flex gap-2">
  <button
  onClick={() => setShowCustomerEditModal({ ...showCustomerEditModal, status: 'consult' })}
- className={`px-4 py-2 rounded-full text-sm font-bold ${showCustomerEditModal.status === 'consult' || !showCustomerEditModal.status ? 'bg-primary-500 text-white' : 'bg-[#F2F4F6] text-primary-600'}`}
+ className={`px-4 py-2 rounded-full text-sm font-bold ${showCustomerEditModal.status === 'consult' || !showCustomerEditModal.status ? 'bg-[#191F28] text-white' : 'border border-[#E5E8EB] text-[#56565F]'}`}
  >
  상담
  </button>
  <button
  onClick={() => setShowCustomerEditModal({ ...showCustomerEditModal, status: 'contract' })}
- className={`px-4 py-2 rounded-full text-sm font-bold ${showCustomerEditModal.status === 'contract' ? 'bg-emerald-500 text-white' : 'bg-emerald-100 text-white'}`}
+ className={`px-4 py-2 rounded-full text-sm font-bold ${showCustomerEditModal.status === 'contract' ? 'bg-emerald-500 text-white' : 'border border-[#E5E8EB] text-[#56565F]'}`}
  >
  계약
  </button>
@@ -24381,9 +26964,10 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  />
  </div>
  <div className="flex gap-2 mt-4">
- <button type="button" onClick={() => setShowCustomerEditModal(null)} className={`px-4 py-2 rounded-lg font-medium transition-all border ${theme === 'dark' ? 'bg-[#2C2C35] text-neutral-200 border-neutral-600 hover:bg-neutral-600' : 'bg-white text-[#4E5968] border-[#E5E8EB] hover:bg-[#F9FAFB]'} flex-1`}>취소</button>
+ <button type="button" onClick={() => setShowCustomerEditModal(null)} className="px-4 py-2 rounded-lg font-medium transition-all border bg-white text-[#4E5968] border-[#E5E8EB] hover:bg-[#F9FAFB] flex-1">취소</button>
  <button type="button" onClick={updateCustomer} className="px-4 py-2 bg-[#191F28] text-white rounded-lg font-medium hover:bg-[#21212A] transition-all flex-1">완료</button>
  </div>
+ <button type="button" onClick={() => { handleDeleteCustomer(showCustomerEditModal); setShowCustomerEditModal(null); }} className="w-full mt-2 px-4 py-2 rounded-lg font-medium text-rose-600 border border-rose-200 hover:bg-rose-50 transition-all text-sm">고객 삭제</button>
  </div>
  </div>
  )}
@@ -24486,15 +27070,15 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  {managerSalesRecords.map(sale => (
  <div key={sale.id} className="flex items-center justify-between p-3 bg-[#F2F4F6] rounded-lg">
  <div>
- <p className={`font-bold ${t.text}`}>{Number(sale.amount).toLocaleString()}원</p>
+ <p className={`font-bold ${t.text}`}>{typeof sale.amount === 'string' && sale.amount.includes(',') ? sale.amount : safeNum(sale.amount).toLocaleString()}원</p>
  <p className={`text-xs ${t.text}`}>{sale.date}</p>
  </div>
  <div className="flex gap-2">
  <button
  onClick={() => {
  const newAmount = prompt('새 금액을 입력하세요:', sale.amount);
- if (newAmount && !isNaN(newAmount)) {
- saveSale({ ...sale, amount: Number(newAmount) });
+ if (newAmount && !isNaN(String(newAmount).replace(/[^0-9]/g, ''))) {
+ saveSale({ ...sale, amount: toCommaString(newAmount) });
  alert('매출이 수정되었습니다.');
  }
  }}
@@ -24532,7 +27116,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <option value="">영업자 선택 *</option>
  {getAvailableManagersForSale().map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
  </select>
- <input type="number" placeholder="금액 *" value={saleForm.amount} onChange={e => setSaleForm({ ...saleForm, amount: e.target.value })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all`} />
+ <input type="text" placeholder="금액 *" value={formatNumberWithComma(saleForm.amount)} onChange={e => setSaleForm({ ...saleForm, amount: parseCommaNumber(e.target.value) })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all`} />
  <input type="date" value={saleForm.date} onChange={e => setSaleForm({ ...saleForm, date: e.target.value })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all`} />
  <button type="button" onClick={handleSaveSale} className="px-4 py-2 bg-[#191F28] text-white rounded-lg font-medium hover:bg-[#21212A] transition-all w-full">등록</button>
  </div>
@@ -24568,7 +27152,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <textarea value={bulkAddText} onChange={e => setBulkAddText(e.target.value)} placeholder="업체명/담당자/연락처/주소/반응" className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all h-32 mb-3`} />
  <select value={bulkAddSales || ''} onChange={e => setBulkAddSales(Number(e.target.value) || null)} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} focus:outline-none focus:border-[#3182F6] transition-all mb-3`}>
  <option value="">영업자 선택</option>
- {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+ {getSalesManagers().map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
  </select>
  <div className="flex items-center gap-2 mb-4 flex-wrap">
  <span className={`text-sm ${t.text}`}>기본 반응:</span>
@@ -24601,7 +27185,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <input type="text" placeholder="주소" value={companyForm.address} onChange={e => setCompanyForm({ ...companyForm, address: e.target.value })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} placeholder-[#B0B8C1] focus:outline-none focus:border-[#3182F6] transition-all`} />
  <select value={companyForm.managerId || ''} onChange={e => setCompanyForm({ ...companyForm, managerId: Number(e.target.value) || null })} className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} focus:outline-none focus:border-[#3182F6] transition-all`}>
  <option value="">영업자 선택</option>
- {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+ {getSalesManagers().map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
  </select>
  <div className="flex items-center gap-2 flex-wrap">
  <span className={`text-sm ${t.text}`}>반응:</span>
@@ -24711,7 +27295,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  className={`w-full px-3 py-2 bg-white border border-[#E5E8EB] rounded-lg ${t.text} focus:outline-none focus:border-[#3182F6] transition-all text-sm py-1`}
  >
  <option value="">영업자</option>
- {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+ {getSalesManagers().map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
  </select>
  {Object.entries(REACTION_COLORS).map(([key, val]) => (
  <button
@@ -24784,7 +27368,121 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  </div>
  )}
  {/* 미방문 업체 처리 모달 */}
- {showUnvisitedModal && (
+ {/* 동선 완료 체크 모달 */}
+{routeCompleteModal && (() => {
+  const { route, checkedStops, note, region } = routeCompleteModal;
+  const stops = route.stops || [];
+  const allChecked = stops.length > 0 && stops.every((_, i) => checkedStops.has(i));
+  const someChecked = stops.some((_, i) => checkedStops.has(i));
+  const toggleStop = (i) => {
+    const next = new Set(checkedStops);
+    if (next.has(i)) next.delete(i); else next.add(i);
+    setRouteCompleteModal(prev => ({ ...prev, checkedStops: next }));
+  };
+  const toggleAll = () => {
+    if (allChecked) {
+      setRouteCompleteModal(prev => ({ ...prev, checkedStops: new Set() }));
+    } else {
+      setRouteCompleteModal(prev => ({ ...prev, checkedStops: new Set(stops.map((_, i) => i)) }));
+    }
+  };
+  const handleConfirm = () => {
+    const visitedArr = [...checkedStops];
+    completeRouteAction(route, false, visitedArr, note, region || 'metro');
+  };
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[1300] p-4" onClick={() => setRouteCompleteModal(null)}>
+      <div className={`rounded-2xl p-5 w-full max-w-md max-h-[90vh] flex flex-col ${theme === 'dark' ? 'bg-[#21212A]' : 'bg-[#F2F4F6]'}`} onClick={e => e.stopPropagation()}>
+        <div className="mb-4">
+          <h3 className={`font-bold ${t.text} text-lg mb-1`}>동선 완료</h3>
+          <p className={`text-sm ${t.textMuted}`}>{route.name || route.date} - 방문한 곳을 체크하세요</p>
+        </div>
+        <div className={"flex items-center gap-1 mb-3 p-1 rounded-lg " + (theme === 'dark' ? 'bg-[#2C2C35]' : 'bg-[#E5E8EB]')}>
+          <button
+            type="button"
+            onClick={() => setRouteCompleteModal(prev => ({ ...prev, region: 'metro' }))}
+            className={"flex-1 py-1.5 rounded-md text-sm font-bold transition-colors " + (region !== 'province' ? 'bg-emerald-500 text-white' : (theme === 'dark' ? 'text-[#8C8C96]' : 'text-[#6B7684]'))}
+          >
+            수도권
+          </button>
+          <button
+            type="button"
+            onClick={() => setRouteCompleteModal(prev => ({ ...prev, region: 'province' }))}
+            className={"flex-1 py-1.5 rounded-md text-sm font-bold transition-colors " + (region === 'province' ? 'bg-emerald-500 text-white' : (theme === 'dark' ? 'text-[#8C8C96]' : 'text-[#6B7684]'))}
+          >
+            지방권
+          </button>
+        </div>
+        {region === 'province' && checkedStops.size > 0 && (
+          <p className={"text-xs mb-2 px-1 " + (theme === 'dark' ? 'text-amber-400' : 'text-amber-600')}>
+            지방권: 브로셔 방문지 1곳당 3개 차감
+          </p>
+        )}
+        <div className={`flex items-center gap-2 px-3 py-2 rounded-lg mb-2 border ${theme === 'dark' ? 'bg-[#2C2C35] border-white/10' : 'bg-white border-[#E5E8EB]'}`}>
+          <input
+            type="checkbox"
+            id="rc-all"
+            checked={allChecked}
+            ref={el => { if (el) el.indeterminate = someChecked && !allChecked; }}
+            onChange={toggleAll}
+            className="w-4 h-4 accent-emerald-500"
+          />
+          <label htmlFor="rc-all" className={`text-sm font-bold cursor-pointer select-none ${t.text}`}>
+            전체 {allChecked ? '해제' : '선택'} ({checkedStops.size}/{stops.length})
+          </label>
+        </div>
+        <div className={`flex-1 overflow-y-auto rounded-xl mb-3 border ${theme === 'dark' ? 'bg-[#2C2C35] border-white/10' : 'bg-white border-[#E5E8EB]'}`} style={{ maxHeight: '280px' }}>
+          {stops.length === 0 ? (
+            <p className={`text-center py-6 text-sm ${t.textMuted}`}>방문지가 없습니다</p>
+          ) : (
+            stops.map((stop, i) => (
+              <label key={i} className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer select-none border-b last:border-0 ${theme === 'dark' ? 'border-white/5 hover:bg-white/5' : 'border-[#F2F4F6] hover:bg-[#F8F9FA]'}`}>
+                <input
+                  type="checkbox"
+                  checked={checkedStops.has(i)}
+                  onChange={() => toggleStop(i)}
+                  className="w-4 h-4 accent-emerald-500 flex-shrink-0"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm font-medium ${t.text} truncate`}>{stop.name || `방문지 ${i + 1}`}</p>
+                  {stop.address && <p className={`text-xs ${t.textMuted} truncate`}>{stop.address}</p>}
+                </div>
+                {checkedStops.has(i) && (
+                  <span className="text-xs font-bold text-emerald-500 flex-shrink-0">방문</span>
+                )}
+              </label>
+            ))
+          )}
+        </div>
+        <div className="mb-4">
+          <p className={`text-xs font-bold mb-1 ${t.text}`}>메모 (선택)</p>
+          <textarea
+            value={note}
+            onChange={e => setRouteCompleteModal(prev => ({ ...prev, note: e.target.value }))}
+            placeholder="이번 동선 특이사항, 성과 등을 입력하세요"
+            rows={2}
+            className={`w-full text-sm rounded-lg px-3 py-2 resize-none border outline-none focus:ring-1 focus:ring-emerald-400 ${theme === 'dark' ? 'bg-[#2C2C35] text-neutral-200 border-white/10 placeholder-neutral-500' : 'bg-white text-[#191F28] border-[#E5E8EB] placeholder-[#B0B8C1]'}`}
+          />
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setRouteCompleteModal(null)}
+            className={`flex-1 px-4 py-2.5 rounded-xl font-bold text-sm ${theme === 'dark' ? 'bg-[#2C2C35] text-[#8C8C96]' : 'bg-[#E5E8EB] text-[#6B7684]'}`}
+          >
+            취소
+          </button>
+          <button
+            onClick={handleConfirm}
+            className="flex-1 px-4 py-2.5 rounded-xl font-bold text-sm bg-emerald-500 text-white hover:bg-emerald-600 transition-colors"
+          >
+            완료 처리 ({checkedStops.size}/{stops.length}곳)
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+})()}
+{showUnvisitedModal && (
  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1200] p-4" onClick={() => setShowUnvisitedModal(null)}>
  <div className="bg-[#F2F4F6] rounded-2xl p-5 w-full max-w-md" onClick={e => e.stopPropagation()}>
  <div className="text-center mb-4">
@@ -24853,9 +27551,12 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  const { type, id } = showDeleteConfirm;
  if (type === 'route') {
  deleteRoute(id);
+ const syncedEvt = calendarEvents.find(e => e.routeId === id && e.type === 'route-sync');
+ if (syncedEvt) deleteCalendarEvent(syncedEvt.id);
  } else if (type === 'company') {
  deleteFirebaseCompany(id);
  } else if (type === 'customer') {
+ markCustomerArchiveDeleted(id);
  deleteFirebaseCustomer(id);
  } else if (type === 'calendar') {
  setCalendarEvents(calendarEvents.filter(e => e.id !== id));
@@ -25028,7 +27729,7 @@ setTimeout(() => { setUser(prev => prev ? { ...prev } : prev); }, 150);
  <button type="button" onClick={() => setShowCalendarModal(false)} className={`text-2xl ${t.text}`}>×</button>
  </div>
  {(() => {
- const dayRoutes = routes.filter(r => r.date === selectedCalendarDate);
+ const dayRoutes = routes.filter(r => r && r.date === selectedCalendarDate);
  const dayEvents = calendarEvents.filter(e => e.date === selectedCalendarDate);
  if (dayRoutes.length > 0 || dayEvents.length > 0) {
  return (

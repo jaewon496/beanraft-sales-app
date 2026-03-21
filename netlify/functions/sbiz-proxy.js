@@ -156,9 +156,76 @@ exports.handler = async (event, context) => {
     // 6. 서울시 열린데이터 (추정매출, 유동인구 등)
     else if (api === 'seoul') {
       const seoulApiKey = '6d6c71717173656f3432436863774a';
-      const { service, startIndex, endIndex, stdrYyquCd, industryCode, filterField, filterValue, maxBatch } = queryParams;
+      const { service, startIndex, endIndex, stdrYyquCd, industryCode, filterField, filterValue, maxBatch, ADSTRD_CD } = queryParams;
       const svc = service || 'VwsmTrdarSelngQq';
       const quarter = stdrYyquCd ? `/${stdrYyquCd}` : '';
+
+      // ADSTRD_CD 코드로 행정동 매출 직접 필터링 (8자리 코드 정확 매칭)
+      if (ADSTRD_CD) {
+        const allRows = [];
+        const batchLimit = Math.min(parseInt(maxBatch) || 22, 150);
+        const TIME_LIMIT_MS = 22000;
+        const PARALLEL_SIZE = 5;
+
+        const fetchBatch = (si, ei) => new Promise((resolve) => {
+          const batchUrl = `http://openapi.seoul.go.kr:8088/${seoulApiKey}/json/${svc}/${si}/${ei}${quarter}`;
+          const req = http.get(batchUrl, { timeout: 10000 }, (res) => {
+            let body = '';
+            res.on('data', chunk => body += chunk);
+            res.on('end', () => { try { resolve(JSON.parse(body)); } catch(e) { resolve(null); } });
+          });
+          req.on('error', () => resolve(null));
+          req.on('timeout', () => { req.destroy(); resolve(null); });
+        });
+
+        // 여러 ADSTRD_CD를 콤마로 받을 수 있음 (인접 동 일괄 조회)
+        const adstrdCodes = ADSTRD_CD.split(',').map(c => c.trim()).filter(Boolean);
+
+        const firstBatch = await fetchBatch(1, 1000);
+        const totalCount = firstBatch?.[svc]?.list_total_count || 0;
+        const firstRows = firstBatch?.[svc]?.row || [];
+        if (firstRows.length > 0) {
+          allRows.push(...firstRows.filter(row => adstrdCodes.includes(row.ADSTRD_CD)));
+        }
+
+        const totalBatches = Math.min(Math.ceil(totalCount / 1000), batchLimit);
+        console.log(`[seoul-ADSTRD_CD] ${svc}: total=${totalCount}, batches=${totalBatches}, codes=${adstrdCodes.join(',')}`);
+
+        let timedOut = false;
+        for (let groupStart = 1001; groupStart <= totalBatches * 1000; groupStart += PARALLEL_SIZE * 1000) {
+          if (Date.now() - startTime > TIME_LIMIT_MS) {
+            timedOut = true;
+            console.log(`[seoul-ADSTRD_CD] 시간 제한 도달 (${Date.now() - startTime}ms), 수집 중단. 현재 ${allRows.length}건`);
+            break;
+          }
+
+          const batchPromises = [];
+          for (let i = 0; i < PARALLEL_SIZE; i++) {
+            const si = groupStart + i * 1000;
+            if (si > totalBatches * 1000) break;
+            batchPromises.push(fetchBatch(si, si + 999));
+          }
+
+          const results = await Promise.all(batchPromises);
+          let emptyCount = 0;
+          for (const batch of results) {
+            const rows = batch?.[svc]?.row || [];
+            if (rows.length === 0) { emptyCount++; continue; }
+            allRows.push(...rows.filter(row => adstrdCodes.includes(row.ADSTRD_CD)));
+          }
+          if (emptyCount === results.length) break;
+        }
+
+        return {
+          statusCode: 200,
+          headers: corsHeaders,
+          body: JSON.stringify({
+            success: true,
+            data: { filteredRows: allRows, totalFiltered: allRows.length, ADSTRD_CD: adstrdCodes, quarter: stdrYyquCd, partial: timedOut },
+            elapsedMs: Date.now() - startTime
+          })
+        };
+      }
 
       // industryCode 또는 filterField가 있으면 전체 데이터를 서버에서 수집 후 필터링
       if (industryCode || filterField) {
@@ -241,8 +308,42 @@ exports.handler = async (event, context) => {
       const ei = endIndex || '1000';
       targetUrl = `http://openapi.seoul.go.kr:8088/${seoulApiKey}/json/${svc}/${si}/${ei}${quarter}`;
     }
+    // 7. 공정위 지역별 업종별 매출 API (fftc)
+    else if (api === 'fftc') {
+      useHttp = true;
+      const { operation, areaCd, indutyLclsCd, indutySclsCd, pageNo, numOfRows } = queryParams;
+      if (!operation) return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'operation 파라미터 필요 (예: getAreaIndutyAvrOutStats)' }) };
+      const urlParams = new URLSearchParams({
+        serviceKey: DATA_GO_KR_API_KEY,
+        pageNo: pageNo || '1',
+        numOfRows: numOfRows || '100',
+        type: 'json'
+      });
+      if (areaCd) urlParams.append('areaCd', areaCd);
+      if (indutyLclsCd) urlParams.append('indutyLclsCd', indutyLclsCd);
+      if (indutySclsCd) urlParams.append('indutySclsCd', indutySclsCd);
+      targetUrl = `http://apis.data.go.kr/1130000/FftcAreaIndutyAvrStatsService/${operation}?${urlParams.toString()}`;
+      console.log('[fftc]', operation, 'areaCd=' + areaCd, 'indutyLclsCd=' + indutyLclsCd, 'indutySclsCd=' + indutySclsCd);
+
+      // fftc 전용 타임아웃 (10초)
+      const fftcData = await new Promise((resolve, reject) => {
+        const req = http.get(targetUrl, { timeout: 10000 }, (res) => {
+          let body = '';
+          res.on('data', chunk => body += chunk);
+          res.on('end', () => { try { resolve({ status: res.statusCode, data: JSON.parse(body) }); } catch(e) { resolve({ status: res.statusCode, data: body }); } });
+        });
+        req.on('error', () => resolve({ status: 500, data: { items: [] } }));
+        req.on('timeout', () => { req.destroy(); resolve({ status: 504, data: { items: [] } }); });
+      });
+
+      return {
+        statusCode: 200,
+        headers: corsHeaders,
+        body: JSON.stringify({ success: fftcData.status === 200, status: fftcData.status, data: fftcData.data, elapsedMs: Date.now() - startTime })
+      };
+    }
     else {
-      return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: '지원하지 않는 api 타입', available: ['sbiz','coord','store','storeRadius','storeInds','gis','open','seoul'] }) };
+      return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: '지원하지 않는 api 타입', available: ['sbiz','coord','store','storeRadius','storeInds','gis','open','seoul','fftc'] }) };
     }
 
     console.log('[프록시]', api, targetUrl?.substring(0, 200));

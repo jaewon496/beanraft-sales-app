@@ -279,31 +279,111 @@ export default defineConfig({
       '/site': {
         target: 'https://www.beancraft.co.kr',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/site/, '')
+        rewrite: (path) => path.replace(/^\/site/, ''),
+        cookieDomainRewrite: {
+          'www.beancraft.co.kr': '',
+          'beancraft.co.kr': '',
+          '.beancraft.co.kr': ''
+        }
       },
       '/css': {
         target: 'https://www.beancraft.co.kr',
-        changeOrigin: true
+        changeOrigin: true,
+        cookieDomainRewrite: {
+          'www.beancraft.co.kr': '',
+          'beancraft.co.kr': '',
+          '.beancraft.co.kr': ''
+        }
       },
       '/js': {
         target: 'https://www.beancraft.co.kr',
-        changeOrigin: true
+        changeOrigin: true,
+        cookieDomainRewrite: {
+          'www.beancraft.co.kr': '',
+          'beancraft.co.kr': '',
+          '.beancraft.co.kr': ''
+        }
       },
       '/fonts': {
         target: 'https://www.beancraft.co.kr',
-        changeOrigin: true
+        changeOrigin: true,
+        cookieDomainRewrite: {
+          'www.beancraft.co.kr': '',
+          'beancraft.co.kr': '',
+          '.beancraft.co.kr': ''
+        }
       },
       '/images': {
         target: 'https://www.beancraft.co.kr',
-        changeOrigin: true
+        changeOrigin: true,
+        cookieDomainRewrite: {
+          'www.beancraft.co.kr': '',
+          'beancraft.co.kr': '',
+          '.beancraft.co.kr': ''
+        }
       },
       '/uploads': {
         target: 'https://www.beancraft.co.kr',
-        changeOrigin: true
+        changeOrigin: true,
+        cookieDomainRewrite: {
+          'www.beancraft.co.kr': '',
+          'beancraft.co.kr': '',
+          '.beancraft.co.kr': ''
+        }
       },
       '/data': {
         target: 'https://www.beancraft.co.kr',
-        changeOrigin: true
+        changeOrigin: true,
+        cookieDomainRewrite: {
+          'www.beancraft.co.kr': '',
+          'beancraft.co.kr': '',
+          '.beancraft.co.kr': ''
+        }
+      },
+      '/umember': {
+        target: 'https://www.beancraft.co.kr',
+        changeOrigin: true,
+        cookieDomainRewrite: {
+          'www.beancraft.co.kr': '',
+          'beancraft.co.kr': '',
+          '.beancraft.co.kr': ''
+        }
+      },
+      '/uevent': {
+        target: 'https://www.beancraft.co.kr',
+        changeOrigin: true,
+        cookieDomainRewrite: {
+          'www.beancraft.co.kr': '',
+          'beancraft.co.kr': '',
+          '.beancraft.co.kr': ''
+        }
+      },
+      '/uboard': {
+        target: 'https://www.beancraft.co.kr',
+        changeOrigin: true,
+        cookieDomainRewrite: {
+          'www.beancraft.co.kr': '',
+          'beancraft.co.kr': '',
+          '.beancraft.co.kr': ''
+        }
+      },
+      '/uproduct': {
+        target: 'https://www.beancraft.co.kr',
+        changeOrigin: true,
+        cookieDomainRewrite: {
+          'www.beancraft.co.kr': '',
+          'beancraft.co.kr': '',
+          '.beancraft.co.kr': ''
+        }
+      },
+      '/ushop': {
+        target: 'https://www.beancraft.co.kr',
+        changeOrigin: true,
+        cookieDomainRewrite: {
+          'www.beancraft.co.kr': '',
+          'beancraft.co.kr': '',
+          '.beancraft.co.kr': ''
+        }
       }
     }
   },

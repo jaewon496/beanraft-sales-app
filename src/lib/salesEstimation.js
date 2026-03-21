@@ -4,11 +4,13 @@
  * Layers (ordered by accuracy):
  * L1: Single-cafe building -> direct monthSales from OpenUB (95% confidence)
  * L2: Multi-store building -> Zipf distribution from OpenUB (93% confidence)
- * L3: Franchise brand match -> dampened brand average (90% confidence)
+ * L3: Multi-signal ensemble -> foot traffic + rent + features blending (up to 92% confidence)
  * L4: Independent cafe -> feature-based proxy (85% confidence)
  *
+ * Priority: L1 > L2 > L3 > L4
+ *
  * L1 and L2 require OpenUB building data (optional, no auth needed).
- * L3 and L4 always work with existing data.
+ * L4 always works with existing data.
  *
  * Overall target: ~90% weighted accuracy
  */
@@ -60,7 +62,22 @@ const CATEGORY_WEIGHTS = {
   'G0': 1,  // 기타 (other)
 };
 
-const ZIPF_EXPONENT = 0.8; // Standard retail Zipf exponent
+// Dynamic Zipf exponent based on store composition
+// - Cafe-only buildings: 0.5 (smaller sales gap between cafes)
+// - Mixed cafe + non-cafe: 0.7 (cross-industry gap)
+// - Default: 0.6
+function getZipfExponent(stores) {
+  if (!stores || stores.length === 0) return 0.6;
+
+  const cafeCount = stores.filter(s => {
+    const cat = s.category?.bg || s.category?.sm || '';
+    return cat === 'A12' || cat === 'B0' || isCafeByName(s.storeNm);
+  }).length;
+
+  if (cafeCount === 0) return 0.6; // no cafe info, default
+  if (cafeCount === stores.length) return 0.5; // all cafes
+  return 0.7; // mixed: cafe + non-cafe
+}
 
 
 const CAFE_NAME_KEYWORDS = [
@@ -97,7 +114,6 @@ function zipfDistribution(buildingSales, targetCafe) {
   // ── L2 Improvement 1: A12 Category Separation ──
   // Use cafe-only (A12/B0) sales when available to avoid non-cafe inflation
   let totalSales = rawTotalSales;
-  const A12_DAMPENING = 0.6;
 
   const cafeStoresInBuilding = stores.filter(s => {
     const cat = s.category?.bg || s.category?.sm || '';
@@ -112,9 +128,30 @@ function zipfDistribution(buildingSales, targetCafe) {
       totalSales = cafeStoreSalesSum;
       console.warn('[L2] A12 cafe filter: total ' + rawTotalSales + ' -> cafe-only ' + totalSales + ' (' + cafeStoresInBuilding.length + '/' + stores.length + ' stores)');
     } else {
-      // No per-store breakdown: dampen total by 0.6x
-      totalSales = Math.round(rawTotalSales * A12_DAMPENING);
-      console.warn('[L2] A12 data unavailable, dampening: ' + rawTotalSales + ' x' + A12_DAMPENING + ' = ' + totalSales);
+      // No per-store breakdown: smart dampening based on available info
+      let dampening;
+      const storeCount = stores.length;
+
+      if (storeCount > 1) {
+        // Use 1/storeCount as cafe's share (equal distribution assumption)
+        dampening = Math.round((1 / storeCount) * 100) / 100;
+        console.warn('[L2] A12 data unavailable, store-based dampening: ' + rawTotalSales + ' x' + dampening + ' (1/' + storeCount + ' stores) = ' + Math.round(rawTotalSales * dampening));
+      } else {
+        // Single store or unknown count: scale by building total revenue
+        // rawTotalSales is in 만원 units
+        if (rawTotalSales > 50000) {
+          dampening = 0.15; // Large commercial (5억+): many tenants likely
+        } else if (rawTotalSales > 20000) {
+          dampening = 0.25; // Medium commercial (2~5억)
+        } else if (rawTotalSales > 10000) {
+          dampening = 0.35; // Small commercial (1~2억)
+        } else {
+          dampening = 0.5;  // Small building (<1억): cafe likely major tenant
+        }
+        console.warn('[L2] A12 data unavailable, revenue-based dampening: ' + rawTotalSales + ' x' + dampening + ' = ' + Math.round(rawTotalSales * dampening));
+      }
+
+      totalSales = Math.round(rawTotalSales * dampening);
     }
   }
   // If all stores are cafes or only 1 store, use rawTotalSales as-is
@@ -168,10 +205,11 @@ function zipfDistribution(buildingSales, targetCafe) {
     }).sort((a, b) => b.weight - a.weight);
   }
 
-  // Compute Zipf denominators
+  // Compute Zipf denominators with dynamic exponent
+  const zipfExp = getZipfExponent(stores);
   let zipfSum = 0;
   for (let k = 1; k <= n; k++) {
-    zipfSum += 1 / Math.pow(k, ZIPF_EXPONENT);
+    zipfSum += 1 / Math.pow(k, zipfExp);
   }
 
   // Find the target cafe's rank (match by name/brand similarity)
@@ -206,37 +244,196 @@ function zipfDistribution(buildingSales, targetCafe) {
   }
 
   // Zipf estimate: store_k = total * (1/k^s) / sum
-  const estimate = Math.round(totalSales * (1 / Math.pow(targetRank, ZIPF_EXPONENT)) / zipfSum);
+  const estimate = Math.round(totalSales * (1 / Math.pow(targetRank, zipfExp)) / zipfSum);
   return estimate;
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Franchise dampening (L3)
+// L3-new: Multi-signal ensemble helpers
 // ═══════════════════════════════════════════════════════════════
 
-const NATIONAL_CAFE_AVG = 1800; // 만원/월 (전국 카페 평균)
+function getFacilityScore(fclty) {
+  if (!fclty) return null;
+  const subway = Number(fclty.SUBWAY_CNT || fclty.subway || 0);
+  const bus = Number(fclty.BUS_CNT || fclty.bus || 0);
+  const bank = Number(fclty.BANK_CNT || fclty.bank || 0);
+  if (subway + bus + bank === 0) return null;
+  return 0.5 + (subway * 0.3) + (bus * 0.1) + (bank * 0.1);
+}
 
-/**
- * Estimate franchise cafe sales using brand average dampened by local conditions.
- *
- * estimated = brand_avg * (1 + (dong_factor - 1) * 0.3)
- * where dong_factor = dong_cafe_avg / national_cafe_avg
- *
- * The 0.3 dampening means franchise sales are 70% brand-driven, 30% location-driven.
- *
- * @param {Object} franchiseInfo - { 연평균매출 } from FRANCHISE_DATA (만원/year)
- * @param {number} dongAvgCafeSales - Dong-level average cafe monthly sales (만원)
- * @param {number} nationalAvg - National cafe monthly average (만원, default 1800)
- * @returns {number} Estimated monthly sales in 만원
- */
-function estimateFranchise(franchiseInfo, dongAvgCafeSales, nationalAvg = NATIONAL_CAFE_AVG) {
-  // FRANCHISE_DATA stores 연평균매출 (annual), convert to monthly
-  const brandMonthlyAvg = (franchiseInfo.연평균매출 || 0) / 12;
-  if (brandMonthlyAvg <= 0) return 0;
+function getPopulationScore(repop) {
+  if (!repop) return null;
+  const pop = Number(repop.TOT_POPLTN || repop.population || 0);
+  if (pop <= 0) return null;
+  return Math.min(2.0, pop / 10000);
+}
 
-  const dongFactor = (dongAvgCafeSales || nationalAvg) / nationalAvg;
-  const estimated = Math.round(brandMonthlyAvg * (1 + (dongFactor - 1) * 0.3));
-  return Math.max(0, estimated);
+function getVitalityScore(apiData) {
+  const storQq = apiData?.seoulStorQq;
+  if (!storQq) return null;
+  const openRate = Number(storQq.OPEN_RATE || storQq.openRate || 0);
+  const closeRate = Number(storQq.CLOSE_RATE || storQq.closeRate || 0);
+  if (openRate === 0 && closeRate === 0) return null;
+  return 1.0 + (openRate - closeRate) * 0.5;
+}
+
+function getTrendScore(apiData) {
+  const sls = apiData?.slsIndex;
+  if (!sls) return null;
+  if (Array.isArray(sls) && sls.length >= 2) {
+    const recent = Number(sls[sls.length - 1]?.value || sls[sls.length - 1] || 0);
+    const prev = Number(sls[0]?.value || sls[0] || 0);
+    if (prev <= 0) return null;
+    return Math.min(1.3, Math.max(0.7, recent / prev));
+  }
+  return null;
+}
+
+function getDeliveryBoost(baemin) {
+  if (!baemin) return 1.0;
+  const deliveryRatio = Number(baemin.DLVR_RATE || baemin.deliveryRate || 0);
+  if (deliveryRatio > 0.3) return 1.25;
+  if (deliveryRatio > 0.15) return 1.15;
+  return 1.0;
+}
+
+function getTimeBoost(apiData) {
+  const timeData = apiData?.cafeTimeData || apiData?.floatingTime;
+  if (!timeData) return 1.0;
+  return 1.0;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// L3-new: Signal A - Foot traffic estimation
+// ═══════════════════════════════════════════════════════════════
+
+function estimateFromFootTraffic(cafe, apiData, nearbyTotalCafes) {
+  const flpop = apiData?.seoulFlpopDetail || apiData?.dynPplCmpr;
+  if (!flpop) return null;
+
+  let dailyFootTraffic = 0;
+  if (flpop?.TOT_FLPOP_CO) dailyFootTraffic = Number(flpop.TOT_FLPOP_CO);
+  else if (flpop?.PERSON_CNT) dailyFootTraffic = Number(flpop.PERSON_CNT);
+  else if (Array.isArray(flpop)) {
+    dailyFootTraffic = flpop.reduce((sum, item) => sum + (Number(item.TOT_FLPOP_CO || item.PERSON_CNT || 0)), 0);
+  }
+  if (dailyFootTraffic <= 0) return null;
+
+  const cafeTargetRatio = 0.15;
+  const captureRate = 0.03 / Math.sqrt(Math.max(nearbyTotalCafes, 1));
+  const avgTicket = (cafe.americanoPrice || 4500) * 1.35;
+
+  const monthlyRevenue = dailyFootTraffic * cafeTargetRatio * captureRate * avgTicket * 30;
+  const monthlyWanWon = Math.round(monthlyRevenue / 10000);
+
+  const isSeoul = !!apiData?.seoulFlpopDetail;
+  return { estimate: monthlyWanWon, confidence: isSeoul ? 0.87 : 0.82, method: '유동인구 기반' };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// L3-new: Signal B - Rent-based estimation
+// ═══════════════════════════════════════════════════════════════
+
+function estimateFromRent(cafe, apiData) {
+  const rent = apiData?.roneRent || apiData?.firebaseRent;
+  if (!rent) return null;
+
+  let monthlyRent = 0;
+  if (rent?.MO_RENT_AMT) monthlyRent = Number(rent.MO_RENT_AMT);
+  else if (rent?.rent) monthlyRent = Number(rent.rent);
+  else if (rent?.monthlyRent) monthlyRent = Number(rent.monthlyRent);
+  else if (typeof rent === 'number') monthlyRent = rent;
+  if (monthlyRent <= 0) return null;
+
+  const hasSubway = apiData?.seoulFclty?.subway > 0 || apiData?.seoulFclty?.SUBWAY_CNT > 0;
+  const hasHighPop = apiData?.seoulRepop?.TOT_POPLTN > 10000;
+
+  let rentRatio = 0.10;
+  if (hasSubway) rentRatio = 0.12;
+  else if (hasHighPop) rentRatio = 0.08;
+
+  const monthlyRevenue = monthlyRent / rentRatio;
+  const monthlyWanWon = Math.round(monthlyRevenue / 10000);
+
+  const isDetailRent = !!apiData?.firebaseRent;
+  return { estimate: monthlyWanWon, confidence: isDetailRent ? 0.85 : 0.80, method: '임대료 역산' };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// L3-new: Signal C - Multi-feature scoring
+// ═══════════════════════════════════════════════════════════════
+
+function estimateFromFeatures(cafe, apiData, dongAvgCafeSales, nearbyTotalCafes) {
+  if (!dongAvgCafeSales || dongAvgCafeSales <= 0) return null;
+
+  let totalScore = 0;
+  let totalWeight = 0;
+  let featureCount = 0;
+
+  const features = [
+    { name: 'americanoPrice', weight: 0.15, value: cafe.americanoPrice, baseline: 4500, scale: 1/2000 },
+    { name: 'reviewCount', weight: 0.15, value: cafe.reviewCount, baseline: 100, scale: 1/200 },
+    { name: 'rating', weight: 0.10, value: cafe.rating, baseline: 4.0, scale: 1/1.0 },
+    { name: 'seatSize', weight: 0.10, value: cafe.seatSize, baseline: 30, scale: 1/30 },
+    { name: 'competition', weight: 0.15, value: nearbyTotalCafes ? (1 / Math.sqrt(nearbyTotalCafes)) * 10 : null, baseline: 1.0, scale: 1 },
+    { name: 'facilities', weight: 0.10, value: getFacilityScore(apiData?.seoulFclty), baseline: 1.0, scale: 1 },
+    { name: 'population', weight: 0.10, value: getPopulationScore(apiData?.seoulRepop), baseline: 1.0, scale: 1 },
+    { name: 'vitality', weight: 0.10, value: getVitalityScore(apiData), baseline: 1.0, scale: 1 },
+    { name: 'trend', weight: 0.05, value: getTrendScore(apiData), baseline: 1.0, scale: 1 },
+  ];
+
+  for (const f of features) {
+    if (f.value != null && f.value > 0) {
+      const normalized = Math.max(0.3, Math.min(2.0, (f.value / f.baseline)));
+      totalScore += normalized * f.weight;
+      totalWeight += f.weight;
+      featureCount++;
+    }
+  }
+
+  if (featureCount < 2) return null;
+
+  const avgScore = totalScore / totalWeight;
+  const estimated = Math.round(dongAvgCafeSales * avgScore);
+  const confidence = Math.min(0.88, 0.78 + 0.01 * featureCount);
+
+  return { estimate: estimated, confidence, method: '다변수 분석' };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// L3-new: Signal blending (ensemble)
+// ═══════════════════════════════════════════════════════════════
+
+function blendSignals(signals) {
+  const valid = signals.filter(s => s && s.estimate > 0);
+  if (valid.length === 0) return null;
+  if (valid.length === 1) return valid[0];
+
+  const estimates = valid.map(s => s.estimate);
+  const sorted = [...estimates].sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)];
+
+  let totalWeighted = 0;
+  let totalConfidence = 0;
+  for (const s of valid) {
+    let weight = s.confidence;
+    if (s.estimate > median * 3 || s.estimate < median / 3) {
+      weight *= 0.3;
+    }
+    totalWeighted += s.estimate * weight;
+    totalConfidence += weight;
+  }
+
+  const blendedEstimate = Math.round(totalWeighted / totalConfidence);
+  const maxConf = Math.max(...valid.map(s => s.confidence));
+  const blendedConfidence = Math.min(0.92, maxConf + 0.02 * (valid.length - 1));
+
+  return {
+    estimate: blendedEstimate,
+    confidence: blendedConfidence,
+    method: valid.length >= 2 ? '종합 분석' : valid[0].method,
+    signalCount: valid.length
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -255,15 +452,19 @@ function estimateFranchise(franchiseInfo, dongAvgCafeSales, nationalAvg = NATION
  *
  * @param {Object} cafe - { name, americanoPrice, reviewCount }
  * @param {number} dongAvgCafeSales - Dong average cafe monthly sales (만원)
- * @param {number} totalNearbyChafes - Total cafes within 500m radius
+ * @param {number} totalNearbyCafes - Total cafes within 500m radius
+ * @param {number} dongCafeCount - Dong-level total cafe count (optional)
  * @returns {number} Estimated monthly sales in 만원
  */
-function estimateIndependent(cafe, dongAvgCafeSales, totalNearbyCafes) {
-  const baseEstimate = dongAvgCafeSales || NATIONAL_CAFE_AVG;
+function estimateIndependent(cafe, dongAvgCafeSales, totalNearbyCafes, dongCafeCount, vitalityFactor = 1.0) {
+  const baseEstimate = dongAvgCafeSales || 1800;
 
   // Competition factor: penalize for high density, bonus for low density
-  // At 20 cafes: neutral; at 40: ~0.85; at 10: ~1.15
-  const avgCafeDensity = 20; // baseline density in 500m radius
+  // Dynamic baseline: dong-level count if available, else national median estimate (25)
+  const NATIONAL_MEDIAN_CAFE_DENSITY = 25;
+  const avgCafeDensity = (dongCafeCount && dongCafeCount > 0)
+    ? dongCafeCount
+    : NATIONAL_MEDIAN_CAFE_DENSITY;
   const competitionFactor = totalNearbyCafes > 0
     ? Math.pow(avgCafeDensity / totalNearbyCafes, 0.3)
     : 1.0;
@@ -284,7 +485,7 @@ function estimateIndependent(cafe, dongAvgCafeSales, totalNearbyCafes) {
     reviewFactor = Math.max(0.7, Math.min(1.4, reviewFactor));
   }
 
-  const estimated = Math.round(baseEstimate * competitionFactor * priceFactor * reviewFactor);
+  const estimated = Math.round(baseEstimate * competitionFactor * priceFactor * reviewFactor * vitalityFactor);
   return Math.max(0, estimated);
 }
 
@@ -433,23 +634,6 @@ function matchCafesToBuildings(cafes, buildings) {
 }
 
 
-// ================================================================
-// Enhanced franchise matching using bd/sales storeNm (L3)
-// ================================================================
-
-function matchFranchiseFromBdSales(cafe, FRANCHISE_DATA_REF) {
-  const bdName = cafe.bdSalesStoreNm;
-  if (!bdName) return null;
-  const upperBdName = bdName.replace(/\s/g, '').toUpperCase();
-  for (const [brand, data] of Object.entries(FRANCHISE_DATA_REF)) {
-    const upperBrand = brand.replace(/\s/g, '').toUpperCase();
-    if (upperBdName.includes(upperBrand) || upperBrand.includes(upperBdName)) {
-      return { brand, data };
-    }
-  }
-  return null;
-}
-
 // ═══════════════════════════════════════════════════════════════
 // Main estimation function
 // ═══════════════════════════════════════════════════════════════
@@ -461,21 +645,24 @@ function matchFranchiseFromBdSales(cafe, FRANCHISE_DATA_REF) {
  * @param {Object} params.cafe - { name, brand, isFranchise, americanoPrice, reviewCount, addr }
  * @param {Object|null} params.building - from bd/sales or null
  * @param {number} params.dongAvgCafeSales - Dong average cafe monthly sales (만원)
- * @param {Object|null} params.franchiseData - FRANCHISE_DATA entry for this brand
  * @param {number} params.nearbyTotalCafes - Total cafes in 500m radius
- * @param {number} params.nationalCafeAvg - National average (default 1800)
+ * @param {number} params.dongCafeCount - Dong-level total cafe count (optional, for L4 dynamic density)
  * @returns {{ layer: string, estimated: number, confidence: number }}
  */
 export function estimateCafeSales({
   cafe,
   building = null,
-  dongAvgCafeSales = NATIONAL_CAFE_AVG,
-  franchiseData = null,
+  dongAvgCafeSales = 1800,
   nearbyTotalCafes = 20,
-  nationalCafeAvg = NATIONAL_CAFE_AVG,
-  FRANCHISE_DATA_REF = {}
+  dongCafeCount = 0,
+  vitalityFactor = 1.0,
+  trendFactor = 1.0,
+  apiData = {}
 }) {
   let layer, estimated, confidence;
+  // methodLabel: tracks the actual estimation method for UI display
+  // (may differ from layer when blending is used)
+  let methodLabel = null;
 
   // L1: Single-cafe building (direct from OpenUB)
   if (building && building.stores?.length === 1 && building.monthSales > 0) {
@@ -488,53 +675,92 @@ export function estimateCafeSales({
     layer = 'L2';
     estimated = zipfDistribution(building, cafe);
     if (estimated === null || estimated <= 0) {
-      // Fallback to L3 or L4
+      // Fallback to L4
       layer = null;
     } else {
       confidence = 0.93;
     }
   }
 
-  // L3: Franchise brand average (dampened by location)
-  if (!layer) {
-    // Enhanced L3: Try bd/sales storeNm matching if no franchise data found
-    let resolvedFranchiseData = franchiseData;
-    if (!resolvedFranchiseData && cafe.bdSalesStoreNm) {
-      const bdMatch = matchFranchiseFromBdSales(cafe, FRANCHISE_DATA_REF);
-      if (bdMatch) {
-        resolvedFranchiseData = bdMatch.data;
-        console.warn('[L3-enhanced] bd/sales storeNm match: "' + cafe.name + '" -> "' + bdMatch.brand + '" via "' + cafe.bdSalesStoreNm + '"');
-      }
-    }
-    if ((cafe.isFranchise || resolvedFranchiseData) && resolvedFranchiseData && resolvedFranchiseData.연평균매출 > 0) {
+  // L3-new: Multi-signal ensemble (when L1/L2 not matched)
+  if (!layer && apiData) {
+    const signals = [
+      estimateFromFootTraffic(cafe, apiData, nearbyTotalCafes),
+      estimateFromRent(cafe, apiData),
+      estimateFromFeatures(cafe, apiData, dongAvgCafeSales, nearbyTotalCafes),
+    ];
+
+    const blended = blendSignals(signals);
+    if (blended) {
       layer = 'L3';
-      estimated = estimateFranchise(resolvedFranchiseData, dongAvgCafeSales, nationalCafeAvg);
-      confidence = 0.90;
+      estimated = blended.estimate;
+      confidence = blended.confidence;
+      methodLabel = blended.method;
+
+      // 배달 보정
+      if (apiData?.baeminTpbiz) {
+        const deliveryBoost = getDeliveryBoost(apiData.baeminTpbiz);
+        estimated = Math.round(estimated * deliveryBoost);
+      }
+
+      // 시간대 보정
+      const timeBoost = getTimeBoost(apiData);
+      if (timeBoost !== 1.0) {
+        estimated = Math.round(estimated * timeBoost);
+      }
+
+      console.warn('[Sales L3-new] ' + cafe.name + ': signals=' + JSON.stringify(signals.filter(Boolean).map(s => ({m:s.method, e:s.estimate, c:s.confidence}))) + ', blended=' + estimated);
     }
   }
 
   // L4: Independent cafe (ML regression if times7 available, else fallback)
+  // trendFactor는 L4에만 적용 (비서울권 정확도 향상 목적)
   if (!layer) {
     layer = 'L4';
+    const combinedVitality = vitalityFactor * trendFactor;
     if (canUseMLRegression(cafe)) {
       // ML regression with times7 data -> 85% confidence
       const { features } = buildMLFeatures(cafe, dongAvgCafeSales);
-      estimated = mlEstimateL4(features);
+      estimated = Math.round(mlEstimateL4(features) * combinedVitality);
       confidence = 0.85;
     } else {
       // Fallback: competition-adjusted dong average -> 78% confidence
-      estimated = estimateIndependent(cafe, dongAvgCafeSales, nearbyTotalCafes);
+      estimated = estimateIndependent(cafe, dongAvgCafeSales, nearbyTotalCafes, dongCafeCount, combinedVitality);
       confidence = 0.78;
     }
   }
 
-  // Range percentages per layer
-  const LAYER_RANGE = { L1: 0.08, L2: 0.15, L3: 0.12, L4: 0.20 };
-  const salesRange = LAYER_RANGE[layer] || 0.20;
+  // Range percentages per layer (dynamic for L4)
+  let salesRange;
+  let confidenceNote;
+  if (layer === 'L1') {
+    salesRange = 0.08;
+    confidenceNote = '건물 매출 직접 데이터';
+  } else if (layer === 'L2') {
+    salesRange = 0.20;
+    confidenceNote = '건물 매출 Zipf 분배 추정';
+  } else if (layer === 'L3') {
+    salesRange = 0.22;
+    confidenceNote = methodLabel || '멀티시그널 종합 분석';
+  } else {
+    // L4: dynamic range based on data availability
+    const hasTimes7 = !!(cafe.times7 && Array.isArray(cafe.times7) && cafe.times7.length >= 7);
+    const hasReviews = !!(cafe.reviewCount && cafe.reviewCount > 0);
+    if (hasTimes7) {
+      salesRange = 0.25;
+      confidenceNote = '요일별 매출 패턴 기반 추정';
+    } else if (hasReviews) {
+      salesRange = 0.30;
+      confidenceNote = '리뷰/경쟁 기반 추정';
+    } else {
+      salesRange = 0.35;
+      confidenceNote = '동 평균 기반 추정';
+    }
+  }
   const salesMin = Math.round(estimated * (1 - salesRange));
   const salesMax = Math.round(estimated * (1 + salesRange));
 
-  return { layer, estimated, confidence, salesMin, salesMax, salesLayer: layer, salesRange };
+  return { layer, estimated, confidence, salesMin, salesMax, salesLayer: layer, salesRange, confidenceNote, methodLabel };
 }
 
 /**
@@ -544,17 +770,55 @@ export function estimateCafeSales({
  * @param {Array} params.cafes - Array of { name, brand, isFranchise, americanoPrice, reviewCount, addr }
  * @param {Object|null} params.openubData - { buildings, buildingSales } or null
  * @param {number} params.dongAvgCafeSales - Dong average in 만원
- * @param {Object} params.FRANCHISE_DATA_REF - Reference to FRANCHISE_DATA
  * @param {number} params.nearbyTotalCafes - Total cafe count in 500m
+ * @param {number} params.dongCafeCount - Dong-level total cafe count (optional)
  * @returns {Array} Array of { name, layer, estimated, confidence, isFranchise }
  */
 export function estimateAllCafeSales({
   cafes,
   openubData = null,
-  dongAvgCafeSales = NATIONAL_CAFE_AVG,
-  FRANCHISE_DATA_REF = {},
-  nearbyTotalCafes = 20
+  dongAvgCafeSales = 1800,
+  nearbyTotalCafes = 20,
+  dongCafeCount = 0,
+  marketVitality = null,
+  trendData = null,
+  apiData = {}
 }) {
+  // Compute vitalityFactor from seoulStorQq data (±10% cap)
+  let vitalityFactor = 1.0;
+  if (marketVitality && (marketVitality.openRate || marketVitality.closeRate)) {
+    const openRate = parseFloat(marketVitality.openRate) || 0;
+    const closeRate = parseFloat(marketVitality.closeRate) || 0;
+    const diff = openRate - closeRate; // positive = growing, negative = declining
+    // Scale: each 1% diff -> ~1% factor change, capped at ±10%
+    vitalityFactor = Math.max(0.9, Math.min(1.1, 1.0 + diff / 100));
+    console.warn('[매출추정] 상권활성도 반영: 개업률 ' + openRate + '%, 폐업률 ' + closeRate + '% -> vitalityFactor=' + vitalityFactor.toFixed(3));
+  }
+
+  // Compute trendFactor from slsIndex data (±15% cap)
+  let trendFactor = 1.0;
+  try {
+    if (trendData && Array.isArray(trendData) && trendData.length >= 2) {
+      // slsIndex: 분기별 매출지수 배열, 최근 분기 vs 과거 평균
+      const indices = trendData
+        .map(d => parseFloat(d.slsIdx || d.mmavgSlsIdx || d.value || 0))
+        .filter(v => v > 0);
+      if (indices.length >= 2) {
+        const recentQuarter = indices[indices.length - 1];
+        const pastAvg = indices.slice(0, -1).reduce((a, b) => a + b, 0) / (indices.length - 1);
+        if (pastAvg > 0) {
+          const rawFactor = recentQuarter / pastAvg;
+          // ±15% 제한
+          trendFactor = Math.max(0.85, Math.min(1.15, rawFactor));
+          console.warn('[매출추정] 매출추이(slsIndex) 반영: 최근 ' + recentQuarter.toFixed(1) + ' / 과거평균 ' + pastAvg.toFixed(1) + ' -> trendFactor=' + trendFactor.toFixed(3));
+        }
+      }
+    }
+  } catch (e) {
+    // trendFactor 계산 실패 시 1.0 유지 (영향 없음)
+    console.warn('[매출추정] trendFactor 계산 실패, 1.0 유지:', e.message);
+    trendFactor = 1.0;
+  }
   // Step 1: Match cafes to buildings (if OpenUB data available)
   let cafeToBuilding = {};
   if (openubData && openubData.buildings && openubData.buildingSales) {
@@ -585,49 +849,17 @@ export function estimateAllCafeSales({
         cafe.times7 = times7;
       }
 
-      // Extract bd/sales storeNm for enhanced L3 franchise matching
-      if (building?.stores && !cafe.bdSalesStoreNm) {
-        const cafeName = (cafe.name || '').replace(/\s/g, '').toUpperCase();
-        const cafeBrand = (cafe.brand || '').replace(/\s/g, '').toUpperCase();
-        for (const store of building.stores) {
-          const sn = (store.storeNm || '').replace(/\s/g, '').toUpperCase();
-          if (sn && (sn.includes(cafeName) || cafeName.includes(sn) ||
-                     (cafeBrand && cafeBrand.length > 1 && (sn.includes(cafeBrand) || cafeBrand.includes(sn))))) {
-            cafe.bdSalesStoreNm = store.storeNm;
-            break;
-          }
-        }
-      }
-    }
-
-    // Resolve franchise data
-    let franchiseData = null;
-    if (cafe.isFranchise && cafe.brand) {
-      franchiseData = FRANCHISE_DATA_REF[cafe.brand] || null;
-      // Try partial match
-      if (!franchiseData) {
-        const brandKey = Object.keys(FRANCHISE_DATA_REF).find(k =>
-          k.includes(cafe.brand) || cafe.brand.includes(k)
-        );
-        if (brandKey) {
-          franchiseData = FRANCHISE_DATA_REF[brandKey];
-          console.warn('[L3] 부분매칭: "' + cafe.brand + '" -> "' + brandKey + '"');
-        }
-      }
-      if (!franchiseData) {
-        console.warn('[L3] 프랜차이즈 매칭 실패: brand="' + cafe.brand + '", name="' + cafe.name + '" (FRANCHISE_DATA에 없음)');
-      } else if (!franchiseData.연평균매출 || franchiseData.연평균매출 <= 0) {
-        console.warn('[L3] 연평균매출 없음: brand="' + cafe.brand + '" (L4로 폴백)');
-      }
     }
 
     const result = estimateCafeSales({
       cafe,
       building,
       dongAvgCafeSales,
-      franchiseData,
       nearbyTotalCafes,
-      FRANCHISE_DATA_REF
+      dongCafeCount,
+      vitalityFactor,
+      trendFactor,
+      apiData
     });
 
     results.push({
@@ -640,4 +872,542 @@ export function estimateAllCafeSales({
   }
 
   return results;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// dongCd → ADSTRD_CD 변환 유틸
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * 소상공인365 dongCd(10자리) → 서울 열린데이터 ADSTRD_CD(8자리) 변환
+ * @param {string} dongCd - 소상공인365 행정동 코드 (10자리)
+ * @returns {string|null} 서울 열린데이터 ADSTRD_CD (8자리), 또는 null
+ */
+export function dongCdToAdstrdCd(dongCd) {
+  return dongCd ? dongCd.substring(0, 8) : null;
+}
+
+/**
+ * 서울 지역인지 판별 (dongCd 또는 ADSTRD_CD 기준)
+ * 서울: 코드가 '11'로 시작
+ * @param {string} code - dongCd 또는 ADSTRD_CD
+ * @returns {boolean}
+ */
+export function isSeoulByCode(code) {
+  return code ? code.startsWith('11') : false;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 반경 내 카페 평균매출 계산 (의뢰인 모드)
+// ═══════════════════════════════════════════════════════════════
+
+const SBIZ_PROXY_BASE = '/.netlify/functions/sbiz-proxy';
+
+// ═══════════════════════════════════════════════════════════════
+// API 타임아웃 + 재시도 유틸
+// ═══════════════════════════════════════════════════════════════
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(timer);
+    return res;
+  } catch (e) {
+    clearTimeout(timer);
+    if (e.name === 'AbortError') {
+      console.warn('[매출추정] API 타임아웃:', url.substring(0, 80));
+    }
+    throw e;
+  }
+}
+
+async function fetchWithRetry(url, options = {}, { timeoutMs = 8000, retries = 2, backoffMs = 1000 } = {}) {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      return await fetchWithTimeout(url, options, timeoutMs);
+    } catch (e) {
+      if (i === retries) throw e;
+      await new Promise(r => setTimeout(r, backoffMs * (i + 1)));
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 전국 카페 평균 (최종 안전장치)
+// ═══════════════════════════════════════════════════════════════
+
+const NATIONAL_CAFE_AVG_MONTHLY = 1850; // 만원 (2024 소상공인 통계 기준)
+
+// ═══════════════════════════════════════════════════════════════
+// 공정위 지역별 업종별 매출 API (L2 fallback)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * 시도명 → 공정위 API areaGbn 코드 매핑
+ */
+const SIDO_CODES = [
+  '11', '26', '27', '28', '29', '30', '31', '36',
+  '41', '42', '43', '44', '45', '46', '47', '48', '50'
+];
+
+/**
+ * 공정위 지역별 업종별 평균 매출 조회
+ * @param {string} dongCd - 행정동 코드 (시도 코드 추출용)
+ * @returns {Promise<number|null>} 평균 매출 (만원) 또는 null
+ */
+async function fetchFftcAreaSales(dongCd) {
+  if (!dongCd || dongCd.length < 2) return null;
+
+  const sidoCode = dongCd.substring(0, 2);
+  if (!SIDO_CODES.includes(sidoCode)) return null;
+
+  try {
+    const params = new URLSearchParams({
+      api: 'fftc',
+      operation: 'getAreaIndutyAvrOutStats',
+      areaCd: sidoCode,
+      indutyLclsCd: 'Q',
+      indutySclsCd: 'Q12',
+      numOfRows: '100'
+    });
+
+    const res = await fetchWithRetry(
+      `${SBIZ_PROXY_BASE}?${params.toString()}`,
+      {},
+      { timeoutMs: 8000, retries: 1, backoffMs: 1000 }
+    );
+
+    if (!res.ok) {
+      console.warn('[매출추정] 공정위 API 응답 실패:', res.status);
+      return null;
+    }
+
+    const json = await res.json();
+    const items = json?.data?.response?.body?.items?.item
+      || json?.data?.items?.item
+      || json?.data?.items
+      || [];
+
+    if (!Array.isArray(items) || items.length === 0) {
+      console.warn('[매출추정] 공정위 API 데이터 없음: 시도코드=' + sidoCode);
+      return null;
+    }
+
+    // 해당 지역 매출 데이터에서 평균 추출 (금액 단위: 만원으로 변환)
+    let totalSales = 0;
+    let count = 0;
+    for (const item of items) {
+      const sales = Number(item.avrOutAmt || item.avrWhrtAmt || item.avrSrvcAmt || 0);
+      if (sales > 0) {
+        totalSales += sales;
+        count++;
+      }
+    }
+
+    if (count === 0) return null;
+
+    // API 응답 단위가 원 단위이면 만원으로 변환
+    let avgSales = Math.round(totalSales / count);
+    if (avgSales > 100000) {
+      avgSales = Math.round(avgSales / 10000);
+    }
+
+    console.log('[매출추정] 공정위 API 성공: 시도=' + sidoCode + ' 카페 평균매출=' + avgSales + '만원 (' + count + '건)');
+    return avgSales;
+  } catch (err) {
+    console.warn('[매출추정] 공정위 API 오류:', err.message);
+    return null;
+  }
+}
+
+/**
+ * 서울 열린데이터 VwsmAdstrdSelngW API를 ADSTRD_CD 코드로 조회
+ * @param {string[]} adstrdCodes - 8자리 ADSTRD_CD 코드 배열
+ * @param {string} [quarter] - 기준 분기 (예: '20253')
+ * @returns {Object} { [adstrdCd]: { avgSales, totalSales, storeCount, rows } }
+ */
+async function fetchSeoulSalesByAdstrdCd(adstrdCodes, quarter) {
+  if (!adstrdCodes || adstrdCodes.length === 0) return {};
+
+  try {
+    const params = new URLSearchParams({
+      api: 'seoul',
+      service: 'VwsmAdstrdSelngW',
+      ADSTRD_CD: adstrdCodes.join(',')
+    });
+    if (quarter) params.append('stdrYyquCd', quarter);
+
+    const res = await fetchWithRetry(
+      `${SBIZ_PROXY_BASE}?${params.toString()}`,
+      {},
+      { timeoutMs: 10000, retries: 2, backoffMs: 1000 }
+    );
+    if (!res.ok) {
+      console.warn('[매출추정] 서울 매출 API 실패:', res.status);
+      return {};
+    }
+
+    const json = await res.json();
+    const rows = json?.data?.filteredRows || [];
+
+    // 행정동별로 그룹핑하여 카페(커피) 업종 매출 합산
+    const dongSalesMap = {};
+    for (const row of rows) {
+      const code = row.ADSTRD_CD;
+      if (!code) continue;
+
+      // 커피/음료 업종 필터 (SVC_INDUTY_CD: CS100006=커피전문점, CS100005=음료)
+      const industryCd = row.SVC_INDUTY_CD || '';
+      const isCafeIndustry = industryCd === 'CS100006' || industryCd === 'CS100005';
+
+      if (!isCafeIndustry) continue;
+
+      if (!dongSalesMap[code]) {
+        dongSalesMap[code] = { totalSales: 0, storeCount: 0, rows: [] };
+      }
+
+      const monthSales = Number(row.MDWK_SELNG_AMT || 0) + Number(row.WKEND_SELNG_AMT || 0);
+      dongSalesMap[code].totalSales += monthSales;
+      dongSalesMap[code].storeCount += Number(row.STOR_CO || 1);
+      dongSalesMap[code].rows.push(row);
+    }
+
+    // 평균 매출 계산 (만원 단위)
+    for (const code of Object.keys(dongSalesMap)) {
+      const d = dongSalesMap[code];
+      d.avgSales = d.storeCount > 0 ? Math.round(d.totalSales / d.storeCount / 10000) : 0;
+    }
+
+    return dongSalesMap;
+  } catch (err) {
+    console.warn('[매출추정] 서울 매출 API 오류:', err.message);
+    return {};
+  }
+}
+
+/**
+ * 최근 분기 코드 생성 (예: 2025년 3분기 → '20253')
+ * @returns {string}
+ */
+function getRecentQuarter() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+  // 데이터 공개 지연(약 2분기)을 고려하여 2분기 전 데이터 요청
+  let quarter = Math.ceil(month / 3);
+  let qYear = year;
+  quarter -= 2;
+  if (quarter <= 0) {
+    quarter += 4;
+    qYear -= 1;
+  }
+  return `${qYear}${quarter}`;
+}
+
+/**
+ * 카페를 동별로 그룹핑
+ * @param {Array} cafes - [{name, lat, lng, dongCd, ...}]
+ * @returns {Object} { [adstrdCd8]: [cafe1, cafe2, ...] }
+ */
+function groupCafesByDong(cafes) {
+  const groups = {};
+  for (const cafe of cafes) {
+    const adstrdCd = dongCdToAdstrdCd(cafe.dongCd);
+    if (!adstrdCd) continue;
+    if (!groups[adstrdCd]) groups[adstrdCd] = [];
+    groups[adstrdCd].push(cafe);
+  }
+  return groups;
+}
+
+/**
+ * 공정위 전국 데이터 기반 시/도 단위 보정 계수
+ * 서울 평균 대비 각 시도의 카페 매출 비율 (근사치)
+ */
+const SIDO_CORRECTION_FACTORS = {
+  '11': 1.00,  // 서울
+  '26': 0.85,  // 부산
+  '27': 0.80,  // 대구
+  '28': 0.88,  // 인천
+  '29': 0.78,  // 광주
+  '30': 0.82,  // 대전
+  '31': 0.80,  // 울산
+  '36': 0.85,  // 세종
+  '41': 0.92,  // 경기
+  '42': 0.75,  // 강원
+  '43': 0.72,  // 충북
+  '44': 0.75,  // 충남
+  '45': 0.70,  // 전북
+  '46': 0.68,  // 전남
+  '47': 0.72,  // 경북
+  '48': 0.75,  // 경남
+  '50': 0.80,  // 제주
+};
+
+function getSidoCorrectionFactor(dongCd) {
+  if (!dongCd || dongCd.length < 2) return 0.80;
+  const sidoCode = dongCd.substring(0, 2);
+  return SIDO_CORRECTION_FACTORS[sidoCode] || 0.80;
+}
+
+/**
+ * 반경 내 카페 평균매출 계산 (의뢰인 모드용)
+ *
+ * @param {Object} params
+ * @param {number} params.lat - 중심 위도
+ * @param {number} params.lng - 중심 경도
+ * @param {number} params.radius - 반경 (미터)
+ * @param {Array} params.cafes - 반경 내 카페 목록 [{name, lat, lng, dongCd, ...}]
+ * @param {Array} params.nearbyDongs - 인접 동 목록 [{dongCd, dongNm, ...}]
+ * @param {number} [params.dongAvgCafeSales] - 소상공인365 동 평균 매출 (만원, fallback용)
+ * @returns {Promise<Object>} { avgSales, dongSalesMap, confidence, sources, details }
+ */
+export async function calculateRadiusAvgSales({
+  lat,
+  lng,
+  radius = 500,
+  cafes = [],
+  nearbyDongs = [],
+  dongAvgCafeSales = 0
+}) {
+  const result = {
+    avgSales: 0,
+    dongSalesMap: {},
+    confidence: 'C',
+    sources: [],
+    details: {}
+  };
+
+  if (!cafes || cafes.length === 0) {
+    result.avgSales = dongAvgCafeSales || 0;
+    result.sources = dongAvgCafeSales ? ['sbiz'] : [];
+    return result;
+  }
+
+  // 1. 카페를 동별로 그룹핑
+  const cafesByDong = groupCafesByDong(cafes);
+  const adstrdCodes = Object.keys(cafesByDong);
+
+  // nearbyDongs에서 추가 코드 수집 (카페가 없는 동도 포함 가능하지만, 가중평균에는 카페 있는 동만 사용)
+  const allDongCodes = [...new Set([
+    ...adstrdCodes,
+    ...nearbyDongs.map(d => dongCdToAdstrdCd(d.dongCd)).filter(Boolean)
+  ])];
+
+  // 2. 서울 여부 판별
+  const primaryDongCd = cafes[0]?.dongCd || nearbyDongs[0]?.dongCd || '';
+  const isSeoul = isSeoulByCode(primaryDongCd);
+
+  let seoulSalesMap = {};
+  let hasSeoulData = false;
+
+  // 3. 서울이면 열린데이터 API로 동별 매출 조회
+  if (isSeoul && adstrdCodes.length > 0) {
+    try {
+      const quarter = getRecentQuarter();
+      seoulSalesMap = await fetchSeoulSalesByAdstrdCd(adstrdCodes, quarter);
+      hasSeoulData = Object.keys(seoulSalesMap).length > 0;
+
+      if (!hasSeoulData) {
+        // 분기를 하나 더 이전으로 시도
+        const fallbackQuarter = `${parseInt(quarter.substring(0, 4)) - (parseInt(quarter[4]) <= 1 ? 1 : 0)}${parseInt(quarter[4]) <= 1 ? parseInt(quarter[4]) + 3 : parseInt(quarter[4]) - 1}`;
+        seoulSalesMap = await fetchSeoulSalesByAdstrdCd(adstrdCodes, fallbackQuarter);
+        hasSeoulData = Object.keys(seoulSalesMap).length > 0;
+      }
+
+      if (hasSeoulData) {
+        result.sources.push('seoul_opendata');
+        console.log('[매출추정-반경] 서울 열린데이터 조회 성공:', Object.keys(seoulSalesMap).length, '개 동');
+      }
+    } catch (err) {
+      console.warn('[매출추정-반경] 서울 열린데이터 조회 실패:', err.message);
+    }
+  }
+
+  // 3-2. 공정위 지역별 매출 API 조회 (L2 - 서울/비서울 공통)
+  let fftcAvgSales = null;
+  let hasFftcData = false;
+
+  try {
+    fftcAvgSales = await fetchFftcAreaSales(primaryDongCd);
+    hasFftcData = fftcAvgSales != null && fftcAvgSales > 0;
+    if (hasFftcData) {
+      result.sources.push('fftc');
+      console.log('[매출추정-반경] 공정위 API 성공: 평균매출=' + fftcAvgSales + '만원');
+    }
+  } catch (err) {
+    console.warn('[매출추정-반경] 공정위 API 조회 실패:', err.message);
+  }
+
+  // 4. 가중평균 매출 계산 (L1: 서울열린데이터 > L2: 공정위 > L3: 소상공인365 > L4: 전국평균)
+  let weightedSum = 0;
+  let totalCafeCount = 0;
+  const dongDetails = {};
+
+  for (const [adstrdCd, dongCafes] of Object.entries(cafesByDong)) {
+    const cafeCount = dongCafes.length;
+    let dongAvg = 0;
+    let source = 'none';
+
+    // L1: 서울 열린데이터 우선
+    if (hasSeoulData && seoulSalesMap[adstrdCd]) {
+      dongAvg = seoulSalesMap[adstrdCd].avgSales;
+      source = 'seoul_opendata';
+    }
+    // L2: 공정위 지역별 매출
+    else if (hasFftcData) {
+      dongAvg = fftcAvgSales;
+      source = 'fftc';
+    }
+    // L3: 소상공인365 보정
+    else if (dongAvgCafeSales > 0) {
+      // 비서울 지역이면 시도 보정 계수 적용
+      if (!isSeoul) {
+        const correction = getSidoCorrectionFactor(adstrdCd);
+        dongAvg = Math.round(dongAvgCafeSales * correction);
+        source = 'sbiz_corrected';
+      } else {
+        dongAvg = dongAvgCafeSales;
+        source = 'sbiz';
+      }
+    }
+
+    if (dongAvg > 0) {
+      weightedSum += dongAvg * cafeCount;
+      totalCafeCount += cafeCount;
+    }
+
+    dongDetails[adstrdCd] = {
+      dongNm: nearbyDongs.find(d => dongCdToAdstrdCd(d.dongCd) === adstrdCd)?.dongNm || adstrdCd,
+      cafeCount,
+      avgSales: dongAvg,
+      source
+    };
+  }
+
+  result.dongSalesMap = dongDetails;
+
+  // 가중평균 계산
+  if (totalCafeCount > 0) {
+    result.avgSales = Math.round(weightedSum / totalCafeCount);
+  } else if (dongAvgCafeSales > 0) {
+    result.avgSales = dongAvgCafeSales;
+  }
+
+  // 소상공인365 소스 추가
+  if (dongAvgCafeSales > 0 && !result.sources.includes('sbiz')) {
+    result.sources.push('sbiz');
+  }
+
+  // 5. 신뢰도 정량화 (confidenceScore 0~1)
+  const dongCoverage = Object.values(dongDetails).filter(d => d.avgSales > 0).length;
+  const totalDongs = Object.keys(dongDetails).length;
+
+  let confidenceScore = 0;
+
+  // 기본 점수: 소스별
+  if (hasSeoulData) confidenceScore += 0.3;
+  if (hasFftcData) confidenceScore += 0.2;
+  if (dongAvgCafeSales > 0) confidenceScore += 0.15;
+
+  // 동 커버리지 보너스
+  if (totalDongs > 0) {
+    confidenceScore += (dongCoverage / totalDongs) * 0.2;
+  }
+
+  // OpenUB 매칭률 보너스 (details에서 추후 활용 가능하도록 계산)
+  // 현재 calculateRadiusAvgSales에서는 매칭률 직접 계산하지 않으므로 0
+  // estimateAllCafeSales에서 별도로 반영 가능
+  // 여기서는 카페 데이터 보유 여부로 근사
+  const hasGoodCafeData = cafes.some(c => c.reviewCount > 0 || c.americanoPrice > 0);
+  if (hasGoodCafeData) confidenceScore += 0.05;
+
+  // 상권활성도 데이터 보너스
+  // (calculateRadiusAvgSales는 apiData를 직접 받지 않으므로, 소스 다양성으로 대체)
+  if (result.sources.length >= 2) confidenceScore += 0.05;
+
+  // 점수 clamp
+  confidenceScore = Math.min(1.0, Math.max(0, confidenceScore));
+
+  // 등급 매핑
+  if (confidenceScore >= 0.7) {
+    result.confidence = 'A';
+  } else if (confidenceScore >= 0.4) {
+    result.confidence = 'B';
+  } else {
+    result.confidence = 'C';
+  }
+
+  result.confidenceScore = Math.round(confidenceScore * 100) / 100;
+
+  result.details = {
+    totalCafes: cafes.length,
+    totalDongs: totalDongs,
+    dongCoverage,
+    isSeoul,
+    radius,
+    hasFftcData,
+    fftcAvgSales
+  };
+
+  // 6. 최종 안전장치: 모든 소스 실패 시 전국 카페 평균 (0원 방지)
+  if (!result.avgSales || result.avgSales <= 0) {
+    result.avgSales = NATIONAL_CAFE_AVG_MONTHLY;
+    result.confidence = 'C';
+    result.confidenceScore = 0.3;
+    result.sources.push('national_fallback');
+    console.warn('[매출추정] 모든 소스 실패 -> 전국 평균 적용:', NATIONAL_CAFE_AVG_MONTHLY, '만원');
+  }
+
+  console.log('[매출추정-반경] 결과: 평균매출=' + result.avgSales + '만원, 신뢰도=' + result.confidence + '(' + result.confidenceScore + '), 소스=' + result.sources.join('+') + ', 동=' + dongCoverage + '/' + totalDongs);
+
+  return result;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 버퍼존 카페 분리 (반경 내 vs 도보 3분 240m 버퍼존)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * 버퍼존 카페 필터링 - 반경 바깥이지만 도보 3분(240m) 이내 카페
+ * @param {number} centerLat - 중심 위도
+ * @param {number} centerLng - 중심 경도
+ * @param {number} radius - 사용자 설정 반경 (미터)
+ * @param {Array} allCafes - 전체 수집된 카페 (반경+버퍼존 포함)
+ * @returns {Object} { innerCafes: [...], bufferCafes: [...] }
+ */
+export function separateBufferZoneCafes(centerLat, centerLng, radius, allCafes) {
+  const BUFFER_DISTANCE = 240; // 도보 3분
+  const innerCafes = [];
+  const bufferCafes = [];
+
+  if (!allCafes || allCafes.length === 0) {
+    return { innerCafes, bufferCafes };
+  }
+
+  for (const cafe of allCafes) {
+    const cafeLat = cafe.lat || (cafe.y ? parseFloat(cafe.y) : null);
+    const cafeLng = cafe.lng || (cafe.x ? parseFloat(cafe.x) : null);
+
+    if (cafeLat == null || cafeLng == null) {
+      // 좌표 없는 카페는 반경 내로 간주 (보수적 처리)
+      innerCafes.push(cafe);
+      continue;
+    }
+
+    const dist = haversineDistance(centerLat, centerLng, cafeLat, cafeLng);
+
+    if (dist <= radius) {
+      innerCafes.push({ ...cafe, _distFromCenter: dist });
+    } else if (dist <= radius + BUFFER_DISTANCE) {
+      bufferCafes.push({ ...cafe, _distFromCenter: dist });
+    }
+    // radius + 240m 초과 → 제외
+  }
+
+  console.log('[버퍼존] 전체 ' + allCafes.length + '개 -> 반경 내 ' + innerCafes.length + '개, 버퍼존 ' + bufferCafes.length + '개, 제외 ' + (allCafes.length - innerCafes.length - bufferCafes.length) + '개');
+
+  return { innerCafes, bufferCafes };
 }
