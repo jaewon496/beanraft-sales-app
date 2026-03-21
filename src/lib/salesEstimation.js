@@ -1068,11 +1068,12 @@ async function fetchSeoulSalesByAdstrdCd(adstrdCodes, quarter) {
         dongSalesMap[code] = { totalSales: 0, storeCount: 0, rows: [] };
       }
 
-      // THSMON_SELNG_AMT = 당월매출금액(원) — 동 전체 업종 합계
-      // fallback: MDWK_SELNG_AMT + WKEND_SELNG_AMT = 분기 전체 매출(원) → 3으로 나눠 월 환산
+      // VwsmAdstrdSelngW는 분기 단위 데이터 — 모든 금액 필드가 분기 합계
+      // THSMON_SELNG_AMT = 당월매출금액(원) — 실제로는 분기 합계이므로 /3으로 월 환산
+      // fallback: MDWK_SELNG_AMT + WKEND_SELNG_AMT = 분기 전체 매출(원) → /3으로 월 환산
       const thsmon = Number(row.THSMON_SELNG_AMT || 0);
       const monthSales = thsmon > 0
-        ? thsmon
+        ? thsmon / 3
         : (Number(row.MDWK_SELNG_AMT || 0) + Number(row.WKEND_SELNG_AMT || 0)) / 3;
       dongSalesMap[code].totalSales += monthSales;
       // STOR_CO가 VwsmAdstrdSelngW API에 없을 수 있음 → 0이면 추후 cafesByDong 카운트로 대체
@@ -1255,45 +1256,68 @@ export async function calculateRadiusAvgSales({
     console.warn('[매출추정-반경] 공정위 API 조회 실패:', err.message);
   }
 
-  // 4. 가중평균 매출 계산 (L1: 서울열린데이터 > L2: 공정위 > L3: 소상공인365 > L4: 전국평균)
+  // 4. 다중 소스 가중 블렌딩 매출 계산
+  // 기존: L1 > L2 > L3 단일 소스 선택 → 문제: 한 소스가 비정상이면 전체 왜곡
+  // 개선: 여러 소스의 가중평균으로 안정적 결과 도출
   let weightedSum = 0;
   let totalCafeCount = 0;
   const dongDetails = {};
+
+  // 사용 가능한 소스별 동 평균 후보 수집
+  const referenceAvgs = [];
+  if (hasFftcData && fftcAvgSales > 0) referenceAvgs.push(fftcAvgSales);
+  if (dongAvgCafeSales > 0) referenceAvgs.push(dongAvgCafeSales);
+  const referenceMedian = referenceAvgs.length > 0
+    ? referenceAvgs.sort((a, b) => a - b)[Math.floor(referenceAvgs.length / 2)]
+    : 0;
 
   for (const [adstrdCd, dongCafes] of Object.entries(cafesByDong)) {
     const cafeCount = dongCafes.length;
     let dongAvg = 0;
     let source = 'none';
 
-    // L1: 서울 열린데이터 우선
+    // L1: 서울 열린데이터
+    let seoulAvg = 0;
     if (hasSeoulData && seoulSalesMap[adstrdCd]) {
       const seoulEntry = seoulSalesMap[adstrdCd];
       if (seoulEntry.avgSales > 0) {
-        // STOR_CO가 있어서 API 측에서 이미 per-store 평균 계산됨
-        dongAvg = seoulEntry.avgSales;
+        seoulAvg = seoulEntry.avgSales;
+      } else if (seoulEntry.totalSales > 0 && seoulEntry.storeCount > 0) {
+        // STOR_CO가 있으면 API의 점포 수로 나눔 (수집 카페 수가 아님)
+        seoulAvg = Math.round(seoulEntry.totalSales / seoulEntry.storeCount / 10000);
+        console.log(`[매출추정-반경] 서울 열린데이터 per-store: totalSales=${Math.round(seoulEntry.totalSales/10000)}만원 / STOR_CO=${seoulEntry.storeCount}개 = ${seoulAvg}만원`);
       } else if (seoulEntry.totalSales > 0 && cafeCount > 0) {
-        // STOR_CO 없음 → 수집된 카페 수로 나누어 per-cafe 평균 산출
-        dongAvg = Math.round(seoulEntry.totalSales / cafeCount / 10000);
-        console.log(`[매출추정-반경] 서울 열린데이터 per-cafe 재계산: totalSales=${Math.round(seoulEntry.totalSales/10000)}만원 / ${cafeCount}개 = ${dongAvg}만원`);
+        // STOR_CO도 없음 → 수집 카페 수로 나눔 (최후 수단)
+        seoulAvg = Math.round(seoulEntry.totalSales / cafeCount / 10000);
+        console.log(`[매출추정-반경] 서울 열린데이터 per-cafe 추정: totalSales=${Math.round(seoulEntry.totalSales/10000)}만원 / ${cafeCount}개 = ${seoulAvg}만원`);
       }
-      source = 'seoul_opendata';
+
+      // 신뢰성 검증: 다른 소스 대비 50% 미만이면 서울 데이터 폐기
+      if (seoulAvg > 0 && referenceMedian > 0 && seoulAvg < referenceMedian * 0.5) {
+        console.warn(`[매출추정-반경] 서울 열린데이터 비정상 낮음: ${seoulAvg}만원 vs 참조중앙값 ${referenceMedian}만원 → 서울 데이터 무시`);
+        seoulAvg = 0;
+      }
     }
-    // L2: 공정위 지역별 매출
-    else if (hasFftcData) {
-      dongAvg = fftcAvgSales;
-      source = 'fftc';
-    }
-    // L3: 소상공인365 보정
-    else if (dongAvgCafeSales > 0) {
-      // 비서울 지역이면 시도 보정 계수 적용
+
+    // 다중 소스 가중 블렌딩
+    // 가중치: 서울열린데이터 0.4, 공정위 0.3, 소상공인365 0.3
+    const sources = [];
+    if (seoulAvg > 0) sources.push({ avg: seoulAvg, weight: 0.4, name: 'seoul_opendata' });
+    if (hasFftcData && fftcAvgSales > 0) sources.push({ avg: fftcAvgSales, weight: 0.3, name: 'fftc' });
+    if (dongAvgCafeSales > 0) {
+      let sbizAvg = dongAvgCafeSales;
       if (!isSeoul) {
         const correction = getSidoCorrectionFactor(adstrdCd);
-        dongAvg = Math.round(dongAvgCafeSales * correction);
-        source = 'sbiz_corrected';
-      } else {
-        dongAvg = dongAvgCafeSales;
-        source = 'sbiz';
+        sbizAvg = Math.round(dongAvgCafeSales * correction);
       }
+      sources.push({ avg: sbizAvg, weight: 0.3, name: isSeoul ? 'sbiz' : 'sbiz_corrected' });
+    }
+
+    if (sources.length > 0) {
+      // 가중치 정규화 후 가중평균
+      const totalWeight = sources.reduce((s, src) => s + src.weight, 0);
+      dongAvg = Math.round(sources.reduce((s, src) => s + src.avg * (src.weight / totalWeight), 0));
+      source = sources.map(s => s.name).join('+');
     }
 
     if (dongAvg > 0) {
