@@ -10788,17 +10788,44 @@ JSON으로만 응답:
            return 0;
          })();
 
-         // OpenUB 건물별 매출 기반 동 평균 계산 (L1/L2 레이어 추정값 평균)
+         // OpenUB 동 평균 → salesAvg API 카페 관련 업종 가중평균 사용 (105개 전체 카페 기반, 대표성 높음)
          const openubDongAvg = (() => {
+           const salesAvgItems = collectedData.apis?.salesAvg?.data;
+           if (Array.isArray(salesAvgItems)) {
+             const cafeKws = ['카페', '커피', '음료', '빵', '베이커리', '디저트', '도넛', '제과'];
+             const cafeRelCodes = ['I21201','I21001','I21002','I21003','I213','Q12'];
+             const related = salesAvgItems.filter(s => {
+               const code = s.tpbizClscd || '';
+               const name = s.tpbizClscdNm || '';
+               return cafeRelCodes.some(c => code.startsWith(c)) || cafeKws.some(k => name.includes(k));
+             });
+             if (related.length > 0) {
+               let weightedSum = 0, totalWeight = 0;
+               related.forEach(s => {
+                 const sales = +(s.mmavgSlsAmt || 0);
+                 const weight = +(s.stcnt || 1);
+                 if (sales > 0) { weightedSum += sales * weight; totalWeight += weight; }
+               });
+               const avg = totalWeight > 0 ? Math.round(weightedSum / totalWeight) : 0;
+               if (avg > 0) {
+                 console.log('[매출추정-반경] OpenUB 동 평균: salesAvg API 가중평균 ' + avg + '만원 (업종: ' + related.map(s => s.tpbizClscdNm).join(', ') + ')');
+                 return avg;
+               }
+             }
+           }
+           // 폴백: salesAvg 없으면 L1/L2 추정값 평균
            const estimates = collectedData.salesEstimates;
-           if (!Array.isArray(estimates)) return 0;
-           const openubEstimates = estimates
-             .filter(e => (e.layer === 'L1' || e.layer === 'L2') && e.estimated > 0)
-             .map(e => e.estimated);
-           if (openubEstimates.length === 0) return 0;
-           const avg = Math.round(openubEstimates.reduce((s, v) => s + v, 0) / openubEstimates.length);
-           console.log('[매출추정-반경] OpenUB 동 평균 계산: L1/L2 카페 ' + openubEstimates.length + '개, 평균 ' + avg + '만원');
-           return avg;
+           if (Array.isArray(estimates)) {
+             const openubEstimates = estimates
+               .filter(e => (e.layer === 'L1' || e.layer === 'L2') && e.estimated > 0)
+               .map(e => e.estimated);
+             if (openubEstimates.length > 0) {
+               const avg = Math.round(openubEstimates.reduce((s, v) => s + v, 0) / openubEstimates.length);
+               console.log('[매출추정-반경] OpenUB 동 평균 폴백: L1/L2 카페 ' + openubEstimates.length + '개, 평균 ' + avg + '만원');
+               return avg;
+             }
+           }
+           return 0;
          })();
 
          const radiusSalesResult = await calculateRadiusAvgSales({
