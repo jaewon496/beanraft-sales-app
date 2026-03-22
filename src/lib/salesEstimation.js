@@ -1300,6 +1300,7 @@ export function calculateRadiusAvgSales({
   // dongSalesData: { dongNm: string, dongCd: string, salesAvgItems: array }[]
   const dongAvgList = []; // { dongNm, avgSales, stcnt }
   const dongDetailsMap = {};
+  const bizPointList = []; // 중앙값용: 개별 업종 mmavgSlsAmt 리스트
 
   for (const dongData of (Array.isArray(dongSalesData) ? dongSalesData : [])) {
     const { dongNm, dongCd, salesAvgItems } = dongData;
@@ -1308,12 +1309,17 @@ export function calculateRadiusAvgSales({
     const related = salesAvgItems.filter(isCafeRelated);
     if (related.length === 0) continue;
 
-    // stcnt 가중평균으로 해당 동의 카페 평균매출 산출
+    // stcnt 가중평균으로 해당 동의 카페 대표매출 산출
     let weightedSum = 0, totalWeight = 0;
     related.forEach(s => {
       const sales = +(s.mmavgSlsAmt || 0);
       const weight = +(s.stcnt || 1);
-      if (sales > 0) { weightedSum += sales * weight; totalWeight += weight; }
+      if (sales > 0) {
+        weightedSum += sales * weight;
+        totalWeight += weight;
+        // 중앙값용: 개별 업종 매출을 별도 리스트에 추가
+        bizPointList.push(sales);
+      }
     });
 
     if (totalWeight > 0) {
@@ -1333,29 +1339,53 @@ export function calculateRadiusAvgSales({
   const dongCount = dongAvgList.length;
 
   if (dongCount > 0) {
-    const sorted = [...dongAvgList].sort((a, b) => a.avgSales - b.avgSales);
-    const values = sorted.map(d => d.avgSales);
-
-    // 중앙값
-    if (values.length % 2 === 0) {
-      median = Math.round((values[values.length / 2 - 1] + values[values.length / 2]) / 2);
-    } else {
-      median = values[Math.floor(values.length / 2)];
+    // 중앙값: 업종별 개별 포인트에서 산출
+    const sortedBiz = [...bizPointList].filter(v => v >= 200 && v <= 50000).sort((a, b) => a - b);
+    if (sortedBiz.length > 0) {
+      if (sortedBiz.length % 2 === 0) {
+        median = Math.round((sortedBiz[sortedBiz.length / 2 - 1] + sortedBiz[sortedBiz.length / 2]) / 2);
+      } else {
+        median = sortedBiz[Math.floor(sortedBiz.length / 2)];
+      }
     }
 
-    // 평균
-    average = Math.round(values.reduce((s, v) => s + v, 0) / values.length);
+    // 평균: stcnt 가중평균
+    let wSum = 0, wTotal = 0;
+    dongAvgList.forEach(d => { wSum += d.avgSales * d.stcnt; wTotal += d.stcnt; });
+    average = wTotal > 0 ? Math.round(wSum / wTotal) : 0;
 
     // 콘솔 로그
     console.log('[매출추정-반경] 동별 매출: ' + dongAvgList.map(d => `${d.dongNm}=${d.avgSales}만원(${d.stcnt}개)`).join(', '));
+    console.log(`[매출추정-반경] 업종별 포인트: ${sortedBiz.length}개`);
   }
 
-  // ─── 3. OpenUB 교차검증 ───
+  // ─── 3. OpenUB 교차검증 + 독립 데이터 포인트 추가 ───
   const validOpenub = (openubAvg >= 200 && openubAvg <= 50000) ? openubAvg : 0;
   let openubDeviation = -1; // -1 = 비교 불가
 
   if (median > 0 && validOpenub > 0) {
     openubDeviation = Math.abs(median - validOpenub) / median;
+
+    // OpenUB를 중앙값/가중평균 데이터 포인트로 추가 (편차 200% 이내)
+    if (openubDeviation <= 2.0) {
+      const openubStcnt = cafes.length || 1; // inner 카페 수
+      // 업종별 포인트에 추가 후 중앙값 재계산
+      const allPoints = [...bizPointList.filter(v => v >= 200 && v <= 50000), validOpenub].sort((a, b) => a - b);
+      if (allPoints.length % 2 === 0) {
+        median = Math.round((allPoints[allPoints.length / 2 - 1] + allPoints[allPoints.length / 2]) / 2);
+      } else {
+        median = allPoints[Math.floor(allPoints.length / 2)];
+      }
+      // 가중평균에도 OpenUB 반영
+      let wSum = 0, wTotal = 0;
+      dongAvgList.forEach(d => { wSum += d.avgSales * d.stcnt; wTotal += d.stcnt; });
+      wSum += validOpenub * openubStcnt;
+      wTotal += openubStcnt;
+      average = wTotal > 0 ? Math.round(wSum / wTotal) : average;
+      // 편차 재계산
+      openubDeviation = median > 0 ? Math.abs(median - validOpenub) / median : -1;
+      console.log(`[매출추정-반경] OpenUB 포인트 추가: ${validOpenub}만원(stcnt=${openubStcnt}), 편차=${Math.round(openubDeviation * 100)}%`);
+    }
   }
 
   // ─── 4. 신뢰도 산정 ───
@@ -1409,7 +1439,7 @@ export function calculateRadiusAvgSales({
 
   const gapRatio = median > 0 ? Math.round(((average - median) / median) * 100) / 100 : 0;
 
-  console.log(`[매출추정-반경] 결과: 중앙값=${median}만원, 평균=${average}만원, 신뢰도=${confidence}(${Math.round(confidenceScore * 100) / 100}), 동=${dongCount}개, openub=${validOpenub}만원(편차=${openubDeviation >= 0 ? Math.round(openubDeviation * 100) + '%' : 'N/A'})`);
+  console.log(`[매출추정-반경] 결과: 중앙값=${median}만원, 가중평균=${average}만원, 신뢰도=${confidence}(${Math.round(confidenceScore * 100) / 100}), 동=${dongCount}개`);
 
   return {
     avgSales: median,
