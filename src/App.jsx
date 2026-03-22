@@ -10778,65 +10778,47 @@ JSON으로만 응답:
          const primaryDongCd = collectedData.dongInfo?.dongCd || '';
          const cafesWithDongCd = innerCafes.map(c => ({ ...c, dongCd: c.dongCd || primaryDongCd }));
 
-         // 동 평균매출 (소상공인365 salesAvg에서 가져오기)
-         const sbizDongAvg = (() => {
-           const items = collectedData.apis?.salesAvg?.data;
-           if (Array.isArray(items)) {
-             const c = items.find(s => s.tpbizClscdNm === '카페');
-             if (c?.mmavgSlsAmt) return c.mmavgSlsAmt;
+         // 동별 salesAvg 데이터 조립: 메인 동 + 인접 동
+         const dongSalesData = (() => {
+           const result = [];
+           const nearbyDongs = collectedData.dongInfo?.nearbyDongs || [];
+           // 메인 동
+           const mainDongNm = collectedData.dongInfo?.dongNm || collectedData.dongInfo?.admdstCdNm || '';
+           const mainDongCd = collectedData.dongInfo?.dongCd || '';
+           const mainItems = collectedData.apis?.salesAvg?.data;
+           if (mainDongNm && Array.isArray(mainItems)) {
+             result.push({ dongNm: mainDongNm, dongCd: mainDongCd, salesAvgItems: mainItems });
            }
-           return 0;
+           // 인접 동 (nearbySales)
+           const nearbyData = collectedData.apis?.nearbySales?.data || [];
+           nearbyData.forEach(nd => {
+             if (nd.dongNm && Array.isArray(nd.sales)) {
+               const matchDong = nearbyDongs.find(d => d.admdstCdNm === nd.dongNm);
+               result.push({ dongNm: nd.dongNm, dongCd: matchDong?.dongCd || '', salesAvgItems: nd.sales });
+             }
+           });
+           return result;
          })();
 
-         // OpenUB 동 평균 → salesAvg API 카페 관련 업종 가중평균 사용 (105개 전체 카페 기반, 대표성 높음)
-         const openubDongAvg = (() => {
-           const salesAvgItems = collectedData.apis?.salesAvg?.data;
-           if (Array.isArray(salesAvgItems)) {
-             const cafeKws = ['카페', '커피', '음료', '빵', '베이커리', '디저트', '도넛', '제과'];
-             const cafeRelCodes = ['I21201','I21001','I21002','I21003','I213','Q12'];
-             const related = salesAvgItems.filter(s => {
-               const code = s.tpbizClscd || '';
-               const name = s.tpbizClscdNm || '';
-               return cafeRelCodes.some(c => code.startsWith(c)) || cafeKws.some(k => name.includes(k));
-             });
-             if (related.length > 0) {
-               let weightedSum = 0, totalWeight = 0;
-               related.forEach(s => {
-                 const sales = +(s.mmavgSlsAmt || 0);
-                 const weight = +(s.stcnt || 1);
-                 if (sales > 0) { weightedSum += sales * weight; totalWeight += weight; }
-               });
-               const avg = totalWeight > 0 ? Math.round(weightedSum / totalWeight) : 0;
-               if (avg > 0) {
-                 console.log('[매출추정-반경] OpenUB 동 평균: salesAvg API 가중평균 ' + avg + '만원 (업종: ' + related.map(s => s.tpbizClscdNm).join(', ') + ')');
-                 return avg;
-               }
-             }
-           }
-           // 폴백: salesAvg 없으면 L1/L2 추정값 평균
+         // OpenUB 교차검증용 평균 (L1/L2 추정값)
+         const openubAvgForCross = (() => {
            const estimates = collectedData.salesEstimates;
            if (Array.isArray(estimates)) {
              const openubEstimates = estimates
                .filter(e => (e.layer === 'L1' || e.layer === 'L2') && e.estimated > 0)
                .map(e => e.estimated);
              if (openubEstimates.length > 0) {
-               const avg = Math.round(openubEstimates.reduce((s, v) => s + v, 0) / openubEstimates.length);
-               console.log('[매출추정-반경] OpenUB 동 평균 폴백: L1/L2 카페 ' + openubEstimates.length + '개, 평균 ' + avg + '만원');
-               return avg;
+               return Math.round(openubEstimates.reduce((s, v) => s + v, 0) / openubEstimates.length);
              }
            }
            return 0;
          })();
 
-         const radiusSalesResult = await calculateRadiusAvgSales({
-           lat: coordinates.lat,
-           lng: coordinates.lng,
-           radius: userRadius,
+         const radiusSalesResult = calculateRadiusAvgSales({
            cafes: cafesWithDongCd,
            nearbyDongs: collectedData.dongInfo?.nearbyDongs || [],
-           dongAvgCafeSales: sbizDongAvg,
-           openubDongAvg,
-           salesEstimates: collectedData.salesEstimates || []
+           dongSalesData,
+           openubAvg: openubAvgForCross
          });
 
          // 결과를 collectedData에 저장
