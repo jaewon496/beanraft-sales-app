@@ -1188,47 +1188,125 @@ export async function calculateRadiusAvgSales({
   cafes = [],
   nearbyDongs = [],
   dongAvgCafeSales = 0,
-  openubDongAvg = 0
+  openubDongAvg = 0,
+  salesEstimates = []
 }) {
   const result = {
     avgSales: 0,
+    median: 0,
+    average: 0,
+    q1: 0,
+    q3: 0,
+    sampleCount: 0,
+    totalCafes: cafes.length,
+    gapRatio: 0,
     dongSalesMap: {},
     confidence: 'C',
+    confidenceScore: 0,
     sources: [],
-    details: {}
+    details: {},
+    inner: 0,
+    buffer: 0
   };
 
   if (!cafes || cafes.length === 0) {
     result.avgSales = dongAvgCafeSales || 0;
+    result.median = dongAvgCafeSales || 0;
+    result.average = dongAvgCafeSales || 0;
     result.sources = dongAvgCafeSales ? ['sbiz'] : [];
     return result;
   }
 
-  // 1. 카페를 동별로 그룹핑
+  // ─── 1. 개별 카페 추정매출에서 L1/L2 매칭 개인카페 추출 ───
+  // salesEstimates: estimateAllCafeSales() 결과 배열
+  // 각 항목: { name, layer, estimated, isFranchise, ... }
+
+  const allEstimates = Array.isArray(salesEstimates) ? salesEstimates : [];
+
+  // L1/L2 매칭 개인카페 (OpenUB 실데이터 기반)
+  const l1l2Personal = allEstimates.filter(e =>
+    (e.layer === 'L1' || e.layer === 'L2') && !e.isFranchise && e.estimated > 0
+  );
+
+  // L1/L2가 부족하면 L3/L4도 포함
+  let usedEstimates;
+  let usedLowerLayers = false;
+  if (l1l2Personal.length >= 10) {
+    usedEstimates = l1l2Personal;
+  } else {
+    // L3/L4 개인카페도 포함
+    usedEstimates = allEstimates.filter(e =>
+      !e.isFranchise && e.estimated > 0
+    );
+    usedLowerLayers = l1l2Personal.length < 10;
+    console.log('[매출추정-반경] L1/L2 개인카페 ' + l1l2Personal.length + '개 부족 -> L3/L4 포함 ' + usedEstimates.length + '개');
+  }
+
+  // ─── 2. Trimmed Median 계산 ───
+  let median = 0;
+  let average = 0;
+  let q1 = 0;
+  let q3 = 0;
+  let sampleCount = 0;
+
+  if (usedEstimates.length > 0) {
+    // 추정매출 배열 정렬
+    const sorted = usedEstimates.map(e => e.estimated).sort((a, b) => a - b);
+    const n = sorted.length;
+
+    // 상하 10% 제거 (trimmed)
+    const trimCount = Math.floor(n * 0.1);
+    const trimmed = n > 4 ? sorted.slice(trimCount, n - trimCount) : sorted;
+    const tn = trimmed.length;
+
+    // 중앙값
+    if (tn > 0) {
+      median = tn % 2 === 0
+        ? Math.round((trimmed[tn / 2 - 1] + trimmed[tn / 2]) / 2)
+        : trimmed[Math.floor(tn / 2)];
+    }
+
+    // 평균
+    average = tn > 0 ? Math.round(trimmed.reduce((s, v) => s + v, 0) / tn) : 0;
+
+    // Q1, Q3 (전체 정렬 배열 기준)
+    q1 = sorted[Math.floor(n * 0.25)] || 0;
+    q3 = sorted[Math.floor(n * 0.75)] || 0;
+
+    sampleCount = tn;
+    result.sources.push('cafe_estimates');
+
+    console.log('[매출추정-반경] 개인카페 추정매출 ' + n + '개 -> trimmed ' + tn + '개: 중앙값=' + median + '만원, 평균=' + average + '만원, Q1=' + q1 + ', Q3=' + q3);
+  }
+
+  // ─── 3. sbiz 교차검증 ───
+  let confidenceScore = 0;
+
+  // sbiz 행정동 평균과 비교
+  const sbizAvg = dongAvgCafeSales || 0;
+  if (median > 0 && sbizAvg > 0) {
+    const deviation = Math.abs(median - sbizAvg) / sbizAvg;
+    if (deviation < 0.3) {
+      confidenceScore += 0.2;
+      console.log('[매출추정-반경] 교차검증 통과: |중앙값(' + median + ') - sbiz(' + sbizAvg + ')| / sbiz = ' + deviation.toFixed(2) + ' < 0.3 -> +0.2');
+    } else if (deviation > 0.5) {
+      confidenceScore -= 0.1;
+      console.warn('[매출추정-반경] 교차검증 괴리: |중앙값(' + median + ') - sbiz(' + sbizAvg + ')| / sbiz = ' + deviation.toFixed(2) + ' > 0.5 -> -0.1');
+    }
+    result.sources.push('sbiz');
+  }
+
+  // ─── 4. 서울 열린데이터 교차검증용 조회 (블렌딩 X, 검증만) ───
+  const primaryDongCd = cafes[0]?.dongCd || nearbyDongs[0]?.dongCd || '';
+  const isSeoul = isSeoulByCode(primaryDongCd);
   const cafesByDong = groupCafesByDong(cafes);
   const adstrdCodes = Object.keys(cafesByDong);
 
-  // nearbyDongs에서 추가 코드 수집 (카페가 없는 동도 포함 가능하지만, 가중평균에는 카페 있는 동만 사용)
-  const allDongCodes = [...new Set([
-    ...adstrdCodes,
-    ...nearbyDongs.map(d => dongCdToAdstrdCd(d.dongCd)).filter(Boolean)
-  ])];
-
-  // 2. 서울 여부 판별
-  const primaryDongCd = cafes[0]?.dongCd || nearbyDongs[0]?.dongCd || '';
-  const isSeoul = isSeoulByCode(primaryDongCd);
-
-  let seoulSalesMap = {};
-  let hasSeoulData = false;
-
-  // 3. 서울이면 열린데이터 API로 동별 매출 조회
   if (isSeoul && adstrdCodes.length > 0) {
     try {
-      // 동 이름 매핑 구축 (상권명-동 매칭용)
       const dongNames = nearbyDongs
         .map(d => ({ adstrdCd: dongCdToAdstrdCd(d.dongCd), dongNm: d.dongNm }))
         .filter(d => d.adstrdCd && d.dongNm);
-      // cafesByDong 키에서도 dongNm 보충
       for (const adstrdCd of adstrdCodes) {
         if (!dongNames.find(d => d.adstrdCd === adstrdCd)) {
           const dong = nearbyDongs.find(d => dongCdToAdstrdCd(d.dongCd) === adstrdCd);
@@ -1237,192 +1315,122 @@ export async function calculateRadiusAvgSales({
       }
 
       const quarter = getRecentQuarter();
-      seoulSalesMap = await fetchSeoulSalesByAdstrdCd(adstrdCodes, quarter, dongNames);
-      hasSeoulData = Object.keys(seoulSalesMap).length > 0;
-
-      if (!hasSeoulData) {
-        // 분기를 하나 더 이전으로 시도
+      let seoulSalesMap = await fetchSeoulSalesByAdstrdCd(adstrdCodes, quarter, dongNames);
+      if (Object.keys(seoulSalesMap).length === 0) {
         const fallbackQuarter = `${parseInt(quarter.substring(0, 4)) - (parseInt(quarter[4]) <= 1 ? 1 : 0)}${parseInt(quarter[4]) <= 1 ? parseInt(quarter[4]) + 3 : parseInt(quarter[4]) - 1}`;
         seoulSalesMap = await fetchSeoulSalesByAdstrdCd(adstrdCodes, fallbackQuarter, dongNames);
-        hasSeoulData = Object.keys(seoulSalesMap).length > 0;
       }
 
-      if (hasSeoulData) {
+      if (Object.keys(seoulSalesMap).length > 0) {
         result.sources.push('seoul_opendata');
-        console.log('[매출추정-반경] 서울 열린데이터 조회 성공:', Object.keys(seoulSalesMap).length, '개 동');
+        console.log('[매출추정-반경] 서울 열린데이터 교차검증용 조회 성공:', Object.keys(seoulSalesMap).length, '개 동');
       }
     } catch (err) {
       console.warn('[매출추정-반경] 서울 열린데이터 조회 실패:', err.message);
     }
   }
 
-  // 3-2. 공정위 지역별 매출 API 조회 (L2 - 서울/비서울 공통)
-  let fftcAvgSales = null;
-  let hasFftcData = false;
+  // ─── 5. 신뢰도 산정 ───
+  // 기본 점수: 샘플 수 기반
+  if (sampleCount >= 30) confidenceScore += 0.35;
+  else if (sampleCount >= 15) confidenceScore += 0.25;
+  else if (sampleCount >= 5) confidenceScore += 0.15;
+  else if (sampleCount > 0) confidenceScore += 0.05;
 
-  try {
-    fftcAvgSales = await fetchFftcAreaSales(primaryDongCd);
-    hasFftcData = fftcAvgSales != null && fftcAvgSales > 0;
-    if (hasFftcData) {
-      result.sources.push('fftc');
-      console.log('[매출추정-반경] 공정위 API 성공: 평균매출=' + fftcAvgSales + '만원');
-    }
-  } catch (err) {
-    console.warn('[매출추정-반경] 공정위 API 조회 실패:', err.message);
+  // L1/L2 비율 보너스
+  if (usedEstimates.length > 0) {
+    const l1l2Ratio = l1l2Personal.length / usedEstimates.length;
+    confidenceScore += l1l2Ratio * 0.3;
   }
 
-  // 4. 다중 소스 가중 블렌딩 매출 계산
-  // 기존: L1 > L2 > L3 단일 소스 선택 → 문제: 한 소스가 비정상이면 전체 왜곡
-  // 개선: 여러 소스의 가중평균으로 안정적 결과 도출
-  let weightedSum = 0;
-  let totalCafeCount = 0;
-  const dongDetails = {};
+  // OpenUB 동 평균 존재 시
+  if (openubDongAvg > 0) confidenceScore += 0.1;
 
-  // 사용 가능한 소스별 동 평균 후보 수집
-  const referenceAvgs = [];
-  if (openubDongAvg > 0) referenceAvgs.push(openubDongAvg);
-  if (hasFftcData && fftcAvgSales > 0) referenceAvgs.push(fftcAvgSales);
-  if (dongAvgCafeSales > 0) referenceAvgs.push(dongAvgCafeSales);
-  const referenceMedian = referenceAvgs.length > 0
-    ? referenceAvgs.sort((a, b) => a - b)[Math.floor(referenceAvgs.length / 2)]
-    : 0;
+  // 다중 소스 보너스
+  if (result.sources.length >= 3) confidenceScore += 0.05;
 
-  for (const [adstrdCd, dongCafes] of Object.entries(cafesByDong)) {
-    const cafeCount = dongCafes.length;
-    let dongAvg = 0;
-    let source = 'none';
-
-    // L1: 서울 열린데이터 (STOR_CO 없음 → 수집된 카페 수로 나눔)
-    let seoulAvg = 0;
-    if (hasSeoulData && seoulSalesMap[adstrdCd]) {
-      const seoulEntry = seoulSalesMap[adstrdCd];
-      if (seoulEntry.totalSales > 0 && cafeCount > 0) {
-        seoulAvg = Math.round(seoulEntry.totalSales / cafeCount / 10000);
-        console.log(`[매출추정-반경] 서울 열린데이터: totalSales=${Math.round(seoulEntry.totalSales/10000)}만원 / ${cafeCount}카페 = ${seoulAvg}만원/카페`);
-      }
-
-      // 신뢰성 검증: 다른 소스 대비 50% 미만이면 서울 데이터 폐기
-      if (seoulAvg > 0 && referenceMedian > 0 && seoulAvg < referenceMedian * 0.5) {
-        console.warn(`[매출추정-반경] 서울 열린데이터 비정상 낮음: ${seoulAvg}만원 vs 참조중앙값 ${referenceMedian}만원 -> 서울 데이터 무시`);
-        seoulAvg = 0;
-      }
-    }
-
-    // 다중 소스 가중 블렌딩
-    // 가중치: OpenUB 0.4 (건물별 실매출), 서울열린데이터 0.3 (행정동 단위 정확), 소상공인365 0.3
-    const sources = [];
-    if (openubDongAvg > 0) sources.push({ avg: openubDongAvg, weight: 0.4, name: 'openub' });
-    if (seoulAvg > 0) sources.push({ avg: seoulAvg, weight: 0.3, name: 'seoul_opendata' });
-    if (hasFftcData && fftcAvgSales > 0) sources.push({ avg: fftcAvgSales, weight: 0.1, name: 'fftc' });
-    if (dongAvgCafeSales > 0) {
-      let sbizAvg = dongAvgCafeSales;
-      if (!isSeoul) {
-        const correction = getSidoCorrectionFactor(adstrdCd);
-        sbizAvg = Math.round(dongAvgCafeSales * correction);
-      }
-      sources.push({ avg: sbizAvg, weight: 0.3, name: isSeoul ? 'sbiz' : 'sbiz_corrected' });
-    }
-
-    if (sources.length > 0) {
-      // 가중치 정규화 후 가중평균
-      const totalWeight = sources.reduce((s, src) => s + src.weight, 0);
-      dongAvg = Math.round(sources.reduce((s, src) => s + src.avg * (src.weight / totalWeight), 0));
-      source = sources.map(s => s.name).join('+');
-      console.log('[매출추정-반경] 동 ' + adstrdCd + ' 블렌딩: ' + sources.map(s => s.name + '=' + s.avg + '만원(w' + (s.weight/totalWeight*100).toFixed(0) + '%)').join(', ') + ' -> ' + dongAvg + '만원');
-    }
-
-    if (dongAvg > 0) {
-      weightedSum += dongAvg * cafeCount;
-      totalCafeCount += cafeCount;
-    }
-
-    dongDetails[adstrdCd] = {
-      dongNm: nearbyDongs.find(d => dongCdToAdstrdCd(d.dongCd) === adstrdCd)?.dongNm || adstrdCd,
-      cafeCount,
-      avgSales: dongAvg,
-      source
-    };
+  // L3/L4 포함 시 신뢰도 제한
+  if (usedLowerLayers) {
+    confidenceScore = Math.min(confidenceScore, 0.55); // B 이하 강제
   }
 
-  result.dongSalesMap = dongDetails;
-
-  // 가중평균 계산
-  if (totalCafeCount > 0) {
-    result.avgSales = Math.round(weightedSum / totalCafeCount);
-  } else if (dongAvgCafeSales > 0) {
-    result.avgSales = dongAvgCafeSales;
-  }
-
-  // 소스 목록 추가
-  if (openubDongAvg > 0 && !result.sources.includes('openub')) {
-    result.sources.push('openub');
-  }
-  if (dongAvgCafeSales > 0 && !result.sources.includes('sbiz')) {
-    result.sources.push('sbiz');
-  }
-
-  // 5. 신뢰도 정량화 (confidenceScore 0~1)
-  const dongCoverage = Object.values(dongDetails).filter(d => d.avgSales > 0).length;
-  const totalDongs = Object.keys(dongDetails).length;
-
-  let confidenceScore = 0;
-
-  // 기본 점수: 소스별
-  if (openubDongAvg > 0) confidenceScore += 0.35;
-  if (hasSeoulData) confidenceScore += 0.15;
-  if (hasFftcData) confidenceScore += 0.15;
-  if (dongAvgCafeSales > 0) confidenceScore += 0.1;
-
-  // 동 커버리지 보너스
-  if (totalDongs > 0) {
-    confidenceScore += (dongCoverage / totalDongs) * 0.2;
-  }
-
-  // OpenUB 매칭률 보너스 (details에서 추후 활용 가능하도록 계산)
-  // 현재 calculateRadiusAvgSales에서는 매칭률 직접 계산하지 않으므로 0
-  // estimateAllCafeSales에서 별도로 반영 가능
-  // 여기서는 카페 데이터 보유 여부로 근사
-  const hasGoodCafeData = cafes.some(c => c.reviewCount > 0 || c.americanoPrice > 0);
-  if (hasGoodCafeData) confidenceScore += 0.05;
-
-  // 상권활성도 데이터 보너스
-  // (calculateRadiusAvgSales는 apiData를 직접 받지 않으므로, 소스 다양성으로 대체)
-  if (result.sources.length >= 2) confidenceScore += 0.05;
-
-  // 점수 clamp
+  // clamp
   confidenceScore = Math.min(1.0, Math.max(0, confidenceScore));
 
   // 등급 매핑
+  let confidence;
   if (confidenceScore >= 0.7) {
-    result.confidence = 'A';
+    confidence = 'A';
   } else if (confidenceScore >= 0.4) {
-    result.confidence = 'B';
+    confidence = 'B';
   } else {
-    result.confidence = 'C';
+    confidence = 'C';
   }
 
-  result.confidenceScore = Math.round(confidenceScore * 100) / 100;
+  // ─── 6. 최종 안전장치 ───
+  if (median <= 0) {
+    // 추정매출 없는 경우 → sbiz 또는 openub 동 평균 사용
+    if (openubDongAvg > 0) {
+      median = openubDongAvg;
+      average = openubDongAvg;
+      result.sources.push('openub_fallback');
+    } else if (dongAvgCafeSales > 0) {
+      median = dongAvgCafeSales;
+      average = dongAvgCafeSales;
+      result.sources.push('sbiz_fallback');
+    } else {
+      median = NATIONAL_CAFE_AVG_MONTHLY;
+      average = NATIONAL_CAFE_AVG_MONTHLY;
+      confidence = 'C';
+      confidenceScore = 0.3;
+      result.sources.push('national_fallback');
+      console.warn('[매출추정] 모든 소스 실패 -> 전국 평균 적용:', NATIONAL_CAFE_AVG_MONTHLY, '만원');
+    }
+  }
 
+  // gapRatio: (평균-중앙값)/중앙값
+  const gapRatio = median > 0 ? Math.round(((average - median) / median) * 100) / 100 : 0;
+
+  // 동별 정보 구축 (기존 호환)
+  const dongDetails = {};
+  for (const [adstrdCd, dongCafes] of Object.entries(cafesByDong)) {
+    dongDetails[adstrdCd] = {
+      dongNm: nearbyDongs.find(d => dongCdToAdstrdCd(d.dongCd) === adstrdCd)?.dongNm || adstrdCd,
+      cafeCount: dongCafes.length,
+      avgSales: median,
+      source: 'median'
+    };
+  }
+
+  // ─── 결과 조립 ───
+  result.median = median;
+  result.average = average;
+  result.q1 = q1;
+  result.q3 = q3;
+  result.sampleCount = sampleCount;
+  result.totalCafes = cafes.length;
+  result.gapRatio = gapRatio;
+  result.confidence = confidence;
+  result.confidenceScore = Math.round(confidenceScore * 100) / 100;
+  result.dongSalesMap = dongDetails;
   result.details = {
     totalCafes: cafes.length,
-    totalDongs: totalDongs,
-    dongCoverage,
+    totalDongs: Object.keys(dongDetails).length,
+    dongCoverage: Object.keys(dongDetails).length,
     isSeoul,
     radius,
-    hasFftcData,
-    fftcAvgSales
+    l1l2Count: l1l2Personal.length,
+    usedLowerLayers,
+    sbizAvg
   };
 
-  // 6. 최종 안전장치: 모든 소스 실패 시 전국 카페 평균 (0원 방지)
-  if (!result.avgSales || result.avgSales <= 0) {
-    result.avgSales = NATIONAL_CAFE_AVG_MONTHLY;
-    result.confidence = 'C';
-    result.confidenceScore = 0.3;
-    result.sources.push('national_fallback');
-    console.warn('[매출추정] 모든 소스 실패 -> 전국 평균 적용:', NATIONAL_CAFE_AVG_MONTHLY, '만원');
-  }
+  // 하위 호환: avgSales = median
+  result.avgSales = median;
+  // inner/buffer는 호출자가 덮어쓰지만 기본값 설정
+  result.inner = cafes.length;
+  result.buffer = 0;
 
-  console.log('[매출추정-반경] 결과: 평균매출=' + result.avgSales + '만원, 신뢰도=' + result.confidence + '(' + result.confidenceScore + '), 소스=' + result.sources.join('+') + ', 동=' + dongCoverage + '/' + totalDongs);
+  console.log('[매출추정-반경] 결과: 중앙값=' + median + '만원, 평균=' + average + '만원, Q1=' + q1 + ', Q3=' + q3 + ', gapRatio=' + gapRatio + ', 샘플=' + sampleCount + '/' + cafes.length + ', 신뢰도=' + confidence + '(' + result.confidenceScore + '), 소스=' + result.sources.join('+'));
 
   return result;
 }

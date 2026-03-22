@@ -10835,24 +10835,38 @@ JSON으로만 응답:
            cafes: cafesWithDongCd,
            nearbyDongs: collectedData.dongInfo?.nearbyDongs || [],
            dongAvgCafeSales: sbizDongAvg,
-           openubDongAvg
+           openubDongAvg,
+           salesEstimates: collectedData.salesEstimates || []
          });
 
          // 결과를 collectedData에 저장
          collectedData.radiusSalesResult = {
            avgSales: radiusSalesResult.avgSales,
+           median: radiusSalesResult.median,
+           average: radiusSalesResult.average,
+           q1: radiusSalesResult.q1,
+           q3: radiusSalesResult.q3,
+           sampleCount: radiusSalesResult.sampleCount,
+           totalCafes: radiusSalesResult.totalCafes,
+           gapRatio: radiusSalesResult.gapRatio,
            monthlyAvg: radiusSalesResult.avgSales > 0 ? Math.round(radiusSalesResult.avgSales / 12) : 0,
            confidence: radiusSalesResult.confidence,
+           confidenceScore: radiusSalesResult.confidenceScore,
            sources: radiusSalesResult.sources,
            dongSalesMap: radiusSalesResult.dongSalesMap,
            innerCafeCount: innerCafes.length,
            bufferCafeCount: bufferCafes.length,
+           inner: innerCafes.length,
+           buffer: bufferCafes.length,
            details: radiusSalesResult.details
          };
 
          console.log('[매출추정-반경] 의뢰인 모드 매출 추정 완료:', JSON.stringify({
+           median: collectedData.radiusSalesResult.median,
+           average: collectedData.radiusSalesResult.average,
            avgSales: collectedData.radiusSalesResult.avgSales,
            confidence: collectedData.radiusSalesResult.confidence,
+           sampleCount: collectedData.radiusSalesResult.sampleCount,
            inner: innerCafes.length,
            buffer: bufferCafes.length
          }));
