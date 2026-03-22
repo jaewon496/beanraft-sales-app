@@ -1113,10 +1113,10 @@ async function fetchSeoulSalesByAdstrdCd(adstrdCodes, quarter, dongNames = []) {
       }
 
       // VwsmAdstrdSelngW 필드:
-      // THSMON_SELNG_AMT = 당월매출금액(원) — 이미 월 단위이므로 /3 불필요
+      // THSMON_SELNG_AMT = 분기 총 매출금액(원) — MDWK + WKEND = THSMON
       // STOR_CO 필드 없음 → 수집된 카페 수(cafeCount)로 나눠야 함
       const thsmon = Number(row.THSMON_SELNG_AMT || 0);
-      const monthSales = thsmon > 0 ? thsmon : 0;
+      const monthSales = thsmon > 0 ? thsmon / 3 : 0; // 분기 매출 → 월 환산
       dongSalesMap[adstrdCd].totalSales += monthSales;
       dongSalesMap[adstrdCd].rows.push(row);
     }
@@ -1372,7 +1372,8 @@ export async function calculateRadiusAvgSales({
           }
         }
         if (totalSeoulCafes > 0 && totalSeoulSales > 0) {
-          seoulAvg = Math.round(totalSeoulSales / totalSeoulCafes / 10000); // 원 → 만원
+          // 서울 열린데이터는 카드결제 기반 → 현금 매출 미포함 → 카드비율(~75%) 보정
+          seoulAvg = Math.round(totalSeoulSales / totalSeoulCafes / 0.75 / 10000); // 원 → 카드보정 → 만원
           if (seoulAvg >= 200 && seoulAvg <= 50000) {
             sources.push(seoulAvg);
             sourceLabels.push('seoul');
