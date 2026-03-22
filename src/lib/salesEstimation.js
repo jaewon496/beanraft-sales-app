@@ -1023,26 +1023,29 @@ async function fetchFftcAreaSales(dongCd) {
 }
 
 /**
- * 서울 열린데이터 VwsmAdstrdSelngW API를 ADSTRD_CD 코드로 조회
- * @param {string[]} adstrdCodes - 8자리 ADSTRD_CD 코드 배열
+ * 서울 열린데이터 VwsmTrdarSelngQq API(상권별 분기 매출)로 커피-음료 매출 조회
+ * 상권명(TRDAR_CD_NM)에 동 이름이 포함된 경우 해당 동에 매칭
+ * @param {string[]} adstrdCodes - 8자리 ADSTRD_CD 코드 배열 (동 그룹핑 키로 사용)
  * @param {string} [quarter] - 기준 분기 (예: '20253')
+ * @param {Array} [dongNames] - 동 이름 목록 [{adstrdCd, dongNm}] (상권명 매칭용)
  * @returns {Object} { [adstrdCd]: { avgSales, totalSales, storeCount, rows } }
  */
-async function fetchSeoulSalesByAdstrdCd(adstrdCodes, quarter) {
+async function fetchSeoulSalesByAdstrdCd(adstrdCodes, quarter, dongNames = []) {
   if (!adstrdCodes || adstrdCodes.length === 0) return {};
 
   try {
+    // VwsmTrdarSelngQq: 상권별 분기 매출, CS100010 = "커피-음료"
     const params = new URLSearchParams({
       api: 'seoul',
-      service: 'VwsmAdstrdSelngW',
-      ADSTRD_CD: adstrdCodes.join(',')
+      service: 'VwsmTrdarSelngQq',
+      industryCode: 'CS100010'
     });
     if (quarter) params.append('stdrYyquCd', quarter);
 
     const res = await fetchWithRetry(
       `${SBIZ_PROXY_BASE}?${params.toString()}`,
       {},
-      { timeoutMs: 10000, retries: 2, backoffMs: 1000 }
+      { timeoutMs: 25000, retries: 1, backoffMs: 2000 }
     );
     if (!res.ok) {
       console.warn('[매출추정] 서울 매출 API 실패:', res.status);
@@ -1051,47 +1054,79 @@ async function fetchSeoulSalesByAdstrdCd(adstrdCodes, quarter) {
 
     const json = await res.json();
     const rows = json?.data?.filteredRows || [];
+    console.log(`[매출추정] 서울 열린데이터 VwsmTrdarSelngQq 수신: ${rows.length}건 (커피-음료)`);
 
-    // 행정동별로 그룹핑하여 카페(커피) 업종 매출 합산
-    const dongSalesMap = {};
-    for (const row of rows) {
-      const code = row.ADSTRD_CD;
-      if (!code) continue;
+    if (rows.length === 0) return {};
 
-      // 커피/음료 업종 필터 (SVC_INDUTY_CD: CS100006=커피전문점, CS100005=음료)
-      const industryCd = row.SVC_INDUTY_CD || '';
-      const isCafeIndustry = industryCd === 'CS100006' || industryCd === 'CS100005';
-
-      if (!isCafeIndustry) continue;
-
-      if (!dongSalesMap[code]) {
-        dongSalesMap[code] = { totalSales: 0, storeCount: 0, rows: [] };
+    // 동 이름 → adstrdCd 매핑 구축
+    // dongNames: [{adstrdCd: '11680101', dongNm: '청파동'}]
+    const dongNameToCode = {};
+    for (const dn of dongNames) {
+      if (dn.dongNm && dn.adstrdCd) {
+        // "청파동" → "청파" (동 제거하여 상권명 매칭 확률 향상)
+        const shortName = dn.dongNm.replace(/[동읍면리가]$/, '');
+        dongNameToCode[dn.dongNm] = dn.adstrdCd;
+        if (shortName !== dn.dongNm) {
+          dongNameToCode[shortName] = dn.adstrdCd;
+        }
       }
-
-      // VwsmAdstrdSelngW는 분기 단위 데이터 — 모든 금액 필드가 분기 합계
-      // THSMON_SELNG_AMT = 당월매출금액(원) — 실제로는 분기 합계이므로 /3으로 월 환산
-      // fallback: MDWK_SELNG_AMT + WKEND_SELNG_AMT = 분기 전체 매출(원) → /3으로 월 환산
-      const thsmon = Number(row.THSMON_SELNG_AMT || 0);
-      const monthSales = thsmon > 0
-        ? thsmon / 3
-        : (Number(row.MDWK_SELNG_AMT || 0) + Number(row.WKEND_SELNG_AMT || 0)) / 3;
-      dongSalesMap[code].totalSales += monthSales;
-      // STOR_CO가 VwsmAdstrdSelngW API에 없을 수 있음 → 0이면 추후 cafesByDong 카운트로 대체
-      const storCo = Number(row.STOR_CO || 0);
-      dongSalesMap[code].storeCount += storCo;
-      dongSalesMap[code].rows.push(row);
     }
 
+    // 서울시 구 코드로 관련 상권만 필터 (adstrdCodes의 앞 5자리 = 시군구코드)
+    const guCodes = [...new Set(adstrdCodes.map(c => c.substring(0, 5)))];
+
+    // 상권명에서 동 이름 매칭하여 행정동별로 그룹핑
+    const dongSalesMap = {};
+    let matchedCount = 0;
+
+    for (const row of rows) {
+      const trdarNm = row.TRDAR_CD_NM || '';
+      const trdarCd = row.TRDAR_CD || '';
+
+      // 상권코드 앞 5자리가 같은 구에 속하는 상권만 대상
+      // 서울 열린데이터 상권코드는 구 레벨이 아닐 수 있으므로 상권명으로도 매칭
+      let matchedAdstrdCd = null;
+
+      // 1차: 상권명에 동 이름이 포함되는지 확인
+      for (const [dongName, adstrdCd] of Object.entries(dongNameToCode)) {
+        if (trdarNm.includes(dongName)) {
+          matchedAdstrdCd = adstrdCd;
+          break;
+        }
+      }
+
+      if (!matchedAdstrdCd) continue;
+      matchedCount++;
+
+      if (!dongSalesMap[matchedAdstrdCd]) {
+        dongSalesMap[matchedAdstrdCd] = { totalSales: 0, storeCount: 0, rows: [], trdarNames: [] };
+      }
+
+      // VwsmTrdarSelngQq 필드:
+      // THSMON_SELNG_AMT = 당월매출금액(원) — 분기 합계이므로 /3으로 월 환산
+      // STOR_CO = 점포수
+      const thsmon = Number(row.THSMON_SELNG_AMT || 0);
+      const monthSales = thsmon > 0 ? thsmon / 3 : 0;
+      dongSalesMap[matchedAdstrdCd].totalSales += monthSales;
+      const storCo = Number(row.STOR_CO || 0);
+      dongSalesMap[matchedAdstrdCd].storeCount += storCo;
+      dongSalesMap[matchedAdstrdCd].rows.push(row);
+      if (!dongSalesMap[matchedAdstrdCd].trdarNames.includes(trdarNm)) {
+        dongSalesMap[matchedAdstrdCd].trdarNames.push(trdarNm);
+      }
+    }
+
+    console.log(`[매출추정] 서울 열린데이터 상권-동 매칭: ${matchedCount}건 매칭 / ${rows.length}건 전체, 동 ${Object.keys(dongSalesMap).length}개`);
+
     // 평균 매출 계산 (만원 단위)
-    // storeCount=0이면 STOR_CO 필드가 API에 없었다는 뜻 → avgSales는 caller에서 cafesByDong으로 재계산
     for (const code of Object.keys(dongSalesMap)) {
       const d = dongSalesMap[code];
       if (d.storeCount > 0) {
         d.avgSales = Math.round(d.totalSales / d.storeCount / 10000);
+        console.log(`[매출추정] 서울 열린데이터 동 ${code}: 상권 ${d.trdarNames.join(',')} → 총매출 ${Math.round(d.totalSales/10000)}만원 / ${d.storeCount}점포 = ${d.avgSales}만원/점포`);
       } else {
-        // storeCount 미제공 → totalSales(원)만 보존, avgSales는 0으로 두고 caller에서 처리
         d.avgSales = 0;
-        console.warn(`[매출추정] 서울 열린데이터 STOR_CO 없음 (${code}): totalSales=${Math.round(d.totalSales/10000)}만원, rows=${d.rows.length}개`);
+        console.warn(`[매출추정] 서울 열린데이터 STOR_CO 없음 (${code}): totalSales=${Math.round(d.totalSales/10000)}만원, 상권=${d.trdarNames.join(',')}`);
       }
     }
 
@@ -1223,14 +1258,26 @@ export async function calculateRadiusAvgSales({
   // 3. 서울이면 열린데이터 API로 동별 매출 조회
   if (isSeoul && adstrdCodes.length > 0) {
     try {
+      // 동 이름 매핑 구축 (상권명-동 매칭용)
+      const dongNames = nearbyDongs
+        .map(d => ({ adstrdCd: dongCdToAdstrdCd(d.dongCd), dongNm: d.dongNm }))
+        .filter(d => d.adstrdCd && d.dongNm);
+      // cafesByDong 키에서도 dongNm 보충
+      for (const adstrdCd of adstrdCodes) {
+        if (!dongNames.find(d => d.adstrdCd === adstrdCd)) {
+          const dong = nearbyDongs.find(d => dongCdToAdstrdCd(d.dongCd) === adstrdCd);
+          if (dong?.dongNm) dongNames.push({ adstrdCd, dongNm: dong.dongNm });
+        }
+      }
+
       const quarter = getRecentQuarter();
-      seoulSalesMap = await fetchSeoulSalesByAdstrdCd(adstrdCodes, quarter);
+      seoulSalesMap = await fetchSeoulSalesByAdstrdCd(adstrdCodes, quarter, dongNames);
       hasSeoulData = Object.keys(seoulSalesMap).length > 0;
 
       if (!hasSeoulData) {
         // 분기를 하나 더 이전으로 시도
         const fallbackQuarter = `${parseInt(quarter.substring(0, 4)) - (parseInt(quarter[4]) <= 1 ? 1 : 0)}${parseInt(quarter[4]) <= 1 ? parseInt(quarter[4]) + 3 : parseInt(quarter[4]) - 1}`;
-        seoulSalesMap = await fetchSeoulSalesByAdstrdCd(adstrdCodes, fallbackQuarter);
+        seoulSalesMap = await fetchSeoulSalesByAdstrdCd(adstrdCodes, fallbackQuarter, dongNames);
         hasSeoulData = Object.keys(seoulSalesMap).length > 0;
       }
 
