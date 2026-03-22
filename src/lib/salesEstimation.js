@@ -74,9 +74,9 @@ function getZipfExponent(stores) {
     return cat === 'A12' || cat === 'B0' || isCafeByName(s.storeNm);
   }).length;
 
-  if (cafeCount === 0) return 0.6; // no cafe info, default
-  if (cafeCount === stores.length) return 0.5; // all cafes
-  return 0.7; // mixed: cafe + non-cafe
+  if (cafeCount === 0) return 0.55; // no cafe info, default (relaxed)
+  if (cafeCount === stores.length) return 0.45; // all cafes (flatter distribution)
+  return 0.60; // mixed: cafe + non-cafe (relaxed from 0.7)
 }
 
 
@@ -128,25 +128,42 @@ function zipfDistribution(buildingSales, targetCafe) {
       totalSales = cafeStoreSalesSum;
       console.warn('[L2] A12 cafe filter: total ' + rawTotalSales + ' -> cafe-only ' + totalSales + ' (' + cafeStoresInBuilding.length + '/' + stores.length + ' stores)');
     } else {
-      // No per-store breakdown: smart dampening based on available info
+      // No per-store breakdown: cafe-aware dampening
+      // Cafes are often primary revenue drivers in mixed buildings,
+      // so we use more generous dampening than naive 1/N
       let dampening;
       const storeCount = stores.length;
+      const cafeCountInBuilding = cafeStoresInBuilding.length;
+      const isSoleFoodTenant = cafeCountInBuilding === 1 &&
+        stores.filter(s => {
+          const cat = s.category?.bg || '';
+          return cat === 'A12' || cat === 'B0' || cat === 'Q01';
+        }).length === 1;
 
       if (storeCount > 1) {
-        // Use 1/storeCount as cafe's share (equal distribution assumption)
-        dampening = Math.round((1 / storeCount) * 100) / 100;
-        console.warn('[L2] A12 data unavailable, store-based dampening: ' + rawTotalSales + ' x' + dampening + ' (1/' + storeCount + ' stores) = ' + Math.round(rawTotalSales * dampening));
+        // Cafe-aware store-based dampening (more generous than 1/N)
+        if (isSoleFoodTenant) {
+          // Cafe is the only food/beverage store: higher share
+          dampening = storeCount <= 3 ? 0.65 : 0.55;
+        } else if (storeCount === 2) {
+          dampening = 0.50;
+        } else if (storeCount === 3) {
+          dampening = 0.40;
+        } else {
+          dampening = 0.35; // 4+ stores
+        }
+        console.warn('[L2] A12 data unavailable, cafe-aware dampening: ' + rawTotalSales + ' x' + dampening + ' (' + storeCount + ' stores, soleFoodTenant=' + isSoleFoodTenant + ') = ' + Math.round(rawTotalSales * dampening));
       } else {
         // Single store or unknown count: scale by building total revenue
-        // rawTotalSales is in 만원 units
+        // rawTotalSales is in 만원 units (relaxed vs previous)
         if (rawTotalSales > 50000) {
-          dampening = 0.15; // Large commercial (5억+): many tenants likely
+          dampening = 0.25; // Large commercial (5억+): many tenants likely
         } else if (rawTotalSales > 20000) {
-          dampening = 0.25; // Medium commercial (2~5억)
+          dampening = 0.35; // Medium commercial (2~5억)
         } else if (rawTotalSales > 10000) {
-          dampening = 0.35; // Small commercial (1~2억)
+          dampening = 0.45; // Small commercial (1~2억)
         } else {
-          dampening = 0.5;  // Small building (<1억): cafe likely major tenant
+          dampening = 0.60; // Small building (<1억): cafe likely major tenant
         }
         console.warn('[L2] A12 data unavailable, revenue-based dampening: ' + rawTotalSales + ' x' + dampening + ' = ' + Math.round(rawTotalSales * dampening));
       }
