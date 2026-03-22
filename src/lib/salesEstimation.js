@@ -1284,7 +1284,10 @@ export function calculateRadiusAvgSales({
   cafes = [],
   nearbyDongs = [],
   dongSalesData = {},
-  openubAvg = 0
+  openubAvg = 0,
+  dongCafeWeights = null,  // { dongNm: { count, ratio } } — 반경 내 카페의 동별 분포
+  mmavgListData = null,    // collectedData.apis.mmavgList.data
+  simpleData = null         // collectedData.apis.simple.data
 }) {
   // ─── 카페 관련 업종 키워드/코드 ───
   const cafeRelCodes = ['I21201','I21001','I21002','I21003','I213','Q12'];
@@ -1402,10 +1405,41 @@ export function calculateRadiusAvgSales({
       }
     }
 
-    // 평균: stcnt 가중평균
+    // 평균: dongCafeWeights가 있으면 카페 수 비율로 가중평균, 없으면 기존 stcnt 가중평균
     let wSum = 0, wTotal = 0;
-    dongAvgList.forEach(d => { wSum += d.avgSales * d.stcnt; wTotal += d.stcnt; });
-    average = wTotal > 0 ? Math.round(wSum / wTotal) : 0;
+    if (dongCafeWeights && Object.keys(dongCafeWeights).length > 0) {
+      // 카페 수 비율 기반 가중평균
+      dongAvgList.forEach(d => {
+        const w = dongCafeWeights[d.dongNm];
+        if (w && w.ratio > 0) {
+          wSum += d.avgSales * w.ratio;
+          wTotal += w.ratio;
+        }
+      });
+      // 매칭 안 되는 동이 있으면 남은 비율을 균등 분배
+      if (wTotal < 0.99 && dongAvgList.length > 0) {
+        const unmatchedDongs = dongAvgList.filter(d => !dongCafeWeights[d.dongNm] || dongCafeWeights[d.dongNm].ratio === 0);
+        if (unmatchedDongs.length > 0) {
+          const remainRatio = (1 - wTotal) / unmatchedDongs.length;
+          unmatchedDongs.forEach(d => {
+            wSum += d.avgSales * remainRatio;
+            wTotal += remainRatio;
+          });
+        }
+      }
+      average = wTotal > 0 ? Math.round(wSum / wTotal) : 0;
+
+      // 동별 카페 분포 로그
+      const weightLog = Object.entries(dongCafeWeights)
+        .sort((a, b) => b[1].count - a[1].count)
+        .map(([nm, w]) => `${nm} ${w.count}개(${Math.round(w.ratio * 100)}%)`)
+        .join(', ');
+      console.log(`[매출추정-반경] 동별 카페 분포: ${weightLog}`);
+    } else {
+      // 기존 stcnt 가중평균 (폴백)
+      dongAvgList.forEach(d => { wSum += d.avgSales * d.stcnt; wTotal += d.stcnt; });
+      average = wTotal > 0 ? Math.round(wSum / wTotal) : 0;
+    }
 
     // 콘솔 로그
     console.log('[매출추정-반경] 동별 매출: ' + dongAvgList.map(d => `${d.dongNm}=${d.avgSales}만원(${d.stcnt}개)`).join(', '));
@@ -1485,6 +1519,56 @@ export function calculateRadiusAvgSales({
     }
   }
 
+  // ─── mmavgList 교차검증 ───
+  let mmavgCrossDeviation = -1;
+  if (median > 0 && Array.isArray(mmavgListData) && mmavgListData.length > 0) {
+    // 카페 관련 업종의 mmavgSlsAmt 또는 slsamt 추출
+    const mmavgCafeItems = mmavgListData.filter(item => {
+      const name = item.tpbizNm || item.tpbizClscdNm || '';
+      return cafeKeywords.some(k => name.includes(k));
+    });
+    if (mmavgCafeItems.length > 0) {
+      let mmavgWSum = 0, mmavgWTotal = 0;
+      mmavgCafeItems.forEach(item => {
+        const sales = +(item.mmavgSlsAmt || item.slsamt || 0);
+        const weight = +(item.stcnt || 1);
+        if (sales > 0) {
+          mmavgWSum += sales * weight;
+          mmavgWTotal += weight;
+        }
+      });
+      if (mmavgWTotal > 0) {
+        const mmavgAvg = Math.round(mmavgWSum / mmavgWTotal);
+        mmavgCrossDeviation = Math.abs(mmavgAvg - median) / median;
+        if (mmavgCrossDeviation <= 0.2) {
+          confidenceScore += 0.1;
+          console.log(`[매출추정-반경] mmavgList 교차검증: 카페 ${mmavgAvg}만원 vs salesAvg ${median}만원 (편차 ${Math.round(mmavgCrossDeviation * 1000) / 10}%) → 신뢰도 +0.1`);
+        } else {
+          confidenceScore -= 0.1;
+          console.log(`[매출추정-반경] mmavgList 교차검증: 카페 ${mmavgAvg}만원 vs salesAvg ${median}만원 (편차 ${Math.round(mmavgCrossDeviation * 1000) / 10}%) → 신뢰도 -0.1`);
+        }
+      }
+    }
+  }
+
+  // ─── simple 교차검증 ───
+  let simpleCrossDeviation = -1;
+  if (median > 0 && simpleData) {
+    const simpleSlsAmt = +(simpleData.slsAmt || simpleData.thqSlsAmt || 0);
+    const simpleStorCo = +(simpleData.storCo || simpleData.totStorCo || 0);
+    if (simpleSlsAmt > 0 && simpleStorCo > 0) {
+      const simplePerStore = Math.round(simpleSlsAmt / simpleStorCo);
+      simpleCrossDeviation = Math.abs(simplePerStore - median) / median;
+      if (simpleCrossDeviation <= 0.2) {
+        confidenceScore += 0.1;
+        console.log(`[매출추정-반경] simple 교차검증: ${simplePerStore}만원 vs salesAvg ${median}만원 (편차 ${Math.round(simpleCrossDeviation * 1000) / 10}%) → 신뢰도 +0.1`);
+      } else {
+        confidenceScore -= 0.1;
+        console.log(`[매출추정-반경] simple 교차검증: ${simplePerStore}만원 vs salesAvg ${median}만원 (편차 ${Math.round(simpleCrossDeviation * 1000) / 10}%) → 신뢰도 -0.1`);
+      }
+    }
+  }
+
   confidenceScore = Math.min(1.0, Math.max(0, confidenceScore));
 
   let confidence = 'C';
@@ -1495,6 +1579,8 @@ export function calculateRadiusAvgSales({
   const sources = [];
   if (dongCount > 0) sources.push('salesAvg');
   if (validOpenub > 0) sources.push('openub');
+  if (mmavgCrossDeviation >= 0) sources.push('mmavgList');
+  if (simpleCrossDeviation >= 0) sources.push('simple');
 
   if (median <= 0) {
     median = NATIONAL_CAFE_AVG_MONTHLY;

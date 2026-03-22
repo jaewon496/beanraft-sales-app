@@ -10880,11 +10880,44 @@ JSON으로만 응답:
            return 0;
          })();
 
+         // 반경 내 카페의 동별 분포 비율 계산 (dongCafeWeights)
+         const dongCafeWeights = (() => {
+           const weights = {};
+           const total = cafesWithDongCd.length || 1;
+           const mainDongNm = collectedData.dongInfo?.dongNm || collectedData.dongInfo?.admdstCdNm || '';
+           const nearbyDongsInfo = collectedData.dongInfo?.nearbyDongs || [];
+
+           cafesWithDongCd.forEach(cafe => {
+             // 카페의 dongCd로 동 이름 매칭
+             let dongNm = '';
+             if (cafe.dongNm) {
+               dongNm = cafe.dongNm;
+             } else if (cafe.dongCd) {
+               const matched = nearbyDongsInfo.find(d => d.dongCd === cafe.dongCd || d.admdstCd === cafe.dongCd);
+               dongNm = matched?.admdstCdNm || matched?.dongNm || mainDongNm;
+             } else {
+               dongNm = mainDongNm;
+             }
+             if (!dongNm) return;
+             if (!weights[dongNm]) weights[dongNm] = { count: 0, ratio: 0 };
+             weights[dongNm].count += 1;
+           });
+
+           // 비율 계산
+           Object.keys(weights).forEach(k => {
+             weights[k].ratio = weights[k].count / total;
+           });
+           return Object.keys(weights).length > 0 ? weights : null;
+         })();
+
          const radiusSalesResult = calculateRadiusAvgSales({
            cafes: cafesWithDongCd,
            nearbyDongs: collectedData.dongInfo?.nearbyDongs || [],
            dongSalesData,
-           openubAvg: openubAvgForCross
+           openubAvg: openubAvgForCross,
+           dongCafeWeights,
+           mmavgListData: collectedData.apis?.mmavgList?.data || null,
+           simpleData: collectedData.apis?.simple?.data || null
          });
 
          // 결과를 collectedData에 저장
