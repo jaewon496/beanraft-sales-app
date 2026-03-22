@@ -1023,21 +1023,22 @@ async function fetchFftcAreaSales(dongCd) {
 }
 
 /**
- * 서울 열린데이터 VwsmTrdarSelngQq API(상권별 분기 매출)로 커피-음료 매출 조회
- * 상권명(TRDAR_CD_NM)에 동 이름이 포함된 경우 해당 동에 매칭
- * @param {string[]} adstrdCodes - 8자리 ADSTRD_CD 코드 배열 (동 그룹핑 키로 사용)
+ * 서울 열린데이터 VwsmAdstrdSelngW API(행정동별 업종별 매출)로 커피-음료 매출 조회
+ * ADSTRD_CD(행정동코드)로 직접 필터링하여 정확한 매칭
+ * @param {string[]} adstrdCodes - 8자리 ADSTRD_CD 코드 배열
  * @param {string} [quarter] - 기준 분기 (예: '20253')
- * @param {Array} [dongNames] - 동 이름 목록 [{adstrdCd, dongNm}] (상권명 매칭용)
+ * @param {Array} [dongNames] - 동 이름 목록 [{adstrdCd, dongNm}] (로그용)
  * @returns {Object} { [adstrdCd]: { avgSales, totalSales, storeCount, rows } }
  */
 async function fetchSeoulSalesByAdstrdCd(adstrdCodes, quarter, dongNames = []) {
   if (!adstrdCodes || adstrdCodes.length === 0) return {};
 
   try {
-    // VwsmTrdarSelngQq: 상권별 분기 매출, CS100010 = "커피-음료"
+    // VwsmAdstrdSelngW: 행정동별 업종별 매출, ADSTRD_CD로 직접 필터링
     const params = new URLSearchParams({
       api: 'seoul',
-      service: 'VwsmTrdarSelngQq',
+      service: 'VwsmAdstrdSelngW',
+      ADSTRD_CD: adstrdCodes.join(','),
       industryCode: 'CS100010'
     });
     if (quarter) params.append('stdrYyquCd', quarter);
@@ -1054,80 +1055,45 @@ async function fetchSeoulSalesByAdstrdCd(adstrdCodes, quarter, dongNames = []) {
 
     const json = await res.json();
     const rows = json?.data?.filteredRows || [];
-    console.log(`[매출추정] 서울 열린데이터 VwsmTrdarSelngQq 수신: ${rows.length}건 (커피-음료)`);
+    console.log(`[매출추정] 서울 열린데이터 VwsmAdstrdSelngW 수신: ${rows.length}건 (커피-음료, ADSTRD_CD=${adstrdCodes.join(',')})`);
 
     if (rows.length === 0) return {};
 
-    // 동 이름 → adstrdCd 매핑 구축
-    // dongNames: [{adstrdCd: '11680101', dongNm: '청파동'}]
-    const dongNameToCode = {};
+    // dongNames에서 코드→이름 매핑 (로그용)
+    const codeToName = {};
     for (const dn of dongNames) {
-      if (dn.dongNm && dn.adstrdCd) {
-        // "청파동" → "청파" (동 제거하여 상권명 매칭 확률 향상)
-        const shortName = dn.dongNm.replace(/[동읍면리가]$/, '');
-        dongNameToCode[dn.dongNm] = dn.adstrdCd;
-        if (shortName !== dn.dongNm) {
-          dongNameToCode[shortName] = dn.adstrdCd;
-        }
-      }
+      if (dn.adstrdCd && dn.dongNm) codeToName[dn.adstrdCd] = dn.dongNm;
     }
 
-    // 서울시 구 코드로 관련 상권만 필터 (adstrdCodes의 앞 5자리 = 시군구코드)
-    const guCodes = [...new Set(adstrdCodes.map(c => c.substring(0, 5)))];
-
-    // 상권명에서 동 이름 매칭하여 행정동별로 그룹핑
+    // ADSTRD_CD별로 그룹핑
     const dongSalesMap = {};
-    let matchedCount = 0;
 
     for (const row of rows) {
-      const trdarNm = row.TRDAR_CD_NM || '';
-      const trdarCd = row.TRDAR_CD || '';
+      const adstrdCd = row.ADSTRD_CD;
+      if (!adstrdCd || !adstrdCodes.includes(adstrdCd)) continue;
 
-      // 상권코드 앞 5자리가 같은 구에 속하는 상권만 대상
-      // 서울 열린데이터 상권코드는 구 레벨이 아닐 수 있으므로 상권명으로도 매칭
-      let matchedAdstrdCd = null;
-
-      // 1차: 상권명에 동 이름이 포함되는지 확인
-      for (const [dongName, adstrdCd] of Object.entries(dongNameToCode)) {
-        if (trdarNm.includes(dongName)) {
-          matchedAdstrdCd = adstrdCd;
-          break;
-        }
+      if (!dongSalesMap[adstrdCd]) {
+        dongSalesMap[adstrdCd] = { totalSales: 0, rows: [] };
       }
 
-      if (!matchedAdstrdCd) continue;
-      matchedCount++;
-
-      if (!dongSalesMap[matchedAdstrdCd]) {
-        dongSalesMap[matchedAdstrdCd] = { totalSales: 0, storeCount: 0, rows: [], trdarNames: [] };
-      }
-
-      // VwsmTrdarSelngQq 필드:
-      // THSMON_SELNG_AMT = 당월매출금액(원) — 분기 합계이므로 /3으로 월 환산
-      // STOR_CO = 점포수
+      // VwsmAdstrdSelngW 필드:
+      // THSMON_SELNG_AMT = 당월매출금액(원) — 분기 데이터이므로 /3으로 월 환산
+      // STOR_CO 필드 없음 → 수집된 카페 수(cafeCount)로 나눠야 함
       const thsmon = Number(row.THSMON_SELNG_AMT || 0);
       const monthSales = thsmon > 0 ? thsmon / 3 : 0;
-      dongSalesMap[matchedAdstrdCd].totalSales += monthSales;
-      const storCo = Number(row.STOR_CO || 0);
-      dongSalesMap[matchedAdstrdCd].storeCount += storCo;
-      dongSalesMap[matchedAdstrdCd].rows.push(row);
-      if (!dongSalesMap[matchedAdstrdCd].trdarNames.includes(trdarNm)) {
-        dongSalesMap[matchedAdstrdCd].trdarNames.push(trdarNm);
-      }
+      dongSalesMap[adstrdCd].totalSales += monthSales;
+      dongSalesMap[adstrdCd].rows.push(row);
     }
 
-    console.log(`[매출추정] 서울 열린데이터 상권-동 매칭: ${matchedCount}건 매칭 / ${rows.length}건 전체, 동 ${Object.keys(dongSalesMap).length}개`);
+    console.log(`[매출추정] 서울 열린데이터 ADSTRD_CD 매칭: ${rows.length}건 수신, 동 ${Object.keys(dongSalesMap).length}개`);
 
-    // 평균 매출 계산 (만원 단위)
+    // 평균 매출 계산 (만원 단위) — STOR_CO 필드 없으므로 avgSales는 calculateRadiusAvgSales에서 cafeCount로 나눔
+    // 여기서는 totalSales만 집계하고, avgSales는 0으로 남겨둠 (호출자가 cafeCount로 나눔)
     for (const code of Object.keys(dongSalesMap)) {
       const d = dongSalesMap[code];
-      if (d.storeCount > 0) {
-        d.avgSales = Math.round(d.totalSales / d.storeCount / 10000);
-        console.log(`[매출추정] 서울 열린데이터 동 ${code}: 상권 ${d.trdarNames.join(',')} → 총매출 ${Math.round(d.totalSales/10000)}만원 / ${d.storeCount}점포 = ${d.avgSales}만원/점포`);
-      } else {
-        d.avgSales = 0;
-        console.warn(`[매출추정] 서울 열린데이터 STOR_CO 없음 (${code}): totalSales=${Math.round(d.totalSales/10000)}만원, 상권=${d.trdarNames.join(',')}`);
-      }
+      const dongNm = codeToName[code] || code;
+      d.avgSales = 0; // calculateRadiusAvgSales에서 cafeCount로 나눠 계산
+      console.log(`[매출추정] 서울 열린데이터 동 ${dongNm}(${code}): 총매출 ${Math.round(d.totalSales/10000)}만원 (${d.rows.length}건, cafeCount로 나눔 예정)`);
     }
 
     return dongSalesMap;
@@ -1326,42 +1292,35 @@ export async function calculateRadiusAvgSales({
     let dongAvg = 0;
     let source = 'none';
 
-    // L1: 서울 열린데이터
+    // L1: 서울 열린데이터 (STOR_CO 없음 → 수집된 카페 수로 나눔)
     let seoulAvg = 0;
     if (hasSeoulData && seoulSalesMap[adstrdCd]) {
       const seoulEntry = seoulSalesMap[adstrdCd];
-      if (seoulEntry.avgSales > 0) {
-        seoulAvg = seoulEntry.avgSales;
-      } else if (seoulEntry.totalSales > 0 && seoulEntry.storeCount > 0) {
-        // STOR_CO가 있으면 API의 점포 수로 나눔 (수집 카페 수가 아님)
-        seoulAvg = Math.round(seoulEntry.totalSales / seoulEntry.storeCount / 10000);
-        console.log(`[매출추정-반경] 서울 열린데이터 per-store: totalSales=${Math.round(seoulEntry.totalSales/10000)}만원 / STOR_CO=${seoulEntry.storeCount}개 = ${seoulAvg}만원`);
-      } else if (seoulEntry.totalSales > 0 && cafeCount > 0) {
-        // STOR_CO도 없음 → 수집 카페 수로 나눔 (최후 수단)
+      if (seoulEntry.totalSales > 0 && cafeCount > 0) {
         seoulAvg = Math.round(seoulEntry.totalSales / cafeCount / 10000);
-        console.log(`[매출추정-반경] 서울 열린데이터 per-cafe 추정: totalSales=${Math.round(seoulEntry.totalSales/10000)}만원 / ${cafeCount}개 = ${seoulAvg}만원`);
+        console.log(`[매출추정-반경] 서울 열린데이터: totalSales=${Math.round(seoulEntry.totalSales/10000)}만원 / ${cafeCount}카페 = ${seoulAvg}만원/카페`);
       }
 
       // 신뢰성 검증: 다른 소스 대비 50% 미만이면 서울 데이터 폐기
       if (seoulAvg > 0 && referenceMedian > 0 && seoulAvg < referenceMedian * 0.5) {
-        console.warn(`[매출추정-반경] 서울 열린데이터 비정상 낮음: ${seoulAvg}만원 vs 참조중앙값 ${referenceMedian}만원 → 서울 데이터 무시`);
+        console.warn(`[매출추정-반경] 서울 열린데이터 비정상 낮음: ${seoulAvg}만원 vs 참조중앙값 ${referenceMedian}만원 -> 서울 데이터 무시`);
         seoulAvg = 0;
       }
     }
 
     // 다중 소스 가중 블렌딩
-    // 가중치: OpenUB 0.5 (건물별 실매출, 최고 신뢰도), 서울열린데이터 0.15, 공정위 0.15, 소상공인365 0.2
+    // 가중치: OpenUB 0.4 (건물별 실매출), 서울열린데이터 0.3 (행정동 단위 정확), 소상공인365 0.3
     const sources = [];
-    if (openubDongAvg > 0) sources.push({ avg: openubDongAvg, weight: 0.5, name: 'openub' });
-    if (seoulAvg > 0) sources.push({ avg: seoulAvg, weight: 0.15, name: 'seoul_opendata' });
-    if (hasFftcData && fftcAvgSales > 0) sources.push({ avg: fftcAvgSales, weight: 0.15, name: 'fftc' });
+    if (openubDongAvg > 0) sources.push({ avg: openubDongAvg, weight: 0.4, name: 'openub' });
+    if (seoulAvg > 0) sources.push({ avg: seoulAvg, weight: 0.3, name: 'seoul_opendata' });
+    if (hasFftcData && fftcAvgSales > 0) sources.push({ avg: fftcAvgSales, weight: 0.1, name: 'fftc' });
     if (dongAvgCafeSales > 0) {
       let sbizAvg = dongAvgCafeSales;
       if (!isSeoul) {
         const correction = getSidoCorrectionFactor(adstrdCd);
         sbizAvg = Math.round(dongAvgCafeSales * correction);
       }
-      sources.push({ avg: sbizAvg, weight: 0.2, name: isSeoul ? 'sbiz' : 'sbiz_corrected' });
+      sources.push({ avg: sbizAvg, weight: 0.3, name: isSeoul ? 'sbiz' : 'sbiz_corrected' });
     }
 
     if (sources.length > 0) {

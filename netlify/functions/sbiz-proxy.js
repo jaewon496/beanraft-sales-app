@@ -157,19 +157,34 @@ exports.handler = async (event, context) => {
     else if (api === 'seoul') {
       const seoulApiKey = '6d6c71717173656f3432436863774a';
       const { service, startIndex, endIndex, stdrYyquCd, industryCode, filterField, filterValue, maxBatch, ADSTRD_CD } = queryParams;
-      const svc = service || 'VwsmTrdarSelngQq';
-      const quarter = stdrYyquCd ? `/${stdrYyquCd}` : '';
+      const svc = endpoint || service || 'VwsmTrdarSelngQq';
+      // 기본 분기코드: 파라미터 없으면 최신 분기(2024년 4분기)
+      const defaultQuarter = '20244';
+      const quarterCode = stdrYyquCd || defaultQuarter;
 
-      // ADSTRD_CD 코드로 행정동 매출 직접 필터링 (8자리 코드 정확 매칭)
+      // VwsmAdstrdSelngW 전용: 5번째 path = 분기코드만 인식, 행정동코드는 path 불가 → 응답에서 필터
+      // ADSTRD_CD 코드로 행정동 매출 필터링 (분기코드를 path에, ADSTRD_CD는 응답 필터)
       if (ADSTRD_CD) {
         const allRows = [];
-        const batchLimit = Math.min(parseInt(maxBatch) || 22, 150);
-        const TIME_LIMIT_MS = 22000;
-        const PARALLEL_SIZE = 5;
+        const adstrdCodes = ADSTRD_CD.split(',').map(c => c.trim()).filter(Boolean);
+        const adstrdSet = new Set(adstrdCodes);
+
+        // industryCode 및 ADSTRD_CD 필터 함수
+        const matchRow = (row) => {
+          if (!adstrdSet.has(row.ADSTRD_CD)) return false;
+          if (industryCode && row.SVC_INDUTY_CD !== industryCode) return false;
+          return true;
+        };
+
+        // 분기코드를 path 5번째에 넣어 17,044건으로 축소 후, 순차 배치로 ADSTRD_CD 필터
+        const MAX_BATCHES = 5; // 최대 5배치(5,000건)까지만 → 조기 중단
+        const PARALLEL_SIZE = 3;
+        let totalCount = 0;
+        let foundTarget = false;
 
         const fetchBatch = (si, ei) => new Promise((resolve) => {
-          const batchUrl = `http://openapi.seoul.go.kr:8088/${seoulApiKey}/json/${svc}/${si}/${ei}${quarter}`;
-          const req = http.get(batchUrl, { timeout: 10000 }, (res) => {
+          const batchUrl = `http://openapi.seoul.go.kr:8088/${seoulApiKey}/json/${svc}/${si}/${ei}/${quarterCode}`;
+          const req = http.get(batchUrl, { timeout: 12000 }, (res) => {
             let body = '';
             res.on('data', chunk => body += chunk);
             res.on('end', () => { try { resolve(JSON.parse(body)); } catch(e) { resolve(null); } });
@@ -178,25 +193,25 @@ exports.handler = async (event, context) => {
           req.on('timeout', () => { req.destroy(); resolve(null); });
         });
 
-        // 여러 ADSTRD_CD를 콤마로 받을 수 있음 (인접 동 일괄 조회)
-        const adstrdCodes = ADSTRD_CD.split(',').map(c => c.trim()).filter(Boolean);
-
+        // 첫 배치: 전체 건수 확인 + 필터링
         const firstBatch = await fetchBatch(1, 1000);
-        const totalCount = firstBatch?.[svc]?.list_total_count || 0;
+        totalCount = firstBatch?.[svc]?.list_total_count || 0;
         const firstRows = firstBatch?.[svc]?.row || [];
+        console.log(`[seoul-ADSTRD] ${svc} quarter=${quarterCode}: total=${totalCount}, first batch=${firstRows.length}건`);
+
         if (firstRows.length > 0) {
-          allRows.push(...firstRows.filter(row => adstrdCodes.includes(row.ADSTRD_CD)));
+          const matched = firstRows.filter(matchRow);
+          allRows.push(...matched);
+          if (matched.length > 0) foundTarget = true;
         }
 
-        const totalBatches = Math.min(Math.ceil(totalCount / 1000), batchLimit);
-        console.log(`[seoul-ADSTRD_CD] ${svc}: total=${totalCount}, batches=${totalBatches}, codes=${adstrdCodes.join(',')}`);
-
-        let timedOut = false;
+        // 나머지 배치: 최대 MAX_BATCHES까지, 조기 중단 로직 포함
+        const totalBatches = Math.min(Math.ceil(totalCount / 1000), MAX_BATCHES + 1);
         for (let groupStart = 1001; groupStart <= totalBatches * 1000; groupStart += PARALLEL_SIZE * 1000) {
-          if (Date.now() - startTime > TIME_LIMIT_MS) {
-            timedOut = true;
-            console.log(`[seoul-ADSTRD_CD] 시간 제한 도달 (${Date.now() - startTime}ms), 수집 중단. 현재 ${allRows.length}건`);
-            break;
+          // 이미 타겟 동 데이터를 찾았고 이번 배치에서 안 나오면 중단
+          if (foundTarget && allRows.length > 0) {
+            // 동 데이터는 보통 연속 배치에 몰려있으므로, 한번 찾은 후 다음 배치에서 0건이면 중단
+            // → 아래에서 체크
           }
 
           const batchPromises = [];
@@ -207,21 +222,31 @@ exports.handler = async (event, context) => {
           }
 
           const results = await Promise.all(batchPromises);
-          let emptyCount = 0;
+          let batchMatchCount = 0;
           for (const batch of results) {
             const rows = batch?.[svc]?.row || [];
-            if (rows.length === 0) { emptyCount++; continue; }
-            allRows.push(...rows.filter(row => adstrdCodes.includes(row.ADSTRD_CD)));
+            if (rows.length === 0) continue;
+            const matched = rows.filter(matchRow);
+            batchMatchCount += matched.length;
+            allRows.push(...matched);
           }
-          if (emptyCount === results.length) break;
+
+          if (batchMatchCount > 0) foundTarget = true;
+          // 조기 중단: 이미 타겟을 찾았는데 이번 그룹에서 0건 → 더 이상 없음
+          if (foundTarget && batchMatchCount === 0) {
+            console.log(`[seoul-ADSTRD] 조기 중단: 타겟 동 데이터 종료. ${allRows.length}건 수집`);
+            break;
+          }
         }
+
+        console.log(`[seoul-ADSTRD] ${svc}: codes=${adstrdCodes.join(',')}, quarter=${quarterCode}, industryCode=${industryCode || 'none'}, filtered=${allRows.length}건`);
 
         return {
           statusCode: 200,
           headers: corsHeaders,
           body: JSON.stringify({
             success: true,
-            data: { filteredRows: allRows, totalFiltered: allRows.length, ADSTRD_CD: adstrdCodes, quarter: stdrYyquCd, partial: timedOut },
+            data: { filteredRows: allRows, totalFiltered: allRows.length, ADSTRD_CD: adstrdCodes, quarter: quarterCode, partial: false },
             elapsedMs: Date.now() - startTime
           })
         };
@@ -233,6 +258,7 @@ exports.handler = async (event, context) => {
         const batchLimit = Math.min(parseInt(maxBatch) || 22, 150);
         const TIME_LIMIT_MS = 22000; // Netlify 26초 타임아웃 전에 반환 (4초 여유)
         const PARALLEL_SIZE = 5; // 동시 요청 수
+        const quarter = `/${quarterCode}`;
 
         const fetchBatch = (si, ei) => new Promise((resolve) => {
           const batchUrl = `http://openapi.seoul.go.kr:8088/${seoulApiKey}/json/${svc}/${si}/${ei}${quarter}`;
@@ -261,7 +287,7 @@ exports.handler = async (event, context) => {
 
         // 실제 필요한 배치 수 계산 (전체 건수 기반, batchLimit 제한)
         const totalBatches = Math.min(Math.ceil(totalCount / 1000), batchLimit);
-        console.log(`[seoul-filter] ${svc}: total=${totalCount}, batches=${totalBatches}, parallel=${PARALLEL_SIZE}`);
+        console.log(`[seoul-filter] ${svc}: total=${totalCount}, quarter=${quarterCode}, batches=${totalBatches}, parallel=${PARALLEL_SIZE}`);
 
         // 나머지 배치를 병렬 그룹으로 수집 (시간 제한 적용)
         let timedOut = false;
@@ -296,17 +322,104 @@ exports.handler = async (event, context) => {
           headers: corsHeaders,
           body: JSON.stringify({
             success: true,
-            data: { filteredRows: allRows, totalFiltered: allRows.length, industryCode, filterField, filterValue, quarter: stdrYyquCd, partial: timedOut },
+            data: { filteredRows: allRows, totalFiltered: allRows.length, industryCode, filterField, filterValue, quarter: quarterCode, partial: timedOut },
             elapsedMs: Date.now() - startTime
           })
         };
       }
 
-      // 일반 호출 (필터 없음)
+      // 일반 호출 (adstrdCd/svcIndutyCd 필터 지원)
       useHttp = true;
       const si = startIndex || '1';
       const ei = endIndex || '1000';
-      targetUrl = `http://openapi.seoul.go.kr:8088/${seoulApiKey}/json/${svc}/${si}/${ei}${quarter}`;
+      const { adstrdCd, svcIndutyCd } = queryParams;
+      // 서울 열린데이터 형식: /{key}/json/{service}/{start}/{end}/{분기코드}
+      // 분기코드는 항상 path에 포함 (기본값 20244)
+      targetUrl = `http://openapi.seoul.go.kr:8088/${seoulApiKey}/json/${svc}/${si}/${ei}/${quarterCode}`;
+
+      // adstrdCd 또는 svcIndutyCd 필터가 있으면 다중 배치로 수집 후 필터링
+      // (데이터가 1001번째 이후 배치에 있을 수 있으므로 최대 5배치까지 탐색)
+      if (adstrdCd || svcIndutyCd) {
+        const allFiltered = [];
+        const MAX_BATCHES = 5; // 최대 5배치(5,000건)
+        const PARALLEL_SIZE = 3; // 3배치씩 병렬 호출
+
+        const fetchBatchLocal = (batchSi, batchEi) => new Promise((resolve) => {
+          const batchUrl = `http://openapi.seoul.go.kr:8088/${seoulApiKey}/json/${svc}/${batchSi}/${batchEi}/${quarterCode}`;
+          const req = http.get(batchUrl, { timeout: 12000 }, (res) => {
+            let body = '';
+            res.on('data', chunk => body += chunk);
+            res.on('end', () => { try { resolve(JSON.parse(body)); } catch(e) { resolve(null); } });
+          });
+          req.on('error', () => resolve(null));
+          req.on('timeout', () => { req.destroy(); resolve(null); });
+        });
+
+        const matchRowLocal = (row) => {
+          if (adstrdCd && row.ADSTRD_CD !== adstrdCd) return false;
+          if (svcIndutyCd && row.SVC_INDUTY_CD !== svcIndutyCd) return false;
+          return true;
+        };
+
+        // 첫 배치: 전체 건수 확인 + 필터링
+        const firstBatchData = await fetchBatchLocal(1, 1000);
+        const totalCountLocal = firstBatchData?.[svc]?.list_total_count || 0;
+        const firstRowsLocal = firstBatchData?.[svc]?.row || [];
+        let foundTargetLocal = false;
+
+        console.log(`[seoul-multibatch] ${svc} quarter=${quarterCode}: total=${totalCountLocal}, adstrdCd=${adstrdCd}, svcIndutyCd=${svcIndutyCd}`);
+
+        if (firstRowsLocal.length > 0) {
+          const matched = firstRowsLocal.filter(matchRowLocal);
+          allFiltered.push(...matched);
+          if (matched.length > 0) foundTargetLocal = true;
+        }
+
+        // 나머지 배치: 3배치씩 병렬, 조기 중단 포함
+        const totalBatchesLocal = Math.min(Math.ceil(totalCountLocal / 1000), MAX_BATCHES + 1);
+        for (let groupStart = 1001; groupStart <= totalBatchesLocal * 1000; groupStart += PARALLEL_SIZE * 1000) {
+          const batchPromises = [];
+          for (let i = 0; i < PARALLEL_SIZE; i++) {
+            const batchSi = groupStart + i * 1000;
+            if (batchSi > totalBatchesLocal * 1000) break;
+            batchPromises.push(fetchBatchLocal(batchSi, batchSi + 999));
+          }
+
+          const results = await Promise.all(batchPromises);
+          let batchMatchCount = 0;
+          for (const batch of results) {
+            const rows = batch?.[svc]?.row || [];
+            if (rows.length === 0) continue;
+            const matched = rows.filter(matchRowLocal);
+            batchMatchCount += matched.length;
+            allFiltered.push(...matched);
+          }
+
+          if (batchMatchCount > 0) foundTargetLocal = true;
+          // 조기 중단: 타겟을 찾았는데 이번 그룹에서 0건 → 이후 배치에 없음
+          if (foundTargetLocal && batchMatchCount === 0) {
+            console.log(`[seoul-multibatch] 조기 중단: 타겟 데이터 종료. ${allFiltered.length}건 수집`);
+            break;
+          }
+        }
+
+        const totalSales = allFiltered.reduce((sum, r) => {
+          const val = parseFloat(r.THSMON_SELNG_AMT || r.MDWK_SELNG_AMT || r.MON_SELNG_AMT || 0);
+          return sum + val;
+        }, 0);
+
+        console.log(`[seoul-multibatch] ${svc}: quarter=${quarterCode}, adstrdCd=${adstrdCd}, svcIndutyCd=${svcIndutyCd}, filtered=${allFiltered.length}, totalSales=${totalSales}`);
+
+        return {
+          statusCode: 200,
+          headers: corsHeaders,
+          body: JSON.stringify({
+            success: true,
+            data: { rows: allFiltered, totalSales, count: allFiltered.length, quarter: quarterCode },
+            elapsedMs: Date.now() - startTime
+          })
+        };
+      }
     }
     // 7. 공정위 지역별 업종별 매출 API (fftc)
     else if (api === 'fftc') {
