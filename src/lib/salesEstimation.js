@@ -1290,10 +1290,24 @@ export function calculateRadiusAvgSales({
   const cafeRelCodes = ['I21201','I21001','I21002','I21003','I213','Q12'];
   const cafeKeywords = ['카페', '커피', '음료', '빵', '베이커리', '디저트', '도넛', '제과'];
 
+  // 카테고리 분류 키워드
+  const cafeOnlyKeywords = ['카페', '커피', '음료'];
+  const bakeryOnlyKeywords = ['빵', '도넛', '베이커리', '디저트', '제과'];
+
   function isCafeRelated(item) {
     const code = item.tpbizClscd || '';
     const name = item.tpbizClscdNm || '';
     return cafeRelCodes.some(c => code.startsWith(c)) || cafeKeywords.some(k => name.includes(k));
+  }
+
+  function isCafeCategory(item) {
+    const name = item.tpbizClscdNm || '';
+    return cafeOnlyKeywords.some(k => name.includes(k));
+  }
+
+  function isBakeryCategory(item) {
+    const name = item.tpbizClscdNm || '';
+    return bakeryOnlyKeywords.some(k => name.includes(k));
   }
 
   // ─── 1. 각 행정동의 카페 평균매출(mmavgSlsAmt) 추출 ───
@@ -1301,6 +1315,10 @@ export function calculateRadiusAvgSales({
   const dongAvgList = []; // { dongNm, avgSales, stcnt }
   const dongDetailsMap = {};
   const bizPointList = []; // 중앙값용: 개별 업종 mmavgSlsAmt 리스트
+
+  // 카테고리별 포인트 리스트
+  const cafePointList = [];   // { sales, stcnt }
+  const bakeryPointList = []; // { sales, stcnt }
 
   for (const dongData of (Array.isArray(dongSalesData) ? dongSalesData : [])) {
     const { dongNm, dongCd, salesAvgItems } = dongData;
@@ -1319,6 +1337,13 @@ export function calculateRadiusAvgSales({
         totalWeight += weight;
         // 중앙값용: 개별 업종 매출을 별도 리스트에 추가
         bizPointList.push(sales);
+
+        // 카테고리별 분류
+        if (isCafeCategory(s)) {
+          cafePointList.push({ sales, stcnt: weight });
+        } else if (isBakeryCategory(s)) {
+          bakeryPointList.push({ sales, stcnt: weight });
+        }
       }
     });
 
@@ -1331,6 +1356,34 @@ export function calculateRadiusAvgSales({
         console.warn(`[매출추정-반경] 동 ${dongNm} 이상치 제외: ${avg}만원`);
       }
     }
+  }
+
+  // ─── 카테고리별 중앙값/평균 계산 헬퍼 ───
+  function calcCategoryStats(pointList) {
+    if (pointList.length === 0) return { median: 0, average: 0, count: 0 };
+
+    // 중앙값
+    const sorted = pointList.map(p => p.sales).filter(v => v >= 200 && v <= 50000).sort((a, b) => a - b);
+    let med = 0;
+    if (sorted.length > 0) {
+      if (sorted.length % 2 === 0) {
+        med = Math.round((sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2);
+      } else {
+        med = sorted[Math.floor(sorted.length / 2)];
+      }
+    }
+
+    // stcnt 가중평균
+    let wSum = 0, wTotal = 0;
+    pointList.forEach(p => {
+      if (p.sales >= 200 && p.sales <= 50000) {
+        wSum += p.sales * p.stcnt;
+        wTotal += p.stcnt;
+      }
+    });
+    const avg = wTotal > 0 ? Math.round(wSum / wTotal) : 0;
+
+    return { median: med, average: avg, count: sorted.length };
   }
 
   // ─── 2. 중앙값 / 평균 계산 ───
@@ -1359,6 +1412,10 @@ export function calculateRadiusAvgSales({
     console.log(`[매출추정-반경] 업종별 포인트: ${sortedBiz.length}개`);
   }
 
+  // ─── 카테고리별 통계 산출 ───
+  let cafeStats = calcCategoryStats(cafePointList);
+  let bakeryStats = calcCategoryStats(bakeryPointList);
+
   // ─── 3. OpenUB 교차검증 + 독립 데이터 포인트 추가 ───
   const validOpenub = (openubAvg >= 200 && openubAvg <= 50000) ? openubAvg : 0;
   let openubDeviation = -1; // -1 = 비교 불가
@@ -1385,7 +1442,19 @@ export function calculateRadiusAvgSales({
       // 편차 재계산
       openubDeviation = median > 0 ? Math.abs(median - validOpenub) / median : -1;
       console.log(`[매출추정-반경] OpenUB 포인트 추가: ${validOpenub}만원(stcnt=${openubStcnt}), 편차=${Math.round(openubDeviation * 100)}%`);
+
+      // OpenUB는 카페 카테고리에만 추가
+      cafePointList.push({ sales: validOpenub, stcnt: openubStcnt });
+      cafeStats = calcCategoryStats(cafePointList);
     }
+  }
+
+  // 카테고리별 로그
+  if (cafeStats.count > 0) {
+    console.log(`[매출추정-반경] 카페: 중앙값=${cafeStats.median}만원, 평균=${cafeStats.average}만원 (포인트 ${cafeStats.count}개)`);
+  }
+  if (bakeryStats.count > 0) {
+    console.log(`[매출추정-반경] 빵·디저트: 중앙값=${bakeryStats.median}만원, 평균=${bakeryStats.average}만원 (포인트 ${bakeryStats.count}개)`);
   }
 
   // ─── 4. 신뢰도 산정 ───
@@ -1439,12 +1508,14 @@ export function calculateRadiusAvgSales({
 
   const gapRatio = median > 0 ? Math.round(((average - median) / median) * 100) / 100 : 0;
 
-  console.log(`[매출추정-반경] 결과: 중앙값=${median}만원, 가중평균=${average}만원, 신뢰도=${confidence}(${Math.round(confidenceScore * 100) / 100}), 동=${dongCount}개`);
+  console.log(`[매출추정-반경] 전체: 중앙값=${median}만원, 가중평균=${average}만원, 신뢰도=${confidence}(${Math.round(confidenceScore * 100) / 100}), 동=${dongCount}개`);
 
   return {
     avgSales: median,
     median,
     average,
+    cafe: { median: cafeStats.median, average: cafeStats.average, count: cafeStats.count },
+    bakery: { median: bakeryStats.median, average: bakeryStats.average, count: bakeryStats.count },
     q1: 0,
     q3: 0,
     sampleCount: dongCount,

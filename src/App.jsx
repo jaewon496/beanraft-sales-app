@@ -10892,6 +10892,8 @@ JSON으로만 응답:
            avgSales: radiusSalesResult.avgSales,
            median: radiusSalesResult.median,
            average: radiusSalesResult.average,
+           cafe: radiusSalesResult.cafe,
+           bakery: radiusSalesResult.bakery,
            q1: radiusSalesResult.q1,
            q3: radiusSalesResult.q3,
            sampleCount: radiusSalesResult.sampleCount,
