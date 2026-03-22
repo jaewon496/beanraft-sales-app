@@ -1071,10 +1071,29 @@ async function fetchSeoulSalesByAdstrdCd(adstrdCodes, quarter, dongNames = []) {
     }
 
     const json = await res.json();
-    const rows = json?.data?.filteredRows || [];
-    console.log(`[매출추정] 서울 열린데이터 VwsmAdstrdSelngW 수신: ${rows.length}건 (커피-음료, ADSTRD_CD=${adstrdCodes.join(',')})`);
+    const rawRows = json?.data?.rows || json?.data?.filteredRows || [];
+    console.log(`[매출추정] 서울 열린데이터 VwsmAdstrdSelngW 수신: ${rawRows.length}건 (커피-음료, ADSTRD_CD=${adstrdCodes.join(',')})`);
 
-    if (rows.length === 0) return {};
+    if (rawRows.length === 0) return {};
+
+    // 분기 미지정 시 중복 합산 방지: 요청한 분기(quarter)와 일치하는 row만 사용
+    // quarter가 없으면 최신 분기 1개만 선택
+    let rows = rawRows;
+    if (quarter) {
+      const filtered = rawRows.filter(r => r.STDR_YYQU_CD === quarter);
+      if (filtered.length > 0) {
+        rows = filtered;
+        console.log(`[매출추정] 서울 열린데이터 분기 필터(${quarter}): ${filtered.length}건`);
+      }
+    } else {
+      // 최신 분기만 선택
+      const quarters = [...new Set(rawRows.map(r => r.STDR_YYQU_CD).filter(Boolean))].sort().reverse();
+      if (quarters.length > 0) {
+        const latestQ = quarters[0];
+        rows = rawRows.filter(r => r.STDR_YYQU_CD === latestQ);
+        console.log(`[매출추정] 서울 열린데이터 최신 분기 자동선택(${latestQ}): ${rows.length}건`);
+      }
+    }
 
     // dongNames에서 코드→이름 매핑 (로그용)
     const codeToName = {};
@@ -1094,10 +1113,10 @@ async function fetchSeoulSalesByAdstrdCd(adstrdCodes, quarter, dongNames = []) {
       }
 
       // VwsmAdstrdSelngW 필드:
-      // THSMON_SELNG_AMT = 당월매출금액(원) — 분기 데이터이므로 /3으로 월 환산
+      // THSMON_SELNG_AMT = 당월매출금액(원) — 이미 월 단위이므로 /3 불필요
       // STOR_CO 필드 없음 → 수집된 카페 수(cafeCount)로 나눠야 함
       const thsmon = Number(row.THSMON_SELNG_AMT || 0);
-      const monthSales = thsmon > 0 ? thsmon / 3 : 0;
+      const monthSales = thsmon > 0 ? thsmon : 0;
       dongSalesMap[adstrdCd].totalSales += monthSales;
       dongSalesMap[adstrdCd].rows.push(row);
     }
@@ -1116,6 +1135,62 @@ async function fetchSeoulSalesByAdstrdCd(adstrdCodes, quarter, dongNames = []) {
     return dongSalesMap;
   } catch (err) {
     console.warn('[매출추정] 서울 매출 API 오류:', err.message);
+    return {};
+  }
+}
+
+/**
+ * 서울 열린데이터 VwsmAdstrdStorW에서 행정동별 카페(커피-음료) 점포 수 조회
+ * @param {string[]} adstrdCodes - 행정동 코드 배열
+ * @param {string} quarter - 분기 코드 (예: '20253')
+ * @returns {Object} { [adstrdCd]: number } 동별 카페 점포 수
+ */
+async function fetchSeoulCafeCountByAdstrdCd(adstrdCodes, quarter) {
+  if (!adstrdCodes || adstrdCodes.length === 0) return {};
+  try {
+    const params = new URLSearchParams({
+      api: 'seoul',
+      service: 'VwsmAdstrdStorW',
+      ADSTRD_CD: adstrdCodes.join(','),
+      industryCode: 'CS100010'
+    });
+    if (quarter) params.append('stdrYyquCd', quarter);
+
+    const res = await fetchWithRetry(
+      `${SBIZ_PROXY_BASE}?${params.toString()}`,
+      {},
+      { timeoutMs: 15000, retries: 1, backoffMs: 2000 }
+    );
+    if (!res.ok) return {};
+
+    const json = await res.json();
+    const rawRows = json?.data?.rows || json?.data?.filteredRows || [];
+    if (rawRows.length === 0) return {};
+
+    // 분기 필터
+    let rows = rawRows;
+    if (quarter) {
+      const filtered = rawRows.filter(r => r.STDR_YYQU_CD === quarter);
+      if (filtered.length > 0) rows = filtered;
+    } else {
+      const quarters = [...new Set(rawRows.map(r => r.STDR_YYQU_CD).filter(Boolean))].sort().reverse();
+      if (quarters.length > 0) rows = rawRows.filter(r => r.STDR_YYQU_CD === quarters[0]);
+    }
+
+    const result = {};
+    for (const row of rows) {
+      const cd = row.ADSTRD_CD;
+      if (!cd || !adstrdCodes.includes(cd)) continue;
+      // STOR_CO = 총 점포수, OPBIZ_STOR_CO = 영업중 점포수
+      const storeCnt = Number(row.STOR_CO || 0);
+      if (storeCnt > 0) {
+        result[cd] = (result[cd] || 0) + storeCnt;
+      }
+    }
+    console.log('[매출추정] 서울 점포수 조회:', JSON.stringify(result));
+    return result;
+  } catch (err) {
+    console.warn('[매출추정] 서울 점포수 API 오류:', err.message);
     return {};
   }
 }
@@ -1239,9 +1314,11 @@ export async function calculateRadiusAvgSales({
 
   // 소스 1: sbiz (소상공인365 행정동 평균)
   const sbizAvg = dongAvgCafeSales || 0;
-  if (sbizAvg > 0 && sbizAvg < 50000) {
+  if (sbizAvg >= 200 && sbizAvg <= 50000) {
     sources.push(sbizAvg);
     sourceLabels.push('sbiz');
+  } else if (sbizAvg > 0) {
+    console.warn('[매출추정-반경] sbiz 이상치 제외: ' + sbizAvg + '만원 (유효범위: 200~50000)');
   }
 
   // 소스 2: 서울 열린데이터 (행정동 총매출 / 점포수)
@@ -1271,21 +1348,36 @@ export async function calculateRadiusAvgSales({
       }
 
       if (Object.keys(seoulSalesMap).length > 0) {
-        // 총매출 합산 후 반경 내 카페 수로 나눔
+        // 동별 실제 카페 수(서울 열린데이터 VwsmAdstrdStorW)를 조회하여 per-cafe 매출 산출
+        let dongCafeCounts = {};
+        try {
+          dongCafeCounts = await fetchSeoulCafeCountByAdstrdCd(adstrdCodes, quarter);
+        } catch (e) {
+          console.warn('[매출추정-반경] 서울 점포수 조회 실패, fallback 사용:', e.message);
+        }
+
         let totalSeoulSales = 0;
         let totalSeoulCafes = 0;
         for (const [code, data] of Object.entries(seoulSalesMap)) {
-          const dongCafeCount = cafesByDong[code]?.length || 0;
-          if (data.totalSales > 0 && dongCafeCount > 0) {
-            totalSeoulSales += data.totalSales;
-            totalSeoulCafes += dongCafeCount;
+          if (data.totalSales > 0) {
+            // 우선: 서울 열린데이터 점포수 → fallback: 반경 내 카페 수
+            const actualDongCafeCount = dongCafeCounts[code] || 0;
+            const radiusDongCafeCount = cafesByDong[code]?.length || 0;
+            const divisor = actualDongCafeCount > 0 ? actualDongCafeCount : radiusDongCafeCount;
+            if (divisor > 0) {
+              totalSeoulSales += data.totalSales;
+              totalSeoulCafes += divisor;
+              console.log(`[매출추정-반경] 서울 동 ${code}: 총매출 ${Math.round(data.totalSales/10000)}만원 / 카페 ${divisor}개 (실제=${actualDongCafeCount}, 반경=${radiusDongCafeCount})`);
+            }
           }
         }
         if (totalSeoulCafes > 0 && totalSeoulSales > 0) {
           seoulAvg = Math.round(totalSeoulSales / totalSeoulCafes / 10000); // 원 → 만원
-          if (seoulAvg > 0 && seoulAvg < 50000) {
+          if (seoulAvg >= 200 && seoulAvg <= 50000) {
             sources.push(seoulAvg);
             sourceLabels.push('seoul');
+          } else {
+            console.warn('[매출추정-반경] 서울 열린데이터 이상치 제외: ' + seoulAvg + '만원 (유효범위: 200~50000)');
           }
         }
       }
@@ -1296,9 +1388,11 @@ export async function calculateRadiusAvgSales({
 
   // 소스 3: salesAvg API (OpenUB 반경 합산 평균)
   const openubAvg = openubDongAvg || 0;
-  if (openubAvg > 0 && openubAvg < 50000) {
+  if (openubAvg >= 200 && openubAvg <= 50000) {
     sources.push(openubAvg);
     sourceLabels.push('openub');
+  } else if (openubAvg > 0) {
+    console.warn('[매출추정-반경] openub 이상치 제외: ' + openubAvg + '만원 (유효범위: 200~50000)');
   }
 
   // ─── 2. 중앙값 / 평균 계산 ───
