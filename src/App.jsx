@@ -10883,30 +10883,32 @@ JSON으로만 응답:
          // 반경 내 카페의 동별 분포 비율 계산 (dongCafeWeights)
          const dongCafeWeights = (() => {
            const weights = {};
-           const total = cafesWithDongCd.length || 1;
-           const mainDongNm = collectedData.dongInfo?.dongNm || collectedData.dongInfo?.admdstCdNm || '';
-           const nearbyDongsInfo = collectedData.dongInfo?.nearbyDongs || [];
+           const cafeKw = ['카페', '커피', '음료'];
 
-           cafesWithDongCd.forEach(cafe => {
-             // 카페의 dongCd로 동 이름 매칭
-             let dongNm = '';
-             if (cafe.dongNm) {
-               dongNm = cafe.dongNm;
-             } else if (cafe.dongCd) {
-               const matched = nearbyDongsInfo.find(d => d.dongCd === cafe.dongCd || d.admdstCd === cafe.dongCd);
-               dongNm = matched?.admdstCdNm || matched?.dongNm || mainDongNm;
-             } else {
-               dongNm = mainDongNm;
+           // dongSalesData의 stcnt(카페 업종 점포수)를 기반으로 동별 비율 산출
+           let totalStcnt = 0;
+           for (const dongData of dongSalesData) {
+             const { dongNm, salesAvgItems } = dongData;
+             if (!dongNm || !Array.isArray(salesAvgItems)) continue;
+             let cafeStcnt = 0;
+             salesAvgItems.forEach(s => {
+               const name = s.tpbizClscdNm || s.tpbizNm || '';
+               if (cafeKw.some(k => name.includes(k))) {
+                 cafeStcnt += +(s.stcnt || 0);
+               }
+             });
+             if (cafeStcnt > 0) {
+               weights[dongNm] = { count: cafeStcnt, ratio: 0 };
+               totalStcnt += cafeStcnt;
              }
-             if (!dongNm) return;
-             if (!weights[dongNm]) weights[dongNm] = { count: 0, ratio: 0 };
-             weights[dongNm].count += 1;
-           });
+           }
 
            // 비율 계산
-           Object.keys(weights).forEach(k => {
-             weights[k].ratio = weights[k].count / total;
-           });
+           if (totalStcnt > 0) {
+             Object.keys(weights).forEach(k => {
+               weights[k].ratio = weights[k].count / totalStcnt;
+             });
+           }
            return Object.keys(weights).length > 0 ? weights : null;
          })();
 

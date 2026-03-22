@@ -1521,6 +1521,7 @@ export function calculateRadiusAvgSales({
 
   // ─── mmavgList 교차검증 ───
   let mmavgCrossDeviation = -1;
+  console.log(`[매출추정-반경] 교차검증 입력: median=${median}, mmavgListData=${Array.isArray(mmavgListData) ? mmavgListData.length + '건' : mmavgListData}, simpleData=${simpleData ? 'O' : 'X'}`);
   if (median > 0 && Array.isArray(mmavgListData) && mmavgListData.length > 0) {
     // 카페 관련 업종의 mmavgSlsAmt 또는 slsamt 추출
     const mmavgCafeItems = mmavgListData.filter(item => {
