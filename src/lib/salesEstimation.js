@@ -1267,6 +1267,16 @@ export async function calculateRadiusAvgSales({
   let sampleCount = 0;
 
   if (usedEstimates.length > 0) {
+    // [디버그] L1/L2 개인카페 매출 분포 출력
+    console.log('[매출추정-디버그] L1/L2 개인카페 매출 분포:',
+      l1l2Personal.map(e => `${e.name}(${e.layer}): ${e.estimated}만원`).join(', '));
+
+    const l1Only = l1l2Personal.filter(e => e.layer === 'L1');
+    const l2Only = l1l2Personal.filter(e => e.layer === 'L2');
+    const l1Avg = l1Only.length > 0 ? Math.round(l1Only.reduce((s, e) => s + e.estimated, 0) / l1Only.length) : 0;
+    const l2Avg = l2Only.length > 0 ? Math.round(l2Only.reduce((s, e) => s + e.estimated, 0) / l2Only.length) : 0;
+    console.log('[매출추정-디버그] L1:', l1Only.length, '개 평균:', l1Avg, '만원 / L2:', l2Only.length, '개 평균:', l2Avg, '만원');
+
     // 추정매출 배열 정렬
     const sorted = usedEstimates.map(e => e.estimated).sort((a, b) => a - b);
     const n = sorted.length;
