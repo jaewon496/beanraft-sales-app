@@ -1671,3 +1671,64 @@ export function separateBufferZoneCafes(centerLat, centerLng, radius, allCafes) 
 
   return { innerCafes, bufferCafes };
 }
+
+// ═══════════════════════════════════════════════════════════════
+// Nicebizmap Firebase RTDB 조회
+// ═══════════════════════════════════════════════════════════════
+
+const FIREBASE_DB_URL = import.meta.env.VITE_FIREBASE_DATABASE_URL;
+
+/**
+ * 단일 행정동의 나이스비즈맵 데이터를 Firebase RTDB에서 조회
+ * @param {string} admiCd - 8자리 행정동 코드 (예: "11170530")
+ * @returns {Promise<{name: string, chart: Array<{yyyymm: string, saleAmt: number, storeCnt: number, avgPrice: number}>}|null>}
+ */
+export async function fetchNicebizmapData(admiCd) {
+  if (!admiCd || admiCd.length < 8 || !FIREBASE_DB_URL) return null;
+
+  const sidoCode = admiCd.substring(0, 2);
+  const url = `${FIREBASE_DB_URL}/nicebizmap/${sidoCode}/${admiCd}.json`;
+
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    if (!data || !data.c) return null;
+
+    return {
+      name: data.n || '',
+      chart: data.c.map(item => ({
+        yyyymm: item.ym,
+        saleAmt: item.s,
+        storeCnt: item.sc,
+        avgPrice: item.ap
+      }))
+    };
+  } catch (e) {
+    console.warn('[nicebizmap] fetch failed for', admiCd, e.message);
+    return null;
+  }
+}
+
+/**
+ * 여러 행정동의 나이스비즈맵 데이터를 병렬 조회
+ * @param {string[]} admiCds - 행정동 코드 배열
+ * @returns {Promise<Object.<string, {name: string, chart: Array}>>} admiCd -> data 매핑
+ */
+export async function fetchNicebizmapMultiple(admiCds) {
+  if (!admiCds || admiCds.length === 0) return {};
+
+  const results = await Promise.all(
+    admiCds.map(async (cd) => {
+      const data = await fetchNicebizmapData(cd);
+      return [cd, data];
+    })
+  );
+
+  const map = {};
+  for (const [cd, data] of results) {
+    if (data) map[cd] = data;
+  }
+  return map;
+}
