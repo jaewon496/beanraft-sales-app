@@ -27,6 +27,9 @@
 [functions."create-account"]
   timeout = 26
 
+[functions."cafe-collect-proxy"]
+  timeout = 30
+
 # Static assets: 302 redirect (browser fetches directly from origin, reduces proxy load)
 [[redirects]]
   from = "/site/_resource/*"
