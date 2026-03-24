@@ -28,7 +28,7 @@
   timeout = 26
 
 [functions."cafe-collect-proxy"]
-  timeout = 30
+  timeout = 60
 
 # Static assets: 302 redirect (browser fetches directly from origin, reduces proxy load)
 [[redirects]]

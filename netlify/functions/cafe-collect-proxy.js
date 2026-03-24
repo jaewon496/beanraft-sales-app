@@ -141,7 +141,7 @@ async function collectStoreRadius(lat, lng, radius) {
       type: 'json'
     });
     const url = `http://apis.data.go.kr/B553077/api/open/sdsc/storeListInRadius?${params.toString()}`;
-    const data = await httpGet(url, {}, 15000);
+    const data = await httpGet(url, {}, 20000);
 
     let items = [];
     const body = data?.body || data?.data?.body;
@@ -245,7 +245,7 @@ async function collectKakao(lat, lng, radius) {
         for (let page = 1; page <= 3; page++) {
           try {
             const url = `https://dapi.kakao.com/v2/local/search/category.json?category_group_code=CE7&x=${gp.lng}&y=${gp.lat}&radius=${searchRadius}&page=${page}&size=15&sort=distance`;
-            const data = await fetchJson(url, { Authorization: `KakaoAK ${KAKAO_REST_KEY}` }, 10000);
+            const data = await fetchJson(url, { Authorization: `KakaoAK ${KAKAO_REST_KEY}` }, 15000);
             if (!data || !data.documents) break;
             results.push(...data.documents);
             if (data.meta?.is_end) break;
@@ -312,7 +312,7 @@ async function collectNaver(lat, lng, guName, query) {
         const data = await fetchJson(url, {
           'X-Naver-Client-Id': NAVER_CLIENT_ID,
           'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
-        }, 10000);
+        }, 15000);
         return data?.items || [];
       } catch { return []; }
     };
@@ -454,7 +454,7 @@ async function collectLocaldata(lat, lng, guName, radius) {
 
     // 첫 배치로 전체 건수 파악
     const firstUrl = `http://openapi.seoul.go.kr:8088/${SEOUL_API_KEY}/json/LOCALDATA_072405/1/1000/`;
-    const firstData = await httpGet(firstUrl, {}, 15000);
+    const firstData = await httpGet(firstUrl, {}, 20000);
 
     if (!firstData || !firstData.LOCALDATA_072405) {
       return [];
@@ -479,7 +479,7 @@ async function collectLocaldata(lat, lng, guName, radius) {
         const si = (i-1) * 1000 + 1;
         const ei = i * 1000;
         batchPromises.push(
-          httpGet(`http://openapi.seoul.go.kr:8088/${SEOUL_API_KEY}/json/LOCALDATA_072405/${si}/${ei}/`, {}, 15000)
+          httpGet(`http://openapi.seoul.go.kr:8088/${SEOUL_API_KEY}/json/LOCALDATA_072405/${si}/${ei}/`, {}, 20000)
             .then(d => filterRows(d?.LOCALDATA_072405?.row || []))
             .catch(() => [])
         );
@@ -645,9 +645,9 @@ exports.handler = async (event) => {
     // 서울 여부 판단 (LOCALDATA는 서울만)
     const isSeoul = sido.includes('서울') || (query || '').includes('서울');
 
-    // 4개 소스 병렬 실행 (25초 전체 타임아웃)
+    // 4개 소스 병렬 실행 (55초 전체 타임아웃 - Netlify Functions 60초 내)
     const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('GLOBAL_TIMEOUT')), 25000)
+      setTimeout(() => reject(new Error('GLOBAL_TIMEOUT')), 55000)
     );
 
     const collectPromise = Promise.all([
@@ -662,7 +662,7 @@ exports.handler = async (event) => {
       results = await Promise.race([collectPromise, timeoutPromise]);
     } catch (e) {
       if (e.message === 'GLOBAL_TIMEOUT') {
-        console.warn('[cafe-collect] 전체 타임아웃 25초 도달, 부분 결과 사용');
+        console.warn('[cafe-collect] 전체 타임아웃 55초 도달, 부분 결과 사용');
         // 타임아웃시 빈 결과로 대체
         results = [[], [], [], []];
       } else {
