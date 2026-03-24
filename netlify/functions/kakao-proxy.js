@@ -53,6 +53,12 @@ exports.handler = async (event) => {
       }
       const size = params.size || '15';
       url = `https://dapi.kakao.com/v2/local/search/keyword.json?query=${encodeURIComponent(query)}&size=${size}`;
+      // 좌표+반경 필터 지원
+      if (params.x) url += `&x=${params.x}`;
+      if (params.y) url += `&y=${params.y}`;
+      if (params.radius) url += `&radius=${params.radius}`;
+      if (params.category_group_code) url += `&category_group_code=${params.category_group_code}`;
+      if (params.sort) url += `&sort=${params.sort}`;
 
     } else if (searchType === 'category') {
       const categoryCode = params.category_group_code;
