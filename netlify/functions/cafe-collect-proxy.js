@@ -689,9 +689,10 @@ exports.handler = async (event) => {
     const cafeArray = Array.isArray(merged) ? merged : [];
     const responseBody = JSON.stringify({
       success: true,
+      data: cafeArray,
       cafes: cafeArray,
       stats,
-      sources: stats // sources 별칭 (하위 호환)
+      sources: stats
     });
     console.log(`[cafe-collect] 응답 body: ${responseBody.length} bytes, cafes=${cafeArray.length}개`);
 
