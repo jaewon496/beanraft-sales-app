@@ -2,9 +2,6 @@
 // 카페 수집 4개 소스를 서버사이드에서 병렬 실행하는 통합 프록시
 // 소스: storeRadius(공공데이터포털) + 카카오CE7 격자 + 네이버 지역검색 6워커 + LOCALDATA(서울시 인허가)
 
-const http = require('http');
-const https = require('https');
-
 // ── API 키 ──
 const DATA_GO_KR_API_KEY = '02ca822d8e1bf0357b1d782a02dca991192a1b0a89e6cf6ff7e6c4368653cbcb';
 const KAKAO_REST_KEY = process.env.KAKAO_REST_KEY || process.env.VITE_KAKAO_REST_KEY || '9e149576620513dc3283894501c49ab7';
@@ -69,61 +66,55 @@ function detectFranchise(name) {
   return null;
 }
 
-// ── 유틸: HTTP GET (타임아웃 포함) ──
-function httpGet(url, options = {}, timeout = 15000) {
-  return new Promise((resolve, reject) => {
-    const isHttps = url.startsWith('https');
-    const client = isHttps ? https : http;
-    const reqOptions = {
-      ...(isHttps ? { rejectUnauthorized: false } : {}),
+// ── 유틸: HTTP/HTTPS GET (global fetch 사용 - Node 18+) ──
+async function httpGet(url, options = {}, timeout = 15000) {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+    const res = await fetch(url, {
       headers: {
         'Accept': 'application/json',
         'User-Agent': 'Mozilla/5.0',
         ...(options.headers || {})
       },
-      timeout
-    };
-    const req = client.get(url, reqOptions, (res) => {
-      let body = '';
-      res.on('data', chunk => body += chunk);
-      res.on('end', () => {
-        try { resolve(JSON.parse(body)); }
-        catch(e) { resolve(null); }
-      });
+      signal: controller.signal
     });
-    req.on('error', (e) => reject(e));
-    req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
-  });
+    clearTimeout(timer);
+    if (!res.ok) {
+      console.warn(`[cafe-collect] httpGet ${res.status} for ${url.substring(0, 80)}`);
+      return null;
+    }
+    return await res.json();
+  } catch (e) {
+    console.warn(`[cafe-collect] httpGet 실패: ${e.message} for ${url.substring(0, 80)}`);
+    return null;
+  }
 }
 
-// ── 유틸: HTTPS fetch (카카오/네이버용) ──
-function fetchJson(url, headers = {}, timeout = 15000) {
-  return new Promise((resolve, reject) => {
-    const urlObj = new URL(url);
-    const options = {
-      hostname: urlObj.hostname,
-      port: urlObj.port || 443,
-      path: urlObj.pathname + urlObj.search,
-      method: 'GET',
+// ── 유틸: HTTPS fetch (카카오/네이버용 - global fetch 사용) ──
+async function fetchJson(url, headers = {}, timeout = 15000) {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+    const res = await fetch(url, {
       headers: {
         'Accept': 'application/json',
         'User-Agent': 'Mozilla/5.0',
         ...headers
       },
-      timeout
-    };
-    const req = https.request(options, (res) => {
-      let body = '';
-      res.on('data', chunk => body += chunk);
-      res.on('end', () => {
-        try { resolve(JSON.parse(body)); }
-        catch(e) { resolve(null); }
-      });
+      signal: controller.signal
     });
-    req.on('error', (e) => reject(e));
-    req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
-    req.end();
-  });
+    clearTimeout(timer);
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      console.warn(`[cafe-collect] fetchJson ${res.status} for ${url.substring(0, 80)}: ${errText.substring(0, 200)}`);
+      return null;
+    }
+    return await res.json();
+  } catch (e) {
+    console.warn(`[cafe-collect] fetchJson 실패: ${e.message} for ${url.substring(0, 80)}`);
+    return null;
+  }
 }
 
 // ════════════════════════════════════════════════════════════
