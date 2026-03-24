@@ -630,7 +630,7 @@ exports.handler = async (event) => {
 
   try {
     const body = JSON.parse(event.body || '{}');
-    const { lat, lng, radius = 550, guName = '', query = '' } = body;
+    const { lat, lng, radius = 550, guName = '', sido = '', query = '' } = body;
 
     if (!lat || !lng) {
       return {
@@ -643,7 +643,7 @@ exports.handler = async (event) => {
     console.log(`[cafe-collect] 시작: lat=${lat}, lng=${lng}, radius=${radius}, gu=${guName}`);
 
     // 서울 여부 판단 (LOCALDATA는 서울만)
-    const isSeoul = guName.includes('구') || (query || '').includes('서울');
+    const isSeoul = sido.includes('서울') || (query || '').includes('서울');
 
     // 4개 소스 병렬 실행 (25초 전체 타임아웃)
     const timeoutPromise = new Promise((_, reject) =>
