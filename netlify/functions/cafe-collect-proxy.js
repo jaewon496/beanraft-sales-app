@@ -236,31 +236,28 @@ async function collectKakao(lat, lng, radius) {
     const allResults = [];
     const seenIds = new Set();
 
-    // 격자를 배치로 처리 (동시 5개씩)
-    const BATCH_SIZE = 5;
-    for (let bi = 0; bi < gridPoints.length; bi += BATCH_SIZE) {
-      const batch = gridPoints.slice(bi, bi + BATCH_SIZE);
-      const batchPromises = batch.map(async (gp) => {
-        const results = [];
-        for (let page = 1; page <= 3; page++) {
-          try {
-            const url = `https://dapi.kakao.com/v2/local/search/category.json?category_group_code=CE7&x=${gp.lng}&y=${gp.lat}&radius=${searchRadius}&page=${page}&size=15&sort=distance`;
-            const data = await fetchJson(url, { Authorization: `KakaoAK ${KAKAO_REST_KEY}` }, 15000);
-            if (!data || !data.documents) break;
-            results.push(...data.documents);
-            if (data.meta?.is_end) break;
-          } catch { break; }
-        }
-        return results;
-      });
-      const batchResults = await Promise.all(batchPromises);
-      for (const docs of batchResults) {
-        for (const doc of docs) {
-          const placeId = doc.id || doc.place_name;
-          if (!seenIds.has(placeId)) {
-            seenIds.add(placeId);
-            allResults.push(doc);
-          }
+    // 모든 격자점을 동시 실행 (카카오 REST API 초당 30회 허용)
+    const allGridPromises = gridPoints.map(async (gp) => {
+      const results = [];
+      for (let page = 1; page <= 3; page++) {
+        try {
+          const url = `https://dapi.kakao.com/v2/local/search/category.json?category_group_code=CE7&x=${gp.lng}&y=${gp.lat}&radius=${searchRadius}&page=${page}&size=15&sort=distance`;
+          const data = await fetchJson(url, { Authorization: `KakaoAK ${KAKAO_REST_KEY}` }, 15000);
+          if (!data || !data.documents) break;
+          results.push(...data.documents);
+          if (data.meta?.is_end) break;
+        } catch { break; }
+      }
+      return results;
+    });
+    const gridResults = await Promise.allSettled(allGridPromises);
+    for (const result of gridResults) {
+      if (result.status !== 'fulfilled') continue;
+      for (const doc of result.value) {
+        const placeId = doc.id || doc.place_name;
+        if (!seenIds.has(placeId)) {
+          seenIds.add(placeId);
+          allResults.push(doc);
         }
       }
     }
@@ -645,32 +642,25 @@ exports.handler = async (event) => {
     // 서울 여부 판단 (LOCALDATA는 서울만)
     const isSeoul = sido.includes('서울') || (query || '').includes('서울');
 
-    // 4개 소스 병렬 실행 (55초 전체 타임아웃 - Netlify Functions 60초 내)
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('GLOBAL_TIMEOUT')), 55000)
-    );
+    // 4개 소스 병렬 실행 - 각 소스 개별 타임아웃(20초) + Promise.allSettled로 부분 결과 보존
+    const withTimeout = (promise, ms, label) =>
+      Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error(`${label} timeout ${ms}ms`)), ms))
+      ]).catch(e => { console.warn(`[cafe-collect] ${label} 실패/타임아웃: ${e.message}`); return []; });
 
-    const collectPromise = Promise.all([
-      collectStoreRadius(lat, lng, radius).catch(e => { console.error('storeRadius error:', e.message); return []; }),
-      collectKakao(lat, lng, radius).catch(e => { console.error('kakao error:', e.message); return []; }),
-      collectNaver(lat, lng, guName, query).catch(e => { console.error('naver error:', e.message); return []; }),
-      isSeoul ? collectLocaldata(lat, lng, guName, radius).catch(e => { console.error('localdata error:', e.message); return []; }) : Promise.resolve([])
+    const SOURCE_TIMEOUT = 20000;
+    const settled = await Promise.allSettled([
+      withTimeout(collectStoreRadius(lat, lng, radius), SOURCE_TIMEOUT, 'storeRadius'),
+      withTimeout(collectKakao(lat, lng, radius), SOURCE_TIMEOUT, 'kakao'),
+      withTimeout(collectNaver(lat, lng, guName, query), SOURCE_TIMEOUT, 'naver'),
+      isSeoul ? withTimeout(collectLocaldata(lat, lng, guName, radius), SOURCE_TIMEOUT, 'localdata') : Promise.resolve([])
     ]);
 
-    let results;
-    try {
-      results = await Promise.race([collectPromise, timeoutPromise]);
-    } catch (e) {
-      if (e.message === 'GLOBAL_TIMEOUT') {
-        console.warn('[cafe-collect] 전체 타임아웃 55초 도달, 부분 결과 사용');
-        // 타임아웃시 빈 결과로 대체
-        results = [[], [], [], []];
-      } else {
-        throw e;
-      }
-    }
-
-    const [storeRadiusCafes, kakaoCafes, naverCafes, localdataCafes] = results;
+    const storeRadiusCafes = settled[0].status === 'fulfilled' ? settled[0].value : [];
+    const kakaoCafes = settled[1].status === 'fulfilled' ? settled[1].value : [];
+    const naverCafes = settled[2].status === 'fulfilled' ? settled[2].value : [];
+    const localdataCafes = settled[3].status === 'fulfilled' ? settled[3].value : [];
 
     // 병합
     const merged = mergeCafes({
