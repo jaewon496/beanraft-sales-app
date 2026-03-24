@@ -65,6 +65,54 @@ export async function handler(event) {
 
     try {
       const body = JSON.parse(event.body || '{}');
+
+      // ═══ multi-agent: 여러 프롬프트를 서버사이드 병렬 호출 ═══
+      if (body.action === 'multi-agent') {
+        const agents = body.agents || [];
+        if (!agents.length) {
+          return { statusCode: 400, headers, body: JSON.stringify({ error: 'agents 배열 필수' }) };
+        }
+
+        const callAgent = async (agent) => {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 25000);
+          try {
+            const res = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contents: [{ parts: [{ text: agent.prompt }] }],
+                  generationConfig: {
+                    temperature: 0.7,
+                    maxOutputTokens: agent.maxOutputTokens || 1000,
+                    responseMimeType: 'application/json',
+                    thinkingConfig: { thinkingBudget: 0 }
+                  }
+                }),
+                signal: controller.signal
+              }
+            );
+            clearTimeout(timeoutId);
+            if (!res.ok) {
+              return { id: agent.id, success: false, error: `HTTP ${res.status}` };
+            }
+            const data = await res.json();
+            const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            return { id: agent.id, success: true, text };
+          } catch (err) {
+            clearTimeout(timeoutId);
+            return { id: agent.id, success: false, error: err.name === 'AbortError' ? 'timeout' : err.message };
+          }
+        };
+
+        const agentResults = await Promise.all(agents.map(callAgent));
+        const results = {};
+        agentResults.forEach(r => { results[r.id] = { success: r.success, text: r.text || undefined, error: r.error || undefined }; });
+        return { statusCode: 200, headers, body: JSON.stringify({ results }) };
+      }
+
       const { contents, generationConfig, systemInstruction, tools } = body;
       if (!contents) {
         return { statusCode: 400, headers, body: JSON.stringify({ error: 'contents 필수' }) };
