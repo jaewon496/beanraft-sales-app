@@ -1638,7 +1638,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
                 </p>
               </div>
             )}
-            {cd?.nearbyTotalCafes === 0 && cd?.cafeSearchExpanded && (
+            {(cd?.nearbyTotalCafes || 0) === 0 && cd?.cafeSearchExpanded && (
               <div style={{ marginTop: 4 }}>
                 <p style={{ fontSize: 13, color: t3, margin: 0 }}>
                   반경 500m 내 카페 없음 · {cd.dongInfo?.admdstCdNm || '행정동'} 내 {cd.dongCafeCount || 0}개
@@ -9936,23 +9936,27 @@ JSON으로만 응답:
        const fcFinal = Object.entries(collectedData.nearbyFranchiseCounts || {}).map(([k,v]) => `${k}:${v}`).join(', ');
        console.log(`[영업모드] ★ 최종 카페 수: ${collectedData.nearbyTotalCafes}개 (프랜차이즈 ${(collectedData.nearbyFranchiseList || []).length}개: ${fcFinal || '없음'}, 개인카페 ${(collectedData.nearbyIndependentList || []).length}개)`);
 
-       // ═══ 카페 0개 확장 검색: 행정동 내 카카오 키워드 + 나이스비즈맵 block-data ═══
-       if ((collectedData.nearbyTotalCafes || 0) === 0 && dongInfo && coordinates) {
-         console.log('[영업모드] 반경 내 카페 0개 → 행정동 확장 검색 시작');
-         setSalesModeAnalysisStep('행정동 내 카페 확장 검색 중');
-         const dongShortName = dongInfo.admdstCdNm || '';
-         const primaryDongCd = dongInfo.dongCd || '';
+       // ═══ 카페 0개 확장 검색: 행정동/읍면 내 카카오 키워드 + 나이스비즈맵 block-data ═══
+       // dongInfo가 null이어도 addressInfo(지오코딩 결과)로 fallback하여 확장 검색 실행
+       const expandDongInfo = dongInfo || (addressInfo?.dong ? { admdstCdNm: addressInfo.dong, dongCd: '', dongNm: addressInfo.dong } : null);
+       if ((collectedData.nearbyTotalCafes || 0) === 0 && coordinates) {
+         const expandName = expandDongInfo?.admdstCdNm || addressInfo?.dong || addressInfo?.sigungu || '';
+         console.log(`[확장검색] 카페 0개 감지, 확장 검색 시작: ${expandName || '(이름 없음)'}`);
+         setSalesModeAnalysisStep('주변 카페 확장 검색 중');
+         const dongShortName = expandName;
+         const primaryDongCd = expandDongInfo?.dongCd || '';
 
          try {
-           // 1) 카카오 키워드 검색: "행정동이름 카페" (반경 5km)
+           // 1) 카카오 키워드 검색: "지역이름 카페" (반경 5km → 10km로 확대)
            const kakaoKwPromise = (async () => {
              try {
-               const kwUrl = `/api/kakao-proxy?type=keyword&query=${encodeURIComponent(dongShortName + ' 카페')}&x=${coordinates.lng}&y=${coordinates.lat}&radius=5000&category_group_code=CE7&size=15&sort=distance`;
+               const searchRadius = primaryDongCd ? 5000 : 10000; // dongCd 없으면 읍면 → 반경 확대
+               const kwUrl = `/api/kakao-proxy?type=keyword&query=${encodeURIComponent(dongShortName + ' 카페')}&x=${coordinates.lng}&y=${coordinates.lat}&radius=${searchRadius}&category_group_code=CE7&size=15&sort=distance`;
                const kwRes = await fetch(kwUrl, { signal: AbortSignal.timeout(10000) });
                if (!kwRes.ok) return [];
                const kwData = await kwRes.json();
                const cafes = (kwData.documents || []).filter(d => d.category_group_code === 'CE7');
-               console.log(`[확장검색] 카카오 키워드 "${dongShortName} 카페": ${cafes.length}개 발견`);
+               console.log(`[확장검색] 카카오 키워드 "${dongShortName} 카페" (반경 ${searchRadius/1000}km): ${cafes.length}개 발견`);
                return cafes;
              } catch (e) {
                console.log('[확장검색] 카카오 키워드 검색 실패:', e.message);
@@ -9960,8 +9964,12 @@ JSON으로만 응답:
              }
            })();
 
-           // 2) 나이스비즈맵 block-data: 행정동 카페 수
+           // 2) 나이스비즈맵 block-data: 행정동 카페 수 (dongCd가 있을 때만)
            const blockDataPromise = (async () => {
+             if (!primaryDongCd) {
+               console.log('[확장검색] 나이스비즈맵 block-data 스킵 (dongCd 없음, 읍면 지역)');
+               return 0;
+             }
              try {
                const bdUrl = `https://m.nicebizmap.co.kr/api/explorer/density/block-data?admiCd=${primaryDongCd}&bupinGb=1&upjong3Cd=Q13007&yyyymm=202601`;
                const bdRes = await fetch(bdUrl, { signal: AbortSignal.timeout(10000) });
@@ -9991,11 +9999,15 @@ JSON으로만 응답:
            collectedData.dongCafeCount = dongCafeCount || dongCafes.length;
            collectedData.nearestCafeDistance = dongCafes.length > 0 ? (parseInt(dongCafes[0].distance) || null) : null;
            collectedData.cafeSearchExpanded = true;
+           // dongInfo가 없었으면 expandDongInfo를 collectedData.dongInfo에 저장 (UI에서 읽을 수 있도록)
+           if (!collectedData.dongInfo && expandDongInfo) {
+             collectedData.dongInfo = { dongCd: expandDongInfo.dongCd || '', dongNm: expandDongInfo.dongNm || '', admdstCdNm: expandDongInfo.admdstCdNm || '', nearbyDongs: [] };
+           }
 
            const nearestKm = collectedData.nearestCafeDistance ? (collectedData.nearestCafeDistance / 1000).toFixed(1) : '?';
-           console.log(`[영업모드] ★ 확장 검색 결과: 행정동 내 카페 ${collectedData.dongCafeCount}개, 가장 가까운 카페 ${nearestKm}km`);
+           console.log(`[확장검색] 결과: ${expandName} 내 카페 ${collectedData.dongCafeCount}개, 가장 가까운 ${nearestKm}km`);
          } catch (e) {
-           console.log('[영업모드] 행정동 확장 검색 실패:', e.message);
+           console.log('[영업모드] 확장 검색 실패:', e.message);
          }
        }
 
