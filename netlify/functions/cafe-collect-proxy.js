@@ -629,7 +629,7 @@ exports.handler = async (event) => {
   const startTime = Date.now();
 
   try {
-    const body = JSON.parse(event.body || '{}');
+    const body = typeof event.body === 'string' ? JSON.parse(event.body || '{}') : (event.body || {});
     const { lat, lng, radius = 550, guName = '', sido = '', query = '' } = body;
 
     if (!lat || !lng) {
@@ -676,20 +676,23 @@ exports.handler = async (event) => {
     const elapsed = Math.round((Date.now() - startTime) / 1000);
     console.log(`[cafe-collect] 완료: SR=${storeRadiusCafes.length}, KK=${kakaoCafes.length}, NV=${naverCafes.length}, LD=${localdataCafes.length} → 병합=${merged.length} (${elapsed}s)`);
 
+    const stats = {
+      storeRadius: storeRadiusCafes.length,
+      kakao: kakaoCafes.length,
+      naver: naverCafes.length,
+      localdata: localdataCafes.length,
+      merged: merged.length,
+      elapsed
+    };
+
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
         success: true,
         cafes: merged,
-        stats: {
-          storeRadius: storeRadiusCafes.length,
-          kakao: kakaoCafes.length,
-          naver: naverCafes.length,
-          localdata: localdataCafes.length,
-          merged: merged.length,
-          elapsed
-        }
+        stats,
+        sources: stats // sources 별칭 (하위 호환)
       })
     };
   } catch (err) {
