@@ -685,15 +685,20 @@ exports.handler = async (event) => {
       elapsed
     };
 
+    // 응답 body 생성 (cafes 필드에 merged 배열 확실히 포함)
+    const cafeArray = Array.isArray(merged) ? merged : [];
+    const responseBody = JSON.stringify({
+      success: true,
+      cafes: cafeArray,
+      stats,
+      sources: stats // sources 별칭 (하위 호환)
+    });
+    console.log(`[cafe-collect] 응답 body: ${responseBody.length} bytes, cafes=${cafeArray.length}개`);
+
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({
-        success: true,
-        cafes: merged,
-        stats,
-        sources: stats // sources 별칭 (하위 호환)
-      })
+      body: responseBody
     };
   } catch (err) {
     console.error('[cafe-collect] 핸들러 에러:', err);
