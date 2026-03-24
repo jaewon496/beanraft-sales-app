@@ -236,28 +236,31 @@ async function collectKakao(lat, lng, radius) {
     const allResults = [];
     const seenIds = new Set();
 
-    // 모든 격자점을 동시 실행 (카카오 REST API 초당 30회 허용)
-    const allGridPromises = gridPoints.map(async (gp) => {
-      const results = [];
-      for (let page = 1; page <= 3; page++) {
-        try {
-          const url = `https://dapi.kakao.com/v2/local/search/category.json?category_group_code=CE7&x=${gp.lng}&y=${gp.lat}&radius=${searchRadius}&page=${page}&size=15&sort=distance`;
-          const data = await fetchJson(url, { Authorization: `KakaoAK ${KAKAO_REST_KEY}` }, 15000);
-          if (!data || !data.documents) break;
-          results.push(...data.documents);
-          if (data.meta?.is_end) break;
-        } catch { break; }
-      }
-      return results;
-    });
-    const gridResults = await Promise.allSettled(allGridPromises);
-    for (const result of gridResults) {
-      if (result.status !== 'fulfilled') continue;
-      for (const doc of result.value) {
-        const placeId = doc.id || doc.place_name;
-        if (!seenIds.has(placeId)) {
-          seenIds.add(placeId);
-          allResults.push(doc);
+    // 격자를 배치로 처리 (동시 5개씩 - 카카오 REST API 초당 30회 제한 준수)
+    const BATCH_SIZE = 5;
+    for (let bi = 0; bi < gridPoints.length; bi += BATCH_SIZE) {
+      const batch = gridPoints.slice(bi, bi + BATCH_SIZE);
+      const batchResults = await Promise.allSettled(batch.map(async (gp) => {
+        const results = [];
+        for (let page = 1; page <= 3; page++) {
+          try {
+            const url = `https://dapi.kakao.com/v2/local/search/category.json?category_group_code=CE7&x=${gp.lng}&y=${gp.lat}&radius=${searchRadius}&page=${page}&size=15&sort=distance`;
+            const data = await fetchJson(url, { Authorization: `KakaoAK ${KAKAO_REST_KEY}` }, 15000);
+            if (!data || !data.documents) break;
+            results.push(...data.documents);
+            if (data.meta?.is_end) break;
+          } catch { break; }
+        }
+        return results;
+      }));
+      for (const result of batchResults) {
+        if (result.status !== 'fulfilled') continue;
+        for (const doc of result.value) {
+          const placeId = doc.id || doc.place_name;
+          if (!seenIds.has(placeId)) {
+            seenIds.add(placeId);
+            allResults.push(doc);
+          }
         }
       }
     }
