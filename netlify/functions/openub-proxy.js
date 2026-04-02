@@ -618,12 +618,9 @@ export async function handler(event) {
         }
       }
 
-      // 6) bd/sales에서 개별 카페 추출 + 프랜차이즈 판별 + 데이터 필드 합산
+      // 6) bd/sales에서 개별 카페 추출 + 프랜차이즈 판별
       const allCafes = [];
       let newOpenCount = 0;
-
-      // bd/sales data 필드 합산용 (times, gender, weekday, age, type, holiday 등)
-      const aggregatedData = {};
 
       for (const result of bdSalesResults) {
         if (!result.ok) continue;
@@ -646,73 +643,6 @@ export async function handler(event) {
           };
           if (cafeEntry.isNewOpen) newOpenCount++;
           allCafes.push(cafeEntry);
-        }
-
-        // bd/sales 응답의 data 필드에서 합산 가능한 모든 하위 필드 합산
-        const bdData = result.data?.data || result.data?.result?.data || null;
-        if (bdData && typeof bdData === 'object') {
-          // stores, bd 같은 비-데이터 키는 제외하고 나머지 합산
-          const SKIP_KEYS = ['stores', 'bd', 'storeCount', 'rdnu'];
-          for (const [key, val] of Object.entries(bdData)) {
-            if (SKIP_KEYS.includes(key)) continue;
-            if (val === null || val === undefined) continue;
-
-            // 숫자 배열인 경우: 인덱스별 합산
-            if (Array.isArray(val) && val.length > 0 && typeof val[0] === 'number') {
-              if (!aggregatedData[key]) aggregatedData[key] = new Array(val.length).fill(0);
-              for (let k = 0; k < val.length; k++) {
-                aggregatedData[key][k] = (aggregatedData[key][k] || 0) + (val[k] || 0);
-              }
-            }
-            // 객체인 경우: 키별 합산 (값이 숫자면 합산, 배열이면 인덱스별 합산)
-            else if (typeof val === 'object' && !Array.isArray(val)) {
-              if (!aggregatedData[key]) aggregatedData[key] = {};
-              for (const [subKey, subVal] of Object.entries(val)) {
-                if (typeof subVal === 'number') {
-                  aggregatedData[key][subKey] = (aggregatedData[key][subKey] || 0) + subVal;
-                } else if (Array.isArray(subVal) && subVal.length > 0 && typeof subVal[0] === 'number') {
-                  if (!aggregatedData[key][subKey]) aggregatedData[key][subKey] = new Array(subVal.length).fill(0);
-                  for (let k = 0; k < subVal.length; k++) {
-                    aggregatedData[key][subKey][k] = (aggregatedData[key][subKey][k] || 0) + (subVal[k] || 0);
-                  }
-                }
-              }
-            }
-            // 단순 숫자인 경우: 합산
-            else if (typeof val === 'number') {
-              aggregatedData[key] = (aggregatedData[key] || 0) + val;
-            }
-          }
-        }
-
-        // data가 아닌 최상위에도 times/gender/weekday 등이 있을 수 있으므로 체크
-        if (result.data && typeof result.data === 'object' && !bdData) {
-          const TOP_SKIP = ['stores', 'bd', 'result', 'storeCount', 'rdnu', 'ok'];
-          for (const [key, val] of Object.entries(result.data)) {
-            if (TOP_SKIP.includes(key)) continue;
-            if (val === null || val === undefined) continue;
-
-            if (Array.isArray(val) && val.length > 0 && typeof val[0] === 'number') {
-              if (!aggregatedData[key]) aggregatedData[key] = new Array(val.length).fill(0);
-              for (let k = 0; k < val.length; k++) {
-                aggregatedData[key][k] = (aggregatedData[key][k] || 0) + (val[k] || 0);
-              }
-            } else if (typeof val === 'object' && !Array.isArray(val)) {
-              if (!aggregatedData[key]) aggregatedData[key] = {};
-              for (const [subKey, subVal] of Object.entries(val)) {
-                if (typeof subVal === 'number') {
-                  aggregatedData[key][subKey] = (aggregatedData[key][subKey] || 0) + subVal;
-                } else if (Array.isArray(subVal) && subVal.length > 0 && typeof subVal[0] === 'number') {
-                  if (!aggregatedData[key][subKey]) aggregatedData[key][subKey] = new Array(subVal.length).fill(0);
-                  for (let k = 0; k < subVal.length; k++) {
-                    aggregatedData[key][subKey][k] = (aggregatedData[key][subKey][k] || 0) + (subVal[k] || 0);
-                  }
-                }
-              }
-            } else if (typeof val === 'number') {
-              aggregatedData[key] = (aggregatedData[key] || 0) + val;
-            }
-          }
         }
       }
 
@@ -744,7 +674,6 @@ export async function handler(event) {
           newOpenCount,
           cafes: allCafes,
           bakeries,
-          salesData: Object.keys(aggregatedData).length > 0 ? aggregatedData : null,
           meta: {
             s2Level: S2_LEVEL,
             s2Cells: cellTokens.length,
@@ -802,21 +731,12 @@ export async function handler(event) {
 
     // 4) 카페 추출 (각 매장을 개별 카운트)
     const allCafes = [];
-    const timesAgg = [0, 0, 0, 0, 0, 0, 0];
-    const genderAgg = { male: 0, female: 0 };
-    const weekdayAgg = [0, 0, 0, 0, 0, 0, 0];
 
     for (const result of bdSalesResults) {
       if (!result.ok) continue;
 
       const cafes = extractCafesFromBdSales(result, buildingMap[result.rdnu]);
       allCafes.push(...cafes);
-
-      // 카페가 있는 건물의 데이터 합산
-      if (cafes.length > 0 && result.data) {
-        const salesData = result.data.data || result.data.result?.data || {};
-        aggregateData(salesData, timesAgg, genderAgg, weekdayAgg);
-      }
     }
 
     const elapsed = Date.now() - t0;
@@ -829,9 +749,6 @@ export async function handler(event) {
         cafes: allCafes,
         totalCafes: allCafes.length,
         buildingsSearched: rdnus.length,
-        times: timesAgg,
-        gender: genderAgg,
-        weekday: weekdayAgg,
         meta: {
           s2Level: S2_LEVEL,
           s2Cells: cellTokens.length,
@@ -853,29 +770,5 @@ export async function handler(event) {
       headers: CORS_HEADERS,
       body: JSON.stringify({ error: error.message })
     };
-  }
-}
-
-// ─── 시간대/성별/요일 합산 헬퍼 ───
-
-function aggregateData(data, timesAgg, genderAgg, weekdayAgg) {
-  const times = data.times;
-  if (Array.isArray(times)) {
-    for (let i = 0; i < Math.min(times.length, 7); i++) {
-      timesAgg[i] += (typeof times[i] === 'number' ? times[i] : (times[i]?.count || 0));
-    }
-  }
-
-  const gender = data.gender;
-  if (gender) {
-    genderAgg.male += (gender.male || gender.m || 0);
-    genderAgg.female += (gender.female || gender.f || 0);
-  }
-
-  const weekday = data.weekday;
-  if (Array.isArray(weekday)) {
-    for (let i = 0; i < Math.min(weekday.length, 7); i++) {
-      weekdayAgg[i] += (typeof weekday[i] === 'number' ? weekday[i] : (weekday[i]?.count || 0));
-    }
   }
 }

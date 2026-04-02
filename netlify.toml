@@ -28,7 +28,16 @@
   timeout = 26
 
 [functions."cafe-collect-proxy"]
-  timeout = 60
+  timeout = 26
+
+[functions."openub-proxy"]
+  timeout = 26
+
+[functions."openub-sales-proxy"]
+  timeout = 26
+
+[functions."openub-heartbeat"]
+  schedule = "*/5 * * * *"
 
 # Static assets: 302 redirect (browser fetches directly from origin, reduces proxy load)
 [[redirects]]
