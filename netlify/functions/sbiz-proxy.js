@@ -3,6 +3,7 @@
 
 const https = require('https');
 const http = require('http');
+const zlib = require('zlib');
 
 const DATA_GO_KR_API_KEY = '02ca822d8e1bf0357b1d782a02dca991192a1b0a89e6cf6ff7e6c4368653cbcb';
 
@@ -37,13 +38,37 @@ function wgs84ToTM(lat, lng) {
   return { x, y: yVal };
 }
 
+function fetchJsonSimple(url) {
+  return new Promise((resolve, reject) => {
+    const req = https.get(url, {
+      rejectUnauthorized: false,
+      headers: { 'Accept': 'application/json', 'Accept-Encoding': 'gzip, deflate', 'User-Agent': 'Mozilla/5.0' },
+      timeout: 15000
+    }, (res) => {
+      const encoding = (res.headers['content-encoding'] || '').toLowerCase();
+      let stream = res;
+      if (encoding === 'gzip') {
+        stream = res.pipe(zlib.createGunzip());
+      } else if (encoding === 'deflate') {
+        stream = res.pipe(zlib.createInflate());
+      }
+      let body = '';
+      stream.on('data', chunk => body += chunk);
+      stream.on('end', () => { try { resolve(JSON.parse(body)); } catch(e) { resolve(null); } });
+      stream.on('error', () => resolve(null));
+    });
+    req.on('error', () => resolve(null));
+    req.on('timeout', () => { req.destroy(); resolve(null); });
+  });
+}
+
 exports.handler = async (event, context) => {
   const corsHeaders = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Content-Type': 'application/json; charset=utf-8' };
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers: corsHeaders, body: '' };
 
   const params = event.queryStringParameters || {};
   const { api, endpoint, apiName, ...queryParams } = params;
-  if (!api) return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'api 파라미터 필요', available: ['sbiz','coord','store','storeRadius','storeInds','gis','open'] }) };
+  if (!api) return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'api 파라미터 필요', available: ['sbiz','coord','store','storeRadius','storeInds','gis','open','simpleAnls','detailAnls','weather','seoul','fftc'] }) };
 
   const startTime = Date.now();
   try {
@@ -75,7 +100,7 @@ exports.handler = async (event, context) => {
         targetUrl = `https://bigdata.sbiz.or.kr${gisPath}?${urlParams.toString()}`;
       }
     }
-    // 2. OpenAPI → /sbiz/api/bizonSttus/{name}/search.json (certKey 필요)
+    // 2. OpenAPI → /openApi/{name} (certKey 필요, storSttus만 /sbiz/api/bizonSttus/ 경로)
     else if (api === 'open') {
       const name = apiName || endpoint;
       if (!name) return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'apiName 또는 endpoint 파라미터 필요' }) };
@@ -84,7 +109,8 @@ exports.handler = async (event, context) => {
       // certKey 추가 (SBIZ_OPEN_API_KEYS에서 해당 API 키 조회)
       const certKey = SBIZ_OPEN_API_KEYS[name];
       if (certKey) urlParams.append('certKey', certKey);
-      Object.keys(queryParams).forEach(k => { if (queryParams[k]) urlParams.append(k, queryParams[k]); });
+      const proxyKeys = ['api', 'apiName', 'endpoint', '_debug'];
+      Object.keys(queryParams).forEach(k => { if (queryParams[k] && !proxyKeys.includes(k)) urlParams.append(k, queryParams[k]); });
       targetUrl = `https://bigdata.sbiz.or.kr${openPath}?${urlParams.toString()}`;
     }
     // 3. SBIZ
@@ -93,6 +119,162 @@ exports.handler = async (event, context) => {
       const urlParams = new URLSearchParams();
       Object.keys(queryParams).forEach(k => { if (queryParams[k]) urlParams.append(k, queryParams[k]); });
       targetUrl = `https://bigdata.sbiz.or.kr${sbizPath}?${urlParams.toString()}`;
+    }
+    // simpleAnls: 간단분석 (GIS 경로 - getAvgAmtInfo → getPopularInfo 체인)
+    else if (api === 'simpleAnls') {
+      const { admiCd, dongCd, upjongCd, simpleLoc, addr } = queryParams;
+      const admCode = admiCd || dongCd;
+      if (!admCode) return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'admiCd(행정동코드) 필요' }) };
+      const loc = simpleLoc || addr || '';
+      if (!loc) return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'simpleLoc 또는 addr(주소) 필요' }) };
+
+      const certKey = SBIZ_OPEN_API_KEYS.simple;
+      const ujCd = upjongCd || 'I21201';
+
+      try {
+        // Step 1: getAvgAmtInfo → analyNo 획득
+        const step1Params = new URLSearchParams({
+          admiCd: admCode, upjongCd: ujCd, simpleLoc: loc,
+          bizonNumber: '', bizonName: '', bzznType: '',
+          xtLoginId: certKey
+        });
+        const avgAmtUrl = `https://bigdata.sbiz.or.kr/gis/simpleAnls/getAvgAmtInfo.json?${step1Params.toString()}`;
+        const avgAmtData = await fetchJsonSimple(avgAmtUrl);
+
+        const analyNo = avgAmtData?.analyNo || avgAmtData?.body?.analyNo || avgAmtData?.result?.analyNo;
+        const mililis = avgAmtData?.mililis || avgAmtData?.body?.mililis || avgAmtData?.result?.mililis || '';
+        if (!analyNo) {
+          return { statusCode: 200, headers: corsHeaders, body: JSON.stringify({
+            success: true,
+            avgAmt: avgAmtData,
+            population: null,
+            note: 'analyNo 없음 - getPopularInfo 생략'
+          }) };
+        }
+
+        // Step 2: getPopularInfo → 시간대별/요일별 유동인구
+        const step2Params = new URLSearchParams({
+          analyNo, admiCd: admCode, upjongCd: ujCd, mililis,
+          bizonNumber: '', bizonName: '', bzznType: '',
+          xtLoginId: certKey
+        });
+        const popUrl = `https://bigdata.sbiz.or.kr/gis/simpleAnls/getPopularInfo.json?${step2Params.toString()}`;
+        const popData = await fetchJsonSimple(popUrl);
+
+        return { statusCode: 200, headers: corsHeaders, body: JSON.stringify({
+          success: true,
+          avgAmt: avgAmtData,
+          population: popData?.population || popData
+        }) };
+      } catch(e) {
+        return { statusCode: 200, headers: corsHeaders, body: JSON.stringify({ success: false, error: e.message }) };
+      }
+    }
+    // detailAnls: 상세분석 (GIS 경로 - getAvgAmtInfo → getPopularInfo 체인)
+    else if (api === 'detailAnls') {
+      const { admiCd, dongCd, upjongCd, simpleLoc, addr } = queryParams;
+      const admCode = admiCd || dongCd;
+      if (!admCode) return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'admiCd(행정동코드) 필요' }) };
+      const loc = simpleLoc || addr || '';
+      if (!loc) return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'simpleLoc 또는 addr(주소) 필요' }) };
+
+      const certKey = SBIZ_OPEN_API_KEYS.detail;
+      const ujCd = upjongCd || 'I21201';
+
+      try {
+        // Step 1: getAvgAmtInfo → analyNo 획득
+        const step1Params = new URLSearchParams({
+          admiCd: admCode, upjongCd: ujCd, simpleLoc: loc,
+          bizonNumber: '', bizonName: '', bzznType: '',
+          xtLoginId: certKey
+        });
+        const avgAmtUrl = `https://bigdata.sbiz.or.kr/gis/simpleAnls/getAvgAmtInfo.json?${step1Params.toString()}`;
+        const avgAmtData = await fetchJsonSimple(avgAmtUrl);
+
+        const analyNo = avgAmtData?.analyNo || avgAmtData?.body?.analyNo || avgAmtData?.result?.analyNo;
+        const mililis = avgAmtData?.mililis || avgAmtData?.body?.mililis || avgAmtData?.result?.mililis || '';
+        if (!analyNo) {
+          return { statusCode: 200, headers: corsHeaders, body: JSON.stringify({
+            success: true,
+            avgAmt: avgAmtData,
+            population: null,
+            note: 'analyNo 없음 - getPopularInfo 생략'
+          }) };
+        }
+
+        // Step 2: getPopularInfo → 시간대별/요일별 유동인구
+        const step2Params = new URLSearchParams({
+          analyNo, admiCd: admCode, upjongCd: ujCd, mililis,
+          bizonNumber: '', bizonName: '', bzznType: '',
+          xtLoginId: certKey
+        });
+        const popUrl = `https://bigdata.sbiz.or.kr/gis/simpleAnls/getPopularInfo.json?${step2Params.toString()}`;
+        const popData = await fetchJsonSimple(popUrl);
+
+        return { statusCode: 200, headers: corsHeaders, body: JSON.stringify({
+          success: true,
+          avgAmt: avgAmtData,
+          population: popData?.population || popData
+        }) };
+      } catch(e) {
+        return { statusCode: 200, headers: corsHeaders, body: JSON.stringify({ success: false, error: e.message }) };
+      }
+    }
+    // weather: 창업기상도
+    else if (api === 'weather') {
+      const { areaCd, tpbizClscd } = queryParams;
+      const ujCd = tpbizClscd || 'I21201';
+
+      try {
+        // recent: 최근 6개월 기준년월 목록
+        const recentUrl = `https://bigdata.sbiz.or.kr/cstmz/api/indicator/overall/recent?type=NW&tpbizClscd=${ujCd}&count=6`;
+        const recentData = await fetchJsonSimple(recentUrl);
+
+        // area: 시도별 종합/경쟁력/생존/전망/관심도 점수
+        const crtrYm = recentData?.data?.[recentData.data.length - 1]?.crtrYm || '202601';
+        const areaUrl = `https://bigdata.sbiz.or.kr/cstmz/api/indicator/overall/area?type=NW&crtrYm=${crtrYm}&tpbizClscd=${ujCd}`;
+        const areaData = await fetchJsonSimple(areaUrl);
+
+        // 시도코드 → 시도명 매핑 (소상공인365 기준)
+        const SIDO_NM_MAP = {
+          '11': '서울', '26': '부산', '27': '대구', '28': '인천', '29': '광주',
+          '30': '대전', '31': '울산', '36': '세종', '41': '경기', '42': '강원',
+          '43': '충북', '44': '충남', '45': '전북', '46': '전남', '47': '경북',
+          '48': '경남', '50': '제주'
+        };
+        const rawData = areaData?.data || {};
+        const scoresArray = Object.entries(rawData).map(([code, v]) => ({
+          areaCd: code,
+          areaNm: SIDO_NM_MAP[code] || code,
+          overall: v.overall || {},
+          competitiveness: v.competitiveness || {},
+          survival: v.survival || {},
+          prospect: v.prospect || {},
+          interest: v.interest || {}
+        }));
+        return { statusCode: 200, headers: corsHeaders, body: JSON.stringify({
+          success: true,
+          crtrYm,
+          scores: scoresArray
+        }) };
+      } catch(e) {
+        return { statusCode: 200, headers: corsHeaders, body: JSON.stringify({ success: false, error: e.message }) };
+      }
+    }
+    // startupPublic: 상권지도 (rnkType: overall, comp, survival, prospect, engagement)
+    else if (api === 'startupPublic') {
+      const { minXAxis, maxXAxis, minYAxis, maxYAxis, rnkType, tpbizCode, crtrYm } = queryParams;
+      const rType = rnkType || 'overall';
+      const tCode = tpbizCode || 'I21201';
+      const ym = crtrYm || '202601';
+
+      try {
+        const url = `https://bigdata.sbiz.or.kr/gis/startUp/publicData/adv?crtrYm=${ym}&minXAxis=${minXAxis || 200000}&maxXAxis=${maxXAxis || 206000}&minYAxis=${minYAxis || 441000}&maxYAxis=${maxYAxis || 447000}&rnkType=${rType}&tpbizCode=${tCode}`;
+        const data = await fetchJsonSimple(url);
+        return { statusCode: 200, headers: corsHeaders, body: JSON.stringify({ success: true, count: Array.isArray(data) ? data.length : 0, data }) };
+      } catch(e) {
+        return { statusCode: 200, headers: corsHeaders, body: JSON.stringify({ success: false, error: e.message }) };
+      }
     }
     // 4. coord (반경 자동 확대: 1000 → 2000 → 3000)
     else if (api === 'coord') {
@@ -456,7 +638,7 @@ exports.handler = async (event, context) => {
       };
     }
     else {
-      return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: '지원하지 않는 api 타입', available: ['sbiz','coord','store','storeRadius','storeInds','gis','open','seoul','fftc'] }) };
+      return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: '지원하지 않는 api 타입', available: ['sbiz','coord','simpleAnls','detailAnls','weather','store','storeRadius','storeInds','gis','open','seoul','fftc'] }) };
     }
 
     console.log('[프록시]', api, targetUrl?.substring(0, 200));
