@@ -124,6 +124,32 @@ async function callOpenUB(endpoint, body, timeout = PER_CALL_TIMEOUT) {
   }
 }
 
+// ─── gp 분할 호출 (셀 5개씩 배치) ───
+
+function chunkArray(arr, size) {
+  const chunks = [];
+  for (let i = 0; i < arr.length; i += size) {
+    chunks.push(arr.slice(i, i + size));
+  }
+  return chunks;
+}
+
+async function callGpBatched(cellTokens, categories, batchSize = 5) {
+  const chunks = chunkArray(cellTokens, batchSize);
+  const results = await Promise.all(
+    chunks.map(chunk => callOpenUB('gp', { hashKeys: chunk, globalParam: { categories }, login: true }, 10000))
+  );
+  const merged = {};
+  for (const result of results) {
+    if (!result || typeof result !== 'object') continue;
+    for (const [cellKey, cellData] of Object.entries(result)) {
+      if (!merged[cellKey]) merged[cellKey] = {};
+      Object.assign(merged[cellKey], cellData);
+    }
+  }
+  return merged;
+}
+
 // ─── bd/hash 응답에서 건물 rdnu 추출 ───
 
 function parseBdHashResponse(hashResult, centerLat, centerLng, radiusMeters) {
@@ -380,11 +406,11 @@ export async function handler(event) {
       const cellTokens = latLngToS2Tokens(lat, lng, effectiveRadius, S2_LEVEL);
       console.log(`[openub:gp-count] S2 tokens: ${cellTokens.length} cells for ${effectiveRadius}m radius`);
 
-      // 2) bd/hash → 건물 좌표 + gp(A8) + gp(AW) 병렬 호출
+      // 2) bd/hash → 건물 좌표 + gp(A8) + gp(AW) 병렬 호출 (gp는 셀 5개씩 분할)
       const [hashResult, gpA8Result, gpAWResult] = await Promise.all([
         callOpenUB('bd/hash', { cellTokens }, 10000),
-        callOpenUB('gp', { hashKeys: cellTokens, globalParam: { categories: 'A8' }, login: true }, 10000),
-        callOpenUB('gp', { hashKeys: cellTokens, globalParam: { categories: 'AW' }, login: true }, 10000)
+        callGpBatched(cellTokens, 'A8'),
+        callGpBatched(cellTokens, 'AW')
       ]);
 
       // 3) bd/hash에서 반경 내 건물 좌표 추출
@@ -487,7 +513,7 @@ export async function handler(event) {
       };
     }
 
-    // ── gp-cafes 모드: gp + bd/sales 조합으로 개별 카페 목록 반환 ──
+    // ── gp-cafes 모드: bd/hash → 전수 bd/sales → 카페 필터 (gp 미사용) ──
     if (reqBody.mode === 'gp-cafes') {
       const { lat, lng, radius = 500 } = reqBody;
       if (!lat || !lng) {
@@ -501,86 +527,36 @@ export async function handler(event) {
       const effectiveRadius = Math.min(radius, 1000);
       const t0 = Date.now();
       const totalDeadline = t0 + TOTAL_TIMEOUT;
+      const GP_CAFES_CONCURRENCY = 100;
+      const GP_CAFES_DELAY = 100;
 
       // 1) S2 셀 토큰 생성
       const cellTokens = latLngToS2Tokens(lat, lng, effectiveRadius, S2_LEVEL);
       console.log(`[openub:gp-cafes] S2 tokens: ${cellTokens.length} cells for ${effectiveRadius}m radius`);
 
-      // 2) bd/hash + gp(A8 카페) + gp(AW 베이커리) + gp(A0 전체) 병렬 호출
-      const [hashResult, gpA8Result, gpAWResult, gpA0Result] = await Promise.all([
-        callOpenUB('bd/hash', { cellTokens }, 10000),
-        callOpenUB('gp', { hashKeys: cellTokens, globalParam: { categories: 'A8' }, login: true }, 10000),
-        callOpenUB('gp', { hashKeys: cellTokens, globalParam: { categories: 'AW' }, login: true }, 10000),
-        callOpenUB('gp', { hashKeys: cellTokens, globalParam: { categories: 'A0' }, login: true }, 10000)
-      ]);
-
-      // 3) 반경 내 건물 추출
+      // 2) bd/hash → 반경 내 건물 목록
+      const hashResult = await callOpenUB('bd/hash', { cellTokens }, 10000);
       const nearbyBuildings = parseBdHashResponse(hashResult, lat, lng, effectiveRadius);
-      const nearbyRdnuSet = new Set(nearbyBuildings.map(b => b.rdnu));
       const buildingMap = {};
       for (const b of nearbyBuildings) {
         buildingMap[b.rdnu] = b;
       }
+      const allRdnus = nearbyBuildings.map(b => b.rdnu);
 
-      // 4) gp 응답 파싱 → 카페/베이커리 건물 rdnu 분류
-      function parseGpResponseForCafes(gpResult) {
-        const byRdnu = {};
-        if (!gpResult || typeof gpResult !== 'object') return byRdnu;
-        for (const [cellKey, cellData] of Object.entries(gpResult)) {
-          if (!cellData || typeof cellData !== 'object') continue;
-          for (const [rdnu, info] of Object.entries(cellData)) {
-            if (!info || typeof info !== 'object') continue;
-            if (!nearbyRdnuSet.has(rdnu)) continue;
-            if (!byRdnu[rdnu]) {
-              byRdnu[rdnu] = { sales: info.sales || 0, count: info.count || 0, isNewOpen: info.isNewOpen || false };
-            }
-          }
-        }
-        return byRdnu;
-      }
+      console.log(`[openub:gp-cafes] Buildings in ${effectiveRadius}m: ${allRdnus.length}, calling bd/sales for all`);
 
-      const cafeByRdnu = parseGpResponseForCafes(gpA8Result);
-      const bakeryByRdnu = parseGpResponseForCafes(gpAWResult);
-      const allByRdnu = parseGpResponseForCafes(gpA0Result);
-
-      // gp 기반 카운트 (빠른 집계)
-      let gpCafeCount = 0;
-      let gpBakeryCount = 0;
-      let gpNewOpenCount = 0;
-      for (const info of Object.values(cafeByRdnu)) {
-        gpCafeCount += info.count;
-        if (info.isNewOpen) gpNewOpenCount++;
-      }
-      for (const info of Object.values(bakeryByRdnu)) {
-        gpBakeryCount += info.count;
-      }
-
-      // A0에서 isNewOpen=true이면서 A8에 없는 건물 찾기 (신규 오픈 카페가 A8에서 누락된 경우)
-      const a8RdnuSet = new Set(Object.keys(cafeByRdnu));
-      const extraNewOpenRdnus = [];
-      for (const [rdnu, info] of Object.entries(allByRdnu)) {
-        if (info.isNewOpen && !a8RdnuSet.has(rdnu)) {
-          extraNewOpenRdnus.push(rdnu);
-        }
-      }
-
-      console.log(`[openub:gp-cafes] gp counts: cafe=${gpCafeCount} (${Object.keys(cafeByRdnu).length} bldgs), bakery=${gpBakeryCount} (${Object.keys(bakeryByRdnu).length} bldgs), A0 extra isNewOpen=${extraNewOpenRdnus.length}`);
-
-      // 5) 카페 건물 + A0 isNewOpen 건물 → bd/sales 호출 (fast first, slow retry)
-      const cafeRdnus = [...Object.keys(cafeByRdnu), ...extraNewOpenRdnus];
-      const GP_CAFES_BATCH = 20;
-      const GP_CAFES_DELAY = 100;
+      // 3) 모든 건물에 bd/sales 배치 호출 (100개씩 병렬, 24초 제한)
       const bdSalesResults = [];
       const failedRdnus = [];
+      let processedCount = 0;
 
-      // First pass - batch 20, 100ms delay
-      for (let i = 0; i < cafeRdnus.length; i += GP_CAFES_BATCH) {
+      for (let i = 0; i < allRdnus.length; i += GP_CAFES_CONCURRENCY) {
         if (Date.now() >= totalDeadline) {
-          console.log(`[openub:gp-cafes] Timeout at batch ${Math.floor(i / GP_CAFES_BATCH)}, processed ${i}/${cafeRdnus.length}`);
+          console.log(`[openub:gp-cafes] Timeout at batch ${Math.floor(i / GP_CAFES_CONCURRENCY)}, processed ${i}/${allRdnus.length}`);
           break;
         }
 
-        const batch = cafeRdnus.slice(i, i + GP_CAFES_BATCH);
+        const batch = allRdnus.slice(i, i + GP_CAFES_CONCURRENCY);
         const remaining = totalDeadline - Date.now();
         const timeout = Math.min(PER_CALL_TIMEOUT, remaining);
 
@@ -599,36 +575,62 @@ export async function handler(event) {
             }
           }
         }
-        if (i + GP_CAFES_BATCH < cafeRdnus.length) {
+        processedCount = i + batch.length;
+
+        if (i + GP_CAFES_CONCURRENCY < allRdnus.length) {
           await new Promise(r => setTimeout(r, GP_CAFES_DELAY));
         }
       }
 
-      // Second pass - retry failed buildings one by one, 1 second apart
-      if (failedRdnus.length > 0 && (Date.now() - t0) < TOTAL_TIMEOUT - 3000) {
-        console.log(`[openub:gp-cafes] 실패 ${failedRdnus.length}개 재시도 시작`);
-        for (const rdnu of failedRdnus) {
-          if ((Date.now() - t0) >= TOTAL_TIMEOUT - 3000) break;
-          await new Promise(r => setTimeout(r, 1000));
-          try {
-            const data = await callOpenUB('bd/sales', { login: true, rdnu, category: BD_SALES_CATEGORY }, PER_CALL_TIMEOUT);
-            bdSalesResults.push({ rdnu, data, ok: true });
-            console.log(`[openub:gp-cafes] 재시도 성공: ${rdnu}`);
-          } catch(e) { /* skip */ }
+      // 재시도: 시간 여유 있으면 실패분 1회 재시도
+      const retryBudget = totalDeadline - Date.now();
+      let retryRecovered = 0;
+      if (failedRdnus.length > 0 && retryBudget > 3000) {
+        console.log(`[openub:gp-cafes] Retrying ${failedRdnus.length} failed (${retryBudget}ms remaining)`);
+        const retryBatch = failedRdnus.slice(0, GP_CAFES_CONCURRENCY);
+        const remaining = totalDeadline - Date.now();
+        const timeout = Math.min(PER_CALL_TIMEOUT, remaining);
+
+        const promises = retryBatch.map(rdnu =>
+          callOpenUB('bd/sales', { login: true, rdnu, category: BD_SALES_CATEGORY }, timeout)
+            .then(data => ({ rdnu, data, ok: true }))
+            .catch(err => ({ rdnu, error: err.message, ok: false }))
+        );
+        const retryResults = await Promise.allSettled(promises);
+        for (const r of retryResults) {
+          if (r.status === 'fulfilled' && r.value.ok) {
+            bdSalesResults.push(r.value);
+            retryRecovered++;
+          }
         }
+        console.log(`[openub:gp-cafes] Retry recovered: ${retryRecovered}/${retryBatch.length}`);
       }
 
-      // 6) bd/sales에서 개별 카페 추출 + 프랜차이즈 판별
+      // 4) bd/sales 응답에서 카페/베이커리 추출 + 프랜차이즈 판별
       const allCafes = [];
+      const bakeries = [];
+      let cafeCount = 0;
+      let bakeryCount = 0;
       let newOpenCount = 0;
+      const seenStoreIds = new Set();
 
       for (const result of bdSalesResults) {
         if (!result.ok) continue;
         const cafes = extractCafesFromBdSales(result, buildingMap[result.rdnu]);
         for (const cafe of cafes) {
+          // 중복 제거
+          const storeKey = cafe.storeId || `${cafe.storeNm}_${cafe.rdnu}_${cafe.floor || ''}`;
+          if (seenStoreIds.has(storeKey)) continue;
+          seenStoreIds.add(storeKey);
+
           const name = cafe.storeNm || '';
           const brand = detectFranchise(name);
-          const cafeEntry = {
+          const mi = (cafe.category?.mi || '');
+
+          // 베이커리 분류: mi에 "제과제빵떡케익" 포함
+          const isBakery = mi.includes('제과제빵떡케익');
+
+          const entry = {
             name,
             address: cafe.address || '',
             isNewOpen: cafe.isNewOpen || false,
@@ -641,36 +643,28 @@ export async function handler(event) {
             floor: cafe.floor || null,
             source: 'openub'
           };
-          if (cafeEntry.isNewOpen) newOpenCount++;
-          allCafes.push(cafeEntry);
-        }
-      }
 
-      // 7) 베이커리 목록 (gp AW 건물의 간단 정보 - bd/sales 호출 안 함)
-      const bakeries = [];
-      for (const [rdnu, info] of Object.entries(bakeryByRdnu)) {
-        const bldg = buildingMap[rdnu];
-        bakeries.push({
-          name: null, // bd/sales 없이는 개별 이름 불가
-          address: bldg?.address || '',
-          lat: bldg?.lat || null,
-          lng: bldg?.lng || null,
-          count: info.count,
-          rdnu
-        });
+          if (isBakery) {
+            bakeryCount++;
+            bakeries.push(entry);
+          } else {
+            cafeCount++;
+            if (entry.isNewOpen) newOpenCount++;
+            allCafes.push(entry);
+          }
+        }
       }
 
       const elapsed = Date.now() - t0;
       const successCount = bdSalesResults.length;
-      const retryRecovered = failedRdnus.filter(rdnu => bdSalesResults.some(r => r.rdnu === rdnu)).length;
-      console.log(`[openub:gp-cafes] Done: ${allCafes.length} individual cafes, ${newOpenCount} newOpen, ${bakeries.length} bakery bldgs, retry=${retryRecovered}/${failedRdnus.length} in ${elapsed}ms`);
+      console.log(`[openub:gp-cafes] Done: ${cafeCount} cafes, ${bakeryCount} bakeries, ${newOpenCount} newOpen, processed ${processedCount}/${allRdnus.length} buildings in ${elapsed}ms`);
 
       return {
         statusCode: 200,
         headers: CORS_HEADERS,
         body: JSON.stringify({
-          cafeCount: gpCafeCount,
-          bakeryCount: gpBakeryCount,
+          cafeCount,
+          bakeryCount,
           newOpenCount,
           cafes: allCafes,
           bakeries,
@@ -678,9 +672,7 @@ export async function handler(event) {
             s2Level: S2_LEVEL,
             s2Cells: cellTokens.length,
             totalBuildings: nearbyBuildings.length,
-            cafeBuildings: Object.keys(cafeByRdnu).length,
-            extraNewOpenBuildings: extraNewOpenRdnus.length,
-            totalBdSalesTargets: cafeRdnus.length,
+            processedBuildings: processedCount,
             bdSalesSuccess: successCount,
             bdSalesFirstPassFailed: failedRdnus.length,
             bdSalesRetryRecovered: retryRecovered,
