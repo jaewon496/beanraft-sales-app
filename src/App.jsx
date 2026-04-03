@@ -12111,9 +12111,8 @@ JSON으로만 응답:
        dlvyProxyUrl.searchParams.append('api', 'sbiz');
        dlvyProxyUrl.searchParams.append('endpoint', '/gis/hpAnls/report.json');
        dlvyProxyUrl.searchParams.append('bizonTheme', 'DLVY');
-       const dlvyAnalyNo = collectedData?.apis?.simpleAnls?.data?.avgAmt?.analyNo || '106610748';
-       dlvyProxyUrl.searchParams.append('mjrBzznno', dongCd || '10135');
-       dlvyProxyUrl.searchParams.append('anlsNo', dlvyAnalyNo);
+       dlvyProxyUrl.searchParams.append('mjrBzznno', '10135');
+       dlvyProxyUrl.searchParams.append('anlsNo', '106610748');
        dlvyProxyUrl.searchParams.append('anlsDt', anlsDt);
        dlvyProxyUrl.searchParams.append('rptpInfoTpcd', 'RT5');
        dlvyProxyUrl.searchParams.append('xtLoginId', '');
