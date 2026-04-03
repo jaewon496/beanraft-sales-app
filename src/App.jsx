@@ -2370,6 +2370,169 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
               </FadeUpToss>
             );
           })()}
+          {/* 배달 핫플레이스 고객특성 (deliveryHotplace) */}
+          {cd?.apis?.deliveryHotplace?.data && (() => {
+            const _hp = cd.apis.deliveryHotplace.data;
+            const _gList = _hp.vstCustGenRtList || [];
+            const _ncList = _hp.vstCustNewCstmRtList || [];
+            const _mLife = (_hp.vstMaleCustMjrLifeList || []).slice(0, 5);
+            const _fLife = (_hp.vstFemaleCustMjrLifeList || []).slice(0, 5);
+            const _genAge = _hp.vstCustGenAgeSlamtList || [];
+            const hasAny = _gList.length > 0 || _ncList.length > 0 || _mLife.length > 0 || _fLife.length > 0 || _genAge.length > 0;
+            if (!hasAny) return null;
+            // 성별 비율
+            const _maleG = _gList.find(g => (g.genNm || g.keyD || '').includes('남'));
+            const _femaleG = _gList.find(g => (g.genNm || g.keyD || '').includes('여'));
+            const _mPct = _maleG ? parseFloat(_maleG.genPopnumRt ?? _maleG.popnumRate ?? _maleG.rtVal ?? _maleG.valD ?? 0).toFixed(1) : null;
+            const _fPct = _femaleG ? parseFloat(_femaleG.genPopnumRt ?? _femaleG.popnumRate ?? _femaleG.rtVal ?? _femaleG.valD ?? 0).toFixed(1) : null;
+            // 신규/단골
+            const _regItem = _ncList.find(c => (c.newCstmCustNm || c.keyD || c.cstmTpNm || '').includes('단골'));
+            const _newItem = _ncList.find(c => (c.newCstmCustNm || c.keyD || c.cstmTpNm || '').includes('신규'));
+            const _regPct = _regItem ? parseFloat(_regItem.newCstmCntRate ?? _regItem.newCstmRt ?? _regItem.cstmPopnumRt ?? _regItem.rtVal ?? _regItem.valD ?? 0).toFixed(1) : null;
+            const _newPct = _newItem ? parseFloat(_newItem.newCstmCntRate ?? _newItem.newCstmRt ?? _newItem.cstmPopnumRt ?? _newItem.rtVal ?? _newItem.valD ?? 0).toFixed(1) : null;
+            // 성별/연령별 소비매출
+            const _maleAge = _genAge.find(g => (g.cnsmpGenNm || '').includes('남'));
+            const _femaleAge = _genAge.find(g => (g.cnsmpGenNm || '').includes('여'));
+            const _ageKeys = ['gen20CnsmpAmt', 'gen30CnsmpAmt', 'gen40CnsmpAmt', 'gen50CnsmpAmt', 'gen60OverCnsmpAmt'];
+            const _ageLabels = ['20대', '30대', '40대', '50대', '60대+'];
+            return (
+              <FadeUpToss inView={v2} delay={0.45}>
+                <div style={{ marginTop: 24 }}>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: t1, marginBottom: 4 }}>상권 고객 특성</p>
+                  <p style={{ fontSize: 11, color: t3, marginBottom: 14 }}>소상공인365 배달 핫플레이스 기준</p>
+                  {/* 성별 방문고객 비율 */}
+                  {_mPct && _fPct && (
+                    <div style={{ background: cardBg, borderRadius: 14, padding: '12px 16px', marginBottom: 10 }}>
+                      <p style={{ fontSize: 12, color: t3, marginBottom: 8 }}>성별 고객 비율</p>
+                      <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                            <span style={{ fontSize: 13, color: t2 }}>남성</span>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: '#3B82F6' }}>{_mPct}%</span>
+                          </div>
+                          <div style={{ height: 6, borderRadius: 3, background: `${blue}15` }}>
+                            <div style={{ height: '100%', borderRadius: 3, background: '#3B82F6', width: `${_mPct}%`, transition: 'width 0.6s' }} />
+                          </div>
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                            <span style={{ fontSize: 13, color: t2 }}>여성</span>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: '#EC4899' }}>{_fPct}%</span>
+                          </div>
+                          <div style={{ height: 6, borderRadius: 3, background: '#EC489915' }}>
+                            <div style={{ height: '100%', borderRadius: 3, background: '#EC4899', width: `${_fPct}%`, transition: 'width 0.6s' }} />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {/* 신규/단골 비율 */}
+                  {(_regPct || _newPct) && (
+                    <div style={{ background: cardBg, borderRadius: 14, padding: '12px 16px', marginBottom: 10 }}>
+                      <p style={{ fontSize: 12, color: t3, marginBottom: 6 }}>신규 vs 단골</p>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        {_newPct && (
+                          <div style={{ flex: parseFloat(_newPct), background: '#F59E0B', height: 24, borderRadius: '6px 0 0 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 50, transition: 'flex 0.6s' }}>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: '#fff' }}>신규 {_newPct}%</span>
+                          </div>
+                        )}
+                        {_regPct && (
+                          <div style={{ flex: parseFloat(_regPct), background: blue, height: 24, borderRadius: '0 6px 6px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 50, transition: 'flex 0.6s' }}>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: '#fff' }}>단골 {_regPct}%</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {/* 라이프스타일 TOP5 (남/여) */}
+                  {(_mLife.length > 0 || _fLife.length > 0) && (
+                    <div style={{ background: cardBg, borderRadius: 14, padding: '12px 16px', marginBottom: 10 }}>
+                      <p style={{ fontSize: 12, color: t3, marginBottom: 10 }}>고객 라이프스타일 TOP5</p>
+                      <div style={{ display: 'flex', gap: 16 }}>
+                        {_mLife.length > 0 && (
+                          <div style={{ flex: 1 }}>
+                            <p style={{ fontSize: 11, fontWeight: 700, color: '#3B82F6', marginBottom: 6 }}>남성</p>
+                            {_mLife.map((item, i) => {
+                              const nm = item.maleCustHbbNm ?? item.keyD ?? item.txtD ?? '-';
+                              const rt = parseFloat(item.maleCustRate ?? item.maleCustRt ?? item.rtVal ?? item.valD ?? 0).toFixed(1);
+                              const maxRt = parseFloat(_mLife[0]?.maleCustRate ?? _mLife[0]?.maleCustRt ?? _mLife[0]?.rtVal ?? _mLife[0]?.valD ?? 1);
+                              return (
+                                <div key={i} style={{ marginBottom: 4 }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+                                    <span style={{ fontSize: 12, color: t2 }}>{nm}</span>
+                                    <span style={{ fontSize: 11, fontWeight: 600, color: t1 }}>{rt}%</span>
+                                  </div>
+                                  <div style={{ height: 4, borderRadius: 2, background: `${blue}15` }}>
+                                    <div style={{ height: '100%', borderRadius: 2, background: '#3B82F6', width: `${maxRt > 0 ? (parseFloat(rt) / maxRt * 100) : 0}%`, transition: 'width 0.5s' }} />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                        {_fLife.length > 0 && (
+                          <div style={{ flex: 1 }}>
+                            <p style={{ fontSize: 11, fontWeight: 700, color: '#EC4899', marginBottom: 6 }}>여성</p>
+                            {_fLife.map((item, i) => {
+                              const nm = item.femaleCustHbbNm ?? item.keyD ?? item.txtD ?? '-';
+                              const rt = parseFloat(item.femaleCustRate ?? item.femaleCustRt ?? item.rtVal ?? item.valD ?? 0).toFixed(1);
+                              const maxRt = parseFloat(_fLife[0]?.femaleCustRate ?? _fLife[0]?.femaleCustRt ?? _fLife[0]?.rtVal ?? _fLife[0]?.valD ?? 1);
+                              return (
+                                <div key={i} style={{ marginBottom: 4 }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+                                    <span style={{ fontSize: 12, color: t2 }}>{nm}</span>
+                                    <span style={{ fontSize: 11, fontWeight: 600, color: t1 }}>{rt}%</span>
+                                  </div>
+                                  <div style={{ height: 4, borderRadius: 2, background: '#EC489915' }}>
+                                    <div style={{ height: '100%', borderRadius: 2, background: '#EC4899', width: `${maxRt > 0 ? (parseFloat(rt) / maxRt * 100) : 0}%`, transition: 'width 0.5s' }} />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {/* 성별/연령별 소비매출 */}
+                  {(_maleAge || _femaleAge) && (
+                    <div style={{ background: cardBg, borderRadius: 14, padding: '12px 16px', marginBottom: 10 }}>
+                      <p style={{ fontSize: 12, color: t3, marginBottom: 10 }}>성별/연령별 소비매출</p>
+                      <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                        {_maleAge && <span style={{ fontSize: 11, color: '#3B82F6', fontWeight: 600 }}>-- 남성</span>}
+                        {_femaleAge && <span style={{ fontSize: 11, color: '#EC4899', fontWeight: 600 }}>-- 여성</span>}
+                      </div>
+                      {(() => {
+                        const allVals = _ageKeys.flatMap(k => [parseFloat(_maleAge?.[k] ?? 0), parseFloat(_femaleAge?.[k] ?? 0)]);
+                        const maxVal = Math.max(...allVals, 1);
+                        return _ageLabels.map((label, ai) => {
+                          const mVal = parseFloat(_maleAge?.[_ageKeys[ai]] ?? 0);
+                          const fVal = parseFloat(_femaleAge?.[_ageKeys[ai]] ?? 0);
+                          return (
+                            <div key={ai} style={{ marginBottom: 8 }}>
+                              <p style={{ fontSize: 12, color: t2, marginBottom: 3, fontWeight: 500 }}>{label}</p>
+                              {_maleAge && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                                  <div style={{ width: `${(mVal / maxVal) * 100}%`, minWidth: 2, height: 10, borderRadius: 5, background: '#3B82F6CC', transition: 'width 0.6s' }} />
+                                  <span style={{ fontSize: 10, color: '#3B82F6', fontWeight: 600, minWidth: 42, whiteSpace: 'nowrap' }}>{mVal >= 10000 ? `${Math.round(mVal / 10000)}만` : `${mVal.toLocaleString()}만원`}</span>
+                                </div>
+                              )}
+                              {_femaleAge && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <div style={{ width: `${(fVal / maxVal) * 100}%`, minWidth: 2, height: 10, borderRadius: 5, background: '#EC489999', transition: 'width 0.6s' }} />
+                                  <span style={{ fontSize: 10, color: '#EC4899', fontWeight: 600, minWidth: 42, whiteSpace: 'nowrap' }}>{fVal >= 10000 ? `${Math.round(fVal / 10000)}만` : `${fVal.toLocaleString()}만원`}</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
+                  )}
+                </div>
+              </FadeUpToss>
+            );
+          })()}
           <BruBubble text={d.consumers?.bruFeedback || d.overview?.bruFeedback} summary={d.consumers?.bruSummary} delay={0.5} charName="AI 피드백" charColor="#0EA5E9" />
         </div>
       )}
@@ -14804,11 +14967,24 @@ JSON 형식으로 응답:
          const regularItem = newCustList.find(c => (c.keyD || c.cstmTpNm || '').includes('단골'));
          const newItem = newCustList.find(c => (c.keyD || c.cstmTpNm || '').includes('신규'));
          crossData.dlvyCustStr = regularItem || newItem ? `단골 ${parseFloat(regularItem?.newCstmRt ?? regularItem?.cstmPopnumRt ?? regularItem?.rtVal ?? regularItem?.valD ?? 0).toFixed(1)}%, 신규 ${parseFloat(newItem?.newCstmRt ?? newItem?.cstmPopnumRt ?? newItem?.rtVal ?? newItem?.valD ?? 0).toFixed(1)}%` : '미수집';
+         // 라이프스타일 TOP5
+         const maleLife = (dlvyHp.vstMaleCustMjrLifeList || []).slice(0, 5);
+         const femaleLife = (dlvyHp.vstFemaleCustMjrLifeList || []).slice(0, 5);
+         crossData.dlvyMaleLifeStr = maleLife.length > 0 ? maleLife.map(m => `${m.maleCustHbbNm ?? m.keyD ?? ''}(${parseFloat(m.maleCustRate ?? m.maleCustRt ?? m.rtVal ?? 0).toFixed(1)}%)`).join(', ') : '미수집';
+         crossData.dlvyFemaleLifeStr = femaleLife.length > 0 ? femaleLife.map(f => `${f.femaleCustHbbNm ?? f.keyD ?? ''}(${parseFloat(f.femaleCustRate ?? f.femaleCustRt ?? f.rtVal ?? 0).toFixed(1)}%)`).join(', ') : '미수집';
+         // 성별/연령별 소비매출
+         const genAgeList = dlvyHp.vstCustGenAgeSlamtList || [];
+         const mAgeItem = genAgeList.find(g => (g.cnsmpGenNm || '').includes('남'));
+         const fAgeItem = genAgeList.find(g => (g.cnsmpGenNm || '').includes('여'));
+         crossData.dlvyGenAgeStr = (mAgeItem || fAgeItem) ? ['gen20CnsmpAmt','gen30CnsmpAmt','gen40CnsmpAmt','gen50CnsmpAmt','gen60OverCnsmpAmt'].map((k, i) => `${['20대','30대','40대','50대','60대+'][i]}:남${mAgeItem?.[k] ?? '-'}만/여${fAgeItem?.[k] ?? '-'}만`).join(', ') : '미수집';
        } else {
          crossData.dlvyGenderStr = '미수집';
          crossData.dlvyDayStr = '미수집';
          crossData.dlvyTopBizStr = '미수집';
          crossData.dlvyCustStr = '미수집';
+         crossData.dlvyMaleLifeStr = '미수집';
+         crossData.dlvyFemaleLifeStr = '미수집';
+         crossData.dlvyGenAgeStr = '미수집';
        }
 
        // SNS분석 (snsAnaly) - SNS 키워드 언급 분석
@@ -15111,6 +15287,9 @@ ${crossData.dynPopForTime || '유동인구 데이터 수집됨'}${crossData.dynA
 배달핫플레이스(요일): ${crossData.dlvyDayStr}
 배달핫플레이스(업종): ${crossData.dlvyTopBizStr}
 배달핫플레이스(고객): ${crossData.dlvyCustStr}
+배달핫플레이스(남성라이프): ${crossData.dlvyMaleLifeStr}
+배달핫플레이스(여성라이프): ${crossData.dlvyFemaleLifeStr}
+배달핫플레이스(성별연령매출): ${crossData.dlvyGenAgeStr}
 SNS분석: ${crossData.snsAnalyStr}
 ${crossData.tourStr && crossData.tourStr !== '미수집' ? `관광축제: ${crossData.tourStr}` : ''}
 주변카페: ${crossData.nearCafes.substring(0,200)}
@@ -15144,6 +15323,9 @@ ${crossData.tourStr && crossData.tourStr !== '미수집' ? `관광축제: ${cros
 배달 핫플레이스 요일별: ${crossData.dlvyDayStr}
 배달 핫플레이스 업종TOP5: ${crossData.dlvyTopBizStr}
 배달 핫플레이스 고객유형: ${crossData.dlvyCustStr}
+배달 핫플레이스 남성라이프: ${crossData.dlvyMaleLifeStr}
+배달 핫플레이스 여성라이프: ${crossData.dlvyFemaleLifeStr}
+배달 핫플레이스 성별연령매출: ${crossData.dlvyGenAgeStr}
 [교차 데이터] 매출: ${crossData.cafeSalesStr}
 소비: ${crossData.topSpendAge}
 [규칙] 배민 데이터와 소상공인365 배달현황, 핫플레이스 성별/요일/업종 데이터를 교차해서 배달 시장 분석. 매장 결제와 배달 비율을 비교해서 배달 투자 여부를 조언해. 배달 수수료(15~25%) 고려한 수익성 분석. 배달 매출 비중이 30% 이상이면 적극 투자, 10% 미만이면 매장 집중 전략 제안. 핫플레이스 데이터가 있으면 성별/요일 패턴도 인용. 80자 이상.
