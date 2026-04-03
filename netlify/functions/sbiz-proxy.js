@@ -62,6 +62,46 @@ function fetchJsonSimple(url) {
   });
 }
 
+// POST 방식 JSON fetch (소상공인365 GIS API용)
+function fetchJsonPost(url, formData) {
+  return new Promise((resolve) => {
+    const postBody = typeof formData === 'string' ? formData : new URLSearchParams(formData).toString();
+    const urlObj = new URL(url);
+    const options = {
+      hostname: urlObj.hostname,
+      port: 443,
+      path: urlObj.pathname + urlObj.search,
+      method: 'POST',
+      rejectUnauthorized: false,
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+        'Accept': 'application/json, text/javascript, */*; q=0.01',
+        'Accept-Encoding': 'gzip, deflate',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'X-Requested-With': 'XMLHttpRequest',
+        'Referer': 'https://bigdata.sbiz.or.kr/',
+        'Origin': 'https://bigdata.sbiz.or.kr',
+        'Content-Length': Buffer.byteLength(postBody)
+      },
+      timeout: 15000
+    };
+    const req = https.request(options, (res) => {
+      const encoding = (res.headers['content-encoding'] || '').toLowerCase();
+      let stream = res;
+      if (encoding === 'gzip') { stream = res.pipe(zlib.createGunzip()); }
+      else if (encoding === 'deflate') { stream = res.pipe(zlib.createInflate()); }
+      let body = '';
+      stream.on('data', chunk => body += chunk);
+      stream.on('end', () => { try { resolve(JSON.parse(body)); } catch(e) { resolve(null); } });
+      stream.on('error', () => resolve(null));
+    });
+    req.on('error', () => resolve(null));
+    req.on('timeout', () => { req.destroy(); resolve(null); });
+    req.write(postBody);
+    req.end();
+  });
+}
+
 exports.handler = async (event, context) => {
   const corsHeaders = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Content-Type': 'application/json; charset=utf-8' };
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers: corsHeaders, body: '' };
@@ -132,14 +172,18 @@ exports.handler = async (event, context) => {
       const ujCd = upjongCd || 'I21201';
 
       try {
-        // Step 1: getAvgAmtInfo → analyNo 획득
-        const step1Params = new URLSearchParams({
+        // Step 1: getAvgAmtInfo → analyNo 획득 (POST 방식)
+        const step1FormData = {
           admiCd: admCode, upjongCd: ujCd, simpleLoc: loc,
           bizonNumber: '', bizonName: '', bzznType: '',
           xtLoginId: certKey
-        });
-        const avgAmtUrl = `https://bigdata.sbiz.or.kr/gis/simpleAnls/getAvgAmtInfo.json?${step1Params.toString()}`;
-        const avgAmtData = await fetchJsonSimple(avgAmtUrl);
+        };
+        // POST 시도 → 실패 시 GET fallback
+        let avgAmtData = await fetchJsonPost('https://bigdata.sbiz.or.kr/gis/simpleAnls/getAvgAmtInfo.json', step1FormData);
+        if (!avgAmtData) {
+          const step1Params = new URLSearchParams(step1FormData);
+          avgAmtData = await fetchJsonSimple(`https://bigdata.sbiz.or.kr/gis/simpleAnls/getAvgAmtInfo.json?${step1Params.toString()}`);
+        }
 
         const analyNo = avgAmtData?.analyNo || avgAmtData?.body?.analyNo || avgAmtData?.result?.analyNo;
         const mililis = avgAmtData?.mililis || avgAmtData?.body?.mililis || avgAmtData?.result?.mililis || '';
@@ -152,14 +196,17 @@ exports.handler = async (event, context) => {
           }) };
         }
 
-        // Step 2: getPopularInfo → 시간대별/요일별 유동인구
-        const step2Params = new URLSearchParams({
+        // Step 2: getPopularInfo → 시간대별/요일별 유동인구 (POST 방식)
+        const step2FormData = {
           analyNo, admiCd: admCode, upjongCd: ujCd, mililis,
           bizonNumber: '', bizonName: '', bzznType: '',
           xtLoginId: certKey
-        });
-        const popUrl = `https://bigdata.sbiz.or.kr/gis/simpleAnls/getPopularInfo.json?${step2Params.toString()}`;
-        const popData = await fetchJsonSimple(popUrl);
+        };
+        let popData = await fetchJsonPost('https://bigdata.sbiz.or.kr/gis/simpleAnls/getPopularInfo.json', step2FormData);
+        if (!popData) {
+          const step2Params = new URLSearchParams(step2FormData);
+          popData = await fetchJsonSimple(`https://bigdata.sbiz.or.kr/gis/simpleAnls/getPopularInfo.json?${step2Params.toString()}`);
+        }
 
         return { statusCode: 200, headers: corsHeaders, body: JSON.stringify({
           success: true,
@@ -182,14 +229,13 @@ exports.handler = async (event, context) => {
       const ujCd = upjongCd || 'I21201';
 
       try {
-        // Step 1: getAvgAmtInfo → analyNo 획득
-        const step1Params = new URLSearchParams({
+        // Step 1: getAvgAmtInfo → analyNo 획득 (POST 방식)
+        const step1FormData = {
           admiCd: admCode, upjongCd: ujCd, simpleLoc: loc,
           bizonNumber: '', bizonName: '', bzznType: '',
           xtLoginId: certKey
-        });
-        const avgAmtUrl = `https://bigdata.sbiz.or.kr/gis/simpleAnls/getAvgAmtInfo.json?${step1Params.toString()}`;
-        const avgAmtData = await fetchJsonSimple(avgAmtUrl);
+        };
+        const avgAmtData = await fetchJsonPost('https://bigdata.sbiz.or.kr/gis/simpleAnls/getAvgAmtInfo.json', step1FormData);
 
         const analyNo = avgAmtData?.analyNo || avgAmtData?.body?.analyNo || avgAmtData?.result?.analyNo;
         const mililis = avgAmtData?.mililis || avgAmtData?.body?.mililis || avgAmtData?.result?.mililis || '';
@@ -202,14 +248,13 @@ exports.handler = async (event, context) => {
           }) };
         }
 
-        // Step 2: getPopularInfo → 시간대별/요일별 유동인구
-        const step2Params = new URLSearchParams({
+        // Step 2: getPopularInfo → 시간대별/요일별 유동인구 (POST 방식)
+        const step2FormData = {
           analyNo, admiCd: admCode, upjongCd: ujCd, mililis,
           bizonNumber: '', bizonName: '', bzznType: '',
           xtLoginId: certKey
-        });
-        const popUrl = `https://bigdata.sbiz.or.kr/gis/simpleAnls/getPopularInfo.json?${step2Params.toString()}`;
-        const popData = await fetchJsonSimple(popUrl);
+        };
+        const popData = await fetchJsonPost('https://bigdata.sbiz.or.kr/gis/simpleAnls/getPopularInfo.json', step2FormData);
 
         return { statusCode: 200, headers: corsHeaders, body: JSON.stringify({
           success: true,

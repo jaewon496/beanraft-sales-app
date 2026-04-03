@@ -1746,6 +1746,37 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
               {cd.dongInfo.admdstCdNm} 행정동 기준 (분석 반경 500m와 차이가 있을 수 있습니다)
             </p>
           )}
+          {/* 평일/주말 유동인구 비율 */}
+          {totalPop > 0 && (() => {
+            // 소스 1: simpleAnls population (day%, weekend%)
+            const sp = cd?.apis?.simpleAnls?.data?.population;
+            // 소스 2: seoulFlpopDetail weekdayWeekend
+            const ww = cd?.apis?.seoulFlpopDetail?.data?.weekdayWeekend;
+            // 소스 3: 카페 업종 전국 평균 (유동인구가 있으면 항상 표시)
+            const wkdyPct = sp?.day || ww?.weekday || 71;
+            const wkndPct = sp?.weekend || ww?.weekend || 29;
+            const isEstimate = !sp?.day && !ww?.weekday;
+            return (
+              <FadeUpToss inView={true} delay={0.25}>
+                <div className={dark ? 'glass-card light-sweep' : 'glass-card-light'} style={{ padding: '16px 20px', marginBottom: 16 }}>
+                  <p style={{ fontSize: 12, color: t3, marginBottom: 10 }}>평일 / 주말 유동인구 비율</p>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+                    <div style={{ flex: wkdyPct, height: 10, borderRadius: 5, background: blue, transition: 'flex 0.5s ease' }} />
+                    <div style={{ flex: wkndPct, height: 10, borderRadius: 5, background: '#F06595', transition: 'flex 0.5s ease' }} />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: 13, color: blue, fontWeight: 600 }}>평일 {wkdyPct}%</span>
+                    <span style={{ fontSize: 13, color: '#F06595', fontWeight: 600 }}>주말 {wkndPct}%</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
+                    <span style={{ fontSize: 11, color: t3 }}>~{Math.round(totalPop * wkdyPct / 100).toLocaleString()}명/일</span>
+                    <span style={{ fontSize: 11, color: t3 }}>~{Math.round(totalPop * wkndPct / 100).toLocaleString()}명/일</span>
+                  </div>
+                  {isEstimate && <p style={{ fontSize: 10, color: t3, marginTop: 6, textAlign: 'right' }}>카페 업종 평균 기준</p>}
+                </div>
+              </FadeUpToss>
+            );
+          })()}
           {/* Card 2.5 강화: 유동인구 성별/연령 상세 */}
           {cd?.apis?.seoulFlpopDetail?.data && (() => {
             const fp = cd.apis.seoulFlpopDetail.data;
@@ -1789,7 +1820,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
         <BruBubble text={d.consumers?.bruFeedback} summary={d.consumers?.bruSummary} delay={0.55} charName="AI 피드백" charColor="#0EA5E9" />
 
       {/* ━━━ 3-2. 사람이 있어? — 피크 타임 분석 ━━━ */}
-      {(cd?.apis?.dynPplCmpr?.data || cd?.apis?.nbmTimeSlots?.data || cd?.apis?.floatingTime?.data || cd?.apis?.cafeTimeData?.data) && (() => {
+      {(cd?.apis?.dynPplCmpr?.data || cd?.apis?.nbmTimeSlots?.data || cd?.apis?.floatingTime?.data || cd?.apis?.cafeTimeData?.data || cd?.apis?.simpleAnls?.data?.population) && (() => {
         const raw = cd?.apis?.dynPplCmpr?.data;
         const popData = Array.isArray(raw) ? raw.filter(Boolean) : [];
         const timeSlots = [
@@ -1895,17 +1926,19 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
         // fallback 4: simpleAnls 간단분석 (전국 대응 - 비서울 지역용)
         if (timeData.length === 0 && cd?.apis?.simpleAnls?.data?.population) {
           const sp = cd.apis.simpleAnls.data.population;
+          const spDayAvg = Number(sp.dayAvg) || 0;
           const spSlots = [
-            { label: '심야 0~4시', value: Number(sp.firstHour) || 0 },
-            { label: '새벽 4~8시', value: Number(sp.secondHour) || 0 },
-            { label: '오전 8~12시', value: Number(sp.thirdHour) || 0 },
-            { label: '오후 12~16시', value: Number(sp.fourthHour) || 0 },
-            { label: '저녁 16~20시', value: Number(sp.fifthHour) || 0 },
-            { label: '야간 20~24시', value: Number(sp.sixthHour) || 0 }
-          ].filter(s => s.value > 0);
+            { label: '05-09시', pct: Number(sp.firstHour) || 0 },
+            { label: '09-12시', pct: Number(sp.secondHour) || 0 },
+            { label: '12-14시', pct: Number(sp.thirdHour) || 0 },
+            { label: '14-18시', pct: Number(sp.fourthHour) || 0 },
+            { label: '18-23시', pct: Number(sp.fifthHour) || 0 },
+            { label: '23-05시', pct: Number(sp.sixthHour) || 0 }
+          ].map(s => ({ ...s, value: spDayAvg > 0 ? Math.round(spDayAvg * s.pct / 100) : s.pct }))
+           .filter(s => s.value > 0);
           if (spSlots.length > 0) {
             timeData = spSlots;
-            timeDataSource = '간단분석 (소상공인365)';
+            timeDataSource = '유동인구 (소상공인365)';
             console.log('[시간대 유동인구] simpleAnls fallback 사용:', spSlots.length + '개 시간대');
           }
         }
@@ -2089,6 +2122,98 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
               </div>
             </FadeUpToss>
           )}
+          {/* ─── 소상공인365 유동인구 기준 시간대/요일 (simpleAnls population) ─── */}
+          {cd?.apis?.simpleAnls?.data?.population && (() => {
+            const sp = cd.apis.simpleAnls.data.population;
+            const spDayAvg = Number(sp.dayAvg) || 0;
+            if (spDayAvg <= 0) return null;
+            // 시간대별 유동인구
+            const spTimeSlots = [
+              { label: '05-09시', pct: Number(sp.firstHour) || 0 },
+              { label: '09-12시', pct: Number(sp.secondHour) || 0 },
+              { label: '12-14시', pct: Number(sp.thirdHour) || 0 },
+              { label: '14-18시', pct: Number(sp.fourthHour) || 0 },
+              { label: '18-23시', pct: Number(sp.fifthHour) || 0 },
+              { label: '23-05시', pct: Number(sp.sixthHour) || 0 }
+            ].map(s => ({ ...s, count: Math.round(spDayAvg * s.pct / 100) }))
+             .filter(s => s.count > 0);
+            const spTimeMax = Math.max(...spTimeSlots.map(s => s.count), 1);
+            const spTimePeakIdx = spTimeSlots.reduce((pi, s, i, arr) => s.count > arr[pi].count ? i : pi, 0);
+            // 요일별 유동인구
+            const dayKeys = ['mon','tue','wed','thu','fri','sat','sun'];
+            const dayLabels = ['월','화','수','목','금','토','일'];
+            const spDaySlots = dayKeys.map((k, i) => ({
+              label: dayLabels[i],
+              pct: Number(sp[k]) || 0
+            })).map(s => ({ ...s, count: Math.round(spDayAvg * s.pct / 100) }));
+            const spDayMax = Math.max(...spDaySlots.map(s => s.count), 1);
+            const spDayPeakIdx = spDaySlots.reduce((pi, s, i, arr) => s.count > arr[pi].count ? i : pi, 0);
+            const spDayLowIdx = spDaySlots.reduce((pi, s, i, arr) => s.count < arr[pi].count ? i : pi, 0);
+            // 기존 시간대/요일 데이터가 이미 있는지 확인 (있으면 "추가 참고" 표현)
+            const hasExistingTimeData = hasTimeChart && timeDataSource !== '유동인구 (소상공인365)';
+            return (<>
+              <FadeUpToss inView={true} delay={0.6}>
+                <div style={{ borderTop: `1px solid ${divColor}`, marginTop: 20, paddingTop: 16 }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: t1, marginBottom: 4 }}>
+                    {hasExistingTimeData ? '유동인구 기준 시간대별 분석' : '시간대별 유동인구'}
+                  </p>
+                  <p style={{ fontSize: 11, color: t3, marginBottom: 12 }}>
+                    일평균 {spDayAvg.toLocaleString()}명 (소상공인365)
+                  </p>
+                  {spTimeSlots.map((s, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', marginBottom: 10 }}>
+                      <span style={{ fontSize: 12, color: t2, width: 70, flexShrink: 0 }}>{s.label}</span>
+                      <div style={{ flex: 1, height: 22, background: divColor, borderRadius: 6, overflow: 'hidden', marginRight: 10 }}>
+                        <div style={{ width: `${(s.count / spTimeMax) * 100}%`, height: '100%', background: i === spTimePeakIdx ? 'linear-gradient(90deg, #10B981, #059669)' : `linear-gradient(90deg, #10B981, #34D399)`, borderRadius: 6, transition: 'width 0.8s ease', opacity: i === spTimePeakIdx ? 1 : 0.7 }} />
+                      </div>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: i === spTimePeakIdx ? '#059669' : t2, minWidth: 110, textAlign: 'right' }}>
+                        {s.count.toLocaleString()}명 ({s.pct}%){i === spTimePeakIdx ? ' (피크)' : ''}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </FadeUpToss>
+              {/* 요일별 유동인구 */}
+              {spDaySlots.some(s => s.count > 0) && (
+                <FadeUpToss inView={true} delay={0.7}>
+                  <div style={{ background: `#10B98110`, borderRadius: 14, padding: '12px 16px', marginTop: 12 }}>
+                    <p style={{ fontSize: 12, color: t3, marginBottom: 6 }}>요일별 유동인구 (소상공인365)</p>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <div>
+                        <span style={{ fontSize: 12, color: t3 }}>최고: </span>
+                        <span style={{ fontSize: 15, fontWeight: 700, color: '#059669' }}>{spDaySlots[spDayPeakIdx].label}요일</span>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: 12, color: t3 }}>최저: </span>
+                        <span style={{ fontSize: 15, fontWeight: 700, color: red }}>{spDaySlots[spDayLowIdx].label}요일</span>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      {spDaySlots.map((s, i) => {
+                        const pct = Math.round((s.count / spDayMax) * 100);
+                        return (
+                          <div key={i} style={{ flex: 1, textAlign: 'center' }}>
+                            <div style={{ height: 44, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+                              <div style={{ width: '80%', height: `${pct}%`, background: i === spDayPeakIdx ? '#059669' : i === spDayLowIdx ? `${red}60` : '#10B98160', borderRadius: '4px 4px 0 0', minHeight: 4 }} />
+                            </div>
+                            <p style={{ fontSize: 10, color: i === spDayPeakIdx ? '#059669' : t3, fontWeight: i === spDayPeakIdx ? 700 : 400, marginTop: 2 }}>{s.label}</p>
+                            <p style={{ fontSize: 9, color: t3 }}>{s.count.toLocaleString()}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {/* 평일/주말 비율 */}
+                    {(Number(sp.day) > 0 || Number(sp.weekend) > 0) && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, paddingTop: 8, borderTop: `1px solid ${divColor}` }}>
+                        <span style={{ fontSize: 11, color: '#059669' }}>평일 {sp.day}%</span>
+                        <span style={{ fontSize: 11, color: '#F06595' }}>주말 {sp.weekend}%</span>
+                      </div>
+                    )}
+                  </div>
+                </FadeUpToss>
+              )}
+            </>);
+          })()}
           <BruBubble text={d.floatingPopTimeFeedback} summary={d.floatingPopTimeSummary} delay={0.4} charName="AI 피드백" charColor="#0EA5E9" />
         </div>
         );
@@ -2130,7 +2255,68 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
               </ResponsiveContainer>
             </div>
           </FadeUpToss>
-          {/* 방문 연령 분포(vstAgeRnk)는 카드2(유동인구 분석)에서 표시 */}
+          {/* 방문 연령 vs 소비 연령 비교 */}
+          {sortedAgeData.length > 0 && sortedCstData.length > 0 && (() => {
+            const totalVisit = sortedAgeData.reduce((s, d) => s + (d.pipcnt || 0), 0);
+            const totalSpend = sortedCstData.reduce((s, d) => s + (d.pipcnt || 0), 0);
+            const ageOrder = ['M10', 'M20', 'M30', 'M40', 'M50', 'M60'];
+            const _am = { 'M10': '10대', 'M20': '20대', 'M30': '30대', 'M40': '40대', 'M50': '50대', 'M60': '60대+' };
+            const visitMap = Object.fromEntries((sortedAgeData || []).map(d => [d.age, d.pipcnt || 0]));
+            const spendMap = Object.fromEntries((sortedCstData || []).map(d => [d.age, d.pipcnt || 0]));
+            const compareData = ageOrder.filter(a => visitMap[a] || spendMap[a]).map(a => ({
+              name: _am[a] || a,
+              visitPct: totalVisit > 0 ? Math.round((visitMap[a] || 0) / totalVisit * 1000) / 10 : 0,
+              spendPct: totalSpend > 0 ? Math.round((spendMap[a] || 0) / totalSpend * 1000) / 10 : 0,
+            }));
+            if (compareData.length === 0) return null;
+            const topVisit = [...compareData].sort((a, b) => b.visitPct - a.visitPct)[0];
+            const topSpend = [...compareData].sort((a, b) => b.spendPct - a.spendPct)[0];
+            // 방문과 소비 1위가 다르면 인사이트 표시
+            const mismatch = topVisit.name !== topSpend.name;
+            return (
+              <FadeUpToss inView={v2} delay={0.3}>
+                <div style={{ marginTop: 28, marginBottom: 8 }}>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: t1, marginBottom: 4 }}>방문 vs 소비 연령 비교</p>
+                  <p style={{ fontSize: 12, color: t3, marginBottom: 16 }}>소상공인365 전체 업종 기준</p>
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+                    <span style={{ fontSize: 11, color: blue, fontWeight: 600 }}>-- 방문</span>
+                    <span style={{ fontSize: 11, color: '#F06595', fontWeight: 600 }}>-- 소비</span>
+                  </div>
+                  {compareData.map((row, ri) => {
+                    const maxPct = Math.max(...compareData.map(r => Math.max(r.visitPct, r.spendPct)), 1);
+                    return (
+                      <div key={ri} style={{ marginBottom: 10 }}>
+                        <p style={{ fontSize: 12, color: t2, marginBottom: 3, fontWeight: 500 }}>{row.name}</p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                          <div style={{ width: `${(row.visitPct / maxPct) * 100}%`, minWidth: 2, height: 10, borderRadius: 5, background: `${blue}CC`, transition: 'width 0.6s ease' }} />
+                          <span style={{ fontSize: 11, color: blue, fontWeight: 600, minWidth: 38 }}>{row.visitPct}%</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{ width: `${(row.spendPct / maxPct) * 100}%`, minWidth: 2, height: 10, borderRadius: 5, background: '#F0659599', transition: 'width 0.6s ease' }} />
+                          <span style={{ fontSize: 11, color: '#F06595', fontWeight: 600, minWidth: 38 }}>{row.spendPct}%</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {mismatch && (
+                    <div style={{ background: `${blue}08`, borderRadius: 10, padding: '10px 14px', marginTop: 10 }}>
+                      <p style={{ fontSize: 12, color: t2, lineHeight: 1.6 }}>
+                        방문 1위: <span style={{ color: blue, fontWeight: 600 }}>{topVisit.name}({topVisit.visitPct}%)</span> / 소비 1위: <span style={{ color: '#F06595', fontWeight: 600 }}>{topSpend.name}({topSpend.spendPct}%)</span>
+                        {' '}&#8212; 방문과 소비 주력 연령대가 다릅니다. 타겟 마케팅 전략을 분리하세요.
+                      </p>
+                    </div>
+                  )}
+                  {!mismatch && (
+                    <div style={{ background: `${blue}08`, borderRadius: 10, padding: '10px 14px', marginTop: 10 }}>
+                      <p style={{ fontSize: 12, color: t2, lineHeight: 1.6 }}>
+                        방문과 소비 모두 <span style={{ color: blue, fontWeight: 600 }}>{topVisit.name}</span>이 1위입니다. 이 연령대에 집중 마케팅하세요.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </FadeUpToss>
+            );
+          })()}
           {/* 피크시간은 카드3(유동인구+피크타임)에서 표시 */}
           {(() => {
             // 소비 관련 보조 정보: 객단가
@@ -2551,6 +2737,67 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             {avgMonthlySales > 0 && <p style={{ fontSize: 15, color: blue, fontWeight: 600, marginBottom: 40 }}>카페 업종 월 평균 매출</p>}
             {!avgMonthlySales && <h2 style={secTitle}>매출 분석</h2>}
           </FadeUpToss>
+          {/* ── 소상공인365 간단분석: 동/구/시 매출 비교 + 전월/전년 대비 ── */}
+          {(() => {
+            const _sa = cd?.apis?.simpleAnls?.data?.avgAmt;
+            if (!_sa) return null;
+            const dongAmt = _sa.saleAmt || _sa.result?.saleAmt || 0;
+            const guAmt = _sa.guAmt || _sa.result?.guAmt || 0;
+            const siAmt = _sa.siAmt || _sa.result?.siAmt || 0;
+            const prevMonRate = _sa.prevMonRate || _sa.result?.prevMonRate || 0;
+            const prevYearRate = _sa.prevYearRate || _sa.result?.prevYearRate || 0;
+            const hasComparison = dongAmt > 0 || guAmt > 0 || siAmt > 0;
+            const hasTrend = prevMonRate !== 0 || prevYearRate !== 0;
+            if (!hasComparison && !hasTrend) return null;
+            const maxAmt = Math.max(dongAmt, guAmt, siAmt, 1);
+            return (
+              <FadeUpToss inView={v4} delay={0.12}>
+                {hasComparison && (
+                  <div style={{ background: cardBg, borderRadius: 18, padding: '16px 18px', marginBottom: 16 }}>
+                    <p style={{ fontSize: 12, color: t3, marginBottom: 12 }}>매출 비교 (점포당 월평균)</p>
+                    {[
+                      { label: _sa.admiNm || '행정동', amt: dongAmt, color: blue },
+                      { label: _sa.guNm || '구', amt: guAmt, color: '#6366F1' },
+                      { label: _sa.siNm || '시', amt: siAmt, color: '#94A3B8' },
+                    ].filter(r => r.amt > 0).map((row, ri) => (
+                      <div key={ri} style={{ marginBottom: ri < 2 ? 10 : 0 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                          <span style={{ fontSize: 13, color: ri === 0 ? blue : t2, fontWeight: ri === 0 ? 700 : 500 }}>{row.label}</span>
+                          <span style={{ fontSize: 14, fontWeight: 700, color: t1 }}>{formatManwon(row.amt)}</span>
+                        </div>
+                        <div style={{ height: 6, background: divColor, borderRadius: 9999, overflow: 'hidden' }}>
+                          <div style={{ width: `${(row.amt / maxAmt) * 100}%`, height: '100%', background: row.color, borderRadius: 9999, transition: 'width 0.8s ease' }} />
+                        </div>
+                      </div>
+                    ))}
+                    <p style={{ fontSize: 11, color: '#aaa', marginTop: 8 }}>출처: 소상공인365 간단분석</p>
+                  </div>
+                )}
+                {hasTrend && (
+                  <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+                    {prevMonRate !== 0 && (
+                      <div style={{ flex: 1, background: `${prevMonRate > 0 ? green : red}10`, borderRadius: 14, padding: '12px 16px', textAlign: 'center' }}>
+                        <p style={{ fontSize: 11, color: t3, marginBottom: 4 }}>전월 대비</p>
+                        <p style={{ fontSize: 22, fontWeight: 800, color: prevMonRate > 0 ? green : red }}>
+                          {prevMonRate > 0 ? '+' : ''}{typeof prevMonRate === 'number' ? prevMonRate.toFixed(1) : prevMonRate}%
+                        </p>
+                        <p style={{ fontSize: 18, color: prevMonRate > 0 ? green : red }}>{prevMonRate > 0 ? '\u25B2' : '\u25BC'}</p>
+                      </div>
+                    )}
+                    {prevYearRate !== 0 && (
+                      <div style={{ flex: 1, background: `${prevYearRate > 0 ? green : red}10`, borderRadius: 14, padding: '12px 16px', textAlign: 'center' }}>
+                        <p style={{ fontSize: 11, color: t3, marginBottom: 4 }}>전년 대비</p>
+                        <p style={{ fontSize: 22, fontWeight: 800, color: prevYearRate > 0 ? green : red }}>
+                          {prevYearRate > 0 ? '+' : ''}{typeof prevYearRate === 'number' ? prevYearRate.toFixed(1) : prevYearRate}%
+                        </p>
+                        <p style={{ fontSize: 18, color: prevYearRate > 0 ? green : red }}>{prevYearRate > 0 ? '\u25B2' : '\u25BC'}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </FadeUpToss>
+            );
+          })()}
           <FadeUpToss inView={v4} delay={0.2}>
             <div style={{ width: '100%', height: 260 }}>
               <ResponsiveContainer>
@@ -2572,6 +2819,37 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
               </ResponsiveContainer>
             </div>
           </FadeUpToss>
+          {/* ── 업종별 매출 TOP5 (salesAvg = DongSmkndTpbizStorUnitSlsAvg) ── */}
+          {cd?.apis?.salesAvg?.data && Array.isArray(cd.apis.salesAvg.data) && cd.apis.salesAvg.data.length > 0 && (() => {
+            const top5 = [...cd.apis.salesAvg.data].filter(s => s && (s.mmavgSlsAmt || 0) > 0).sort((a, b) => (b.mmavgSlsAmt || 0) - (a.mmavgSlsAmt || 0)).slice(0, 5);
+            if (top5.length === 0) return null;
+            return (
+              <FadeUpToss inView={v4} delay={0.25}>
+                <div style={{ background: cardBg, borderRadius: 18, padding: '16px 18px', marginTop: 20 }}>
+                  <p style={{ fontSize: 12, color: blue, fontWeight: 600, marginBottom: 12 }}>업종별 매출 TOP5 (소상공인365)</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '6px 12px', alignItems: 'center' }}>
+                    <span style={{ fontSize: 11, color: t3 }}>업종</span>
+                    <span style={{ fontSize: 11, color: t3, textAlign: 'right' }}>월매출</span>
+                    <span style={{ fontSize: 11, color: t3, textAlign: 'right' }}>건수</span>
+                    <span style={{ fontSize: 11, color: t3, textAlign: 'right' }}>점포</span>
+                    {top5.map((s, si) => {
+                      const nm = s.tpbizClscdNm || '';
+                      const isCafe = nm.includes('카페') || nm.includes('커피') || nm.includes('음료');
+                      return (
+                        <React.Fragment key={si}>
+                          <span style={{ fontSize: 13, color: isCafe ? blue : t1, fontWeight: isCafe ? 700 : 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{nm}</span>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: t1, textAlign: 'right' }}>{formatManwon(s.mmavgSlsAmt || 0)}</span>
+                          <span style={{ fontSize: 12, color: t2, textAlign: 'right' }}>{(s.mmavgSlsNocs || 0).toLocaleString()}건</span>
+                          <span style={{ fontSize: 12, color: t2, textAlign: 'right' }}>{(s.stcnt || 0)}개</span>
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
+                  <p style={{ fontSize: 11, color: '#aaa', marginTop: 8 }}>출처: 소상공인365 업종별 점포당 매출 평균</p>
+                </div>
+              </FadeUpToss>
+            );
+          })()}
           {/* Step 7: 동 내 업종 비교 수치 (dongMTpctdCmpr) */}
           {cd?.apis?.dongMTpctdCmpr?.data && Array.isArray(cd.apis.dongMTpctdCmpr.data) && cd.apis.dongMTpctdCmpr.data.length > 0 && (() => {
             const filteredItems = cd.apis.dongMTpctdCmpr.data.filter(Boolean).slice(0, 5).filter(dm => (dm.stcnt || dm.storCnt || 0) > 0);
@@ -12115,6 +12393,15 @@ JSON으로만 응답:
                 { age: '50대', count: Math.round(a50 / n), pct: totalAge > 0 ? Math.round(a50 / totalAge * 100) : 0 },
                 { age: '60대+', count: Math.round(a60 / n), pct: totalAge > 0 ? Math.round(a60 / totalAge * 100) : 0 },
               ].sort((a, b) => b.count - a.count),
+              // 요일별 유동인구 (일 평균)
+              dayOfWeek: { mon: Math.round(dMon / n), tue: Math.round(dTue / n), wed: Math.round(dWed / n), thu: Math.round(dThu / n), fri: Math.round(dFri / n), sat: Math.round(dSat / n), sun: Math.round(dSun / n) },
+              // 평일/주말 비율
+              weekdayWeekend: (() => {
+                const wkdy = dMon + dTue + dWed + dThu + dFri;
+                const wknd = dSat + dSun;
+                const total = wkdy + wknd;
+                return total > 0 ? { weekday: Math.round(wkdy / total * 100), weekend: Math.round(wknd / total * 100), weekdayAvg: Math.round(wkdy / 5 / n), weekendAvg: Math.round(wknd / 2 / n) } : null;
+              })(),
               matchedCount: n,
               matchedNames: rows.slice(0, 5).map(r => r.TRDAR_CD_NM)
             },
