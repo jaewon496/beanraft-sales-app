@@ -36,6 +36,9 @@
 [functions."openub-sales-proxy"]
   timeout = 26
 
+[functions."sbiz-report-proxy"]
+  timeout = 26
+
 [functions."openub-heartbeat"]
   schedule = "*/5 * * * *"
 
