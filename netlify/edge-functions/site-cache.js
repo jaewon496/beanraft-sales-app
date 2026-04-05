@@ -37,10 +37,11 @@ export default async (request, context) => {
 }
 </style>`;
 
-    // CRITICAL: Inject interceptors in <head> BEFORE any CreatorLink JS runs
+    // Inject interceptors in <head> BEFORE any CreatorLink JS runs
+    // NOTE: Do NOT intercept pushState/replaceState — CreatorLink uses URL for routing
+    // Only intercept: location methods, window.open, popstate (for back button)
     const headScript = `<script>
 (function() {
-  // Rewrite URL helper
   function rewriteUrl(url) {
     try {
       var u = new URL(url, location.href);
@@ -53,22 +54,6 @@ export default async (request, context) => {
     } catch(ex) {}
     return url;
   }
-  function rewritePath(url) {
-    if (!url) return url;
-    var s = String(url);
-    if (s.charAt(0) === '/' && s.indexOf('/site/') !== 0) return '/site' + s;
-    return s;
-  }
-
-  // Intercept history.pushState / replaceState IMMEDIATELY
-  var origPush = history.pushState;
-  var origRepl = history.replaceState;
-  history.pushState = function(state, title, url) {
-    return origPush.call(history, state, title, rewritePath(url));
-  };
-  history.replaceState = function(state, title, url) {
-    return origRepl.call(history, state, title, rewritePath(url));
-  };
 
   // Intercept location methods
   var origAssign = location.assign;
@@ -83,19 +68,13 @@ export default async (request, context) => {
     return origOpen.call(window, rewriteUrl(url || ''), target);
   };
 
-  // Handle popstate — if URL lost /site/ prefix, redirect
+  // Handle popstate — back button may land on URL without /site/ prefix
+  // Do a full redirect so the page loads correctly through the proxy
   window.addEventListener('popstate', function() {
     if (location.pathname.charAt(0) === '/' && location.pathname.indexOf('/site/') !== 0) {
       location.replace('/site' + location.pathname + location.search + location.hash);
     }
   });
-
-  // URL watchdog — check every 500ms if /site/ prefix was stripped
-  setInterval(function() {
-    if (location.pathname.charAt(0) === '/' && location.pathname.indexOf('/site/') !== 0) {
-      history.replaceState(history.state, '', '/site' + location.pathname + location.search + location.hash);
-    }
-  }, 500);
 })();
 </script>`;
 
@@ -162,7 +141,7 @@ export default async (request, context) => {
     if (html.includes('<head>')) {
       html = html.replace('<head>', '<head>' + headScript + hideFooterCSS);
     } else if (html.includes('<head ')) {
-      html = html.replace(/<head\s/, '<head ' + headScript + hideFooterCSS + '<head ');
+      html = html.replace(/<head[^>]*>/, '$&' + headScript + hideFooterCSS);
     } else {
       html = headScript + hideFooterCSS + html;
     }
