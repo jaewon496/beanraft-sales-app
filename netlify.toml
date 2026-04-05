@@ -427,6 +427,30 @@
   force = true
 
 [[redirects]]
+  from = "/_login"
+  to = "https://www.beancraft.co.kr/_login"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/_logout"
+  to = "https://www.beancraft.co.kr/_logout"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/_mypage"
+  to = "https://www.beancraft.co.kr/_mypage"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/_join"
+  to = "https://www.beancraft.co.kr/_join"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
   status = 200
