@@ -37,12 +37,73 @@ export default async (request, context) => {
 }
 </style>`;
 
-    // Inject script before </body> to handle JS-based navigation
-    const navScript = `<script>
+    // CRITICAL: Inject interceptors in <head> BEFORE any CreatorLink JS runs
+    const headScript = `<script>
 (function() {
-  // Hide CreatorLink footer/bottom bar by scanning for SNS icon patterns
+  // Rewrite URL helper
+  function rewriteUrl(url) {
+    try {
+      var u = new URL(url, location.href);
+      if (u.hostname === 'www.beancraft.co.kr' || u.hostname === 'beancraft.co.kr') {
+        return '/site' + u.pathname + u.search + u.hash;
+      }
+      if (u.hostname === location.hostname && u.pathname.charAt(0) === '/' && u.pathname.indexOf('/site/') !== 0) {
+        return '/site' + u.pathname + u.search + u.hash;
+      }
+    } catch(ex) {}
+    return url;
+  }
+  function rewritePath(url) {
+    if (!url) return url;
+    var s = String(url);
+    if (s.charAt(0) === '/' && s.indexOf('/site/') !== 0) return '/site' + s;
+    return s;
+  }
+
+  // Intercept history.pushState / replaceState IMMEDIATELY
+  var origPush = history.pushState;
+  var origRepl = history.replaceState;
+  history.pushState = function(state, title, url) {
+    return origPush.call(history, state, title, rewritePath(url));
+  };
+  history.replaceState = function(state, title, url) {
+    return origRepl.call(history, state, title, rewritePath(url));
+  };
+
+  // Intercept location methods
+  var origAssign = location.assign;
+  var origReplace = location.replace;
+  location.assign = function(url) { origAssign.call(location, rewriteUrl(url)); };
+  location.replace = function(url) { origReplace.call(location, rewriteUrl(url)); };
+
+  // Intercept window.open
+  var origOpen = window.open;
+  window.open = function(url, target) {
+    if (target === '_top' || target === '_parent') target = '_self';
+    return origOpen.call(window, rewriteUrl(url || ''), target);
+  };
+
+  // Handle popstate — if URL lost /site/ prefix, redirect
+  window.addEventListener('popstate', function() {
+    if (location.pathname.charAt(0) === '/' && location.pathname.indexOf('/site/') !== 0) {
+      location.replace('/site' + location.pathname + location.search + location.hash);
+    }
+  });
+
+  // URL watchdog — check every 500ms if /site/ prefix was stripped
+  setInterval(function() {
+    if (location.pathname.charAt(0) === '/' && location.pathname.indexOf('/site/') !== 0) {
+      history.replaceState(history.state, '', '/site' + location.pathname + location.search + location.hash);
+    }
+  }, 500);
+})();
+</script>`;
+
+    // Inject body script for DOM-dependent operations
+    const bodyScript = `<script>
+(function() {
+  // Hide CreatorLink footer/bottom bar
   function hideCreatorFooter() {
-    // Hide footer sections with broken SNS icons
     var footers = document.querySelectorAll('footer, [class*="footer"], [class*="bottom"]');
     for (var i = 0; i < footers.length; i++) {
       var el = footers[i];
@@ -56,7 +117,6 @@ export default async (request, context) => {
       }
       if (hasBroken && imgs.length > 0) el.style.display = 'none';
     }
-    // Also hide any fixed bottom bars from CreatorLink
     var allEls = document.querySelectorAll('[style*="position: fixed"][style*="bottom"]');
     for (var k = 0; k < allEls.length; k++) {
       var links = allEls[k].querySelectorAll('a');
@@ -66,7 +126,6 @@ export default async (request, context) => {
     }
   }
 
-  // Strip target="_top" and target="_parent" from all links
   function stripTargets() {
     var links = document.querySelectorAll('a[target="_top"], a[target="_parent"]');
     for (var i = 0; i < links.length; i++) {
@@ -96,70 +155,23 @@ export default async (request, context) => {
       location.href = '/site' + href;
     }
   }, true);
-
-  // Rewrite URL helper
-  function rewriteUrl(url) {
-    try {
-      var u = new URL(url, location.href);
-      if (u.hostname === 'www.beancraft.co.kr' || u.hostname === 'beancraft.co.kr') {
-        return '/site' + u.pathname + u.search + u.hash;
-      }
-      if (u.hostname === location.hostname && u.pathname.charAt(0) === '/' && u.pathname.indexOf('/site/') !== 0) {
-        return '/site' + u.pathname + u.search + u.hash;
-      }
-    } catch(ex) {}
-    return url;
-  }
-
-  // Intercept location methods
-  var origAssign = location.assign;
-  var origReplace = location.replace;
-  location.assign = function(url) { origAssign.call(location, rewriteUrl(url)); };
-  location.replace = function(url) { origReplace.call(location, rewriteUrl(url)); };
-
-  // Intercept window.open
-  var origOpen = window.open;
-  window.open = function(url, target) {
-    if (target === '_top' || target === '_parent') target = '_self';
-    return origOpen.call(window, rewriteUrl(url || ''), target);
-  };
-
-  // Intercept history.pushState / replaceState to prefix /site/
-  var origPush = history.pushState;
-  var origRepl = history.replaceState;
-  function rewritePath(url) {
-    if (!url) return url;
-    var s = String(url);
-    if (s.charAt(0) === '/' && s.indexOf('/site/') !== 0) return '/site' + s;
-    return s;
-  }
-  history.pushState = function(state, title, url) {
-    return origPush.call(history, state, title, rewritePath(url));
-  };
-  history.replaceState = function(state, title, url) {
-    return origRepl.call(history, state, title, rewritePath(url));
-  };
-
-  // Handle popstate — if URL somehow lost /site/ prefix, redirect
-  window.addEventListener('popstate', function() {
-    if (location.pathname.charAt(0) === '/' && location.pathname.indexOf('/site/') !== 0) {
-      location.replace('/site' + location.pathname + location.search + location.hash);
-    }
-  });
 })();
 </script>`;
 
-    // Inject CSS into <head>
-    if (html.includes('</head>')) {
-      html = html.replace('</head>', hideFooterCSS + '</head>');
-    } else if (html.includes('<body')) {
-      html = html.replace('<body', hideFooterCSS + '<body');
+    // Inject interceptor script + CSS into <head> (BEFORE CreatorLink JS)
+    if (html.includes('<head>')) {
+      html = html.replace('<head>', '<head>' + headScript + hideFooterCSS);
+    } else if (html.includes('<head ')) {
+      html = html.replace(/<head\s/, '<head ' + headScript + hideFooterCSS + '<head ');
+    } else {
+      html = headScript + hideFooterCSS + html;
     }
 
+    // Inject DOM-dependent script before </body>
     if (html.includes('</body>')) {
-      html = html.replace('</body>', navScript + '</body>');
+      html = html.replace('</body>', bodyScript + '</body>');
     } else {
-      html += navScript;
+      html += bodyScript;
     }
 
     return new Response(html, {
