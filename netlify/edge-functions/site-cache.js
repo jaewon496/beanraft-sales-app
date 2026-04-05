@@ -24,12 +24,29 @@ export default async (request, context) => {
       "$1/site/"
     );
 
+    // Strip target="_top" and target="_parent" to keep navigation inside iframe
+    html = html.replace(/\starget\s*=\s*["'](_top|_parent)["']/gi, '');
+
     // Inject script before </body> to handle JS-based navigation
     const navScript = `<script>
 (function() {
+  // Strip target="_top" and target="_parent" from all links
+  function stripTargets() {
+    var links = document.querySelectorAll('a[target="_top"], a[target="_parent"]');
+    for (var i = 0; i < links.length; i++) {
+      links[i].removeAttribute('target');
+    }
+  }
+  stripTargets();
+  var obs = new MutationObserver(function() { stripTargets(); });
+  obs.observe(document.body, { childList: true, subtree: true });
+
   document.addEventListener('click', function(e) {
     var a = e.target.closest('a');
     if (!a) return;
+    // Remove target that would escape iframe
+    var t = a.getAttribute('target');
+    if (t === '_top' || t === '_parent') a.removeAttribute('target');
     var href = a.getAttribute('href');
     if (!href) return;
     try {
@@ -59,6 +76,12 @@ export default async (request, context) => {
   }
   location.assign = function(url) { origAssign.call(location, rewriteUrl(url)); };
   location.replace = function(url) { origReplace.call(location, rewriteUrl(url)); };
+  // Intercept window.open to stay in iframe
+  var origOpen = window.open;
+  window.open = function(url, target) {
+    if (target === '_top' || target === '_parent') target = '_self';
+    return origOpen.call(window, rewriteUrl(url || ''), target);
+  };
 })();
 </script>`;
 
