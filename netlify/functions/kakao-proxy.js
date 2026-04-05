@@ -77,11 +77,23 @@ exports.handler = async (event) => {
       const sort = params.sort || 'distance';
       url = `https://dapi.kakao.com/v2/local/search/category.json?category_group_code=${categoryCode}&x=${x}&y=${y}&radius=${radius}&page=${page}&size=${size}&sort=${sort}`;
 
+    } else if (searchType === 'coord2regioncode') {
+      const x = params.x;
+      const y = params.y;
+      if (!x || !y) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'x(lng), y(lat) parameters required for coord2regioncode' })
+        };
+      }
+      url = `https://dapi.kakao.com/v2/local/geo/coord2regioncode.json?x=${x}&y=${y}`;
+
     } else {
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: `Unknown search type: ${searchType}. Use address, keyword, or category.` })
+        body: JSON.stringify({ error: `Unknown search type: ${searchType}. Use address, keyword, category, or coord2regioncode.` })
       };
     }
 

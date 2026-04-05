@@ -77,20 +77,27 @@ export async function handler(event) {
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 25000);
           try {
+            const reqBody = {
+              contents: [{ parts: [{ text: agent.prompt }] }],
+              generationConfig: {
+                temperature: 0.7,
+                maxOutputTokens: agent.maxOutputTokens || 1000,
+                ...(agent.grounding ? {} : { responseMimeType: 'application/json' }),
+                thinkingConfig: { thinkingBudget: 0 }
+              }
+            };
+            // grounding: Google Search 활성화 (Gemini 2.5+ 새 API)
+            if (agent.grounding) {
+              reqBody.tools = [{ google_search: {} }];
+              // grounding 사용 시 thinkingBudget 제거 (호환성)
+              delete reqBody.generationConfig.thinkingConfig;
+            }
             const res = await fetch(
               `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
               {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  contents: [{ parts: [{ text: agent.prompt }] }],
-                  generationConfig: {
-                    temperature: 0.7,
-                    maxOutputTokens: agent.maxOutputTokens || 1000,
-                    responseMimeType: 'application/json',
-                    thinkingConfig: { thinkingBudget: 0 }
-                  }
-                }),
+                body: JSON.stringify(reqBody),
                 signal: controller.signal
               }
             );
@@ -100,7 +107,9 @@ export async function handler(event) {
             }
             const data = await res.json();
             const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-            return { id: agent.id, success: true, text };
+            // grounding 메타데이터 포함
+            const groundingMeta = data.candidates?.[0]?.groundingMetadata || null;
+            return { id: agent.id, success: true, text, groundingMeta: groundingMeta || undefined };
           } catch (err) {
             clearTimeout(timeoutId);
             return { id: agent.id, success: false, error: err.name === 'AbortError' ? 'timeout' : err.message };
@@ -109,7 +118,7 @@ export async function handler(event) {
 
         const agentResults = await Promise.all(agents.map(callAgent));
         const results = {};
-        agentResults.forEach(r => { results[r.id] = { success: r.success, text: r.text || undefined, error: r.error || undefined }; });
+        agentResults.forEach(r => { results[r.id] = { success: r.success, text: r.text || undefined, error: r.error || undefined, groundingMeta: r.groundingMeta || undefined }; });
         return { statusCode: 200, headers, body: JSON.stringify({ results }) };
       }
 

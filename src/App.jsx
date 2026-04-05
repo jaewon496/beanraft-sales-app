@@ -20,6 +20,7 @@ import JSZip from 'jszip';
 import ExcelJS from 'exceljs';
 import { latLngToS2Tokens } from './lib/s2geometry';
 import { estimateAllCafeSales, calculateRadiusAvgSales, separateBufferZoneCafes, fetchNicebizmapMultiple, extractNicebizmapStats, fetchNicebizmapTimeSlots, fetchNicebizmapSaleType } from './lib/salesEstimation';
+import ClientMode from './components/client-mode/ClientMode';
 
 // ═══════════════════════════════════════════════════════════════
 // 앱 버전 관리 - 캐시 무효화용
@@ -65,6 +66,16 @@ const FAST_TEST_MODE = false;
     }
   }
 })();
+
+// 카드 본문에서 출처 텍스트 제거 (출처는 출처 버튼에 통합)
+function stripSource(str) {
+  if (typeof str !== 'string') return str;
+  return str
+    .replace(/\s*\(?(출처|자료|데이터)\s*[:：]?\s*(소상공인365|나이스비즈맵|오픈업|OpenUB|카카오|네이버|비즈맵|공정위|한국부동산원|소상공인시장진흥공단|통계청)[^)]*\)?/gi, '')
+    .replace(/\s*[-–—]\s*(소상공인365|나이스비즈맵|오픈업|OpenUB|카카오|네이버|비즈맵|공정위|한국부동산원|소상공인시장진흥공단|통계청).*$/gm, '')
+    .replace(/\s*\*\s*(소상공인365|나이스비즈맵|오픈업|OpenUB|카카오|네이버|비즈맵|공정위|한국부동산원|소상공인시장진흥공단|통계청).*$/gm, '')
+    .trim();
+}
 
 // ═══════════════════════════════════════════════════════════════
 // 유틸리티 함수: 안전한 JSON 파싱 (손상된 데이터 처리)
@@ -698,24 +709,27 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
   // ★ React Error #31 완전 방지: 모든 JSX 렌더링용 안전 변환
   const S = (v) => {
     if (v === null || v === undefined) return '';
-    if (typeof v === 'string') return v;
-    if (typeof v === 'number' || typeof v === 'boolean') return String(v);
-    if (typeof v === 'object') {
-      // 객체를 문자열로 - summary/detail 우선, 없으면 values 합치기
-      if (v.summary && v.detail) return `${v.summary} ${v.detail}`;
-      if (v.summary) return v.summary;
-      if (v.detail) return v.detail;
-      if (v.text) return v.text;
-      if (v.title) return v.title;
-      if (v.description) return v.description;
-      if (v.message) return v.message;
-      // 배열이면 join
-      if (Array.isArray(v)) return v.map(item => typeof item === 'string' ? item : S(item)).join(', ');
-      // 그 외 객체는 value들 합치기
-      const vals = Object.values(v).filter(x => typeof x === 'string');
-      return vals.length > 0 ? vals.join(' ') : JSON.stringify(v);
-    }
-    return String(v);
+    const _s = (v) => {
+      if (typeof v === 'string') return v;
+      if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+      if (typeof v === 'object') {
+        // 객체를 문자열로 - summary/detail 우선, 없으면 values 합치기
+        if (v.summary && v.detail) return `${v.summary} ${v.detail}`;
+        if (v.summary) return v.summary;
+        if (v.detail) return v.detail;
+        if (v.text) return v.text;
+        if (v.title) return v.title;
+        if (v.description) return v.description;
+        if (v.message) return v.message;
+        // 배열이면 join
+        if (Array.isArray(v)) return v.map(item => typeof item === 'string' ? item : S(item)).join(', ');
+        // 그 외 객체는 value들 합치기
+        const vals = Object.values(v).filter(x => typeof x === 'string');
+        return vals.length > 0 ? vals.join(' ') : JSON.stringify(v);
+      }
+      return String(v);
+    };
+    return stripSource(_s(v));
   };
   
   const d = result.data;
@@ -23442,14 +23456,21 @@ const getAvailableManagersForSale = () => getSalesManagers();
        )}
 
 
+       {/* 의뢰인 모드 - 다크 클라이언트 UI */}
+       {salesModeScreen === 'main' && salesModeTarget === 'client' && (
+         <div style={{ width: '100%', height: '100vh', overflow: 'hidden', background: '#000' }}>
+           <ClientMode />
+         </div>
+       )}
+
        {/* 메인 영업모드 화면 */}
-       {salesModeScreen === 'main' && (
-         <div className="h-screen flex flex-col overflow-hidden">
+       {salesModeScreen === 'main' && salesModeTarget !== 'client' && (
+         <div className="h-screen flex flex-col overflow-hidden" style={{ background: '#17171C' }}>
            {/* 상단 헤더 - 로고 + 타겟 배지 */}
-           <div className="px-4 py-3 flex justify-between items-center sticky top-0 z-50 backdrop-blur-xl border-b bg-white/95 border-[#E5E8EB]">
+           <div className="px-4 py-3 flex justify-between items-center sticky top-0 z-50 backdrop-blur-xl border-b" style={{ background: 'rgba(23,23,28,0.95)', borderColor: '#2A2A32' }}>
              <button
                onClick={exitSalesMode}
-               className="px-3 py-1.5 text-sm font-medium rounded-xl border transition-all text-[#6B7684] hover:text-[#191F28] border-[#E5E8EB] hover:bg-[#F2F4F6]"
+               className="px-3 py-1.5 text-sm font-medium rounded-xl border transition-all text-[#8E8E96] hover:text-white border-[#2A2A32] hover:bg-[#2A2A32]"
              >
                관리자
              </button>
@@ -23467,14 +23488,14 @@ const getAvailableManagersForSale = () => getSalesManagers();
            </div>
 
            {/* 탭 네비게이션 */}
-           <div className="flex border-b bg-white border-[#E5E8EB]">
+           <div className="flex border-b" style={{ background: '#17171C', borderColor: '#2A2A32' }}>
              {salesModeTarget === 'broker' && (
                <button
                  onClick={() => { setSalesModeTab('intro'); try { if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{}); } catch(e){} }}
                  className={`flex-1 py-3.5 text-center font-bold text-[15px] transition-all ${
                    salesModeTab === 'intro'
-                     ? 'text-[#191F28] border-b-2 border-[#3182F6]'
-                     : 'text-[#B0B8C1] hover:text-[#6B7684]'
+                     ? 'text-white border-b-2 border-[#3182F6]'
+                     : 'text-[#6B7684] hover:text-[#8E8E96]'
                  }`}
                >
                  소개
@@ -23485,8 +23506,8 @@ const getAvailableManagersForSale = () => getSalesManagers();
                  onClick={() => { setSalesModeTab('analysis'); }}
                  className={`flex-1 py-3.5 text-center font-bold text-[15px] transition-all ${
                    salesModeTab === 'analysis'
-                     ? 'text-[#191F28] border-b-2 border-[#3182F6]'
-                     : 'text-[#B0B8C1] hover:text-[#6B7684]'
+                     ? 'text-white border-b-2 border-[#3182F6]'
+                     : 'text-[#6B7684] hover:text-[#8E8E96]'
                  }`}
                >
                  분석
@@ -23496,8 +23517,8 @@ const getAvailableManagersForSale = () => getSalesManagers();
                onClick={() => { setSalesModeTab('homepage'); }}
                className={`flex-1 py-3.5 text-center font-bold text-[15px] transition-all ${
                  salesModeTab === 'homepage'
-                   ? 'text-[#191F28] border-b-2 border-[#3182F6]'
-                   : 'text-[#B0B8C1] hover:text-[#6B7684]'
+                   ? 'text-white border-b-2 border-[#3182F6]'
+                   : 'text-[#6B7684] hover:text-[#8E8E96]'
                }`}
              >
                홈페이지
@@ -23505,7 +23526,7 @@ const getAvailableManagersForSale = () => getSalesManagers();
            </div>
 
            {/* 탭 콘텐츠 */}
-           <div className="flex-1 overflow-y-auto min-h-0 bg-[#F9FAFB]" style={{ scrollSnapType: salesModeTab === 'intro' ? 'y proximity' : 'none', scrollBehavior: 'smooth' }}>
+           <div className="flex-1 overflow-y-auto min-h-0" style={{ background: '#17171C', scrollSnapType: salesModeTab === 'intro' ? 'y proximity' : 'none', scrollBehavior: 'smooth' }}>
 
             {/* ═══ 중개사 소개 탭 (intro) ═══ */}
             {salesModeTab === 'intro' && salesModeTarget === 'broker' && (() => {
@@ -23791,7 +23812,7 @@ const getAvailableManagersForSale = () => getSalesManagers();
                      onFocus={() => { if (kakaoSuggestions.length > 0 || kakaoAddressResults.length > 0) setSalesAutoCompleteOpen(true); }}
                      onBlur={() => { setTimeout(() => { setSalesAutoCompleteOpen(false); }, 150); }}
                      placeholder="지역, 주소, 건물명으로 검색 (예: 강남역, 판교역)"
-                     className="w-full px-4 py-3.5 rounded-2xl border-[1.5px] focus:outline-none transition-all text-[15px] border-[#E5E8EB] bg-white focus:border-[#3182F6] text-[#191F28] placeholder-[#B0B8C1]"
+                     className="w-full px-4 py-3.5 rounded-2xl border-[1.5px] focus:outline-none transition-all text-[15px] border-[#2A2A32] bg-[#1E1E24] focus:border-[#3182F6] text-white placeholder-[#6B7684]"
                      style={{ boxShadow: 'none' }}
                    />
                    <button
@@ -23873,20 +23894,20 @@ if (salesModeSearchRunningRef.current) return;
                      <div style={{
                        position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
                        marginTop: 4, borderRadius: 14, overflow: 'hidden',
-                       background: '#FFF',
-                       border: '1px solid #E5E8EB',
-                       boxShadow: '0 8px 28px rgba(0,0,0,0.12)'
+                       background: '#1E1E24',
+                       border: '1px solid #2A2A32',
+                       boxShadow: '0 8px 28px rgba(0,0,0,0.4)'
                      }}>
                        {/* 로딩 표시: 데이터 아직 없을 때 */}
                        {kakaoAddressResults.length === 0 && kakaoSuggestions.length === 0 && (
-                         <div style={{padding: '12px', color: '#999', fontSize: 13, textAlign: 'center'}}>
+                         <div style={{padding: '12px', color: '#8E8E96', fontSize: 13, textAlign: 'center'}}>
                            검색 중...
                          </div>
                        )}
                        {/* 주소 검색 결과 (상단) */}
                        {kakaoAddressResults.length > 0 && (
                          <>
-                           <div style={{ padding: '6px 16px', background: '#F0F7FF', fontSize: 11, color: '#3182F6', fontWeight: 600, letterSpacing: '0.02em' }}>
+                           <div style={{ padding: '6px 16px', background: 'rgba(49,130,246,0.1)', fontSize: 11, color: '#3182F6', fontWeight: 600, letterSpacing: '0.02em' }}>
                              주소 검색 결과
                            </div>
                            {kakaoAddressResults.map((item, i) => (
@@ -23908,19 +23929,19 @@ if (salesModeSearchRunningRef.current) return;
                                }}
                                style={{
                                  padding: '10px 16px', cursor: 'pointer', fontSize: 14,
-                                 color: '#191F28',
-                                 borderBottom: '1px solid #F2F4F6',
+                                 color: '#E0E0E0',
+                                 borderBottom: '1px solid #2A2A32',
                                  transition: 'background 0.15s ease',
                                }}
-                               onMouseOver={(e) => e.currentTarget.style.background = '#F2F4F6'}
+                               onMouseOver={(e) => e.currentTarget.style.background = '#2A2A32'}
                                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
                              >
                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                 <span style={{ fontSize: 11, color: '#3182F6', fontWeight: 600, padding: '1px 5px', background: '#EBF4FF', borderRadius: 4, flexShrink: 0 }}>주소</span>
+                                 <span style={{ fontSize: 11, color: '#3182F6', fontWeight: 600, padding: '1px 5px', background: 'rgba(49,130,246,0.15)', borderRadius: 4, flexShrink: 0 }}>주소</span>
                                  <span style={{ fontWeight: 500 }}>{item.road_address_name || item.address_name}</span>
                                </div>
                                {item.road_address_name && item.address_name && item.road_address_name !== item.address_name && (
-                                 <div style={{ fontSize: 12, color: '#888', marginTop: 2, paddingLeft: 42 }}>{item.address_name}</div>
+                                 <div style={{ fontSize: 12, color: '#6B7684', marginTop: 2, paddingLeft: 42 }}>{item.address_name}</div>
                                )}
                              </div>
                            ))}
@@ -23928,7 +23949,7 @@ if (salesModeSearchRunningRef.current) return;
                        )}
                        {/* 유사 결과 배너: 주소 결과가 없고 키워드만 유사 매칭일 때만 표시 */}
                        {salesSearchAssist && kakaoAddressResults.length === 0 && (
-                         <div style={{ padding: '8px 16px', background: '#FFF8E1', fontSize: 12, color: '#B8860B', fontWeight: 500 }}>
+                         <div style={{ padding: '8px 16px', background: 'rgba(184,134,11,0.1)', fontSize: 12, color: '#D4A843', fontWeight: 500 }}>
                            입력하신 내용과 유사한 결과입니다
                          </div>
                        )}
@@ -23936,7 +23957,7 @@ if (salesModeSearchRunningRef.current) return;
                        {kakaoSuggestions.length > 0 && (
                          <>
                            {kakaoAddressResults.length > 0 && (
-                             <div style={{ padding: '6px 16px', background: '#FAFAFA', fontSize: 11, color: '#8B95A1', fontWeight: 600, borderTop: '1px solid #E5E8EB', letterSpacing: '0.02em' }}>
+                             <div style={{ padding: '6px 16px', background: '#23232A', fontSize: 11, color: '#8E8E96', fontWeight: 600, borderTop: '1px solid #2A2A32', letterSpacing: '0.02em' }}>
                                장소 검색 결과
                              </div>
                            )}
@@ -23958,15 +23979,15 @@ if (salesModeSearchRunningRef.current) return;
                                }}
                                style={{
                                  padding: '10px 16px', cursor: 'pointer', fontSize: 14,
-                                 color: '#191F28',
-                                 borderBottom: '1px solid #F2F4F6',
+                                 color: '#E0E0E0',
+                                 borderBottom: '1px solid #2A2A32',
                                  transition: 'background 0.15s ease',
                                }}
-                               onMouseOver={(e) => e.currentTarget.style.background = '#F2F4F6'}
+                               onMouseOver={(e) => e.currentTarget.style.background = '#2A2A32'}
                                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
                              >
                                <div style={{ fontWeight: 500 }}>{item.place_name}</div>
-                               <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>{item.road_address_name || item.address_name}</div>
+                               <div style={{ fontSize: 12, color: '#6B7684', marginTop: 2 }}>{item.road_address_name || item.address_name}</div>
                              </div>
                            ))}
                          </>
@@ -23983,13 +24004,13 @@ if (salesModeSearchRunningRef.current) return;
                          style={{
                            padding: '12px 16px', cursor: 'pointer', fontSize: 13,
                            color: '#3182F6', fontWeight: 600,
-                           background: '#F9FAFB',
-                           borderTop: '1px solid #E5E8EB',
+                           background: '#23232A',
+                           borderTop: '1px solid #2A2A32',
                            display: 'flex', alignItems: 'center', gap: 6,
                            transition: 'background 0.15s ease',
                          }}
-                         onMouseOver={(e) => e.currentTarget.style.background = '#EFF6FF'}
-                         onMouseOut={(e) => e.currentTarget.style.background = '#F9FAFB'}
+                         onMouseOver={(e) => e.currentTarget.style.background = '#2A2A32'}
+                         onMouseOut={(e) => e.currentTarget.style.background = '#23232A'}
                        >
                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3182F6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                          주소를 직접 입력하여 검색
@@ -24002,11 +24023,11 @@ if (salesModeSearchRunningRef.current) return;
                      <div style={{
                        position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
                        marginTop: 4, borderRadius: 14, overflow: 'hidden',
-                       background: '#FFF',
-                       border: '1px solid #E5E8EB',
-                       boxShadow: '0 8px 28px rgba(0,0,0,0.12)',
+                       background: '#1E1E24',
+                       border: '1px solid #2A2A32',
+                       boxShadow: '0 8px 28px rgba(0,0,0,0.4)',
                      }}>
-                       <div style={{ padding: '16px', color: '#8B95A1', fontSize: 14, textAlign: 'center' }}>
+                       <div style={{ padding: '16px', color: '#8E8E96', fontSize: 14, textAlign: 'center' }}>
                          검색 결과가 없습니다
                        </div>
                        <div
@@ -24019,13 +24040,13 @@ if (salesModeSearchRunningRef.current) return;
                          style={{
                            padding: '12px 16px', cursor: 'pointer', fontSize: 13,
                            color: '#3182F6', fontWeight: 600,
-                           background: '#F9FAFB',
-                           borderTop: '1px solid #E5E8EB',
+                           background: '#23232A',
+                           borderTop: '1px solid #2A2A32',
                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                            transition: 'background 0.15s ease',
                          }}
-                         onMouseOver={(e) => e.currentTarget.style.background = '#EFF6FF'}
-                         onMouseOut={(e) => e.currentTarget.style.background = '#F9FAFB'}
+                         onMouseOver={(e) => e.currentTarget.style.background = '#2A2A32'}
+                         onMouseOut={(e) => e.currentTarget.style.background = '#23232A'}
                        >
                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3182F6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                          주소를 직접 입력하여 검색
@@ -24182,7 +24203,7 @@ if (salesModeSearchRunningRef.current) return;
                 {salesModeSearchResult?.success && (
                    <TossStyleResults
                      result={salesModeSearchResult}
-                     theme="light"
+                     theme="dark"
                      onShowSources={() => setSalesModeShowSources(!salesModeShowSources)}
                      salesModeShowSources={salesModeShowSources}
                    />
@@ -24215,15 +24236,15 @@ if (salesModeSearchRunningRef.current) return;
                      </div>
                      
                      {/* 퍼센트 표시 */}
-                     <p className="text-4xl font-bold text-[#191F28] mb-4">
+                     <p className="text-4xl font-bold text-white mb-4">
                        {salesModeAnalysisProgress}%
                      </p>
 
                      {/* 수집 멘트 - 상세 상태 */}
-                     <p className="text-sm mb-2 text-center max-w-sm text-[#6B7684]">
+                     <p className="text-sm mb-2 text-center max-w-sm text-[#8E8E96]">
                        {salesModeCollectingText || salesModeAnalysisStep}
                      </p>
-                     <p className="text-xs text-[#6B7684]">잠시만 기다려주세요</p>
+                     <p className="text-xs text-[#8E8E96]">잠시만 기다려주세요</p>
 
                      {/* 분석 중지 버튼 */}
                      <button
@@ -24252,16 +24273,16 @@ if (salesModeSearchRunningRef.current) return;
                  {/* 검색 전 안내 - 분석이 시작된 적 있으면 welcome 표시 안 함 */}
                  {!salesModeSearchResult && !salesModeSearchLoading && !salesModeAnalysisStartedRef.current && (
                    <div className="text-center py-20">
-                     <p className="mb-2 text-[#6B7684]">지역을 검색하면</p>
-                     <p className="text-[#6B7684]">AI 상권 분석 결과를 확인할 수 있습니다</p>
+                     <p className="mb-2 text-[#8E8E96]">지역을 검색하면</p>
+                     <p className="text-[#8E8E96]">AI 상권 분석 결과를 확인할 수 있습니다</p>
                    </div>
                  )}
 
                  {/* 분석 시작 후 결과 없이 로딩도 끝난 비정상 상태 - 재검색 안내 */}
                  {!salesModeSearchResult && !salesModeSearchLoading && salesModeAnalysisStartedRef.current && (
                    <div className="text-center py-16">
-                     <p className="mb-3 text-[#333D4B]" style={{fontWeight: 600}}>분석 결과를 불러오지 못했습니다</p>
-                     <p className="text-sm text-[#6B7684] mb-6">일시적인 네트워크 문제일 수 있습니다</p>
+                     <p className="mb-3 text-white" style={{fontWeight: 600}}>분석 결과를 불러오지 못했습니다</p>
+                     <p className="text-sm text-[#8E8E96] mb-6">일시적인 네트워크 문제일 수 있습니다</p>
                      <button
                        onClick={() => { salesModeAnalysisStartedRef.current = false; setSalesModeSearchResult(null); }}
                        className="px-6 py-2.5 rounded-full text-sm font-medium"
@@ -24274,7 +24295,7 @@ if (salesModeSearchRunningRef.current) return;
                  {salesModeSearchResult?.success === false && (
                    <div className="text-center py-10">
                      <p className="text-red-500 mb-2">분석 중 오류가 발생했습니다</p>
-                     <p className="text-sm text-[#6B7684]">{salesModeSearchResult.error}</p>
+                     <p className="text-sm text-[#8E8E96]">{salesModeSearchResult.error}</p>
                    </div>
                  )}
                </div>
@@ -24633,7 +24654,7 @@ if (salesModeSearchRunningRef.current) return;
              searchSalesModeRegion(location.address);
            }}
            generateAIFeedback={generateLocationAIFeedback}
-           theme="light"
+           theme="dark"
          />
        )}
 

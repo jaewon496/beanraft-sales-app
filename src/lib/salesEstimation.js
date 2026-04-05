@@ -502,7 +502,23 @@ function estimateIndependent(cafe, dongAvgCafeSales, totalNearbyCafes, dongCafeC
     reviewFactor = Math.max(0.7, Math.min(1.4, reviewFactor));
   }
 
-  const estimated = Math.round(baseEstimate * competitionFactor * priceFactor * reviewFactor * vitalityFactor);
+  // Distance factor: closer cafes get higher estimates, farther ones get lower
+  // 100m -> ~1.15, 250m -> ~1.0 (neutral), 500m -> ~0.85
+  let distanceFactor = 1.0;
+  if (cafe.dist && cafe.dist > 0) {
+    const dist = cafe.dist;
+    // Linear interpolation: 0m -> 1.20, 250m -> 1.0, 500m -> 0.80
+    distanceFactor = Math.max(0.75, Math.min(1.25, 1.20 - (dist / 500) * 0.40));
+  }
+
+  // Naver rating factor: higher rating -> slightly higher estimate
+  let ratingFactor = 1.0;
+  if (cafe.naverRating && cafe.naverRating > 0) {
+    // rating 4.5+ -> 1.05, 4.0 -> 1.0, 3.0 -> 0.93
+    ratingFactor = Math.max(0.90, Math.min(1.10, 0.75 + cafe.naverRating * 0.06));
+  }
+
+  const estimated = Math.round(baseEstimate * competitionFactor * priceFactor * reviewFactor * distanceFactor * ratingFactor * vitalityFactor);
   return Math.max(0, estimated);
 }
 
@@ -674,7 +690,8 @@ export function estimateCafeSales({
   dongCafeCount = 0,
   vitalityFactor = 1.0,
   trendFactor = 1.0,
-  apiData = {}
+  apiData = {},
+  nicebizmapStats = null
 }) {
   let layer, estimated, confidence;
   // methodLabel: tracks the actual estimation method for UI display
@@ -735,14 +752,23 @@ export function estimateCafeSales({
   if (!layer) {
     layer = 'L4';
     const combinedVitality = vitalityFactor * trendFactor;
+
+    // 나이스비즈맵 데이터가 있으면 기본 매출 기준을 보정
+    let nbmBaseAvg = dongAvgCafeSales;
+    if (nicebizmapStats && nicebizmapStats.perStoreAvg > 0) {
+      // 나이스비즈맵 점포당 평균과 dongAvg를 블렌딩 (NBM 60%, dongAvg 40%)
+      nbmBaseAvg = Math.round(nicebizmapStats.perStoreAvg * 0.6 + dongAvgCafeSales * 0.4);
+      console.warn('[Sales L4-NBM] ' + cafe.name + ': nbmAvg=' + nicebizmapStats.perStoreAvg + ', dongAvg=' + dongAvgCafeSales + ' -> blended=' + nbmBaseAvg);
+    }
+
     if (canUseMLRegression(cafe)) {
       // ML regression with times7 data -> 85% confidence
-      const { features } = buildMLFeatures(cafe, dongAvgCafeSales);
+      const { features } = buildMLFeatures(cafe, nbmBaseAvg);
       estimated = Math.round(mlEstimateL4(features) * combinedVitality);
       confidence = 0.85;
     } else {
       // Fallback: competition-adjusted dong average -> 78% confidence
-      estimated = estimateIndependent(cafe, dongAvgCafeSales, nearbyTotalCafes, dongCafeCount, combinedVitality);
+      estimated = estimateIndependent(cafe, nbmBaseAvg, nearbyTotalCafes, dongCafeCount, combinedVitality);
       confidence = 0.78;
     }
   }
@@ -760,20 +786,58 @@ export function estimateCafeSales({
     salesRange = 0.22;
     confidenceNote = methodLabel || '멀티시그널 종합 분석';
   } else {
-    // L4: dynamic range based on data availability
+    // L4: distance-based differentiated range (거리 기반 차등 범위)
+    const dist = cafe.dist || 0;
     const hasTimes7 = !!(cafe.times7 && Array.isArray(cafe.times7) && cafe.times7.length >= 7);
     const hasReviews = !!(cafe.reviewCount && cafe.reviewCount > 0);
+
     if (hasTimes7) {
+      // 요일별 매출 패턴 있음: 기본 좁은 범위 + 거리 보정
+      if (dist > 0 && dist <= 100) {
+        salesRange = 0.15; // 100m 이내: 높은 정확도
+        confidenceNote = '매출 패턴 + 근거리';
+      } else if (dist > 100 && dist <= 300) {
+        salesRange = 0.22;
+        confidenceNote = '매출 패턴 기반 추정';
+      } else {
+        salesRange = 0.28;
+        confidenceNote = '매출 패턴 기반 추정';
+      }
+    } else if (dist > 0 && dist <= 100) {
+      // 100m 이내: 유동인구 접근 우수 → 좁은 범위 + 상향
+      salesRange = 0.20;
+      confidenceNote = hasReviews ? '리뷰 + 근거리 분석' : '근거리 접근성 분석';
+    } else if (dist > 100 && dist <= 300) {
+      // 100~300m: 보통
       salesRange = 0.25;
-      confidenceNote = '요일별 매출 패턴 기반 추정';
-    } else if (hasReviews) {
-      salesRange = 0.30;
-      confidenceNote = '리뷰/경쟁 기반 추정';
+      confidenceNote = hasReviews ? '리뷰/경쟁 기반 추정' : '경쟁 기반 추정';
     } else {
-      salesRange = 0.35;
-      confidenceNote = '동 평균 기반 추정';
+      // 300m+ 또는 거리 없음: 넓은 범위
+      salesRange = 0.30;
+      confidenceNote = hasReviews ? '리뷰/경쟁 기반 추정' : '동 평균 기반 추정';
     }
   }
+
+  // Distance-based sales adjustment for L4: closer = higher, farther = lower
+  // This shifts the estimated center, not just the range
+  if (layer === 'L4' && cafe.dist && cafe.dist > 0 && nicebizmapStats && nicebizmapStats.perStoreAvg > 0) {
+    const dist = cafe.dist;
+    let distMultiplier;
+    if (dist <= 100) {
+      // 100m 이내: 평균 x 1.1~1.3 (거리에 비례)
+      distMultiplier = 1.3 - (dist / 100) * 0.2; // 0m=1.3, 100m=1.1
+    } else if (dist <= 300) {
+      // 100~300m: 평균 x 0.9~1.1
+      distMultiplier = 1.1 - ((dist - 100) / 200) * 0.2; // 100m=1.1, 300m=0.9
+    } else {
+      // 300~500m: 평균 x 0.7~0.9
+      distMultiplier = 0.9 - ((Math.min(dist, 500) - 300) / 200) * 0.2; // 300m=0.9, 500m=0.7
+    }
+    const adjusted = Math.round(estimated * distMultiplier);
+    console.warn('[Sales L4-dist] ' + cafe.name + ': dist=' + dist + 'm, multiplier=' + distMultiplier.toFixed(2) + ', ' + estimated + ' -> ' + adjusted);
+    estimated = adjusted;
+  }
+
   const salesMin = Math.round(estimated * (1 - salesRange));
   const salesMax = Math.round(estimated * (1 + salesRange));
 
@@ -799,7 +863,8 @@ export function estimateAllCafeSales({
   dongCafeCount = 0,
   marketVitality = null,
   trendData = null,
-  apiData = {}
+  apiData = {},
+  nicebizmapStats = null
 }) {
   // Compute vitalityFactor from seoulStorQq data (±10% cap)
   let vitalityFactor = 1.0;
@@ -876,7 +941,8 @@ export function estimateAllCafeSales({
       dongCafeCount,
       vitalityFactor,
       trendFactor,
-      apiData
+      apiData,
+      nicebizmapStats
     });
 
     results.push({
@@ -1298,17 +1364,20 @@ export function calculateRadiusAvgSales({
   const bakeryOnlyKeywords = ['빵', '도넛', '베이커리', '디저트', '제과'];
 
   function isCafeRelated(item) {
+    if (!item) return false;
     const code = item.tpbizClscd || '';
     const name = item.tpbizClscdNm || '';
     return cafeRelCodes.some(c => code.startsWith(c)) || cafeKeywords.some(k => name.includes(k));
   }
 
   function isCafeCategory(item) {
+    if (!item) return false;
     const name = item.tpbizClscdNm || '';
     return cafeOnlyKeywords.some(k => name.includes(k));
   }
 
   function isBakeryCategory(item) {
+    if (!item) return false;
     const name = item.tpbizClscdNm || '';
     return bakeryOnlyKeywords.some(k => name.includes(k));
   }
@@ -1525,6 +1594,7 @@ export function calculateRadiusAvgSales({
   if (median > 0 && Array.isArray(mmavgListData) && mmavgListData.length > 0) {
     // 카페 관련 업종의 mmavgSlsAmt 또는 slsamt 추출
     const mmavgCafeItems = mmavgListData.filter(item => {
+      if (!item) return false;
       const name = item.tpbizNm || item.tpbizClscdNm || '';
       return cafeKeywords.some(k => name.includes(k));
     });
@@ -1731,4 +1801,301 @@ export async function fetchNicebizmapMultiple(admiCds) {
     if (data) map[cd] = data;
   }
   return map;
+}
+
+/**
+ * 나이스비즈맵 데이터에서 점포당 평균 매출 및 중앙값/평균 통계 산출
+ * @param {Object} nicebizmapData - fetchNicebizmapMultiple 결과 { dongCd: { name, chart } }
+ * @returns {{ perStoreAvg: number, median: number, average: number, avgPrice: number, storeCnt: number } | null}
+ *   perStoreAvg: 최근 6개월 점포당 월 평균 매출 (만원)
+ *   median: 월별 점포당 매출의 중앙값 (만원)
+ *   average: 월별 점포당 매출의 평균 (만원)
+ */
+export function extractNicebizmapStats(nicebizmapData) {
+  if (!nicebizmapData || typeof nicebizmapData !== 'object') return null;
+
+  const allMonthlyPerStore = []; // 각 동의 각 월 점포당 매출
+  let totalSaleAmt = 0;
+  let totalStoreCnt = 0;
+  let totalAvgPrice = 0;
+  let priceCount = 0;
+
+  for (const dongCd of Object.keys(nicebizmapData)) {
+    const dongData = nicebizmapData[dongCd];
+    if (!dongData || !Array.isArray(dongData.chart) || dongData.chart.length === 0) continue;
+
+    // 최근 6개월 데이터만 사용
+    const recentChart = dongData.chart.slice(-6);
+
+    for (const item of recentChart) {
+      const saleAmt = +(item.saleAmt || 0);
+      const storeCnt = +(item.storeCnt || 0);
+      const avgPrice = +(item.avgPrice || 0);
+
+      if (saleAmt > 0 && storeCnt > 0) {
+        const perStore = Math.round(saleAmt / storeCnt);
+        // 만원 단위로 변환 (saleAmt가 원 단위인 경우)
+        const perStoreManwon = perStore > 100000 ? Math.round(perStore / 10000) : perStore;
+        if (perStoreManwon >= 100 && perStoreManwon <= 50000) {
+          allMonthlyPerStore.push(perStoreManwon);
+        }
+        totalSaleAmt += saleAmt;
+        totalStoreCnt += storeCnt;
+      }
+      if (avgPrice > 0) {
+        totalAvgPrice += avgPrice;
+        priceCount++;
+      }
+    }
+  }
+
+  if (allMonthlyPerStore.length === 0) return null;
+
+  // 중앙값
+  const sorted = [...allMonthlyPerStore].sort((a, b) => a - b);
+  let median;
+  if (sorted.length % 2 === 0) {
+    median = Math.round((sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2);
+  } else {
+    median = sorted[Math.floor(sorted.length / 2)];
+  }
+
+  // 평균
+  const average = Math.round(sorted.reduce((a, b) => a + b, 0) / sorted.length);
+
+  // 점포당 평균 (총 매출 / 총 점포수 / 월수)
+  const months = allMonthlyPerStore.length / Math.max(1, Object.keys(nicebizmapData).length);
+  let perStoreAvg = average; // 기본은 평균과 동일
+
+  // 평균 결제단가
+  const avgPriceResult = priceCount > 0 ? Math.round(totalAvgPrice / priceCount) : 0;
+
+  // 최근 월 점포수 합계 + 시장 규모 (원본 s × sc 합산)
+  let latestStoreCnt = 0;
+  let latestMarketSize = 0; // 만원 단위 (각 동의 최신월 s × sc 합산)
+  for (const dongCd of Object.keys(nicebizmapData)) {
+    const chart = nicebizmapData[dongCd]?.chart;
+    if (chart && chart.length > 0) {
+      const lastItem = chart[chart.length - 1];
+      const sc = +(lastItem.storeCnt || 0);
+      const s = +(lastItem.saleAmt || 0); // 점포당 월평균 매출 (만원)
+      latestStoreCnt += sc;
+      if (s > 0 && sc > 0) {
+        latestMarketSize += s * sc;
+      }
+    }
+  }
+
+  console.log(`[nicebizmap-stats] 포인트 ${sorted.length}개, 중앙값=${median}만원, 평균=${average}만원, 결제단가=${avgPriceResult}원, 점포수=${latestStoreCnt}, 시장규모=${latestMarketSize}만원`);
+
+  return {
+    perStoreAvg,
+    median,
+    average,
+    avgPrice: avgPriceResult,
+    storeCnt: latestStoreCnt,
+    marketSize: latestMarketSize, // 만원 단위 (s × sc 합산)
+    dataPoints: sorted.length
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 나이스비즈맵 시간대별 결제건수 조회 (chart/admi API)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * 나이스비즈맵 chart/admi API를 통해 시간대별 결제건수를 조회
+ * sbiz-proxy의 nicebizmap 라우트를 경유하여 CORS 우회
+ * @param {string} admiCd - 8자리 행정동 코드
+ * @param {string} [indsKindCd='Q13007'] - 업종코드 (Q13007=커피전문점)
+ * @returns {Promise<{timeSlots: Object, peakTime: string, peakCount: number, total: number}|null>}
+ */
+export async function fetchNicebizmapTimeSlots(admiCd, indsKindCd = 'Q13007') {
+  if (!admiCd || admiCd.length < 8) return null;
+
+  try {
+    const params = new URLSearchParams({
+      api: 'nicebizmap',
+      admiCd,
+      indsKindCd
+    });
+    const res = await fetch(`${SBIZ_PROXY_BASE}?${params.toString()}`, {
+      signal: AbortSignal.timeout(15000)
+    });
+    if (!res.ok) return null;
+
+    const json = await res.json();
+    if (!json.success || !json.data) return null;
+
+    const rawData = json.data;
+
+    // 나이스비즈맵 TIME 응답 파싱 - 다양한 응답 구조 대응
+    // 1) rawData.data 배열 형태: [{time: "06~09", cnt: 123}, ...]
+    // 2) rawData.list 배열 형태
+    // 3) rawData 자체가 배열인 경우
+    const items = rawData.data || rawData.list || (Array.isArray(rawData) ? rawData : null);
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      console.warn('[nicebizmap-time] 시간대 데이터 없음 (응답 키:', Object.keys(rawData).join(','), ')');
+      return null;
+    }
+
+    // 시간대별 결제건수 추출
+    const timeSlots = {};
+    let total = 0;
+
+    for (const item of items) {
+      // 다양한 필드명 대응
+      const timeLabel = item.time || item.timeCd || item.tmznNm || item.label || item.timeSlot || '';
+      const cnt = +(item.cnt || item.slCnt || item.selngCo || item.count || item.value || 0);
+
+      if (timeLabel && cnt > 0) {
+        // 시간대 레이블 정규화
+        let normalizedLabel = timeLabel;
+        if (timeLabel.match(/^0?6/)) normalizedLabel = '06~09시';
+        else if (timeLabel.match(/^0?9/)) normalizedLabel = '09~12시';
+        else if (timeLabel.match(/^12/)) normalizedLabel = '12~15시';
+        else if (timeLabel.match(/^15/)) normalizedLabel = '15~18시';
+        else if (timeLabel.match(/^18/)) normalizedLabel = '18~21시';
+        else if (timeLabel.match(/^21/)) normalizedLabel = '21~24시';
+        else if (timeLabel.match(/^0?0/)) normalizedLabel = '00~06시';
+        else normalizedLabel = timeLabel;
+
+        timeSlots[normalizedLabel] = (timeSlots[normalizedLabel] || 0) + cnt;
+        total += cnt;
+      }
+    }
+
+    if (Object.keys(timeSlots).length === 0) {
+      console.warn('[nicebizmap-time] 파싱 결과 비어있음, items:', items.slice(0, 2));
+      return null;
+    }
+
+    // 피크 시간대 계산
+    const peakEntry = Object.entries(timeSlots)
+      .filter(([k]) => !k.startsWith('00'))
+      .sort((a, b) => b[1] - a[1])[0] || Object.entries(timeSlots).sort((a, b) => b[1] - a[1])[0];
+
+    console.log(`[nicebizmap-time] ${admiCd} 시간대별 결제건수:`, timeSlots, `피크: ${peakEntry?.[0]}`);
+
+    return {
+      timeSlots,
+      peakTime: peakEntry?.[0] || '-',
+      peakCount: peakEntry?.[1] || 0,
+      total,
+      source: '나이스비즈맵 결제건수'
+    };
+  } catch (e) {
+    console.warn('[nicebizmap-time] fetch failed:', e.message);
+    return null;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 결제유형별 비율 조회 (매장/배달/포장)
+// 나이스비즈맵 chart/admi API 폐쇄(2026) → 업종 통계 기반 기본값 사용
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * 결제유형별(매장/배달/포장) 비율을 조회
+ * 나이스비즈맵 API가 2026년 유료화로 폐쇄되어, 업종 통계 기반 기본값을 반환
+ * (출처: 2024-2025 커피전문점 카드결제 업종 평균 - 한국카드사 통계)
+ * @param {string} admiCd - 8자리 행정동 코드
+ * @param {string} [indsKindCd='Q13007'] - 업종코드 (Q13007=커피전문점)
+ * @returns {Promise<{store: number, delivery: number, takeout: number, source: string}|null>}
+ *   store/delivery/takeout: 각각 매장/배달/포장 비율 (%, 합계 100)
+ */
+export async function fetchNicebizmapSaleType(admiCd, indsKindCd = 'Q13007') {
+  console.log(`[SALETYP] 호출 시작: admiCd=${admiCd}, indsKindCd=${indsKindCd}`);
+  if (!admiCd || admiCd.length < 8) {
+    console.warn(`[SALETYP] admiCd 무효 (${admiCd}), 스킵`);
+    return null;
+  }
+
+  // 업종별 결제유형 통계 기본값 (2024-2025 카드사 업종 평균)
+  // 커피전문점(Q13007): 매장 62%, 포장 28%, 배달 10%
+  // 향후 나이스비즈맵 API가 재개되면 실데이터로 대체 가능
+  const INDUSTRY_SALE_TYPE_DEFAULTS = {
+    'Q13007': { store: 62, delivery: 10, takeout: 28 },  // 커피전문점
+    'Q13005': { store: 75, delivery: 15, takeout: 10 },  // 아이스크림/빙수
+    'Q01':    { store: 45, delivery: 35, takeout: 20 },  // 한식
+    'Q02':    { store: 50, delivery: 35, takeout: 15 },  // 중식
+    'Q09':    { store: 30, delivery: 55, takeout: 15 },  // 치킨
+  };
+  const DEFAULT_FALLBACK = { store: 60, delivery: 15, takeout: 25 }; // 음식업 평균
+
+  try {
+    // 나이스비즈맵 API 호출 시도 (폐쇄되었지만 혹시 재개될 경우 대비)
+    const params = new URLSearchParams({
+      api: 'nicebizmap',
+      admiCd,
+      indsKindCd,
+      dataCd: 'SALETYP'
+    });
+    const url = `${SBIZ_PROXY_BASE}?${params.toString()}`;
+    console.log(`[SALETYP] fetch: ${url}`);
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(8000)
+    });
+
+    if (res.ok) {
+      const json = await res.json();
+      console.log(`[SALETYP] 응답: success=${json.success}, status=${json.status}`);
+
+      // API가 410(중단)을 반환하면 fallback 사용
+      if (json.status === 410 || json.data?.error === 'nicebizmap_api_discontinued') {
+        console.log('[SALETYP] 나이스비즈맵 API 중단 확인, 업종 통계 기본값 사용');
+      } else if (json.success && json.data) {
+        // 혹시 API가 재개되면 실데이터 파싱
+        const rawData = json.data;
+        const items = rawData.data || rawData.list || (Array.isArray(rawData) ? rawData : null);
+
+        if (items && Array.isArray(items) && items.length > 0) {
+          let storeVal = 0, deliveryVal = 0, takeoutVal = 0;
+          let parsed = false;
+
+          for (const item of items) {
+            const name = String(item.saleTypNm || item.nm || item.name || item.typNm || item.label || '');
+            const rate = Number(item.rate || item.val || item.ratio || item.pct || item.value || 0);
+            const cnt = Number(item.cnt || item.count || item.saleCnt || 0);
+
+            if (name.match(/매장|오프라인|현장|store|offline/i)) {
+              storeVal = rate || cnt; parsed = true;
+            } else if (name.match(/배달|딜리버리|delivery/i)) {
+              deliveryVal = rate || cnt; parsed = true;
+            } else if (name.match(/포장|테이크아웃|takeout|takeaway|to.?go|packag/i)) {
+              takeoutVal = rate || cnt; parsed = true;
+            }
+          }
+
+          if (parsed && (storeVal + deliveryVal + takeoutVal) > 0) {
+            const total = storeVal + deliveryVal + takeoutVal;
+            let storePct, deliveryPct, takeoutPct;
+            if (total <= 101) {
+              storePct = Math.round(storeVal); deliveryPct = Math.round(deliveryVal); takeoutPct = Math.round(takeoutVal);
+            } else {
+              storePct = Math.round(storeVal / total * 100); deliveryPct = Math.round(deliveryVal / total * 100); takeoutPct = Math.round(takeoutVal / total * 100);
+            }
+            const diff = 100 - (storePct + deliveryPct + takeoutPct);
+            if (diff !== 0) storePct += diff;
+
+            console.log(`[SALETYP] 실데이터: ${admiCd} 매장=${storePct}% 배달=${deliveryPct}% 포장=${takeoutPct}%`);
+            return { store: storePct, delivery: deliveryPct, takeout: takeoutPct, source: '나이스비즈맵 결제유형' };
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[SALETYP] API 호출 실패:', e.message);
+  }
+
+  // Fallback: 업종 통계 기본값
+  const defaults = INDUSTRY_SALE_TYPE_DEFAULTS[indsKindCd] || DEFAULT_FALLBACK;
+  console.log(`[SALETYP] 업종 통계 기본값 사용: ${indsKindCd} 매장=${defaults.store}% 배달=${defaults.delivery}% 포장=${defaults.takeout}%`);
+  return {
+    store: defaults.store,
+    delivery: defaults.delivery,
+    takeout: defaults.takeout,
+    source: '업종 통계 평균'
+  };
 }
