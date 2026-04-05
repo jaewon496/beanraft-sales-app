@@ -30,7 +30,14 @@ const PhaseWrapper = ({ children, phaseKey }) => (
   </motion.div>
 );
 
-export default function ClientMode() {
+export default function ClientMode({
+  onSearchRegion,
+  searchResult,
+  searchLoading,
+  analysisProgress = 0,
+  analysisStep = '',
+  renderResults = null,
+}) {
   const [phase, setPhase] = useState(PHASE.ENTRY);
   const [searchAddress, setSearchAddress] = useState('');
   const [searchRadius, setSearchRadius] = useState(500);
@@ -94,8 +101,23 @@ export default function ClientMode() {
     setSearchAddress(address);
     setSearchRadius(radius);
     setPhase(PHASE.LOADING);
-    startLoading(address);
-  }, [startLoading]);
+    // If real search function is provided, use it; otherwise fall back to simulated loading
+    if (onSearchRegion) {
+      onSearchRegion(address);
+    } else {
+      startLoading(address);
+    }
+  }, [startLoading, onSearchRegion]);
+
+  // Sync real analysis progress to loading progress
+  useEffect(() => {
+    if (onSearchRegion && phase === PHASE.LOADING) {
+      // When search result arrives, jump to 100% to trigger LoadingScreen closing animation
+      const effectiveProgress = searchResult?.success ? 100 : analysisProgress;
+      progressRef.current = effectiveProgress;
+      setLoadingProgress(effectiveProgress);
+    }
+  }, [analysisProgress, searchResult, onSearchRegion, phase]);
 
   const handleLoadingComplete = useCallback(() => {
     setSearchCache((prev) => ({
@@ -152,6 +174,7 @@ export default function ClientMode() {
               searchAddress={searchAddress}
               initialHomepageOpen={phase === PHASE.HOMEPAGE}
               onHomepageClosed={handleReturnToResults}
+              renderResults={renderResults}
             />
           </PhaseWrapper>
         )}

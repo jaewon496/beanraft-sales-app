@@ -697,7 +697,7 @@ exports.handler = async (event) => {
 
     const SOURCE_TIMEOUT = 20000;
     const settled = await Promise.allSettled([
-      Promise.resolve([]),  // storeRadius 비활성화
+      withTimeout(collectStoreRadius(lat, lng, radius), SOURCE_TIMEOUT, 'storeRadius'),
       withTimeout(collectKakao(lat, lng, radius), SOURCE_TIMEOUT, 'kakao'),  // kakao CE7 활성화
       Promise.resolve({ cafes: [], debug: [] }),  // naver 비활성화
       isSeoul ? withTimeout(collectLocaldata(lat, lng, guName, radius), SOURCE_TIMEOUT, 'localdata') : Promise.resolve([])  // LOCALDATA 재활성화 (서울 전용)

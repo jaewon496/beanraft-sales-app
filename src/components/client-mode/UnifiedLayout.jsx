@@ -1095,6 +1095,7 @@ export default function UnifiedLayout({
   onAbortAnalysis = null,
   initialHomepageOpen = false,
   onHomepageClosed = null,
+  renderResults = null,
 }) {
   const [address, setAddress] = useState('');
   const [radius, setRadius] = useState(SLIDER_DEFAULT);
@@ -1902,98 +1903,105 @@ export default function UnifiedLayout({
                 height: '100%',
                 overflowY: 'auto',
                 overflowX: 'hidden',
-                padding: '24px 24px 48px',
+                padding: renderResults ? '0' : '24px 24px 48px',
                 scrollSnapType: 'y proximity',
               }}
               className="unified-cards-scroll"
             >
-              {/* Section header */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
-                style={{ marginBottom: 20, scrollSnapAlign: 'start' }}
-              >
-                <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: COLORS.white, letterSpacing: '-0.02em' }}>
-                  분석 결과
-                </h2>
-                <p style={{ margin: '4px 0 0', fontSize: 12, color: COLORS.textMuted }}>
-                  {cards.length}개 항목 -- 반경 {radius}m 기준
-                </p>
-              </motion.div>
+              {renderResults ? (
+                /* ── TossStyleResults from App.jsx (passed via renderResults prop) ── */
+                renderResults
+              ) : (
+                <>
+                  {/* Section header */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5 }}
+                    style={{ marginBottom: 20, scrollSnapAlign: 'start' }}
+                  >
+                    <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: COLORS.white, letterSpacing: '-0.02em' }}>
+                      분석 결과
+                    </h2>
+                    <p style={{ margin: '4px 0 0', fontSize: 12, color: COLORS.textMuted }}>
+                      {cards.length}개 항목 -- 반경 {radius}m 기준
+                    </p>
+                  </motion.div>
 
-              {/* Summary dashboard bar removed - data moved to individual cards */}
+                  {/* Summary dashboard bar removed - data moved to individual cards */}
 
-              {/* Cards list */}
-              <div style={{
-                display: 'flex', flexDirection: 'column',
-                gap: 24,
-              }}>
-                {cards.map((card, i) => (
-                  <React.Fragment key={i}>
-                    <CardTemplate
-                      index={i}
-                      title={card.title}
-                      subtitle={card.subtitle}
-                      date={card.date}
-                      bruSummary={card.bruSummary || null}
-                      aiSummary={card.aiSummary}
-                      chartContent={card.chartData !== undefined ? getChartForCard(card) : (CHART_MAP[card.chartType] || null)}
-                      bodyContent={<DataTable data={card.bodyData} />}
-                      metaInfo={card.metaInfo}
-                    />
-                    {/* "지도로 보기" button after Card 1 */}
-                    {i === 0 && collectedData?.coordinates && (
-                      (collectedData?.nearbyFranchiseList?.length > 0 || collectedData?.nearbyIndependentList?.length > 0) && (
-                        <button
-                          onClick={() => setShowCafeMap(true)}
-                          style={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                            width: '100%', fontSize: 14, fontWeight: 600, color: '#3182F6',
-                            background: 'rgba(49,130,246,0.07)', border: 'none', borderRadius: 12,
-                            padding: '12px 16px', cursor: 'pointer', whiteSpace: 'nowrap',
-                            transition: 'background 0.2s', fontFamily: 'Pretendard, sans-serif',
-                          }}
-                          onMouseEnter={e => e.currentTarget.style.background = 'rgba(49,130,246,0.14)'}
-                          onMouseLeave={e => e.currentTarget.style.background = 'rgba(49,130,246,0.07)'}
-                        >
-                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1C5.24 1 3 3.24 3 6c0 3.75 5 9 5 9s5-5.25 5-9c0-2.76-2.24-5-5-5zm0 6.5A1.5 1.5 0 118 4.99 1.5 1.5 0 018 7.5z" fill="#3182F6"/></svg>
-                          지도로 보기
-                        </button>
-                      )
-                    )}
-                  </React.Fragment>
-                ))}
-                {/* ── Unified Data Sources ── */}
-                {(() => {
-                  const sourceSet = new Set();
-                  cards.forEach(card => {
-                    if (card.source) {
-                      card.source.split('/').forEach(s => {
-                        const trimmed = s.trim();
-                        if (trimmed) sourceSet.add(trimmed);
+                  {/* Cards list */}
+                  <div style={{
+                    display: 'flex', flexDirection: 'column',
+                    gap: 24,
+                  }}>
+                    {cards.map((card, i) => (
+                      <React.Fragment key={i}>
+                        <CardTemplate
+                          index={i}
+                          title={card.title}
+                          subtitle={card.subtitle}
+                          date={card.date}
+                          bruSummary={card.bruSummary || null}
+                          aiSummary={card.aiSummary}
+                          chartContent={card.chartData !== undefined ? getChartForCard(card) : (CHART_MAP[card.chartType] || null)}
+                          bodyContent={<DataTable data={card.bodyData} />}
+                          metaInfo={card.metaInfo}
+                        />
+                        {/* "지도로 보기" button after Card 1 */}
+                        {i === 0 && collectedData?.coordinates && (
+                          (collectedData?.nearbyFranchiseList?.length > 0 || collectedData?.nearbyIndependentList?.length > 0) && (
+                            <button
+                              onClick={() => setShowCafeMap(true)}
+                              style={{
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                                width: '100%', fontSize: 14, fontWeight: 600, color: '#3182F6',
+                                background: 'rgba(49,130,246,0.07)', border: 'none', borderRadius: 12,
+                                padding: '12px 16px', cursor: 'pointer', whiteSpace: 'nowrap',
+                                transition: 'background 0.2s', fontFamily: 'Pretendard, sans-serif',
+                              }}
+                              onMouseEnter={e => e.currentTarget.style.background = 'rgba(49,130,246,0.14)'}
+                              onMouseLeave={e => e.currentTarget.style.background = 'rgba(49,130,246,0.07)'}
+                            >
+                              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1C5.24 1 3 3.24 3 6c0 3.75 5 9 5 9s5-5.25 5-9c0-2.76-2.24-5-5-5zm0 6.5A1.5 1.5 0 118 4.99 1.5 1.5 0 018 7.5z" fill="#3182F6"/></svg>
+                              지도로 보기
+                            </button>
+                          )
+                        )}
+                      </React.Fragment>
+                    ))}
+                    {/* ── Unified Data Sources ── */}
+                    {(() => {
+                      const sourceSet = new Set();
+                      cards.forEach(card => {
+                        if (card.source) {
+                          card.source.split('/').forEach(s => {
+                            const trimmed = s.trim();
+                            if (trimmed) sourceSet.add(trimmed);
+                          });
+                        }
                       });
-                    }
-                  });
-                  const sources = Array.from(sourceSet);
-                  if (sources.length === 0) return null;
-                  return (
-                    <div style={{
-                      textAlign: 'right',
-                      padding: '8px 4px 0',
-                      fontSize: 10,
-                      color: 'rgba(255,255,255,0.3)',
-                      lineHeight: 1.5,
-                      letterSpacing: '0.01em',
-                    }}>
-                      {'데이터 출처: ' + sources.join(', ')}
-                    </div>
-                  );
-                })()}
-              </div>
+                      const sources = Array.from(sourceSet);
+                      if (sources.length === 0) return null;
+                      return (
+                        <div style={{
+                          textAlign: 'right',
+                          padding: '8px 4px 0',
+                          fontSize: 10,
+                          color: 'rgba(255,255,255,0.3)',
+                          lineHeight: 1.5,
+                          letterSpacing: '0.01em',
+                        }}>
+                          {'데이터 출처: ' + sources.join(', ')}
+                        </div>
+                      );
+                    })()}
+                  </div>
 
-              {/* Bottom spacer */}
-              <div style={{ height: 40 }} />
+                  {/* Bottom spacer */}
+                  <div style={{ height: 40 }} />
+                </>
+              )}
             </motion.div>
           )}
         </AnimatePresence>

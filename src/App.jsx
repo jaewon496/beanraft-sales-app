@@ -584,15 +584,16 @@ const FadeInSection = ({ children, delay = 0, direction = 'up', className = '' }
 // ═══════════════════════════════════════════════════════════════
 const TOSS_COLORS = ['#3182F6', '#4DC4FF', '#9BE8D8', '#FFD43B', '#E8E8E8'];
 
-const useInViewToss = (threshold = 0.25) => {
+const useInViewToss = (threshold = 0.25, rootRef = null) => {
   const ref = useRef(null);
   const [inView, setInView] = useState(false);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    const root = rootRef?.current || null;
     const obs = new IntersectionObserver(
       ([e]) => { if (e.isIntersecting) setInView(true); },
-      { threshold }
+      { threshold, root }
     );
     obs.observe(el);
     return () => obs.disconnect();
@@ -827,20 +828,19 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
     );
   };
   
-  // IntersectionObserver 각 섹션
+  // IntersectionObserver 각 섹션 (root = resultsContainerRef → 중첩 스크롤에서도 감지)
   const resultsContainerRef = useRef(null);
-  const [r1, v1] = useInViewToss();
-  const [r2, v2] = useInViewToss();
-  const [r3, v3] = useInViewToss();
-  const [r3b, v3b] = useInViewToss();
-  const [r4, v4] = useInViewToss();
-  const [r5, v5] = useInViewToss();
-  const [r6, v6] = useInViewToss();
-  const [r7, v7] = useInViewToss();
-  const [r8, v8] = useInViewToss();
+  const [r1, v1] = useInViewToss(0.25, resultsContainerRef);
+  const [r2, v2] = useInViewToss(0.25, resultsContainerRef);
+  const [r3, v3] = useInViewToss(0.25, resultsContainerRef);
+  const [r3b, v3b] = useInViewToss(0.25, resultsContainerRef);
+  const [r4, v4] = useInViewToss(0.25, resultsContainerRef);
+  const [r5, v5] = useInViewToss(0.25, resultsContainerRef);
+  const [r6, v6] = useInViewToss(0.25, resultsContainerRef);
+  const [r7, v7] = useInViewToss(0.25, resultsContainerRef);
+  const [r8, v8] = useInViewToss(0.25, resultsContainerRef);
 
   // 결과 렌더 시 데이터 섹션(상권 분석 리포트)으로 자동 스크롤
-  // 브루 인사(안녕하세요 사장님) 섹션을 지나 실제 데이터가 보이도록
   useEffect(() => {
     const timer = setTimeout(() => {
       if (r1.current && resultsContainerRef.current) {
@@ -1516,55 +1516,6 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
           </div>
         </div>
       )}
-      {/* ━━━ 0. 브루 인사 (1문단: 꽉 채운 카드) ━━━ */}
-      <div style={{ ...sec, minHeight: '70vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
-        {/* 배경 블롭 - 토스식 분위기 조명 */}
-        <div className="bg-blob bg-blob-blue" style={{ width: 250, height: 250, top: '15%', left: '-10%' }} />
-        <div className="bg-blob bg-blob-purple" style={{ width: 200, height: 200, bottom: '10%', right: '-5%' }} />
-
-        <FadeUpToss inView={true} delay={0}>
-          <div className="hero-orb-container" style={{ marginBottom: 40 }}>
-            <div className="hero-orb-glow" />
-            <div className="hero-orb">
-              <img src="/logo.png" alt="BeanCraft" style={{ width: 56, height: 56, objectFit: 'contain', position: 'relative', zIndex: 2, filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.15))' }} />
-            </div>
-            {/* 떠다니는 반짝이 도트 */}
-            <div className="sparkle-dot" style={{ top: 10, right: 20, animationDelay: '0s' }} />
-            <div className="sparkle-dot" style={{ bottom: 15, left: 10, animationDelay: '0.7s' }} />
-            <div className="sparkle-dot" style={{ top: '50%', right: 5, animationDelay: '1.4s' }} />
-          </div>
-        </FadeUpToss>
-        <FadeUpToss inView={true} delay={0.2}>
-          <h1 style={{ fontSize: 34, fontWeight: 800, color: t1, letterSpacing: '-0.03em', lineHeight: 1.35 }}>
-            안녕하세요 사장님 <span style={{ display: 'inline-block', animation: 'orb-float 3s ease-in-out infinite', animationDelay: '0.5s' }}>:)</span>
-          </h1>
-        </FadeUpToss>
-      </div>
-
-      {/* ━━━ 0-2. 브루 인사 (2문단: 나머지 내용) ━━━ */}
-      <div style={{ ...sec, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
-        <FadeUpToss inView={true} delay={0}>
-          <p style={{ fontSize: 18, color: t1, lineHeight: 1.8, marginBottom: 20, fontWeight: 500 }}>
-            사장님의 새로운 시작을 누구보다 응원하는 <span style={{ color: '#4F46E5', fontWeight: 700 }}>AI 피드백</span>이에요.
-          </p>
-        </FadeUpToss>
-        <FadeUpToss inView={true} delay={0.15}>
-          <p style={{ fontSize: 15, color: t2, lineHeight: 1.8, marginBottom: 16, maxWidth: 340 }}>
-            개인 카페 창업 전문 빈크래프트가 현장에서 쌓은 노하우를 바탕으로, 오직 사장님들만을 위하여 이 프로그램을 자체 제작했답니다.
-          </p>
-        </FadeUpToss>
-        <FadeUpToss inView={true} delay={0.3}>
-          <p style={{ fontSize: 15, color: t2, lineHeight: 1.8, marginBottom: 16, maxWidth: 340 }}>
-            저와 함께라면 창업 준비하시는 데 좀 더 명확해지실 거예요.
-          </p>
-        </FadeUpToss>
-        <FadeUpToss inView={true} delay={0.45}>
-          <p style={{ fontSize: 15, color: t1, lineHeight: 1.8, fontWeight: 600, maxWidth: 340 }}>
-            아래로 스크롤을 내려서 제가 준비한 선물 같은 내용들을 확인해 보세요!
-          </p>
-        </FadeUpToss>
-      </div>
-
       {/* ━━━ 1. 상권 개요 Hero ━━━ */}
       <div ref={r1} style={{ ...sec, position: 'relative', overflow: 'hidden' }}>
         {/* 배경 분위기 조명 */}
@@ -9372,123 +9323,7 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
      }
 
      if (!preselectedCoords) {
-     // ═══ 카카오 키워드 검색 + 주소 검색 동시 호출 (Promise.all) ═══
-     // 주소 검색 성공 → 우선 사용 (행정동/도로명 좌표가 더 정확)
-     // 주소 검색 실패 → 키워드 검색 결과 사용 (역이름, 건물명 등)
-     const kakaoQueries = [...new Set([normalizedQuery, query, ...searchQueries])];
-     console.log('카카오 동시 검색 시도 목록:', kakaoQueries);
-
-     // 키워드 검색 함수
-     const tryKakaoKeyword = async () => {
-       for (const kwQuery of kakaoQueries) {
-         try {
-           const kakaoKwRes = await fetch(
-             `/api/kakao-proxy?type=keyword&query=${encodeURIComponent(kwQuery)}&size=1`,
-             { signal: AbortSignal.timeout(10000) }
-           );
-           if (kakaoKwRes.ok) {
-             const kakaoKwData = await kakaoKwRes.json();
-             console.log(`카카오 키워드 검색 "${kwQuery}": ${kakaoKwData.documents?.length || 0}건`);
-             const kwDoc = kakaoKwData.documents?.[0];
-             if (kwDoc) {
-               console.log(`카카오 키워드 검색 성공: "${kwQuery}" → ${kwDoc.y}, ${kwDoc.x} (${kwDoc.place_name})`);
-               return {
-                 coords: {
-                   lat: parseFloat(kwDoc.y),
-                   lng: parseFloat(kwDoc.x),
-                   roadAddress: kwDoc.road_address_name || kwDoc.address_name
-                 },
-                 addrInfo: (() => {
-                   const _kp = (kwDoc.address_name || '').split(' ');
-                   const _kHasSiGu = _kp.length >= 4 && _kp.some(p => /^[가-힣]+시$/.test(p)) && _kp.some(p => /^[가-힣]+구$/.test(p));
-                   return {
-                     sido: _kp[0] || '',
-                     sigungu: _kHasSiGu ? (_kp[2] || _kp[1] || '') : (_kp[1] || ''),
-                     dong: _kHasSiGu ? (_kp[3] || _kp[_kp.length - 1] || '') : (_kp[2] || _kp[_kp.length - 1] || '')
-                   };
-                 })()
-               };
-             }
-           } else {
-             console.log(`카카오 키워드 검색 HTTP 실패: ${kakaoKwRes.status} (query: "${kwQuery}")`);
-           }
-         } catch (e) {
-           console.log(`카카오 키워드 검색 에러 "${kwQuery}":`, e.message);
-         }
-       }
-       return null;
-     };
-
-     // 주소 검색 함수
-     const tryKakaoAddress = async () => {
-       for (const addrQuery of kakaoQueries) {
-         try {
-           const kakaoGeoRes = await fetch(
-             `/api/kakao-proxy?type=address&query=${encodeURIComponent(addrQuery)}`,
-             { signal: AbortSignal.timeout(10000) }
-           );
-           if (kakaoGeoRes.ok) {
-             const kakaoGeoData = await kakaoGeoRes.json();
-             console.log(`카카오 주소 검색 "${addrQuery}": ${kakaoGeoData.documents?.length || 0}건`);
-             const doc = kakaoGeoData.documents?.[0];
-             if (doc) {
-               console.log(`카카오 주소 검색 성공: "${addrQuery}" → ${doc.y}, ${doc.x}`);
-               return {
-                 coords: {
-                   lat: parseFloat(doc.y),
-                   lng: parseFloat(doc.x),
-                   roadAddress: doc.road_address?.address_name || doc.address_name,
-                   jibunAddress: doc.address?.address_name || doc.address_name
-                 },
-                 addrInfo: (() => {
-                   const _ap = (doc.address_name || '').split(' ');
-                   // 4단계 주소: "전북특별자치도 전주시 덕진구 금암동" → sigungu=덕진구, dong=금암동
-                   const _hasSiGu = _ap.length >= 4 && _ap.some(p => /^[가-힣]+시$/.test(p)) && _ap.some(p => /^[가-힣]+구$/.test(p));
-                   return {
-                     sido: _ap[0] || '',
-                     sigungu: _hasSiGu ? (_ap[2] || _ap[1] || '') : (_ap[1] || ''),
-                     dong: _hasSiGu ? (_ap[3] || _ap[_ap.length - 1] || '') : (_ap[2] || _ap[_ap.length - 1] || '')
-                   };
-                 })()
-               };
-             }
-           } else {
-             console.log(`카카오 주소 검색 HTTP 실패: ${kakaoGeoRes.status} (query: "${addrQuery}")`);
-           }
-         } catch (e) {
-           console.log(`카카오 주소 검색 에러 "${addrQuery}":`, e.message);
-         }
-       }
-       return null;
-     };
-
-     try {
-       const [keywordResult, addressResult] = await Promise.all([
-         tryKakaoKeyword().catch(err => { console.log('카카오 키워드 검색 전체 실패:', err.message); return null; }),
-         tryKakaoAddress().catch(err => { console.log('카카오 주소 검색 전체 실패:', err.message); return null; })
-       ]);
-
-       // 주소 검색 우선: 행정동/도로명 좌표가 더 정확 (예: "제주 연동" → 연동 중심좌표)
-       // 키워드 검색은 음식점/건물 등이 1순위로 올라올 수 있음
-       if (addressResult) {
-         coordinates = addressResult.coords;
-         addressInfo = addressResult.addrInfo;
-         console.log(`★ 주소 검색 결과 채택: ${coordinates.lat}, ${coordinates.lng}`);
-         if (keywordResult) {
-           console.log(`  (키워드 검색 결과 무시: ${keywordResult.coords.lat}, ${keywordResult.coords.lng})`);
-         }
-       } else if (keywordResult) {
-         coordinates = keywordResult.coords;
-         addressInfo = keywordResult.addrInfo;
-         console.log(`★ 키워드 검색 결과 채택 (주소 검색 실패): ${coordinates.lat}, ${coordinates.lng}`);
-       }
-     } catch (kakaoErr) {
-       console.log('카카오 동시 검색 전체 실패:', kakaoErr.message);
-     }
-
-     // ═══ 3순위: 네이버 지오코딩 (fallback) ═══
-     if (!coordinates) {
-       console.log('카카오 실패 → 네이버 지오코딩 시도');
+     // ═══ 1순위: 네이버 지도 JS API로 좌표 얻기 (확장 검색) ═══
      for (const searchQuery of searchQueries) {
        if (coordinates) break;
        try {
@@ -9503,7 +9338,7 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
              });
            } else { clearTimeout(timeout); reject(new Error('Naver Maps not loaded')); }
          });
-         
+
          if (geoResult) {
            coordinates = {
              lat: parseFloat(geoResult.y),
@@ -9520,31 +9355,76 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
          }
        } catch (e) { console.log(`지오코딩 시도: "${searchQuery}" - ${e.message}`); }
      }
-     }
 
-     // ═══ 4순위: NCP 지오코딩 (fallback) ═══
+     // ═══ 2순위: Geocode 실패 시 → Naver Local Search API로 장소 검색 ═══
      if (!coordinates) {
-       console.log('네이버 실패 → NCP 지오코딩 시도');
-       for (const searchQuery of searchQueries) {
+       console.log('Geocode 실패 → Naver Local Search API 시도');
+       updateCollectingText(`"${query}" 장소를 검색하고 있어요`);
+       // 원래 쿼리 + 확장 쿼리 순서로 Local Search 시도
+       const localSearchQueries = [query, ...searchQueries.filter(q => q !== query)];
+       for (const localQuery of localSearchQueries) {
          if (coordinates) break;
-         try {
-           const ncpRes = await fetch(`/api/ncp-geo-proxy?query=${encodeURIComponent(searchQuery)}`, { signal: AbortSignal.timeout(10000) });
-           if (ncpRes.ok) {
-             const ncpData = await ncpRes.json();
-             if (ncpData.addresses?.length > 0) {
-               const addr = ncpData.addresses[0];
-               coordinates = { lat: parseFloat(addr.y), lng: parseFloat(addr.x) };
-               const addrParts = (addr.roadAddress || addr.jibunAddress || '').split(' ');
-               addressInfo = {
-                 sido: addrParts[0] || '',
-                 sigungu: addrParts[1] || '',
-                 dong: addrParts[2] || ''
-               };
-               console.log(`NCP 지오코딩 성공 (4순위): "${searchQuery}" → ${coordinates.lat}, ${coordinates.lng}`);
+       try {
+         const localRes = await fetch(`/api/naver-local-proxy?query=${encodeURIComponent(localQuery)}&display=1`);
+         if (localRes.ok) {
+           const localData = await localRes.json();
+           const item = localData.items?.[0];
+           if (item) {
+             console.log(`Local Search 결과: "${item.title}" → ${item.address || item.roadAddress}`);
+             // 방법 A: roadAddress 또는 address로 Geocode 재시도
+             const localAddr = item.roadAddress || item.address;
+             if (localAddr && window.naver?.maps?.Service) {
+               try {
+                 const geoResult2 = await new Promise((resolve, reject) => {
+                   const timeout = setTimeout(() => reject(new Error('timeout')), 5000);
+                   window.naver.maps.Service.geocode({ query: localAddr }, (status, response) => {
+                     clearTimeout(timeout);
+                     if (status === window.naver.maps.Service.Status.OK && response.v2?.addresses?.[0]) {
+                       resolve(response.v2.addresses[0]);
+                     } else { reject(new Error('No results')); }
+                   });
+                 });
+                 if (geoResult2) {
+                   coordinates = {
+                     lat: parseFloat(geoResult2.y),
+                     lng: parseFloat(geoResult2.x),
+                     roadAddress: geoResult2.roadAddress,
+                     jibunAddress: geoResult2.jibunAddress
+                   };
+                   addressInfo = {
+                     sido: geoResult2.addressElements?.find(e => e.types?.includes('SIDO'))?.longName || '',
+                     sigungu: geoResult2.addressElements?.find(e => e.types?.includes('SIGUGUN'))?.longName || '',
+                     dong: geoResult2.addressElements?.find(e => e.types?.includes('DONGMYUN'))?.longName || ''
+                   };
+                   console.log(`Local Search → Geocode 성공: "${localAddr}" → ${coordinates.lat}, ${coordinates.lng}`);
+                 }
+               } catch (geoErr) {
+                 console.log(`Local Search 주소 Geocode 실패: ${geoErr.message}`);
+               }
+             }
+             // 방법 B: Geocode도 실패하면 mapx/mapy 직접 사용
+             if (!coordinates && item.mapx && item.mapy) {
+               const lat = parseInt(item.mapy) / 10000000;
+               const lng = parseInt(item.mapx) / 10000000;
+               if (lat > 33 && lat < 39 && lng > 124 && lng < 132) {
+                 coordinates = { lat, lng };
+                 // address에서 시도/시군구/동 파싱
+                 const addrParts = (item.address || '').split(' ');
+                 addressInfo = {
+                   sido: addrParts[0] || '',
+                   sigungu: addrParts[1] || '',
+                   dong: addrParts[2] || '',
+                   address: item.address || item.roadAddress
+                 };
+                 console.log(`Local Search mapx/mapy 사용: ${lat}, ${lng} (${item.address})`);
+               }
              }
            }
-         } catch (e) { console.log(`NCP 지오코딩 에러 "${searchQuery}":`, e.message); }
+         }
+       } catch (localErr) {
+         console.log(`Local Search API 실패 (${localQuery}): ${localErr.message}`);
        }
+       } // end for localSearchQueries
      }
 
      if (coordinates) {
@@ -23459,7 +23339,21 @@ const getAvailableManagersForSale = () => getSalesManagers();
        {/* 의뢰인 모드 - 다크 클라이언트 UI */}
        {salesModeScreen === 'main' && salesModeTarget === 'client' && (
          <div style={{ width: '100%', height: '100vh', overflow: 'hidden', background: '#000' }}>
-           <ClientMode />
+           <ClientMode
+             onSearchRegion={searchSalesModeRegion}
+             searchResult={salesModeSearchResult}
+             searchLoading={salesModeSearchLoading}
+             analysisProgress={salesModeAnalysisProgress}
+             analysisStep={salesModeAnalysisStep}
+             renderResults={salesModeSearchResult?.success ? (
+               <TossStyleResults
+                 result={salesModeSearchResult}
+                 theme="dark"
+                 onShowSources={() => setSalesModeShowSources(!salesModeShowSources)}
+                 salesModeShowSources={salesModeShowSources}
+               />
+             ) : null}
+           />
          </div>
        )}
 

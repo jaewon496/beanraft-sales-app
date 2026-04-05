@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>빈크래프트 카드-API 관계도</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+body { background: #1a1a2e; color: #eee; font-family: 'Pretendard', sans-serif; margin: 0; padding: 20px; }
+h1 { text-align: center; color: #0EA5E9; }
+.mermaid { display: flex; justify-content: center; }
+</style>
+</head>
+<body>
+<h1>카드별 API 관계도</h1>
+<div class="mermaid">
+mindmap
+  root((빈크래프트 카드))
+    API 소스
+      카카오맵
+        카페 위치/좌표
+        카테고리 검색
+        좌표→행정동 변환
+      네이버
+        카페 리뷰/평점
+        메뉴/가격
+        영업시간
+      오픈업 **NEW**
+        카페 목록 (매번 동일)
+        업종 세분류
+        시간대별 결제건수
+        요일별 결제건수
+        성별+연령 결제
+        신규매장 여부
+        건물 월매출
+      소상공인365
+        유동인구 DynPplCmpr
+        방문연령 VstAgeRnk
+        방문고객 VstCst
+        배달 BaeminTpbiz
+        점포수 cfrStcnt
+        매출평균 SalesAvg
+      나이스비즈맵 Firebase
+        행정동 매출 중앙값/평균
+        점포수 6개월 추이
+        결제단가
+      기타
+        공정위 브랜드매출
+        한국부동산원 임대료
+        통계청 생존율
+        Gemini AI grounding
+    카드 구성
+      1 히어로
+        카페수 → 오픈업 기준
+        유동인구 → 소상공인365
+        개폐업 → 오픈업 isNewOpen
+      2 AI한줄정리
+        Gemini crossData
+      3 소비고객
+        연령 → 소상공인365
+        성별연령 → 오픈업 gender NEW
+        피크시간 → 오픈업 times NEW
+        테이크아웃 → BaeminTpbiz
+      4 유동인구
+        총량 → 소상공인365
+        평일주말 → 오픈업 wdwe NEW
+      5 프랜차이즈
+        목록 → 카카오+네이버
+        브랜드매출 → 공정위
+      6 개인카페
+        중앙값평균 → 비즈맵Firebase
+        업종분류 → 오픈업 category NEW
+      7 업종별매출
+        소상공인365 + 비즈맵
+        교차검증 → 오픈업 monthSales NEW
+      8 시간대별
+        결제건수 → 오픈업 times NEW
+        유동인구 → 소상공인365
+      9 상가시세
+        한국부동산원
+      10 기회리스크
+        Gemini grounding 뉴스
+        오픈업 신규매장 트렌드 NEW
+      11 배달
+        소상공인365 BaeminTpbiz
+      12 SNS
+        Gemini AI
+      13 날씨
+        요일별 → 오픈업 weekday NEW
+      14 생존율
+        통계청 + 오픈업 isNewOpen NEW
+      15 AI종합
+        전체 crossData + 오픈업 NEW
+</div>
+<script>mermaid.initialize({startOnLoad:true, theme:'dark'});</script>
+</body>
+</html>
