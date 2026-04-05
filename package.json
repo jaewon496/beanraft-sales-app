@@ -9,11 +9,18 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "apexcharts": "^5.10.4",
+    "exceljs": "^4.4.0",
     "firebase": "^10.7.1",
     "firebase-admin": "^13.7.0",
+    "framer-motion": "^12.38.0",
+    "jszip": "^3.10.1",
     "puppeteer": "^24.38.0",
     "react": "^18.2.0",
+    "react-apexcharts": "^2.1.0",
+    "react-countup": "^6.5.3",
     "react-dom": "^18.2.0",
+    "react-intersection-observer": "^10.0.3",
     "recharts": "^2.12.7",
     "s2-geometry": "^1.2.10"
   },
