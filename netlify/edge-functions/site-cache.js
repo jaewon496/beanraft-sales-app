@@ -38,8 +38,8 @@ export default async (request, context) => {
 </style>`;
 
     // Inject interceptors in <head> BEFORE any CreatorLink JS runs
-    // NOTE: Do NOT intercept pushState/replaceState — CreatorLink uses URL for routing
-    // Only intercept: location methods, window.open, popstate (for back button)
+    // Intercept replaceState to keep /site/ prefix in history entries
+    // Do NOT intercept pushState — CreatorLink may use it for internal navigation
     const headScript = `<script>
 (function() {
   function rewriteUrl(url) {
@@ -54,12 +54,25 @@ export default async (request, context) => {
     } catch(ex) {}
     return url;
   }
+  function rewritePath(url) {
+    if (!url) return url;
+    var s = String(url);
+    if (s.charAt(0) === '/' && s.indexOf('/site/') !== 0) return '/site' + s;
+    return s;
+  }
+
+  // Intercept replaceState — prevent CreatorLink from stripping /site/ prefix
+  // This is critical: without it, back button goes to URLs without /site/ → 404
+  var origRepl = history.replaceState;
+  history.replaceState = function(state, title, url) {
+    return origRepl.call(history, state, title, rewritePath(url));
+  };
 
   // Intercept location methods
   var origAssign = location.assign;
-  var origReplace = location.replace;
+  var origLocReplace = location.replace;
   location.assign = function(url) { origAssign.call(location, rewriteUrl(url)); };
-  location.replace = function(url) { origReplace.call(location, rewriteUrl(url)); };
+  location.replace = function(url) { origLocReplace.call(location, rewriteUrl(url)); };
 
   // Intercept window.open
   var origOpen = window.open;
@@ -69,7 +82,6 @@ export default async (request, context) => {
   };
 
   // Handle popstate — back button may land on URL without /site/ prefix
-  // Do a full redirect so the page loads correctly through the proxy
   window.addEventListener('popstate', function() {
     if (location.pathname.charAt(0) === '/' && location.pathname.indexOf('/site/') !== 0) {
       location.replace('/site' + location.pathname + location.search + location.hash);
