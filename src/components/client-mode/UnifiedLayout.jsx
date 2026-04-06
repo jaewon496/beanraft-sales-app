@@ -1328,55 +1328,40 @@ export default function UnifiedLayout({
 
   // Update map center when searchAddress changes
   useEffect(() => {
-    if (!naverReady || !naverMapRef.current || !searchAddress) return;
+    if (!naverReady || !naverMapRef.current) return;
+    const coords = collectedData?.coordinates;
+    if (!coords?.lat || !coords?.lng) return;
 
-    // Service(geocoder) 서브모듈이 아직 로드 안 됐으면 500ms 간격 재시도 (최대 5초)
-    const tryGeocode = (retries = 10) => {
-      if (!window.naver?.maps?.Service) {
-        if (retries > 0) setTimeout(() => tryGeocode(retries - 1), 500);
-        return;
-      }
-      window.naver.maps.Service.geocode({ query: searchAddress }, (status, response) => {
-      if (status === window.naver.maps.Service.Status.OK && response.v2?.addresses?.length > 0) {
-        const addr = response.v2.addresses[0];
-        const coord = new window.naver.maps.LatLng(parseFloat(addr.y), parseFloat(addr.x));
-        naverMapRef.current.setCenter(coord);
-        naverMapRef.current.setZoom(15);
+    const coord = new window.naver.maps.LatLng(coords.lat, coords.lng);
+    naverMapRef.current.setCenter(coord);
+    naverMapRef.current.setZoom(15);
 
-        // Remove existing marker/circle
-        if (naverMarkerRef.current) {
-          naverMarkerRef.current.setMap(null);
-        }
-        if (naverCircleRef.current) {
-          naverCircleRef.current.setMap(null);
-        }
+    // Remove existing marker/circle
+    if (naverMarkerRef.current) naverMarkerRef.current.setMap(null);
+    if (naverCircleRef.current) naverCircleRef.current.setMap(null);
 
-        // Create marker
-        naverMarkerRef.current = new window.naver.maps.Marker({
-          position: coord,
-          map: naverMapRef.current,
-          icon: {
-            content: '<div style="width:24px;height:24px;background:#171717;border-radius:50%;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);"></div>',
-            anchor: new window.naver.maps.Point(12, 12)
-          }
-        });
-
-        // Create circle
-        naverCircleRef.current = new window.naver.maps.Circle({
-          map: naverMapRef.current,
-          center: coord,
-          radius: radius,
-          strokeColor: '#3b82f6',
-          strokeOpacity: 0.8,
-          strokeWeight: 2,
-          fillColor: '#3b82f6',
-          fillOpacity: 0.1
-        });
+    // Create marker
+    naverMarkerRef.current = new window.naver.maps.Marker({
+      position: coord,
+      map: naverMapRef.current,
+      icon: {
+        content: '<div style="width:24px;height:24px;background:#171717;border-radius:50%;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);"></div>',
+        anchor: new window.naver.maps.Point(12, 12)
       }
     });
-    };
-    tryGeocode();
-  }, [naverReady, searchAddress, radius]);
+
+    // Create circle
+    naverCircleRef.current = new window.naver.maps.Circle({
+      map: naverMapRef.current,
+      center: coord,
+      radius: radius,
+      strokeColor: '#3b82f6',
+      strokeOpacity: 0.8,
+      strokeWeight: 2,
+      fillColor: '#3b82f6',
+      fillOpacity: 0.1
+    });
+  }, [naverReady, collectedData?.coordinates, radius]);
 
   // Update circle radius when slider changes
   useEffect(() => {
