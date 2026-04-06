@@ -1180,7 +1180,8 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
   }, [animateCircleRadius, updateMarkerVisibility]);
 
   // ── 범례 클릭: 마커 바운스 + 페이드 ──
-  const mugSvgGray = `<svg width="24" height="32" viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg"><g opacity="0.3"><path d="M12 1 C6 1 1 5.5 1 11 C1 18 12 31 12 31 C12 31 23 18 23 11 C23 5.5 18 1 12 1Z" fill="#999" stroke="#ccc" stroke-width="1.5"/><ellipse cx="12" cy="11" rx="4.5" ry="3.5" fill="#fff" opacity="0.6" transform="rotate(-30 12 11)"/><path d="M10 9 Q12 11 14 9" fill="none" stroke="#999" stroke-width="1.2" stroke-linecap="round"/></g></svg>`;
+  const mugSvgGray = `<svg width="24" height="32" viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg"><g opacity="0.3"><path d="M12 0C5.4 0 0 4.8 0 10.8c0 8.4 12 21.2 12 21.2s12-12.8 12-21.2C24 4.8 18.6 0 12 0z" fill="#999" stroke="#ccc" stroke-width="1"/><rect x="6" y="6" width="10" height="9" rx="2" fill="#fff" opacity="0.6"/><path d="M16 8.5c1.5 0 3 1 3 2.5s-1.5 2.5-3 2.5" fill="none" stroke="#fff" stroke-width="1.2" opacity="0.6"/><path d="M8 5.5c0.5-1 1-1.8 1.5-1.2s-0.2 1.5 0.5 1.2c0.7-0.3 0.3-1.5 1-1 0.7 0.5-0.1 1.3 0.5 1.5" fill="none" stroke="#fff" stroke-width="0.8" opacity="0.5"/></g></svg>`;
+  const clusterSvgGray = (count) => `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="16" fill="#999" stroke="#ccc" stroke-width="2" opacity="0.3"/><text x="18" y="23" text-anchor="middle" fill="white" font-size="14" font-weight="bold" opacity="0.5">${count}</text></svg>`;
 
   const bounceMarker = useCallback((marker) => {
     if (!marker || !window.naver?.maps) return null;
@@ -1254,8 +1255,10 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             const intId = bounceMarker(item.marker);
             if (intId) cafeMapBounceIntervalsRef.current.push(intId);
           } else {
-            // 비매칭 마커 → 회색 페이드
-            item.marker.setIcon({ content: mugSvgGray, anchor });
+            // 비매칭 마커 → 회색 반투명
+            const isCluster = !!item.clusterCafes;
+            const grayIcon = isCluster ? clusterSvgGray(item.clusterCafes.length) : mugSvgGray;
+            item.marker.setIcon({ content: grayIcon, anchor });
             item.marker.setZIndex(1);
             const el = item.marker.getElement ? item.marker.getElement() : null;
             if (el) el.style.filter = '';
@@ -1263,7 +1266,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
         } catch (e) {}
       });
     }
-  }, [activeLegend, bounceMarker, mugSvgGray]);
+  }, [activeLegend, bounceMarker, mugSvgGray, clusterSvgGray]);
 
   // ── 카페 지도 모달: 네이버 지도 렌더링 ──
   useEffect(() => {
@@ -1302,12 +1305,13 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
         fillOpacity: 0.08
       });
       cafeMapCircleRef.current = circle;
-      // 6-J Ceramic 머그잔 마커 SVG 생성 함수
-      const mugSvgRed = () => `<svg width="24" height="32" viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg"><path d="M12 1 C6 1 1 5.5 1 11 C1 18 12 31 12 31 C12 31 23 18 23 11 C23 5.5 18 1 12 1Z" fill="#EF4444" stroke="#fff" stroke-width="1.5"/><ellipse cx="12" cy="11" rx="4.5" ry="3.5" fill="#fff" opacity="0.9" transform="rotate(-30 12 11)"/><path d="M10 9 Q12 11 14 9" fill="none" stroke="#EF4444" stroke-width="1.2" stroke-linecap="round"/></svg>`;
-      const mugSvgBlue = () => `<svg width="24" height="32" viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg"><path d="M12 1 C6 1 1 5.5 1 11 C1 18 12 31 12 31 C12 31 23 18 23 11 C23 5.5 18 1 12 1Z" fill="#3B82F6" stroke="#fff" stroke-width="1.5"/><ellipse cx="12" cy="11" rx="4.5" ry="3.5" fill="#fff" opacity="0.9" transform="rotate(-30 12 11)"/><path d="M10 9 Q12 11 14 9" fill="none" stroke="#3B82F6" stroke-width="1.2" stroke-linecap="round"/></svg>`;
-      const mugSvgGreen = () => `<svg width="24" height="32" viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg"><path d="M12 1 C6 1 1 5.5 1 11 C1 18 12 31 12 31 C12 31 23 18 23 11 C23 5.5 18 1 12 1Z" fill="#22C55E" stroke="#fff" stroke-width="1.5"/><ellipse cx="12" cy="11" rx="4.5" ry="3.5" fill="#fff" opacity="0.9" transform="rotate(-30 12 11)"/><path d="M10 9 Q12 11 14 9" fill="none" stroke="#22C55E" stroke-width="1.2" stroke-linecap="round"/></svg>`;
-      const mugSvgOrange = () => `<svg width="24" height="32" viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg"><path d="M12 1 C6 1 1 5.5 1 11 C1 18 12 31 12 31 C12 31 23 18 23 11 C23 5.5 18 1 12 1Z" fill="#F59E0B" stroke="#fff" stroke-width="1.5"/><ellipse cx="12" cy="11" rx="4.5" ry="3.5" fill="#fff" opacity="0.9" transform="rotate(-30 12 11)"/><path d="M10 9 Q12 11 14 9" fill="none" stroke="#F59E0B" stroke-width="1.2" stroke-linecap="round"/></svg>`;
-      const mugSvgPurple = () => `<svg width="24" height="32" viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg"><path d="M12 1 C6 1 1 5.5 1 11 C1 18 12 31 12 31 C12 31 23 18 23 11 C23 5.5 18 1 12 1Z" fill="#A855F7" stroke="#fff" stroke-width="1.5"/><ellipse cx="12" cy="11" rx="4.5" ry="3.5" fill="#fff" opacity="0.9" transform="rotate(-30 12 11)"/><path d="M10 9 Q12 11 14 9" fill="none" stroke="#A855F7" stroke-width="1.2" stroke-linecap="round"/></svg>`;
+      // 커피잔 SVG 마커 생성 함수 (핀 안에 머그잔 + 김)
+      const makeMugSvg = (color) => `<svg width="24" height="32" viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg"><path d="M12 0C5.4 0 0 4.8 0 10.8c0 8.4 12 21.2 12 21.2s12-12.8 12-21.2C24 4.8 18.6 0 12 0z" fill="${color}" stroke="#fff" stroke-width="1"/><rect x="6" y="6" width="10" height="9" rx="2" fill="#fff" opacity="0.9"/><path d="M16 8.5c1.5 0 3 1 3 2.5s-1.5 2.5-3 2.5" fill="none" stroke="#fff" stroke-width="1.2" opacity="0.9"/><path d="M8 5.5c0.5-1 1-1.8 1.5-1.2s-0.2 1.5 0.5 1.2c0.7-0.3 0.3-1.5 1-1 0.7 0.5-0.1 1.3 0.5 1.5" fill="none" stroke="#fff" stroke-width="0.8" opacity="0.7"/></svg>`;
+      const mugSvgRed = () => makeMugSvg('#EF4444');
+      const mugSvgBlue = () => makeMugSvg('#3B82F6');
+      const mugSvgGreen = () => makeMugSvg('#22C55E');
+      const mugSvgOrange = () => makeMugSvg('#F59E0B');
+      const mugSvgPurple = () => makeMugSvg('#A855F7');
       // 중심 마커 (빨간색 핀)
       const centerMarker = new window.naver.maps.Marker({
         map,
@@ -1489,26 +1493,26 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             </div>
             <div className="cafe-map-legend">
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <svg width="14" height="18" viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg"><path d="M12 1 C6 1 1 5.5 1 11 C1 18 12 31 12 31 C12 31 23 18 23 11 C23 5.5 18 1 12 1Z" fill="#EF4444" stroke="#fff" strokeWidth="1.5"/><ellipse cx="12" cy="11" rx="4.5" ry="3.5" fill="#fff" opacity="0.9" transform="rotate(-30 12 11)"/><path d="M10 9 Q12 11 14 9" fill="none" stroke="#EF4444" strokeWidth="1.2" strokeLinecap="round"/></svg>
+                <svg width="14" height="18" viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg"><path d="M12 0C5.4 0 0 4.8 0 10.8c0 8.4 12 21.2 12 21.2s12-12.8 12-21.2C24 4.8 18.6 0 12 0z" fill="#EF4444" stroke="#fff" strokeWidth="1"/><rect x="6" y="6" width="10" height="9" rx="2" fill="#fff" opacity="0.9"/><path d="M16 8.5c1.5 0 3 1 3 2.5s-1.5 2.5-3 2.5" fill="none" stroke="#fff" strokeWidth="1.2" opacity="0.9"/></svg>
                 <span style={{ color: t2 }}>검색 위치</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', padding: '2px 6px', borderRadius: 6, background: activeLegend === 'franchise' ? 'rgba(59,130,246,0.12)' : 'transparent', transition: 'background 0.2s' }} onClick={() => handleLegendClick('franchise')}>
-                <svg width="14" height="18" viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg"><path d="M12 1 C6 1 1 5.5 1 11 C1 18 12 31 12 31 C12 31 23 18 23 11 C23 5.5 18 1 12 1Z" fill="#3B82F6" stroke="#fff" strokeWidth="1.5"/><ellipse cx="12" cy="11" rx="4.5" ry="3.5" fill="#fff" opacity="0.9" transform="rotate(-30 12 11)"/><path d="M10 9 Q12 11 14 9" fill="none" stroke="#3B82F6" strokeWidth="1.2" strokeLinecap="round"/></svg>
+                <svg width="14" height="18" viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg"><path d="M12 0C5.4 0 0 4.8 0 10.8c0 8.4 12 21.2 12 21.2s12-12.8 12-21.2C24 4.8 18.6 0 12 0z" fill="#3B82F6" stroke="#fff" strokeWidth="1"/><rect x="6" y="6" width="10" height="9" rx="2" fill="#fff" opacity="0.9"/><path d="M16 8.5c1.5 0 3 1 3 2.5s-1.5 2.5-3 2.5" fill="none" stroke="#fff" strokeWidth="1.2" opacity="0.9"/></svg>
                 <span style={{ color: t2, fontWeight: activeLegend === 'franchise' ? 700 : 400 }}>프랜차이즈</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', padding: '2px 6px', borderRadius: 6, background: activeLegend === 'independent' ? 'rgba(34,197,94,0.12)' : 'transparent', transition: 'background 0.2s' }} onClick={() => handleLegendClick('independent')}>
-                <svg width="14" height="18" viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg"><path d="M12 1 C6 1 1 5.5 1 11 C1 18 12 31 12 31 C12 31 23 18 23 11 C23 5.5 18 1 12 1Z" fill="#22C55E" stroke="#fff" strokeWidth="1.5"/><ellipse cx="12" cy="11" rx="4.5" ry="3.5" fill="#fff" opacity="0.9" transform="rotate(-30 12 11)"/><path d="M10 9 Q12 11 14 9" fill="none" stroke="#22C55E" strokeWidth="1.2" strokeLinecap="round"/></svg>
+                <svg width="14" height="18" viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg"><path d="M12 0C5.4 0 0 4.8 0 10.8c0 8.4 12 21.2 12 21.2s12-12.8 12-21.2C24 4.8 18.6 0 12 0z" fill="#22C55E" stroke="#fff" strokeWidth="1"/><rect x="6" y="6" width="10" height="9" rx="2" fill="#fff" opacity="0.9"/><path d="M16 8.5c1.5 0 3 1 3 2.5s-1.5 2.5-3 2.5" fill="none" stroke="#fff" strokeWidth="1.2" opacity="0.9"/></svg>
                 <span style={{ color: t2, fontWeight: activeLegend === 'independent' ? 700 : 400 }}>개인카페</span>
               </div>
               {(cd?.nearbyBakeryList || []).length > 0 && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', padding: '2px 6px', borderRadius: 6, background: activeLegend === 'bakery' ? 'rgba(245,158,11,0.12)' : 'transparent', transition: 'background 0.2s' }} onClick={() => handleLegendClick('bakery')}>
-                  <svg width="14" height="18" viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg"><path d="M12 1 C6 1 1 5.5 1 11 C1 18 12 31 12 31 C12 31 23 18 23 11 C23 5.5 18 1 12 1Z" fill="#F59E0B" stroke="#fff" strokeWidth="1.5"/><ellipse cx="12" cy="11" rx="4.5" ry="3.5" fill="#fff" opacity="0.9" transform="rotate(-30 12 11)"/><path d="M10 9 Q12 11 14 9" fill="none" stroke="#F59E0B" strokeWidth="1.2" strokeLinecap="round"/></svg>
+                  <svg width="14" height="18" viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg"><path d="M12 0C5.4 0 0 4.8 0 10.8c0 8.4 12 21.2 12 21.2s12-12.8 12-21.2C24 4.8 18.6 0 12 0z" fill="#F59E0B" stroke="#fff" strokeWidth="1"/><rect x="6" y="6" width="10" height="9" rx="2" fill="#fff" opacity="0.9"/><path d="M16 8.5c1.5 0 3 1 3 2.5s-1.5 2.5-3 2.5" fill="none" stroke="#fff" strokeWidth="1.2" opacity="0.9"/></svg>
                   <span style={{ color: t2, fontWeight: activeLegend === 'bakery' ? 700 : 400 }}>베이커리</span>
                 </div>
               )}
               {newOpenCafes.length > 0 && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', padding: '2px 6px', borderRadius: 6, background: activeLegend === 'newOpen' ? 'rgba(168,85,247,0.12)' : 'transparent', transition: 'background 0.2s' }} onClick={() => handleLegendClick('newOpen')}>
-                  <svg width="14" height="18" viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg"><path d="M12 1 C6 1 1 5.5 1 11 C1 18 12 31 12 31 C12 31 23 18 23 11 C23 5.5 18 1 12 1Z" fill="#A855F7" stroke="#fff" strokeWidth="1.5"/><ellipse cx="12" cy="11" rx="4.5" ry="3.5" fill="#fff" opacity="0.9" transform="rotate(-30 12 11)"/><path d="M10 9 Q12 11 14 9" fill="none" stroke="#A855F7" strokeWidth="1.2" strokeLinecap="round"/></svg>
+                  <svg width="14" height="18" viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg"><path d="M12 0C5.4 0 0 4.8 0 10.8c0 8.4 12 21.2 12 21.2s12-12.8 12-21.2C24 4.8 18.6 0 12 0z" fill="#A855F7" stroke="#fff" strokeWidth="1"/><rect x="6" y="6" width="10" height="9" rx="2" fill="#fff" opacity="0.9"/><path d="M16 8.5c1.5 0 3 1 3 2.5s-1.5 2.5-3 2.5" fill="none" stroke="#fff" strokeWidth="1.2" opacity="0.9"/></svg>
                   <span style={{ color: t2, fontWeight: activeLegend === 'newOpen' ? 700 : 400 }}>신규매장</span>
                 </div>
               )}
@@ -10208,8 +10212,13 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
          '파리크라상': ['파리크라상','PARIS CROISSANT'], '브레댄코': ['브레댄코','BREADNCO'],
          '노티드': ['노티드','KNOTTED'], '던킨': ['던킨','DUNKIN'],
          '크리스피크림': ['크리스피크림','KRISPY'], '배스킨라빈스': ['배스킨라빈스','BASKIN'],
-         '커피나무': ['커피나무'], '커피에반하다': ['커피에반하다'],
-         '메머드익스프레스': ['메머드익스프레스']
+         '커피나무': ['커피나무'], '커피에반하다': ['커피에반하다','반하다커피'],
+         '메머드익스프레스': ['메머드익스프레스'],
+         '달콤커피': ['달콤커피','DALKOM'], '카페봄봄': ['카페봄봄'],
+         '커피명가': ['커피명가'], '요거프레소': ['요거프레소','YOGERPRESSO'],
+         '어니언': ['어니언','ONION'], '프릳츠': ['프릳츠','FRITZ'],
+         '센터커피': ['센터커피','CENTER COFFEE'], '아라비카': ['아라비카','ARABICA'],
+         '그라찌에': ['그라찌에','GRAZIE'], '테라로사': ['테라로사','TERAROSA']
        };
 
        // ── 이름 정규화 유틸 ──
