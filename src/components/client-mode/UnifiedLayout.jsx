@@ -1268,14 +1268,6 @@ export default function UnifiedLayout({
   useEffect(() => {
     if (!mapRevealed || !mapContainerRef.current) return;
 
-    // Skip map on localhost — Naver Maps SDK loads but creates auth-failed tiles
-    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    if (isLocalhost) {
-      console.warn('[NaverMap] Skipping map on localhost (auth tiles issue)');
-      setMapLoadFailed(true);
-      return;
-    }
-
     let ro;
     loadNaverMapSDK()
       .then(() => {
