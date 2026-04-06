@@ -23029,7 +23029,7 @@ const getAvailableManagersForSale = () => getSalesManagers();
                <p className="text-sm mt-1 text-[#6B7684]">부동산 중개사 미팅용</p>
              </button>
              <button
-               onClick={() => { setSalesModeTarget('client'); setSalesModeTab('analysis'); setSalesModeScreen('main'); }}
+               onClick={() => { setSalesModeTarget('client'); setSalesModeTab('analysis'); setSalesModeScreen('main'); if (!document.querySelector('link[rel="prefetch"][href="https://www.beancraft.co.kr"]')) { const l = document.createElement('link'); l.rel = 'prefetch'; l.href = 'https://www.beancraft.co.kr'; document.head.appendChild(l); } }}
                className="w-full py-6 rounded-2xl border-2 transition-all border-[#E5E8EB] hover:border-[#8B95A1] hover:bg-[#F9FAFB]"
              >
                <span className="text-xl font-bold text-[#191F28]">의뢰인</span>

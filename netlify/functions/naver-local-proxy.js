@@ -79,17 +79,30 @@ exports.handler = async (event) => {
 
     // 로컬 검색: mapx/mapy 변환 + HTML 태그 제거
     if (searchType === 'local' && data.items && Array.isArray(data.items)) {
-      // mapx/mapy (카텍 TM128) → WGS84 변환 헬퍼
-      const tm128ToWgs84 = (mapx, mapy) => {
-        const x = parseInt(mapx) / 10000000;
-        const y = parseInt(mapy) / 10000000;
-        return { lat: y, lng: x };
+      // mapx/mapy → WGS84 변환 헬퍼
+      // 네이버 검색 API는 WGS84 좌표를 10000000배한 정수값으로 반환
+      // 예: mapx=1270287580 → 127.0287580, mapy=374980760 → 37.4980760
+      // 변환 후 한국 범위(lat 33~39, lng 124~132)를 벗어나면 무효로 처리
+      const toWgs84 = (mapx, mapy) => {
+        const rawX = parseInt(mapx);
+        const rawY = parseInt(mapy);
+        const lng = rawX / 10000000;
+        const lat = rawY / 10000000;
+        // 유효 범위 검증 (한국)
+        if (lat > 33 && lat < 39 && lng > 124 && lng < 132) {
+          return { lat, lng };
+        }
+        // 무효한 경우 null 반환
+        console.warn(`[naver-local-proxy] 좌표 변환 무효: mapx=${mapx} mapy=${mapy} -> lat=${lat} lng=${lng}`);
+        return null;
       };
 
       data.items = data.items.map(item => {
         if (item.mapx && item.mapy) {
-          const coords = tm128ToWgs84(item.mapx, item.mapy);
-          item.wgs84 = coords;
+          const coords = toWgs84(item.mapx, item.mapy);
+          if (coords) {
+            item.wgs84 = coords;
+          }
         }
         if (item.title) item.title = item.title.replace(/<[^>]*>/g, '');
         return item;
