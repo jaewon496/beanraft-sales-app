@@ -1,12 +1,10 @@
 // cafe-collect-proxy.js
-// 카페 수집 4개 소스를 서버사이드에서 병렬 실행하는 통합 프록시
-// 소스: storeRadius(공공데이터포털) + 카카오CE7 격자 + 네이버 지역검색 6워커 + LOCALDATA(서울시 인허가)
+// 카페 수집 3개 소스를 서버사이드에서 병렬 실행하는 통합 프록시
+// 소스: storeRadius(공공데이터포털) + 카카오CE7 격자 + LOCALDATA(서울시 인허가)
 
 // ── API 키 ──
 const DATA_GO_KR_API_KEY = '02ca822d8e1bf0357b1d782a02dca991192a1b0a89e6cf6ff7e6c4368653cbcb';
 const KAKAO_REST_KEY = process.env.KAKAO_REST_KEY || process.env.VITE_KAKAO_REST_KEY || '9e149576620513dc3283894501c49ab7';
-const NAVER_CLIENT_ID = process.env.NAVER_SEARCH_CLIENT_ID;
-const NAVER_CLIENT_SECRET = process.env.NAVER_SEARCH_CLIENT_SECRET;
 const SEOUL_API_KEY = '6d6c71717173656f3432436863774a';
 
 // ── 프랜차이즈 키워드 ──
@@ -37,12 +35,12 @@ const FRANCHISE_KEYWORDS = {
 const NOT_CAFE_KEYWORDS = ['주점','술집','노래방','pc방','피씨방','편의점','약국','병원','부동산',
   '세탁','미용','네일','헤어','치킨','피자','족발','삼겹','고기','갈비','곱창','찜','탕',
   '횟집','초밥','분식','떡볶이','김밥','라면','국수','칼국수','설렁탕','냉면','파스타',
-  '빵집','제과','마트','슈퍼','편의','문구','학원','교습','운동','헬스','요가','필라테스',
+  '마트','슈퍼','편의','문구','학원','교습','운동','헬스','요가','필라테스',
   '세차','주유','주차','모텔','호텔','숙박','빌딩','오피스','사무실','은행','보험',
   '핸드폰','휴대폰','통신','꽃집','화원','동물','애견','세무','법무','공인중개'];
 
 // ── 카카오 CE7 비카페 필터 키워드 (보드카페, 만화카페, 사주, 방탈출 등) ──
-const NON_CAFE_KEYWORDS = ['보드게임','보드카페','만화카페','만화방','사주','타로','방탈출','이스케이프','escape','수면캡슐','룸카페','모임공간','토즈','퍼즐팩토리','황금열쇠','제로월드','PC방','피시방','피씨방','노래방','코인노래'];
+const NON_CAFE_KEYWORDS = ['보드게임','보드카페','만화카페','만화방','사주','타로','방탈출','이스케이프','escape','수면캡슐','룸카페','토즈','퍼즐팩토리','황금열쇠','제로월드','PC방','피시방','피씨방','노래방','코인노래'];
 
 // ── 유틸: Haversine 거리 ──
 function haversine(lat1, lng1, lat2, lng2) {
@@ -100,8 +98,6 @@ async function fetchJson(url, headers = {}, timeout = 15000) {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeout);
-    const isNaver = url.includes('openapi.naver.com');
-    if (isNaver) console.log(`[naver-debug] fetchJson 요청: ${url.substring(0, 120)}`);
     const res = await fetch(url, {
       headers: {
         'Accept': 'application/json',
@@ -111,11 +107,9 @@ async function fetchJson(url, headers = {}, timeout = 15000) {
       signal: controller.signal
     });
     clearTimeout(timer);
-    if (isNaver) console.log(`[naver-debug] fetchJson 응답 status: ${res.status} ${res.statusText}`);
     if (!res.ok) {
       const errText = await res.text().catch(() => '');
       console.warn(`[cafe-collect] fetchJson ${res.status} for ${url.substring(0, 80)}: ${errText.substring(0, 200)}`);
-      if (isNaver) console.error(`[naver-debug] fetchJson 에러 응답 body: ${errText.substring(0, 500)}`);
       try { return JSON.parse(errText); } catch { return null; }
     }
     return await res.json();
@@ -139,7 +133,7 @@ async function collectStoreRadius(lat, lng, radius) {
       pageNo: '1',
       type: 'json'
     });
-    const url = `http://apis.data.go.kr/B553077/api/open/sdsc/storeListInRadius?${params.toString()}`;
+    const url = `http://apis.data.go.kr/B553077/api/open/sdsc2/storeListInRadius?${params.toString()}`;
     const data = await httpGet(url, {}, 20000);
 
     let items = [];
@@ -299,181 +293,7 @@ async function collectKakao(lat, lng, radius) {
 }
 
 // ════════════════════════════════════════════════════════════
-// 소스 3: 네이버 지역검색 6워커
-// ════════════════════════════════════════════════════════════
-async function collectNaver(lat, lng, guName, query) {
-  const naverDebugLog = [];
-  const dbg = (msg) => { console.log(msg); naverDebugLog.push({ t: Date.now(), msg }); };
-
-  dbg(`[naver-debug] collectNaver 시작: lat=${lat}, lng=${lng}, guName="${guName}", query="${query}"`);
-  dbg(`[naver-debug] API 키 존재: ID=${!!NAVER_CLIENT_ID} (${NAVER_CLIENT_ID ? NAVER_CLIENT_ID.substring(0,4)+'...' : 'null'}), SECRET=${!!NAVER_CLIENT_SECRET} (${NAVER_CLIENT_SECRET ? NAVER_CLIENT_SECRET.substring(0,4)+'...' : 'null'})`);
-
-  if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET) {
-    dbg('[naver-debug] 네이버 API 키 미설정 → 빈 배열 반환');
-    return { cafes: [], debug: naverDebugLog };
-  }
-
-  try {
-    // 네이버 검색 헬퍼
-    const naverSearch = async (q, display = 5, start = 1, sort = 'comment') => {
-      try {
-        const url = `https://openapi.naver.com/v1/search/local.json?query=${encodeURIComponent(q)}&display=${display}&start=${start}&sort=${sort}`;
-        dbg(`[naver-debug] naverSearch 호출: q="${q}", display=${display}, start=${start}, sort=${sort}`);
-        const data = await fetchJson(url, {
-          'X-Naver-Client-Id': NAVER_CLIENT_ID,
-          'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
-        }, 15000);
-        dbg(`[naver-debug] naverSearch 응답: q="${q}", items=${data?.items?.length ?? 'null'}, total=${data?.total ?? 'null'}, display=${data?.display ?? 'null'}`);
-        if (!data) {
-          dbg(`[naver-debug] naverSearch data가 null: q="${q}"`);
-        }
-        return data?.items || [];
-      } catch (e) { dbg(`[naver-debug] naverSearch 에러: q="${q}", error=${e.message}`); return []; }
-    };
-
-    // 페이징 검색 (2패스: comment + random, 조기 중단 없이 maxPages까지 호출)
-    const pagedSearch = async (q, maxPages = 5) => {
-      const allItems = [];
-      const DISPLAY = 5;
-      const sortModes = ['comment', 'random'];
-      const seenInPass = new Set();
-
-      for (const sort of sortModes) {
-        for (let page = 0; page < maxPages; page++) {
-          const start = page * DISPLAY + 1;
-          if (start > 1000) break; // 네이버 API start 상한
-          const items = await naverSearch(q, DISPLAY, start, sort);
-          if (!items || items.length === 0) continue; // break 대신 continue — maxPages까지 시도
-          for (const item of items) {
-            const title = (item.title || '').replace(/<[^>]*>/g, '').trim();
-            const addr = (item.roadAddress || item.address || '').replace(/\s/g, '');
-            const dedupKey = `${title.replace(/\s/g, '').toUpperCase()}|${addr}`;
-            if (!seenInPass.has(dedupKey)) {
-              seenInPass.add(dedupKey);
-              allItems.push(item);
-            }
-          }
-        }
-      }
-      return allItems;
-    };
-
-    // 쿼리 생성: guName + 다양한 카페 키워드
-    const queries = new Set();
-
-    // 기본 지역 쿼리
-    if (guName) {
-      queries.add(`${guName} 카페`);
-      queries.add(`${guName} 커피`);
-      queries.add(`${guName} 디저트카페`);
-    }
-
-    // query에서 지역 정보 추출
-    const guMatch = (query || '').match(/([가-힣]+구)\b/);
-    const dongMatch = (query || '').match(/([가-힣]+동)\b/);
-    const roadMatch = (query || '').match(/([가-힣]+(?:로|길|대로))\s/);
-
-    if (dongMatch) {
-      queries.add(`${dongMatch[1]} 카페`);
-      queries.add(`${dongMatch[1]} 커피`);
-      if (guName) queries.add(`${guName} ${dongMatch[1]} 카페`);
-    }
-    if (roadMatch) {
-      queries.add(`${roadMatch[1]} 카페`);
-      queries.add(`${roadMatch[1]} 커피`);
-      if (guName) queries.add(`${guName} ${roadMatch[1]} 카페`);
-    }
-    if (guMatch && guMatch[1] !== guName) {
-      queries.add(`${guMatch[1]} 카페`);
-      queries.add(`${guMatch[1]} 커피`);
-    }
-
-    // 추가 변형
-    const regions = new Set();
-    if (guName) regions.add(guName);
-    if (dongMatch) regions.add(dongMatch[1]);
-    if (roadMatch) regions.add(roadMatch[1]);
-    const variants = ['카페', '커피', '디저트카페', '커피숍'];
-    for (const region of regions) {
-      for (const variant of variants) {
-        queries.add(`${region} ${variant}`);
-      }
-    }
-
-    const queryArray = [...queries];
-    console.log(`[cafe-collect] 네이버: ${queryArray.length}개 쿼리 생성`);
-    dbg(`[naver-debug] 쿼리 목록: ${JSON.stringify(queryArray)}`);
-
-    // 6워커로 분배
-    const WORKER_COUNT = 6;
-    const groups = Array.from({ length: WORKER_COUNT }, () => []);
-    queryArray.forEach((q, i) => groups[i % WORKER_COUNT].push(q));
-
-    const allItems = [];
-    const seenKeys = new Set();
-
-    const processGroup = async (groupQueries) => {
-      const groupItems = [];
-      for (const q of groupQueries) {
-        const items = await pagedSearch(q, 3);
-        for (const item of items) {
-          const title = (item.title || '').replace(/<[^>]*>/g, '').trim();
-          if (title) groupItems.push({ ...item, title });
-        }
-      }
-      return groupItems;
-    };
-
-    const workerResults = await Promise.all(groups.map(g => processGroup(g)));
-    dbg(`[naver-debug] 워커 결과: ${workerResults.map((r, i) => `W${i}=${r.length}`).join(', ')}, 총=${workerResults.reduce((s, r) => s + r.length, 0)}`);
-
-    // TM128 → WGS84 변환 (네이버 mapx/mapy)
-    const tm128ToWgs84 = (mapx, mapy) => {
-      const x = parseInt(mapx) / 10000000;
-      const y = parseInt(mapy) / 10000000;
-      return { lat: y, lng: x };
-    };
-
-    for (const groupItems of workerResults) {
-      for (const item of groupItems) {
-        const key = `${item.title.replace(/\s/g, '').toUpperCase()}|${(item.roadAddress || item.address || '').replace(/\s/g, '')}`;
-        if (seenKeys.has(key)) continue;
-        seenKeys.add(key);
-
-        let itemLat = null, itemLng = null;
-        if (item.mapx && item.mapy) {
-          const coords = tm128ToWgs84(item.mapx, item.mapy);
-          itemLat = coords.lat;
-          itemLng = coords.lng;
-        }
-
-        const brand = detectFranchise(item.title);
-        allItems.push({
-          name: item.title,
-          lat: itemLat,
-          lng: itemLng,
-          address: item.roadAddress || item.address || '',
-          category: item.category || '카페',
-          phone: (item.telephone || '').replace(/<[^>]*>/g, ''),
-          dist: (itemLat && itemLng) ? haversine(lat, lng, itemLat, itemLng) : null,
-          source: 'naver',
-          isFranchise: !!brand,
-          brand: brand || null
-        });
-      }
-    }
-
-    dbg(`[naver-debug] collectNaver 완료: 최종 결과 ${allItems.length}건 (중복제거 후)`);
-    return { cafes: allItems, debug: naverDebugLog };
-  } catch (e) {
-    console.error('[cafe-collect] 네이버 실패:', e.message);
-    dbg(`[naver-debug] collectNaver 최상위 catch: ${e.message} | ${e.stack}`);
-    return { cafes: [], debug: naverDebugLog };
-  }
-}
-
-// ════════════════════════════════════════════════════════════
-// 소스 4: LOCALDATA_072405 (서울시 커피전문점 인허가)
+// 소스 3: LOCALDATA_072405 (서울시 커피전문점 인허가)
 // ════════════════════════════════════════════════════════════
 async function collectLocaldata(lat, lng, guName, radius) {
   if (!guName) return [];
@@ -589,8 +409,8 @@ function mergeCafes(sources) {
   const merged = [];
   const seenKeys = new Set();
 
-  // 소스 우선순위: kakao > storeRadius > naver > localdata
-  const priorityOrder = ['kakao', 'storeRadius', 'naver', 'localdata'];
+  // 소스 우선순위: kakao > storeRadius > localdata
+  const priorityOrder = ['kakao', 'storeRadius', 'localdata'];
   const allCafes = [];
   for (const source of priorityOrder) {
     for (const cafe of (sources[source] || [])) {
@@ -628,7 +448,8 @@ function mergeCafes(sources) {
         const dist = haversine(cafe.lat, cafe.lng, existing.lat, existing.lng);
         if (dist < 30) {
           // 30m 이내 + 이름 포함 관계
-          if (normName.includes(existNorm) || existNorm.includes(normName)) {
+          // Fix: 3글자 이하 이름은 substring dedup 제외 (커피숲 vs 커피향 오탐 방지)
+          if (normName.length >= 4 && existNorm.length >= 4 && (normName.includes(existNorm) || existNorm.includes(normName))) {
             if (!existing.sources.includes(cafe.source)) {
               existing.sources.push(cafe.source);
             }
@@ -673,7 +494,7 @@ exports.handler = async (event) => {
 
   try {
     const body = typeof event.body === 'string' ? JSON.parse(event.body || '{}') : (event.body || {});
-    const { lat, lng, radius = 550, guName = '', sido = '', query = '' } = body;
+    const { lat, lng, radius = 500, guName = '', sido = '', query = '' } = body;
 
     if (!lat || !lng) {
       return {
@@ -686,7 +507,11 @@ exports.handler = async (event) => {
     console.log(`[cafe-collect] 시작: lat=${lat}, lng=${lng}, radius=${radius}, gu=${guName}`);
 
     // 서울 여부 판단 (LOCALDATA는 서울만)
-    const isSeoul = sido.includes('서울') || (query || '').includes('서울');
+    // 서울 판별: sido, query, guName(서울 25개 구), 좌표 범위로 종합 판단
+    const SEOUL_GU_LIST = ['종로구','중구','용산구','성동구','광진구','동대문구','중랑구','성북구','강북구','도봉구','노원구','은평구','서대문구','마포구','양천구','강서구','구로구','금천구','영등포구','동작구','관악구','서초구','강남구','송파구','강동구'];
+    const isSeoulByGu = guName && SEOUL_GU_LIST.some(gu => guName.includes(gu));
+    const isSeoulByCoord = lat >= 37.413 && lat <= 37.715 && lng >= 126.734 && lng <= 127.183;
+    const isSeoul = sido.includes('서울') || (query || '').includes('서울') || isSeoulByGu || isSeoulByCoord;
 
     // 4개 소스 병렬 실행 - 각 소스 개별 타임아웃(20초) + Promise.allSettled로 부분 결과 보존
     const withTimeout = (promise, ms, label) =>
@@ -697,24 +522,29 @@ exports.handler = async (event) => {
 
     const SOURCE_TIMEOUT = 20000;
     const settled = await Promise.allSettled([
-      withTimeout(collectStoreRadius(lat, lng, radius), SOURCE_TIMEOUT, 'storeRadius'),
+      // Fix: SR 레이트리밋 대응 - 0개 반환 시 3초 후 1회 재시도
+      withTimeout(
+        collectStoreRadius(lat, lng, radius).then(async (res) => {
+          if (res && Array.isArray(res) && res.length === 0) {
+            await new Promise(r => setTimeout(r, 3000));
+            return collectStoreRadius(lat, lng, radius);
+          }
+          return res;
+        }),
+        SOURCE_TIMEOUT, 'storeRadius'
+      ),
       withTimeout(collectKakao(lat, lng, radius), SOURCE_TIMEOUT, 'kakao'),  // kakao CE7 활성화
-      Promise.resolve({ cafes: [], debug: [] }),  // naver 비활성화
       isSeoul ? withTimeout(collectLocaldata(lat, lng, guName, radius), SOURCE_TIMEOUT, 'localdata') : Promise.resolve([])  // LOCALDATA 재활성화 (서울 전용)
     ]);
 
     const storeRadiusCafes = settled[0].status === 'fulfilled' ? settled[0].value : [];
     const kakaoCafes = settled[1].status === 'fulfilled' ? settled[1].value : [];
-    const naverResult = settled[2].status === 'fulfilled' ? settled[2].value : { cafes: [], debug: [] };
-    const naverCafes = naverResult.cafes || naverResult || [];
-    const naverDebugLog = naverResult.debug || [];
-    const localdataCafes = settled[3].status === 'fulfilled' ? settled[3].value : [];
+    const localdataCafes = settled[2].status === 'fulfilled' ? settled[2].value : [];
 
     // 병합
     const merged = mergeCafes({
       storeRadius: storeRadiusCafes,
       kakao: kakaoCafes,
-      naver: naverCafes,
       localdata: localdataCafes
     });
 
@@ -727,12 +557,11 @@ exports.handler = async (event) => {
     });
 
     const elapsed = Math.round((Date.now() - startTime) / 1000);
-    console.log(`[cafe-collect] 완료: SR=${storeRadiusCafes.length}, KK=${kakaoCafes.length}, NV=${naverCafes.length}, LD=${localdataCafes.length} → 병합=${merged.length} (${elapsed}s)`);
+    console.log(`[cafe-collect] 완료: SR=${storeRadiusCafes.length}, KK=${kakaoCafes.length}, LD=${localdataCafes.length} → 병합=${merged.length} (${elapsed}s)`);
 
     const stats = {
       storeRadius: storeRadiusCafes.length,
       kakao: kakaoCafes.length,
-      naver: naverCafes.length,
       localdata: localdataCafes.length,
       merged: merged.length,
       elapsed
@@ -745,8 +574,7 @@ exports.handler = async (event) => {
       data: cafeArray,
       cafes: cafeArray,
       stats,
-      sources: stats,
-      naverDebug: naverDebugLog
+      sources: stats
     });
     console.log(`[cafe-collect] 응답 body: ${responseBody.length} bytes, cafes=${cafeArray.length}개`);
 
@@ -764,7 +592,7 @@ exports.handler = async (event) => {
         success: false,
         error: err.message,
         cafes: [],
-        stats: { storeRadius: 0, kakao: 0, naver: 0, localdata: 0, merged: 0, elapsed: Math.round((Date.now() - startTime) / 1000) }
+        stats: { storeRadius: 0, kakao: 0, localdata: 0, merged: 0, elapsed: Math.round((Date.now() - startTime) / 1000) }
       })
     };
   }
