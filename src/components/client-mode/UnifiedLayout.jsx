@@ -2055,17 +2055,15 @@ export default function UnifiedLayout({
             </button>
           </div>
         </div>
-        {/* iframe - only render when visible to avoid unnecessary loading */}
-        {showHomepage && (
-          <div style={{ flex: 1, overflow: 'hidden' }}>
-            <iframe
-              src={homepageUrl}
-              style={{ width: '100%', height: '100%', border: 'none' }}
-              title="빈크래프트 홈페이지"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            />
-          </div>
-        )}
+        {/* iframe - always render to prefetch, visibility controlled by CSS */}
+        <div style={{ flex: 1, overflow: 'hidden', visibility: showHomepage ? 'visible' : 'hidden' }}>
+          <iframe
+            src={homepageUrl}
+            style={{ width: '100%', height: '100%', border: 'none' }}
+            title="빈크래프트 홈페이지"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          />
+        </div>
       </div>
 
       {/* ── Responsive CSS ── */}

@@ -124,13 +124,17 @@ export default function ClientMode({
       ...prev,
       [searchAddress]: { address: searchAddress, radius: searchRadius, timestamp: Date.now() },
     }));
-    setPhase(PHASE.RESULT);
-  }, [searchAddress, searchRadius]);
+    // 홈페이지가 열려있으면 HOMEPAGE phase로, 아니면 RESULT로
+    setPhase(isHomepageOpen ? PHASE.HOMEPAGE : PHASE.RESULT);
+  }, [searchAddress, searchRadius, isHomepageOpen]);
 
   const handleGoHomepage = useCallback(() => {
     setIsHomepageOpen(true);
-    setPhase(PHASE.HOMEPAGE);
-  }, []);
+    // 로딩 중이면 phase를 LOADING으로 유지 (로딩 진행 계속)
+    if (phase !== PHASE.LOADING) {
+      setPhase(PHASE.HOMEPAGE);
+    }
+  }, [phase]);
 
   const handleReturnToResults = useCallback(() => {
     setIsHomepageOpen(false);
@@ -152,7 +156,7 @@ export default function ClientMode({
 
   // ─── Derived state ───
   const showUnifiedLayout = phase === PHASE.SEARCH || phase === PHASE.LOADING || phase === PHASE.RESULT || phase === PHASE.HOMEPAGE;
-  const showLoadingOverlay = phase === PHASE.LOADING;
+  const showLoadingOverlay = phase === PHASE.LOADING && !isHomepageOpen;
   const resultsReady = phase === PHASE.RESULT || phase === PHASE.HOMEPAGE;
 
   // ─── Render ───
@@ -172,7 +176,7 @@ export default function ClientMode({
               onSearch={handleSearch}
               onGoHome={handleGoHome}
               searchAddress={searchAddress}
-              initialHomepageOpen={phase === PHASE.HOMEPAGE}
+              initialHomepageOpen={phase === PHASE.HOMEPAGE || isHomepageOpen}
               onHomepageClosed={handleReturnToResults}
               renderResults={renderResults}
             />
@@ -193,8 +197,8 @@ export default function ClientMode({
         )}
       </AnimatePresence>
 
-      {/* Floating progress for homepage */}
-      {phase === PHASE.HOMEPAGE && (
+      {/* Floating progress for homepage (including during loading) */}
+      {(phase === PHASE.HOMEPAGE || (phase === PHASE.LOADING && isHomepageOpen)) && (
         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'none', zIndex: 10001 }}>
           <div style={{ pointerEvents: 'auto' }}>
             <FloatingProgress
