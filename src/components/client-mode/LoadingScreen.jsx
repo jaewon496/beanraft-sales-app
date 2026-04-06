@@ -297,7 +297,9 @@ export default function LoadingScreen({ progress = 0, onComplete, onGoHomepage }
               </span>
             </motion.button>
 
-            <HoverSlideButton onClick={onGoHomepage} label="홈페이지" hoverLabel="바로가기" />
+            {phase === 'waitClick' && (
+              <HoverSlideButton onClick={onGoHomepage} label="홈페이지" hoverLabel="바로가기" />
+            )}
           </div>
         </motion.div>
       </div>

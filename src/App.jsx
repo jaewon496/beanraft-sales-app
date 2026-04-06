@@ -541,16 +541,20 @@ const useScrollFadeIn = (direction = 'up', duration = 0.6, delay = 0) => {
       ([entry]) => {
         if (entry.isIntersecting) {
           setIsVisible(true);
+          observer.disconnect();
         }
       },
-      { threshold: 0.1 }
+      { threshold: 0.01 }
     );
-    
+
     if (ref.current) {
       observer.observe(ref.current);
     }
-    
-    return () => observer.disconnect();
+
+    // Fallback: if observer doesn't fire within 800ms, force visible
+    const fallback = setTimeout(() => setIsVisible(true), 800);
+
+    return () => { observer.disconnect(); clearTimeout(fallback); };
   }, []);
   
   const transforms = {
@@ -590,14 +594,16 @@ const useInViewToss = (threshold = 0.25, rootRef = null) => {
   const [inView, setInView] = useState(false);
   useEffect(() => {
     const el = ref.current;
-    if (!el) return;
+    if (!el) { setInView(true); return; }
     const root = rootRef?.current || null;
     const obs = new IntersectionObserver(
-      ([e]) => { if (e.isIntersecting) setInView(true); },
-      { threshold, root }
+      ([e]) => { if (e.isIntersecting) { setInView(true); obs.disconnect(); } },
+      { threshold: 0.01, root }
     );
     obs.observe(el);
-    return () => obs.disconnect();
+    // Fallback: if observer doesn't fire within 800ms, force visible
+    const fallback = setTimeout(() => setInView(true), 800);
+    return () => { obs.disconnect(); clearTimeout(fallback); };
   }, []);
   return [ref, inView];
 };
@@ -1118,12 +1124,10 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
   
   // 공통 섹션 스타일
   const sec = {
-    minHeight: '100vh',
     display: 'flex',
     flexDirection: 'column',
-    justifyContent: 'center',
-    padding: '48px 24px',
-    scrollSnapAlign: 'start',
+    justifyContent: 'flex-start',
+    padding: '12px 24px',
     boxSizing: 'border-box',
   };
   
@@ -1443,7 +1447,6 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
       fontFamily: '"Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", sans-serif',
       color: t1,
       overflowY: 'auto',
-      scrollSnapType: 'y proximity',
       height: 'calc(100vh - 130px)',
       WebkitOverflowScrolling: 'touch',
       borderRadius: 22,
@@ -1523,9 +1526,9 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
       )}
       {/* ━━━ 1. 상권 개요 Hero ━━━ */}
       <div ref={r1} style={{ ...sec, position: 'relative', overflow: 'hidden' }}>
-        {/* 배경 분위기 조명 */}
-        <div className="bg-blob bg-blob-blue" style={{ width: 200, height: 200, top: '5%', right: '-10%', opacity: 0.1 }} />
-        <div className="bg-blob bg-blob-green" style={{ width: 150, height: 150, bottom: '15%', left: '-5%', opacity: 0.08 }} />
+        {/* 배경 분위기 조명 — position:absolute 인라인 보장 */}
+        <div className="bg-blob bg-blob-blue" style={{ position: 'absolute', width: 200, height: 200, top: '5%', right: '-10%', opacity: 0.1 }} />
+        <div className="bg-blob bg-blob-green" style={{ position: 'absolute', width: 150, height: 150, bottom: '15%', left: '-5%', opacity: 0.08 }} />
 
         <FadeUpToss inView={v1} delay={0}>
           <p className="gradient-text" style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>상권 분석 리포트</p>
@@ -2217,6 +2220,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: t3, fontSize: 13 }} />
                   <YAxis hide />
                   <Tooltip
+                    cursor={false}
                     contentStyle={{ background: dark ? '#21212A' : '#FFF', border: 'none', borderRadius: 14, color: t1, fontSize: 14, boxShadow: '0 8px 28px rgba(0,0,0,0.12)' }}
                     formatter={(v) => [isCafeSpecificAge ? `${v}%` : sortedCstData.length > 0 ? formatManwon(v) : `${v.toLocaleString()}명`, isCafeSpecificAge ? '카페 결제 비중' : sortedCstData.length > 0 ? '소비금액' : '방문자']}
                   />
@@ -2511,7 +2515,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
       {/* ━━━ 5. 경쟁은? — 프랜차이즈 현황 ━━━ */}
       {franchiseData.length > 0 && (
         <div ref={r3} style={{ ...sec, position: 'relative', overflow: 'hidden' }}>
-          <div className="bg-blob bg-blob-blue" style={{ width: 160, height: 160, top: '10%', right: '-8%', opacity: 0.06 }} />
+          <div className="bg-blob bg-blob-blue" style={{ position: 'absolute', width: 160, height: 160, top: '10%', right: '-8%', opacity: 0.06 }} />
           <FadeUpToss inView={v3}>
             <p className="gradient-text" style={{ ...secLabel, color: undefined }}>프랜차이즈 현황</p>
             <h2 style={secTitle}>카페 경쟁 분석</h2>
@@ -2944,6 +2948,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
                   <XAxis type="number" hide />
                   <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} tick={{ fill: t2, fontSize: 13 }} width={80} />
                   <Tooltip
+                    cursor={false}
                     contentStyle={{ background: dark ? '#21212A' : '#FFF', border: 'none', borderRadius: 14, color: t1, fontSize: 14, boxShadow: '0 8px 28px rgba(0,0,0,0.12)' }}
                     formatter={(v) => [formatManwon(v), '월 매출']}
                   />
@@ -4238,9 +4243,9 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
 
       {/* ━━━ 12-2. 결론 — AI 종합 분석 + 빈크래프트 ━━━ */}
       <div ref={r7} style={{ ...sec, position: 'relative', overflow: 'hidden' }}>
-        {/* 배경 분위기 조명 */}
-        <div className="bg-blob bg-blob-blue" style={{ width: 200, height: 200, top: '20%', right: '-10%', opacity: 0.08 }} />
-        <div className="bg-blob bg-blob-purple" style={{ width: 180, height: 180, bottom: '10%', left: '-8%', opacity: 0.06 }} />
+        {/* 배경 분위기 조명 — position:absolute 인라인 보장 */}
+        <div className="bg-blob bg-blob-blue" style={{ position: 'absolute', width: 200, height: 200, top: '20%', right: '-10%', opacity: 0.08 }} />
+        <div className="bg-blob bg-blob-purple" style={{ position: 'absolute', width: 180, height: 180, bottom: '10%', left: '-8%', opacity: 0.06 }} />
 
         {d.insight && (
           <FadeUpToss inView={v7}>
@@ -6648,7 +6653,7 @@ const ScrollReveal = ({ children, delay = 0, threshold = 0.15 }) => {
 
   useEffect(() => {
     const el = revealRef.current;
-    if (!el) return;
+    if (!el) { setInView(true); return; }
     let scrollParent = el.parentElement;
     while (scrollParent) {
       const style = window.getComputedStyle(scrollParent);
@@ -6662,10 +6667,12 @@ const ScrollReveal = ({ children, delay = 0, threshold = 0.15 }) => {
           observer.disconnect();
         }
       },
-      { root: scrollParent || null, threshold }
+      { root: scrollParent || null, threshold: 0.01 }
     );
     observer.observe(el);
-    return () => observer.disconnect();
+    // Fallback: if observer doesn't fire within 800ms, force visible
+    const fallback = setTimeout(() => setInView(true), 800);
+    return () => { observer.disconnect(); clearTimeout(fallback); };
   }, [threshold]);
 
   return (
@@ -23077,7 +23084,7 @@ const getAvailableManagersForSale = () => getSalesManagers();
            </div>
 
            {/* 탭 콘텐츠 */}
-           <div className="flex-1 overflow-y-auto min-h-0" style={{ background: '#17171C', scrollSnapType: salesModeTab === 'intro' ? 'y proximity' : 'none', scrollBehavior: 'smooth' }}>
+           <div className="flex-1 overflow-y-auto min-h-0" style={{ background: '#17171C', scrollBehavior: 'smooth' }}>
 
             {/* ═══ 중개사 소개 탭 (intro) ═══ */}
             {salesModeTab === 'intro' && salesModeTarget === 'broker' && (() => {
@@ -23095,13 +23102,11 @@ const getAvailableManagersForSale = () => getSalesManagers();
   const colors = { g, y, j, N, T, k, M, L, te, ne };
 
   const sectionStyle = {
-    minHeight: 'calc(100vh - 130px)',
     display: 'flex',
     flexDirection: 'column',
-    justifyContent: 'center',
-    padding: '28px 16px',
+    justifyContent: 'flex-start',
+    padding: '12px 16px',
     boxSizing: 'border-box',
-    scrollSnapAlign: 'start',
   };
 
   const headingStyle = {

@@ -260,29 +260,24 @@ textarea::placeholder {
   font-feature-settings: 'tnum' on;
 }
 
-/* 토스 스타일 풀스크린 카드 */
+/* 토스 스타일 카드 섹션 */
 .toss-card-section {
-  min-height: 70vh;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  scroll-snap-align: start;
-  padding: 16px 0;
+  justify-content: flex-start;
+  padding: 12px 0;
 }
 
 /* 작은 카드 (조건부 카드) */
 .toss-card-compact {
-  min-height: 35vh;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  scroll-snap-align: start;
-  padding: 10px 0;
+  justify-content: flex-start;
+  padding: 8px 0;
 }
 
-/* 스크롤 스냅 컨테이너 */
+/* 스크롤 컨테이너 */
 .toss-scroll-container {
-  scroll-snap-type: y proximity;
   scroll-behavior: smooth;
 }
 
