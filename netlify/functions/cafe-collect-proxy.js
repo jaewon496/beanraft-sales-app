@@ -21,14 +21,30 @@ const FRANCHISE_KEYWORDS = {
   '커피빈': ['커피빈','COFFEEBEAN'],
   '탐앤탐스': ['탐앤탐스','TOMNTOMS'],
   '파스쿠찌': ['파스쿠찌','PASCUCCI'],
-  '엔젤리너스': ['엔젤리너스','ANGELINUS'],
+  '엔제리너스': ['엔제리너스','엔젤리너스','ANGELINUS','ANGEL-IN-US','ANGEL IN US'],
   '카페베네': ['카페베네','CAFFEBENE'],
   '드롭탑': ['드롭탑','DROPTOP'],
   '커피에반하다': ['커피에반하다'],
   '요거프레소': ['요거프레소'],
   '달콤커피': ['달콤커피'],
   '공차': ['공차','GONGCHA'],
-  '쥬씨': ['쥬씨','JUICY']
+  '쥬씨': ['쥬씨','JUICY'],
+  '매머드커피': ['매머드','MAMMOTH','매머드익스프레스','MAMMOTHEXPRESS'],
+  '커피나무': ['커피나무','COFFEENAMU'],
+  '블루보틀': ['블루보틀','BLUE BOTTLE','BLUEBOTTLE'],
+  '바나프레소': ['바나프레소','BANAPRESSO'],
+  '커피나인': ['커피나인','COFFEE NINE','COFFEENINE'],
+  '설빙': ['설빙','SULBING'],
+  '디저트39': ['디저트39','DESSERT39','DESSERT 39'],
+  '텐퍼센트커피': ['텐퍼센트','10PERCENT','10퍼센트','TEN PERCENT'],
+  '파리바게뜨': ['파리바게뜨','PARIS BAGUETTE','PARISBAGUETTE'],
+  '뚜레쥬르': ['뚜레쥬르','TOUS LES JOURS','TOUSLESJOURS'],
+  '파리크라상': ['파리크라상','PARIS CROISSANT','PARISCROISSANT'],
+  '브레댄코': ['브레댄코','BREADNCO','BREAD N CO'],
+  '노티드': ['노티드','KNOTTED'],
+  '던킨': ['던킨','DUNKIN','DUNKIN DONUTS'],
+  '크리스피크림': ['크리스피크림','KRISPY KREME','KRISPY','KRISPYKREME'],
+  '배스킨라빈스': ['배스킨라빈스','BASKIN ROBBINS','BASKIN','BASKINROBBINS']
 };
 
 // ── 비카페 필터 키워드 ──
