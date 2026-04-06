@@ -1329,9 +1329,14 @@ export default function UnifiedLayout({
   // Update map center when searchAddress changes
   useEffect(() => {
     if (!naverReady || !naverMapRef.current || !searchAddress) return;
-    if (!window.naver?.maps?.Service) return;
 
-    window.naver.maps.Service.geocode({ query: searchAddress }, (status, response) => {
+    // Service(geocoder) 서브모듈이 아직 로드 안 됐으면 500ms 간격 재시도 (최대 5초)
+    const tryGeocode = (retries = 10) => {
+      if (!window.naver?.maps?.Service) {
+        if (retries > 0) setTimeout(() => tryGeocode(retries - 1), 500);
+        return;
+      }
+      window.naver.maps.Service.geocode({ query: searchAddress }, (status, response) => {
       if (status === window.naver.maps.Service.Status.OK && response.v2?.addresses?.length > 0) {
         const addr = response.v2.addresses[0];
         const coord = new window.naver.maps.LatLng(parseFloat(addr.y), parseFloat(addr.x));
@@ -1369,6 +1374,8 @@ export default function UnifiedLayout({
         });
       }
     });
+    };
+    tryGeocode();
   }, [naverReady, searchAddress, radius]);
 
   // Update circle radius when slider changes
