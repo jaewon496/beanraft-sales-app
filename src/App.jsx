@@ -1697,14 +1697,14 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
           </FadeUpToss>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 32 }}>
             <FadeUpToss inView={true} delay={0.1}>
-              <div className={dark ? 'glass-card light-sweep' : 'glass-card-light'} style={{ padding: '20px 20px 16px' }}>
+              <div className={dark ? 'glass-card light-sweep' : 'glass-card-light'} style={{ padding: '20px' }}>
                 <p style={{ fontSize: 12, color: t3, marginBottom: 10 }}>유동인구</p>
                 <p style={{ fontSize: 36, fontWeight: 800, color: t1, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.04em', lineHeight: 1.1 }}>{totalPop > 0 ? totalPop.toLocaleString() : ''}</p>
                 {totalPop > 0 && <p style={{ fontSize: 12, color: t3, marginTop: 6 }}>명/일 평균</p>}
               </div>
             </FadeUpToss>
             <FadeUpToss inView={true} delay={0.2}>
-              <div className={dark ? 'glass-card light-sweep' : 'glass-card-light'} style={{ padding: '20px 20px 16px' }}>
+              <div className={dark ? 'glass-card light-sweep' : 'glass-card-light'} style={{ padding: '20px' }}>
                 <p style={{ fontSize: 12, color: t3, marginBottom: 10 }}>방문고객</p>
                 <p className="gradient-text" style={{ fontSize: vstAbnormal ? 18 : 36, fontWeight: 800, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.04em', lineHeight: 1.1 }}>{vstAbnormal ? '' : (totalVst > 0 ? totalVst.toLocaleString() : '')}</p>
                 {!vstAbnormal && totalVst > 0 && <p style={{ fontSize: 12, color: t3, marginTop: 6 }}>명/일 평균</p>}
@@ -1728,7 +1728,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             const isEstimate = !sp?.day && !ww?.weekday;
             return (
               <FadeUpToss inView={true} delay={0.25}>
-                <div className={dark ? 'glass-card light-sweep' : 'glass-card-light'} style={{ padding: '16px 20px', marginBottom: 16 }}>
+                <div className={dark ? 'glass-card light-sweep' : 'glass-card-light'} style={{ padding: '20px', marginBottom: 16 }}>
                   <p style={{ fontSize: 12, color: t3, marginBottom: 10 }}>평일 / 주말 유동인구 비율</p>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
                     <div style={{ flex: wkdyPct, height: 10, borderRadius: 5, background: blue, transition: 'flex 0.5s ease' }} />
@@ -1931,7 +1931,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
           {/* 상단: 일 유동인구 표시 */}
           {dongPop > 0 && (
             <FadeUpToss inView={true} delay={0.05}>
-              <div style={{ background: `${blue}10`, borderRadius: 14, padding: '12px 16px', marginBottom: 16 }}>
+              <div style={{ background: `${blue}10`, borderRadius: 14, padding: '12px 16px', marginBottom: 12 }}>
                 <p style={{ fontSize: 15, fontWeight: 700, color: t1 }}>일 유동인구: {dongPop.toLocaleString()}명 <span style={{ fontSize: 12, fontWeight: 500, color: t3 }}>(소상공인365)</span></p>
                 {cd?.dongInfo?.admdstCdNm && (
                   <p style={{ fontSize: 11, color: t3, marginTop: 2 }}>{cd.dongInfo.admdstCdNm} 행정동 기준</p>
@@ -2297,7 +2297,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             return (
               <FadeUpToss inView={v2} delay={0.35}>
                 <div style={{ display: 'flex', gap: 16, marginTop: 32, flexWrap: 'wrap' }}>
-                  <div className={dark ? 'glass-card light-sweep' : 'glass-card-light'} style={{ padding: '18px 20px', flex: 1, minWidth: 120 }}>
+                  <div className={dark ? 'glass-card light-sweep' : 'glass-card-light'} style={{ padding: '20px', flex: 1, minWidth: 120 }}>
                     <p style={{ fontSize: 12, color: t2, marginBottom: 8 }}>{secondInfo.label}</p>
                     <p style={{ fontSize: 18, fontWeight: 700, color: t1 }}>{secondInfo.value}</p>
                   </div>
@@ -2372,7 +2372,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
                   <p style={{ fontSize: 11, color: t3, marginBottom: 14 }}>소상공인365 배달 핫플레이스 기준</p>
                   {/* 성별 방문고객 비율 */}
                   {_mPct && _fPct && (
-                    <div style={{ background: cardBg, borderRadius: 14, padding: '12px 16px', marginBottom: 10 }}>
+                    <div style={{ background: cardBg, borderRadius: 14, padding: '12px 16px', marginBottom: 12 }}>
                       <p style={{ fontSize: 12, color: t3, marginBottom: 8 }}>성별 고객 비율</p>
                       <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                         <div style={{ flex: 1 }}>
@@ -2398,7 +2398,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
                   )}
                   {/* 신규/단골 비율 */}
                   {(_regPct || _newPct) && (
-                    <div style={{ background: cardBg, borderRadius: 14, padding: '12px 16px', marginBottom: 10 }}>
+                    <div style={{ background: cardBg, borderRadius: 14, padding: '12px 16px', marginBottom: 12 }}>
                       <p style={{ fontSize: 12, color: t3, marginBottom: 6 }}>신규 vs 단골</p>
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                         {_newPct && (
@@ -2416,7 +2416,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
                   )}
                   {/* 라이프스타일 TOP5 (남/여) */}
                   {(_mLife.length > 0 || _fLife.length > 0) && (
-                    <div style={{ background: cardBg, borderRadius: 14, padding: '12px 16px', marginBottom: 10 }}>
+                    <div style={{ background: cardBg, borderRadius: 14, padding: '12px 16px', marginBottom: 12 }}>
                       <p style={{ fontSize: 12, color: t3, marginBottom: 10 }}>고객 라이프스타일 TOP5</p>
                       <div style={{ display: 'flex', gap: 16 }}>
                         {_mLife.length > 0 && (
@@ -2466,7 +2466,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
                   )}
                   {/* 성별/연령별 소비매출 */}
                   {(_maleAge || _femaleAge) && (
-                    <div style={{ background: cardBg, borderRadius: 14, padding: '12px 16px', marginBottom: 10 }}>
+                    <div style={{ background: cardBg, borderRadius: 14, padding: '12px 16px', marginBottom: 12 }}>
                       <p style={{ fontSize: 12, color: t3, marginBottom: 10 }}>성별/연령별 소비매출</p>
                       <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
                         {_maleAge && <span style={{ fontSize: 11, color: '#3B82F6', fontWeight: 600 }}>-- 남성</span>}
@@ -2608,7 +2608,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             const cp = cd.apis.seoulCoffeePermit.data;
             return (cp.dongTotal > 0) ? (
               <FadeUpToss inView={v3} delay={0.42}>
-                <div style={{ background: cardBg, borderRadius: 18, padding: '16px 18px', marginTop: 20 }}>
+                <div style={{ background: cardBg, borderRadius: 18, padding: '16px 20px', marginTop: 16 }}>
                   <p style={{ fontSize: 12, color: t3, marginBottom: 10 }}>커피전문점 인허가 현황 (동 기준)</p>
                   <div style={{ display: 'flex', gap: 12 }}>
                     <div style={{ flex: 1, textAlign: 'center' }}>
@@ -2747,7 +2747,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
                 const maxP = prices.length > 0 ? Math.max(...prices) : 0;
                 const indieEstimate = maxP > 0 ? Math.round((maxP + 1000) / 500) * 500 : 0; // 개인카페는 보통 프랜차이즈 최고가+500~1000원
                 return (
-                  <div style={{ background: `${green}12`, borderRadius: 14, padding: '12px 16px', marginTop: 10 }}>
+                  <div style={{ background: `${green}12`, borderRadius: 14, padding: '12px 16px', marginTop: 12 }}>
                     <p style={{ fontSize: 11, color: t3, marginBottom: 4 }}>주변 아메리카노 가격</p>
                     {minP > 0 ? (
                       <p style={{ fontSize: 14, fontWeight: 600, color: t1, lineHeight: 1.4 }}>
@@ -2886,7 +2886,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             return (
               <FadeUpToss inView={v4} delay={0.12}>
                 {hasComparison && (
-                  <div style={{ background: cardBg, borderRadius: 18, padding: '16px 18px', marginBottom: 16 }}>
+                  <div style={{ background: cardBg, borderRadius: 18, padding: '16px 20px', marginBottom: 16 }}>
                     <p style={{ fontSize: 12, color: t3, marginBottom: 12 }}>매출 비교 (점포당 월평균)</p>
                     {[
                       { label: _sa.admiNm || '행정동', amt: dongAmt, color: blue },
@@ -2958,7 +2958,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             if (top5.length === 0) return null;
             return (
               <FadeUpToss inView={v4} delay={0.25}>
-                <div style={{ background: cardBg, borderRadius: 18, padding: '16px 18px', marginTop: 20 }}>
+                <div style={{ background: cardBg, borderRadius: 18, padding: '16px 20px', marginTop: 16 }}>
                   <p style={{ fontSize: 12, color: blue, fontWeight: 600, marginBottom: 12 }}>업종별 매출 TOP5 (소상공인365)</p>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '6px 12px', alignItems: 'center' }}>
                     <span style={{ fontSize: 11, color: t3 }}>업종</span>
@@ -2989,7 +2989,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             if (filteredItems.length === 0) return null;
             return (
             <FadeUpToss inView={v4} delay={0.3}>
-              <div style={{ background: cardBg, borderRadius: 18, padding: '16px 18px', marginTop: 20 }}>
+              <div style={{ background: cardBg, borderRadius: 18, padding: '16px 20px', marginTop: 16 }}>
                 <p style={{ fontSize: 12, color: t3, marginBottom: 10 }}>동 내 업종 비교</p>
                 {filteredItems.map((dm, dmi) => {
                   const name = dm.tpbizClscdNm || dm.tpbizNm || '';
@@ -3012,7 +3012,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             const topInds = asd.byIndustry?.slice(0, 5) || [];
             return topInds.length > 0 ? (
               <FadeUpToss inView={v4} delay={0.35}>
-                <div style={{ background: cardBg, borderRadius: 18, padding: '16px 18px', marginTop: 20 }}>
+                <div style={{ background: cardBg, borderRadius: 18, padding: '16px 20px', marginTop: 16 }}>
                   <p style={{ fontSize: 12, color: t3, marginBottom: 10 }}>{asd.dong || ''} 행정동 업종별 점포수</p>
                   {topInds.map((ind, ii) => (
                     <div key={ii} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
@@ -3030,7 +3030,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
           {/* Card 4 강화: 매출추이 지표 */}
           {cd?.apis?.slsIndex?.data && Array.isArray(cd.apis.slsIndex.data) && cd.apis.slsIndex.data.length > 0 && (
             <FadeUpToss inView={v4} delay={0.4}>
-              <div style={{ background: `${blue}08`, borderRadius: 18, padding: '16px 18px', marginTop: 12 }}>
+              <div style={{ background: `${blue}08`, borderRadius: 18, padding: '16px 20px', marginTop: 16 }}>
                 <p style={{ fontSize: 12, color: t3, marginBottom: 10 }}>매출 추이 지표</p>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   {cd.apis.slsIndex.data.slice(0, 5).map((si, sii) => {
@@ -3071,7 +3071,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             if (!hasMenuData) return null;
             return (
               <FadeUpToss inView={v4} delay={0.45}>
-                <div style={{ background: cardBg, borderRadius: 18, padding: '16px 18px', marginTop: 20 }}>
+                <div style={{ background: cardBg, borderRadius: 18, padding: '16px 20px', marginTop: 16 }}>
                   <p style={{ fontSize: 12, color: blue, fontWeight: 600, marginBottom: 10 }}>메뉴 분석</p>
                   {/* 평균 가격 정보 */}
                   <div style={{ display: 'flex', gap: 12, marginBottom: sortedMenus.length > 0 ? 12 : 0, flexWrap: 'wrap' }}>
@@ -3162,7 +3162,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
           </FadeUpToss>
           {d.rent && (
             <FadeUpToss inView={v5} delay={0.4}>
-              <div className={dark ? 'glass-card' : 'glass-card-light'} style={{ padding: 24, marginTop: 24 }}>
+              <div className={dark ? 'glass-card' : 'glass-card-light'} style={{ padding: 20, marginTop: 24 }}>
                 <p style={{ fontSize: 14, color: t2, fontWeight: 600, marginBottom: 8 }}>임대료 정보</p>
                 {d.rent.primaryDong && <p style={{ fontSize: 12, color: t3, marginBottom: 12 }}>{S(d.rent.primaryDong)} 기준 · 소규모 상가 {S(d.rent.dongCount)}</p>}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
@@ -3212,7 +3212,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
           {/* Card 5 강화: R-ONE 실제 임대료 */}
           {cd?.apis?.roneRent?.data && Array.isArray(cd.apis.roneRent.data) && cd.apis.roneRent.data.length > 0 && (
             <FadeUpToss inView={v5} delay={0.5}>
-              <div style={{ background: cardBg, borderRadius: 18, padding: '16px 18px', marginTop: 16 }}>
+              <div style={{ background: cardBg, borderRadius: 18, padding: '16px 20px', marginTop: 16 }}>
                 <p style={{ fontSize: 12, color: t3, marginBottom: 10 }}>R-ONE 실거래 임대료 (한국부동산원)</p>
                 {(() => {
                   const rows = cd.apis.roneRent.data;
@@ -3241,7 +3241,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             const programs = Array.isArray(spd) ? spd : [];
             return programs.length > 0 ? (
               <FadeUpToss inView={v5} delay={0.55}>
-                <div style={{ background: `${green}08`, borderRadius: 18, padding: '16px 18px', marginTop: 12 }}>
+                <div style={{ background: `${green}08`, borderRadius: 18, padding: '16px 20px', marginTop: 16 }}>
                   <p style={{ fontSize: 12, color: green, fontWeight: 600, marginBottom: 10 }}>정부 창업지원 프로그램</p>
                   {programs.slice(0, 3).map((pg, pgi) => (
                     <div key={pgi} style={{ padding: '6px 0', borderBottom: pgi < Math.min(programs.length, 3) - 1 ? `1px solid ${divColor}` : 'none' }}>
@@ -3275,7 +3275,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             const profitManwon = Math.round(avgSales * profitRatio);
             return (
               <FadeUpToss inView={v5} delay={0.6}>
-                <div style={{ background: cardBg, borderRadius: 18, padding: '16px 18px', marginTop: 16 }}>
+                <div style={{ background: cardBg, borderRadius: 18, padding: '16px 20px', marginTop: 16 }}>
                   <p style={{ fontSize: 12, color: blue, fontWeight: 600, marginBottom: 10 }}>커피전문점 영업비용 구조 (업계 평균)</p>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 12 }}>
                     <span style={{ fontSize: 11, color: t3 }}>추정 영업이익</span>
@@ -3366,7 +3366,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
           {/* Step 7: 업력 현황 (stcarSttus) */}
           {cd?.apis?.stcarSttus?.data && Array.isArray(cd.apis.stcarSttus.data) && cd.apis.stcarSttus.data.length > 0 && (
             <FadeUpToss inView={true} delay={0.35}>
-              <div style={{ background: cardBg, borderRadius: 18, padding: '16px 18px', marginTop: 20 }}>
+              <div style={{ background: cardBg, borderRadius: 18, padding: '16px 20px', marginTop: 16 }}>
                 <p style={{ fontSize: 12, color: t3, marginBottom: 10 }}>업력 현황 (영업기간별 분포)</p>
                 {cd.apis.stcarSttus.data.slice(0, 6).map((sc, sci) => {
                   const name = sc.stcarNm || sc.stcarRange || '';
@@ -3403,7 +3403,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             {/* 데이터 없을 때 fallback */}
             {!hasAnyData && (
               <FadeUpToss inView={true} delay={0.1}>
-                <div style={{ background: cardBg, borderRadius: 18, padding: '16px 18px', marginBottom: 16 }}>
+                <div style={{ background: cardBg, borderRadius: 18, padding: '16px 20px', marginBottom: 16 }}>
                   <p style={{ fontSize: 13, color: t2, lineHeight: 1.6 }}>이 지역의 상권 트렌드 데이터는 수집 대상 지역 확대 시 제공됩니다. 현재 서울 지역 상권변화지표, 배달 추이, SNS 키워드, 관광/축제 정보를 지원합니다.</p>
                 </div>
               </FadeUpToss>
@@ -3411,7 +3411,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             {/* 상권변화지표 */}
             {trdarData.length > 0 && (
               <FadeUpToss inView={true} delay={0.1}>
-                <div style={{ background: cardBg, borderRadius: 18, padding: '16px 18px', marginBottom: 16 }}>
+                <div style={{ background: cardBg, borderRadius: 18, padding: '16px 20px', marginBottom: 16 }}>
                   <p style={{ fontSize: 12, color: t3, marginBottom: 10 }}>상권변화지표</p>
                   {trdarData.slice(0, 3).map((tr, tri) => {
                     const codeColor = (tr.changeCode || '').includes('확장') ? green : (tr.changeCode || '').includes('축소') ? red : blue;
@@ -3437,7 +3437,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             {/* 배달 추이 요약 */}
             {deliveryData.length > 0 && (
               <FadeUpToss inView={true} delay={0.2}>
-                <div style={{ background: `${blue}08`, borderRadius: 18, padding: '16px 18px', marginBottom: 16 }}>
+                <div style={{ background: `${blue}08`, borderRadius: 18, padding: '16px 20px', marginBottom: 16 }}>
                   <p style={{ fontSize: 12, color: t3, marginBottom: 8 }}>배달 추이</p>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     {deliveryData.slice(0, 3).map((dv, dvi) => (
@@ -3452,7 +3452,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             {/* SNS 분석 키워드 요약 */}
             {snsData.length > 0 && (
               <FadeUpToss inView={true} delay={0.3}>
-                <div style={{ background: cardBg, borderRadius: 18, padding: '16px 18px' }}>
+                <div style={{ background: cardBg, borderRadius: 18, padding: '16px 20px' }}>
                   <p style={{ fontSize: 12, color: t3, marginBottom: 8 }}>SNS 키워드</p>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                     {snsData.slice(0, 6).map((sn, sni) => {
@@ -3470,7 +3470,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             {/* 관광/축제 정보 */}
             {tourData.length > 0 && (
               <FadeUpToss inView={true} delay={0.35}>
-                <div style={{ background: cardBg, borderRadius: 18, padding: '16px 18px', marginTop: 16 }}>
+                <div style={{ background: cardBg, borderRadius: 18, padding: '16px 20px', marginTop: 16 }}>
                   <p style={{ fontSize: 12, color: t3, marginBottom: 10 }}>주변 관광/축제</p>
                   {tourData.slice(0, 5).map((tr, tri) => {
                     const name = tr.tourNm || tr.fstvlNm || tr.nm || tr.title || '';
@@ -3496,7 +3496,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
               const withRate = trdarData.filter(tr => tr.salesChangeRate > 0).sort((a, b) => b.salesChangeRate - a.salesChangeRate).slice(0, 3);
               return (
                 <FadeUpToss inView={true} delay={0.38}>
-                  <div style={{ background: `${growthStageColor}08`, borderRadius: 14, padding: '12px 16px', marginTop: 16 }}>
+                  <div style={{ background: `${growthStageColor}08`, borderRadius: 14, padding: '12px 16px', marginTop: 12 }}>
                     {changeCode && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                         <span style={{ fontSize: 12, color: t3 }}>커피전문점 상권 단계:</span>
@@ -3554,7 +3554,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
                     const cafeRankLabel = cafeRank >= 0 ? `${cafeRank + 1}위` : '5위권 밖';
                     const isLowRank = cafeRank < 0 || cafeRank >= 5;
                     return (
-                      <div style={{ background: `${blue}12`, borderRadius: 14, padding: '12px 16px', marginBottom: 10 }}>
+                      <div style={{ background: `${blue}12`, borderRadius: 14, padding: '12px 16px', marginBottom: 12 }}>
                         <p style={{ fontSize: 14, color: t1, fontWeight: 700, marginBottom: 4 }}>카페/음료 배달 비중: {cafeTotalPct}% (월 약 {cafeRelatedCnt.toLocaleString()}건)</p>
                         <p style={{ fontSize: 12, color: t2 }}>전체 배달 {totalCnt.toLocaleString()}건 중 {cafeRankLabel}</p>
                         {cafeRelated.length > 1 && <p style={{ fontSize: 11, color: t3, marginTop: 4 }}>관련: {cafeRelated.map(b => `${b.baeminTpbizClsfNm || b.name}(${getCnt(b).toLocaleString()}건)`).join(', ')}</p>}
@@ -3562,7 +3562,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
                       </div>
                     );
                   })() : (
-                    <div style={{ background: `${blue}08`, borderRadius: 14, padding: '12px 16px', marginBottom: 10 }}>
+                    <div style={{ background: `${blue}08`, borderRadius: 14, padding: '12px 16px', marginBottom: 12 }}>
                       <p style={{ fontSize: 13, color: t2 }}>카페/음료 배달 데이터 없음</p>
                       <p style={{ fontSize: 11, color: t3, marginTop: 4 }}>이 지역 배달 데이터에 카페/음료 카테고리가 포함되지 않았습니다</p>
                     </div>
@@ -3617,7 +3617,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
           {/* Card 6.2 강화: 소상공인365 배달 건수 추이 */}
           {cd?.apis?.delivery?.data && Array.isArray(cd.apis.delivery.data) && cd.apis.delivery.data.length > 0 && (
             <FadeUpToss inView={true} delay={0.3}>
-              <div style={{ background: cardBg, borderRadius: 18, padding: '16px 18px', marginTop: 16 }}>
+              <div style={{ background: cardBg, borderRadius: 18, padding: '16px 20px', marginTop: 16 }}>
                 <p style={{ fontSize: 12, color: t3, marginBottom: 10 }}>배달 건수 추이 (소상공인365)</p>
                 {cd.apis.delivery.data.slice(0, 5).map((dv, dvi) => (
                   <div key={dvi} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
@@ -3660,7 +3660,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
                   <p style={{ fontSize: 13, fontWeight: 700, color: t1, marginBottom: 12 }}>배달 핫플레이스 분석</p>
                   {/* 성별 배달 매출 */}
                   {malePct && femalePct && (
-                    <div style={{ background: cardBg, borderRadius: 14, padding: '12px 16px', marginBottom: 10 }}>
+                    <div style={{ background: cardBg, borderRadius: 14, padding: '12px 16px', marginBottom: 12 }}>
                       <p style={{ fontSize: 12, color: t3, marginBottom: 8 }}>성별 배달 매출 비중</p>
                       <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                         <div style={{ flex: 1 }}>
@@ -3686,7 +3686,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
                   )}
                   {/* 요일별 매출 */}
                   {dayRank.length > 0 && (
-                    <div style={{ background: cardBg, borderRadius: 14, padding: '12px 16px', marginBottom: 10 }}>
+                    <div style={{ background: cardBg, borderRadius: 14, padding: '12px 16px', marginBottom: 12 }}>
                       <p style={{ fontSize: 12, color: t3, marginBottom: 8 }}>요일별 배달 매출</p>
                       {topDay && <p style={{ fontSize: 13, color: t1, fontWeight: 600, marginBottom: 4 }}>최고: {topDay.dayTxt ?? topDay.dfkNm ?? topDay.keyD ?? topDay.txtD ?? ''}  / 최저: {lowDay?.dayTxt ?? lowDay?.dfkNm ?? lowDay?.keyD ?? lowDay?.txtD ?? ''}</p>}
                       <div style={{ display: 'flex', gap: 4, marginTop: 8 }}>
@@ -3709,7 +3709,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
                   )}
                   {/* 월별 배달 주문 추이 */}
                   {recentMonths.length > 0 && (
-                    <div style={{ background: cardBg, borderRadius: 14, padding: '12px 16px', marginBottom: 10 }}>
+                    <div style={{ background: cardBg, borderRadius: 14, padding: '12px 16px', marginBottom: 12 }}>
                       <p style={{ fontSize: 12, color: t3, marginBottom: 8 }}>월별 배달 주문 추이</p>
                       <div style={{ display: 'flex', gap: 4, alignItems: 'flex-end' }}>
                         {recentMonths.map((m, mi) => {
@@ -3731,7 +3731,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
                   )}
                   {/* 업종별 배달 매출 TOP5 */}
                   {topBiz.length > 0 && (
-                    <div style={{ background: cardBg, borderRadius: 14, padding: '12px 16px', marginBottom: 10 }}>
+                    <div style={{ background: cardBg, borderRadius: 14, padding: '12px 16px', marginBottom: 12 }}>
                       <p style={{ fontSize: 12, color: t3, marginBottom: 8 }}>업종별 배달 매출 TOP5</p>
                       {topBiz.slice(0, 5).map((biz, bi) => {
                         const bizName = biz.tpbizClscdNm ?? biz.tpbizNm ?? biz.keyD ?? biz.txtD ?? '';
@@ -3806,7 +3806,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
           {/* 인스타그램 인기 키워드 TOP */}
           {cd.apis.snsTrend.data.instagramTopKeywords?.length > 0 && (
             <FadeUpToss inView={true} delay={0.37}>
-              <div style={{ background: cardBg, borderRadius: 18, padding: '16px 18px', marginTop: 16 }}>
+              <div style={{ background: cardBg, borderRadius: 18, padding: '16px 20px', marginTop: 16 }}>
                 <p style={{ fontSize: 12, color: '#E1306C', fontWeight: 600, marginBottom: 10 }}>인스타그램 인기 키워드</p>
                 {cd.apis.snsTrend.data.instagramTopKeywords.slice(0, 5).map((ik, iki) => (
                   <div key={iki} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
@@ -3853,7 +3853,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             const items = Array.isArray(hpd) ? hpd : (hpd && typeof hpd === 'object') ? [hpd] : [];
             return items.length > 0 ? (
               <FadeUpToss inView={true} delay={0.4}>
-                <div style={{ background: `${blue}08`, borderRadius: 18, padding: '16px 18px', marginTop: 16 }}>
+                <div style={{ background: `${blue}08`, borderRadius: 18, padding: '16px 20px', marginTop: 16 }}>
                   <p style={{ fontSize: 12, color: blue, fontWeight: 600, marginBottom: 10 }}>핫플레이스 리포트</p>
                   {items.slice(0, 3).map((hp, hpi) => {
                     const name = hp.hpNm || hp.areaNm || hp.nm || '';
@@ -3878,7 +3878,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
           {/* Card 6.3 강화: SNS 분석 키워드 (소상공인365) */}
           {cd?.apis?.snsAnaly?.data && Array.isArray(cd.apis.snsAnaly.data) && cd.apis.snsAnaly.data.length > 0 && (
             <FadeUpToss inView={true} delay={0.45}>
-              <div style={{ background: cardBg, borderRadius: 18, padding: '16px 18px', marginTop: 12 }}>
+              <div style={{ background: cardBg, borderRadius: 18, padding: '16px 20px', marginTop: 16 }}>
                 <p style={{ fontSize: 12, color: t3, marginBottom: 10 }}>SNS 키워드 분석 (소상공인365)</p>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   {cd.apis.snsAnaly.data.slice(0, 8).map((sn, sni) => {
@@ -3897,7 +3897,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
           {/* Card 6.3 강화: 관련 유튜브 영상 목록 (YouTube Data API v3) */}
           {cd?.apis?.youtube?.data?.videos && cd.apis.youtube.data.videos.length > 0 && (
             <FadeUpToss inView={true} delay={0.5}>
-              <div style={{ background: cardBg, borderRadius: 18, padding: '16px 18px', marginTop: 12 }}>
+              <div style={{ background: cardBg, borderRadius: 18, padding: '16px 20px', marginTop: 16 }}>
                 <p style={{ fontSize: 12, color: t3, marginBottom: 10 }}>관련 유튜브 영상</p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {cd.apis.youtube.data.videos.slice(0, 5).map((vid, vi) => (
@@ -3980,7 +3980,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
         ].filter(i => i.value != null);
         if (scoreItems.length === 0) return null;
         return (
-          <div style={{ background: 'rgba(59,130,246,0.05)', borderRadius: 18, padding: '16px 18px', marginTop: 16 }}>
+          <div style={{ background: 'rgba(59,130,246,0.05)', borderRadius: 18, padding: '16px 20px', marginTop: 16 }}>
             <p style={{ fontSize: 12, color: '#6B7280', marginBottom: 10 }}>창업기상도 - {scoreRow.areaNm || matchedSido} ({wi.crtrYm?.slice(0,4)}년 {wi.crtrYm?.slice(4)}월 기준)</p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
               {scoreItems.map((item, i) => (
@@ -4016,7 +4016,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             {/* 데이터 없을 때 fallback */}
             {!hasInfraData && (
               <FadeUpToss inView={true} delay={0.1}>
-                <div style={{ background: cardBg, borderRadius: 18, padding: '16px 18px', marginBottom: 16 }}>
+                <div style={{ background: cardBg, borderRadius: 18, padding: '16px 20px', marginBottom: 16 }}>
                   <p style={{ fontSize: 13, color: t2, lineHeight: 1.6 }}>이 지역의 상주인구 및 집객시설 데이터는 수집 대상 지역 확대 시 제공됩니다. 현재 서울 지역 상주인구, 세대수, 연령 분포, 집객시설 정보를 지원합니다.</p>
                 </div>
               </FadeUpToss>
@@ -4025,12 +4025,12 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             {repop ? (
               <FadeUpToss inView={true} delay={0.1}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
-                  <div className={dark ? 'glass-card light-sweep' : 'glass-card-light'} style={{ padding: '16px 18px' }}>
+                  <div className={dark ? 'glass-card light-sweep' : 'glass-card-light'} style={{ padding: '20px' }}>
                     <p style={{ fontSize: 12, color: t3, marginBottom: 6 }}>상주인구</p>
                     <p style={{ fontSize: 28, fontWeight: 800, color: t1, letterSpacing: '-0.03em' }}>{repop.totalPopulation?.toLocaleString() || ''}</p>
                     <p style={{ fontSize: 11, color: t3, marginTop: 4 }}>명</p>
                   </div>
-                  <div className={dark ? 'glass-card light-sweep' : 'glass-card-light'} style={{ padding: '16px 18px' }}>
+                  <div className={dark ? 'glass-card light-sweep' : 'glass-card-light'} style={{ padding: '20px' }}>
                     <p style={{ fontSize: 12, color: t3, marginBottom: 6 }}>세대수</p>
                     <p style={{ fontSize: 28, fontWeight: 800, color: blue, letterSpacing: '-0.03em' }}>{repop.households?.toLocaleString() || ''}</p>
                     <p style={{ fontSize: 11, color: t3, marginTop: 4 }}>세대</p>
@@ -4040,7 +4040,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             ) : (
               <FadeUpToss inView={true} delay={0.1}>
                 <div style={{ display: 'grid', gridTemplateColumns: overviewResidentPop > 0 ? '1fr' : '1fr', gap: 12, marginBottom: 20 }}>
-                  <div className={dark ? 'glass-card light-sweep' : 'glass-card-light'} style={{ padding: '16px 18px' }}>
+                  <div className={dark ? 'glass-card light-sweep' : 'glass-card-light'} style={{ padding: '20px' }}>
                     <p style={{ fontSize: 12, color: t3, marginBottom: 6 }}>주거인구</p>
                     {overviewResidentPop > 0 ? (
                       <>
@@ -4057,7 +4057,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             {/* 집객시설 */}
             {facilities.length > 0 && (
               <FadeUpToss inView={true} delay={0.2}>
-                <div style={{ background: cardBg, borderRadius: 18, padding: '16px 18px', marginBottom: 16 }}>
+                <div style={{ background: cardBg, borderRadius: 18, padding: '16px 20px', marginBottom: 16 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                     <p style={{ fontSize: 12, color: t3 }}>주변 집객시설</p>
                     <div style={{ padding: '4px 10px', borderRadius: 8, background: infraScore >= 60 ? `${green}15` : infraScore >= 30 ? `${blue}15` : `${red}15` }}>
@@ -4123,7 +4123,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
           
           {d.opportunities?.length > 0 && (
             <FadeUpToss inView={v6} delay={0.1}>
-              <div style={{ background: cardBg, borderRadius: 22, padding: 24, marginBottom: 16 }}>
+              <div style={{ background: cardBg, borderRadius: 22, padding: 20, marginBottom: 16 }}>
                 <p style={{ fontSize: 14, color: green, fontWeight: 700, marginBottom: 16 }}>기회 요인</p>
                 {d.opportunities.map((o, i) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'flex-start', marginBottom: i < d.opportunities.length - 1 ? 14 : 0 }}>
@@ -4176,7 +4176,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             if (_newsItems.length === 0) return null;
             return (
               <FadeUpToss inView={v6} delay={0.15}>
-                <div style={{ background: `${green}08`, borderRadius: 22, padding: 24, marginBottom: 16, border: `1px solid ${green}20` }}>
+                <div style={{ background: `${green}08`, borderRadius: 22, padding: 20, marginBottom: 16, border: `1px solid ${green}20` }}>
                   <p style={{ fontSize: 14, color: green, fontWeight: 700, marginBottom: 16 }}>실시간 뉴스 기반 기회</p>
                   {_newsItems.map((n, i) => (
                     <div key={i} style={{ marginBottom: i < _newsItems.length - 1 ? 14 : 0 }}>
@@ -4197,7 +4197,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
           
           {d.risks?.length > 0 && (
             <FadeUpToss inView={v6} delay={0.25}>
-              <div style={{ background: cardBg, borderRadius: 22, padding: 24 }}>
+              <div style={{ background: cardBg, borderRadius: 22, padding: 20 }}>
                 <p style={{ fontSize: 14, color: red, fontWeight: 700, marginBottom: 16 }}>리스크 요인</p>
                 {d.risks.map((r, i) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'flex-start', marginBottom: i < d.risks.length - 1 ? 14 : 0 }}>
@@ -4214,7 +4214,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
           {/* Step 7: 업종별 업소 현황 (storSttus) */}
           {cd?.apis?.storSttus?.data && Array.isArray(cd.apis.storSttus.data) && cd.apis.storSttus.data.length > 0 && (
             <FadeUpToss inView={v6} delay={0.35}>
-              <div style={{ background: cardBg, borderRadius: 18, padding: '16px 18px', marginTop: 20 }}>
+              <div style={{ background: cardBg, borderRadius: 18, padding: '16px 20px', marginTop: 16 }}>
                 <p style={{ fontSize: 12, color: t3, marginBottom: 10 }}>업종별 업소 현황</p>
                 {cd.apis.storSttus.data.slice(0, 6).map((st, sti) => {
                   const name = st.indsClsNm || st.tpbizNm || st.indsNm || st.indsMclsNm || '';
@@ -4287,7 +4287,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
       
 
       {/* ━━━ 13. 출처 통합 + 빈크래프트 CTA ━━━ */}
-      <div ref={r8} style={{ ...sec, minHeight: 'auto', paddingBottom: 80 }}>
+      <div ref={r8} style={{ ...sec, minHeight: 'auto' }}>
         <FadeUpToss inView={v8}>
           {/* 출처 확인 토글 버튼 */}
           <div
@@ -4309,7 +4309,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             </div>
           </div>
           {showSourcesExpanded && (
-            <div style={{ background: cardBg, borderRadius: 22, padding: 24, marginBottom: 24, animation: 'fadeIn 0.3s ease' }}>
+            <div style={{ background: cardBg, borderRadius: 22, padding: 20, marginBottom: 20, animation: 'fadeIn 0.3s ease' }}>
               <p style={{ fontSize: 12, color: t3, marginBottom: 12 }}>카드별 데이터 출처</p>
               <div style={{ fontSize: 13, color: t3, lineHeight: 2.2 }}>
                 <p><span style={{ color: t2, fontWeight: 600 }}>상권개요</span> — 소상공인365, 나이스비즈맵, 카카오맵, 네이버</p>
