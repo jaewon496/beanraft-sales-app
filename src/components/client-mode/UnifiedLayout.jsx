@@ -2415,22 +2415,36 @@ export default function UnifiedLayout({
       className="unified-layout-root"
     >
       {/* ── Cafe Map Modal ── */}
+      <AnimatePresence>
       {showCafeMap && collectedData?.coordinates && (
-        <div
+        <motion.div
+          key="cafe-map-backdrop"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.3, ease: 'easeOut' }}
           onClick={() => setShowCafeMap(false)}
           style={{
             position: 'fixed', inset: 0, zIndex: 10000,
             background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
+            willChange: 'opacity',
           }}
         >
-          <div
+          <motion.div
+            key="cafe-map-panel"
+            initial={{ opacity: 0, transform: 'translateY(40px) translateZ(0)' }}
+            animate={{ opacity: 1, transform: 'translateY(0px) translateZ(0)' }}
+            exit={{ opacity: 0, transform: 'translateY(40px) translateZ(0)' }}
+            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
             onClick={e => e.stopPropagation()}
             style={{
               width: '90vw', maxWidth: 600, height: '70vh',
               background: '#1a1a2e', borderRadius: 16,
               display: 'flex', flexDirection: 'column', overflow: 'hidden',
               boxShadow: '0 16px 48px rgba(0,0,0,0.4)',
+              willChange: 'transform, opacity',
+              backfaceVisibility: 'hidden',
             }}
           >
             {/* Header */}
@@ -2496,7 +2510,7 @@ export default function UnifiedLayout({
                             background: isSelected ? 'rgba(255,255,255,0.12)' : 'transparent',
                             border: isSelected ? '1px solid rgba(255,255,255,0.25)' : '1px solid transparent',
                             opacity: isDimmed ? 0.4 : 1,
-                            transition: 'all 0.2s ease',
+                            transition: 'opacity 0.3s ease, background 0.3s ease, border-color 0.3s ease',
                           }}
                         >
                           <div style={{ width: 8, height: 8, borderRadius: '50%', background: item.color }} />
@@ -2519,10 +2533,11 @@ export default function UnifiedLayout({
               }
             `}</style>
             {/* Map container */}
-            <div id="unified-cafe-map-container" style={{ flex: 1, minHeight: 0 }} />
-          </div>
-        </div>
+            <div id="unified-cafe-map-container" style={{ flex: 1, minHeight: 0, transform: 'translateZ(0)' }} />
+          </motion.div>
+        </motion.div>
       )}
+      </AnimatePresence>
       {/* ── Background image (blurred) ── */}
       <div
         style={{
