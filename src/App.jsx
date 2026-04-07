@@ -10272,7 +10272,7 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
              const sclsNm = (i.indsSclsNm || '').toLowerCase();
              const bizNm = (i.bizesNm || '').toLowerCase();
              if (NOT_CAFE_KEYWORDS.some(kw => bizNm.includes(kw) || sclsNm.includes(kw))) return false;
-             const isCafe = mclsCd === 'Q12' || mclsNm.includes('커피') ||
+             const isCafe = mclsCd === 'I212' || mclsNm.includes('커피') ||
                sclsNm.includes('카페') || sclsNm.includes('커피') || sclsNm.includes('coffee') ||
                bizNm.includes('카페') || bizNm.includes('커피') || bizNm.includes('coffee') ||
                bizNm.includes('cafe') || bizNm.includes('빽다방') || bizNm.includes('메가mgc') ||
