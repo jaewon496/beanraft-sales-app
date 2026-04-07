@@ -1,7 +1,8 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import CardTemplate from './CardTemplate';
 import { COLORS, TIMING, BLUR, LAYOUT } from './constants';
+import { mapCollectedDataToCards } from './dataMapper';
 
 // ─── Naver Map SDK Loader (uses global script from index.html, never loads a second script) ───
 let naverSDKLoadPromise = null;
@@ -543,10 +544,792 @@ const ChartMixed = ({ data }) => {
   );
 };
 
+// ─── Card 1: Big Number + Mini Donut ───
+const ChartBigNumberDonut = ({ data }) => {
+  const hasData = data && typeof data.bigNumber === 'number';
+  const bigNum = hasData ? data.bigNumber : 330;
+  const unit = data?.unit || '개';
+  const subtitle = data?.subtitle || '';
+  const segments = data?.segments || [
+    { name: '프랜차이즈', pct: 25, color: '#1B2A4A' },
+    { name: '개인카페', pct: 55, color: '#6B7280' },
+    { name: '베이커리', pct: 20, color: '#374B78' },
+  ];
+
+  const r = 32;
+  const cx = 46;
+  const cy = 46;
+  const circumference = 2 * Math.PI * r;
+  const totalPct = segments.reduce((s, seg) => s + (seg.pct || 0), 0) || 100;
+
+  let cumulativeOffset = 0;
+  const segmentsWithOffset = segments.map((seg) => {
+    const pctNorm = (seg.pct || 0) / totalPct;
+    const s = { ...seg, pctNorm, offset: -cumulativeOffset };
+    cumulativeOffset += pctNorm * circumference;
+    return s;
+  });
+
+  const MINI_COLORS = ['#1B2A4A', '#6B7280', '#374B78', '#5A6478', '#283755'];
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 20, padding: '8px 0', minHeight: 120 }}>
+      {/* Left: Big Number */}
+      <div style={{ flex: '1 1 auto', minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+          <span style={{
+            fontSize: 52, fontWeight: 800, color: COLORS.white,
+            lineHeight: 1, letterSpacing: '-2px',
+            fontFamily: "'Pretendard', -apple-system, sans-serif",
+          }}>{bigNum.toLocaleString('ko-KR')}</span>
+          <span style={{ fontSize: 18, fontWeight: 600, color: COLORS.textMuted }}>{unit}</span>
+        </div>
+        {subtitle && (
+          <p style={{
+            fontSize: 12, color: COLORS.textMuted, marginTop: 8, lineHeight: 1.4,
+            fontFamily: "'Pretendard', -apple-system, sans-serif",
+          }}>{subtitle}</p>
+        )}
+      </div>
+      {/* Right: Mini Donut */}
+      <div style={{ flex: '0 0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+        <svg width="92" height="92" viewBox="0 0 92 92">
+          <circle cx={cx} cy={cy} r={r} fill="none" stroke={COLORS.graphBgBar} strokeWidth={14}/>
+          {segmentsWithOffset.map((seg, i) => (
+            <circle key={i} cx={cx} cy={cy} r={r} fill="none"
+              stroke={seg.color || MINI_COLORS[i % MINI_COLORS.length]}
+              strokeWidth={14}
+              strokeDasharray={`${seg.pctNorm * circumference} ${circumference}`}
+              strokeDashoffset={seg.offset}
+              opacity={0.85}
+              transform={`rotate(-90 ${cx} ${cy})`}
+            />
+          ))}
+        </svg>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          {segments.slice(0, 3).map((seg, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span style={{
+                width: 6, height: 6, borderRadius: '50%',
+                background: seg.color || MINI_COLORS[i % MINI_COLORS.length],
+                display: 'inline-block', opacity: 0.8,
+              }}/>
+              <span style={{ fontSize: 9, color: COLORS.textMuted, fontFamily: "'Pretendard', sans-serif" }}>
+                {seg.name} {Math.round((seg.pct / totalPct) * 100)}%
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── Card 2: Semi-circle Gauge + Age Grid ───
+const ChartGaugeGrid = ({ data }) => {
+  const male = data?.male ?? 43;
+  const female = data?.female ?? 57;
+  const ageGroups = data?.ageGroups || [
+    { name: '20대', pct: 22 },
+    { name: '30대', pct: 34 },
+    { name: '40대', pct: 24 },
+    { name: '50대+', pct: 20 },
+  ];
+
+  const maleAngle = (male / 100) * 180;
+  // Semi-circle gauge: left = male (blue), right = female (pink)
+  const r = 50;
+  const cx = 90;
+  const cy = 60;
+  const circumHalf = Math.PI * r; // half circle
+
+  const maleArc = (male / 100) * circumHalf;
+  const femaleArc = (female / 100) * circumHalf;
+
+  // SVG arc path for semi-circle
+  const describeArc = (startAngle, endAngle) => {
+    const startRad = (startAngle * Math.PI) / 180;
+    const endRad = (endAngle * Math.PI) / 180;
+    const x1 = cx + r * Math.cos(Math.PI + startRad);
+    const y1 = cy - r * Math.sin(Math.PI + startRad);
+    const x2 = cx + r * Math.cos(Math.PI + endRad);
+    const y2 = cy - r * Math.sin(Math.PI + endRad);
+    const largeArc = (endAngle - startAngle) > 180 ? 1 : 0;
+    return `M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2}`;
+  };
+
+  const maxPct = Math.max(...ageGroups.map(a => a.pct), 1);
+
+  return (
+    <div style={{ padding: '4px 0' }}>
+      {/* Semi-circle gauge */}
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+        <svg width="180" height="80" viewBox="0 0 180 80">
+          {/* Background arc */}
+          <path d={describeArc(0, 180)} fill="none" stroke={COLORS.graphBgBar} strokeWidth={16} strokeLinecap="round"/>
+          {/* Male arc (left side, from 0) */}
+          <path d={describeArc(0, maleAngle)} fill="none" stroke="#4A7CCC" strokeWidth={16} strokeLinecap="round" opacity={0.85}/>
+          {/* Female arc (right side) */}
+          <path d={describeArc(maleAngle, 180)} fill="none" stroke="#CC6B8A" strokeWidth={16} strokeLinecap="round" opacity={0.85}/>
+          {/* Labels */}
+          <text x={28} y={75} textAnchor="middle" fill="#4A7CCC" fontSize={10} fontWeight={700} fontFamily="'Pretendard', sans-serif">{male}%</text>
+          <text x={90} y={48} textAnchor="middle" fill={COLORS.textMuted} fontSize={8} fontFamily="'Pretendard', sans-serif">남 / 여</text>
+          <text x={152} y={75} textAnchor="middle" fill="#CC6B8A" fontSize={10} fontWeight={700} fontFamily="'Pretendard', sans-serif">{female}%</text>
+        </svg>
+      </div>
+      {/* Age group grid */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '0 4px' }}>
+        {ageGroups.map((ag, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{
+              fontSize: 11, fontWeight: 600, color: COLORS.textSecondary, minWidth: 40,
+              fontFamily: "'Pretendard', sans-serif",
+            }}>{ag.name}</span>
+            <div style={{
+              flex: 1, height: 14, borderRadius: 7,
+              background: COLORS.graphBgBar, overflow: 'hidden',
+            }}>
+              <div style={{
+                width: `${(ag.pct / maxPct) * 100}%`, height: '100%', borderRadius: 7,
+                background: i === 0 ? '#374B78' : i === 1 ? '#1B2A4A' : i === 2 ? '#5A6478' : '#6B7280',
+                opacity: 0.85, transition: 'width 0.6s ease',
+              }}/>
+            </div>
+            <span style={{
+              fontSize: 11, fontWeight: 700, color: COLORS.white, minWidth: 32, textAlign: 'right',
+              fontFamily: "'Pretendard', sans-serif",
+            }}>{ag.pct}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// ─── Card 3: Ranking List ───
+const ChartRankingList = ({ data }) => {
+  const items = data?.items || [
+    { name: '스타벅스', count: 5 },
+    { name: '투썸플레이스', count: 3 },
+    { name: '이디야', count: 3 },
+    { name: '메가커피', count: 2 },
+    { name: '빽다방', count: 1 },
+  ];
+  const maxCount = Math.max(...items.map(d => d.count), 1);
+  const RANK_COLORS = ['#C9A84C', '#8C8C96', '#7C6E4E', '#5A6478', '#5A6478'];
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '4px 0' }}>
+      {items.slice(0, 5).map((item, i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {/* Rank number */}
+          <span style={{
+            fontSize: i === 0 ? 22 : 16, fontWeight: 800, minWidth: 28, textAlign: 'center',
+            color: i === 0 ? '#C9A84C' : COLORS.textMuted,
+            fontFamily: "'Pretendard', -apple-system, sans-serif",
+            lineHeight: 1,
+          }}>{i + 1}</span>
+          {/* Brand name */}
+          <span style={{
+            fontSize: 13, fontWeight: i === 0 ? 700 : 500, minWidth: 80,
+            color: i === 0 ? COLORS.white : COLORS.textSecondary,
+            fontFamily: "'Pretendard', sans-serif",
+          }}>{item.name}</span>
+          {/* Bar */}
+          <div style={{
+            flex: 1, height: i === 0 ? 18 : 14, borderRadius: 7,
+            background: COLORS.graphBgBar, overflow: 'hidden',
+          }}>
+            <div style={{
+              width: `${(item.count / maxCount) * 100}%`, height: '100%', borderRadius: 7,
+              background: i === 0
+                ? 'linear-gradient(90deg, #C9A84C, #E8D48B)'
+                : RANK_COLORS[i] || '#5A6478',
+              opacity: i === 0 ? 0.9 : 0.6,
+              transition: 'width 0.6s ease',
+            }}/>
+          </div>
+          {/* Count */}
+          <span style={{
+            fontSize: 12, fontWeight: 700, minWidth: 32, textAlign: 'right',
+            color: i === 0 ? '#C9A84C' : COLORS.textMuted,
+            fontFamily: "'Pretendard', sans-serif",
+          }}>{item.count}개</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// ─── Card 4: Comparison Split ───
+const ChartComparisonSplit = ({ data }) => {
+  const left = data?.left || { label: '개인카페', count: 35, metrics: [] };
+  const right = data?.right || { label: '프랜차이즈', count: 12, metrics: [] };
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'stretch', gap: 0, padding: '8px 0', minHeight: 110 }}>
+      {/* Left side */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '8px 4px' }}>
+        <span style={{
+          fontSize: 11, fontWeight: 600, color: COLORS.textMuted, marginBottom: 6,
+          fontFamily: "'Pretendard', sans-serif",
+        }}>{left.label}</span>
+        <span style={{
+          fontSize: 40, fontWeight: 800, color: COLORS.white, lineHeight: 1,
+          fontFamily: "'Pretendard', -apple-system, sans-serif",
+          letterSpacing: '-1px',
+        }}>{(left.count || 0).toLocaleString('ko-KR')}</span>
+        <span style={{ fontSize: 13, color: COLORS.textMuted, marginTop: 2 }}>개</span>
+        {(left.metrics || []).length > 0 && (
+          <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
+            {left.metrics.map((m, i) => (
+              <span key={i} style={{ fontSize: 10, color: COLORS.textMuted, fontFamily: "'Pretendard', sans-serif" }}>
+                {m.label}: {m.value}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+      {/* Divider */}
+      <div style={{
+        width: 1, alignSelf: 'stretch',
+        background: 'linear-gradient(180deg, transparent 0%, rgba(255,255,255,0.15) 30%, rgba(255,255,255,0.15) 70%, transparent 100%)',
+        margin: '8px 0',
+      }}/>
+      {/* Right side */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '8px 4px' }}>
+        <span style={{
+          fontSize: 11, fontWeight: 600, color: COLORS.textMuted, marginBottom: 6,
+          fontFamily: "'Pretendard', sans-serif",
+        }}>{right.label}</span>
+        <span style={{
+          fontSize: 40, fontWeight: 800, color: COLORS.textMuted, lineHeight: 1,
+          fontFamily: "'Pretendard', -apple-system, sans-serif",
+          letterSpacing: '-1px',
+        }}>{(right.count || 0).toLocaleString('ko-KR')}</span>
+        <span style={{ fontSize: 13, color: COLORS.textMuted, marginTop: 2 }}>개</span>
+        {(right.metrics || []).length > 0 && (
+          <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
+            {right.metrics.map((m, i) => (
+              <span key={i} style={{ fontSize: 10, color: COLORS.textMuted, fontFamily: "'Pretendard', sans-serif" }}>
+                {m.label}: {m.value}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ─── Card 5: Big Number + Mini Trend (매출 분석) ───
+const ChartBigNumberTrend = ({ data }) => {
+  const hasData = data && Array.isArray(data.values) && data.values.length > 0;
+  const values = hasData ? data.values : [1950, 1870, 2010, 2080, 2150, 2200];
+  const labels = hasData ? (data.labels || []) : ['11월', '12월', '1월', '2월', '3월', '4월'];
+  const bigNumber = hasData ? (data.bigNumber || values[values.length - 1]) : 2200;
+  const unit = (data && data.unit) || '만원';
+
+  const fmtBig = (n) => {
+    if (n === null || n === undefined || isNaN(n)) return '-';
+    return Math.round(n).toLocaleString('ko-KR');
+  };
+
+  const sparkW = 260;
+  const sparkH = 40;
+  const maxV = Math.max(...values, 1);
+  const minV = Math.min(...values);
+  const range = maxV - minV || 1;
+  const xStep = values.length > 1 ? sparkW / (values.length - 1) : sparkW;
+  const points = values.map((v, i) => [30 + i * xStep, 10 + sparkH - ((v - minV) / range) * sparkH]);
+  const curveD = smoothPath(points);
+
+  return (
+    <div style={{ padding: '24px 20px 16px', textAlign: 'center' }}>
+      <div style={{ fontSize: 48, fontWeight: 800, color: '#3182F6', lineHeight: 1.1, letterSpacing: '-0.02em', fontFamily: "'Pretendard', -apple-system, sans-serif" }}>
+        {fmtBig(bigNumber)}<span style={{ fontSize: 24, fontWeight: 600, marginLeft: 4 }}>{unit}</span>
+      </div>
+      <div style={{ fontSize: 12, color: COLORS.textMuted, marginTop: 6, marginBottom: 16 }}>
+        월평균 매출
+      </div>
+      <svg width="100%" height="60" viewBox={`0 0 ${sparkW + 60} ${sparkH + 20}`} preserveAspectRatio="xMidYMid meet" style={{ overflow: 'visible' }}>
+        <defs>
+          <linearGradient id="sparkTrendFade" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#3182F6" stopOpacity="0.3"/>
+            <stop offset="100%" stopColor="#3182F6" stopOpacity="0.02"/>
+          </linearGradient>
+        </defs>
+        <path d={curveD + ` L${points[points.length-1][0]},${sparkH + 12} L${points[0][0]},${sparkH + 12} Z`} fill="url(#sparkTrendFade)" />
+        <path d={curveD} fill="none" stroke="#3182F6" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" opacity={0.8}/>
+        {points.map((p, i) => (
+          <circle key={i} cx={p[0]} cy={p[1]} r={2.5} fill="#3182F6" opacity={i === points.length - 1 ? 1 : 0.5}/>
+        ))}
+        {labels.map((lbl, i) => (
+          <text key={i} x={points[i]?.[0] || 0} y={sparkH + 20} textAnchor="middle" fill={COLORS.textMuted} fontSize={7} fontFamily="'Pretendard', -apple-system, sans-serif">{lbl}</text>
+        ))}
+      </svg>
+    </div>
+  );
+};
+
+// ─── Card 6: Heatmap Blocks (유동인구) ───
+const ChartHeatmapBlocks = ({ data }) => {
+  const hasData = data && Array.isArray(data.values) && data.values.length > 0;
+  const values = hasData ? data.values : [3200, 5800, 7100, 6400, 4800, 2100];
+  const labels = hasData ? (data.labels || []) : ['6~9시', '9~12시', '12~15시', '15~18시', '18~21시', '21~24시'];
+  const maxV = Math.max(...values, 1);
+
+  const getBlockColor = (value) => {
+    const ratio = value / maxV;
+    const opacity = 0.15 + ratio * 0.75;
+    return `rgba(49,130,246,${opacity.toFixed(2)})`;
+  };
+
+  const fmtCount = (n) => {
+    if (n >= 10000) return (n / 10000).toFixed(1) + '만';
+    if (n >= 1000) return (n / 1000).toFixed(1) + '천';
+    return String(n);
+  };
+
+  return (
+    <div style={{ padding: '20px 16px 16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+        {values.map((val, i) => {
+          const ratio = val / maxV;
+          return (
+            <div key={i} style={{
+              background: getBlockColor(val),
+              borderRadius: 12,
+              padding: '16px 10px',
+              textAlign: 'center',
+              border: '1px solid rgba(49,130,246,0.15)',
+            }}>
+              <div style={{ fontSize: 11, color: ratio > 0.6 ? 'rgba(255,255,255,0.9)' : COLORS.textMuted, marginBottom: 6, fontWeight: 500 }}>
+                {labels[i] || ''}
+              </div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: ratio > 0.6 ? '#FFFFFF' : '#3182F6', letterSpacing: '-0.01em' }}>
+                {fmtCount(val)}
+              </div>
+              <div style={{ fontSize: 10, color: ratio > 0.6 ? 'rgba(255,255,255,0.6)' : COLORS.textMuted, marginTop: 4 }}>
+                {Math.round(ratio * 100)}%
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// ─── Card 7: Price Cards (임대/창업 정보) ───
+const ChartPriceCards = ({ data }) => {
+  const hasData = data && Array.isArray(data.items) && data.items.length > 0;
+  const items = hasData ? data.items : [
+    { label: '보증금', value: 5000 },
+    { label: '월임대', value: 320 },
+    { label: '권리금', value: 3500 },
+    { label: '인테리어', value: 4000 },
+  ];
+  const totalCost = (data && data.totalCost) || items.reduce((s, it) => s + (it.value || 0), 0);
+
+  const fmtWon = (n) => {
+    if (n === null || n === undefined || isNaN(n)) return '-';
+    if (n >= 10000) return (n / 10000).toFixed(1) + '억';
+    return Math.round(n).toLocaleString('ko-KR') + '만';
+  };
+
+  return (
+    <div style={{ padding: '20px 16px 16px' }}>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: `repeat(${Math.min(items.length, 4)}, 1fr)`,
+        gap: 8,
+        marginBottom: 12,
+      }}>
+        {items.map((item, i) => (
+          <div key={i} style={{
+            background: 'rgba(255,255,255,0.06)',
+            borderRadius: 12,
+            padding: '14px 8px',
+            textAlign: 'center',
+            border: '1px solid rgba(255,255,255,0.08)',
+          }}>
+            <div style={{ fontSize: 11, color: COLORS.textMuted, marginBottom: 8, fontWeight: 500 }}>
+              {item.label}
+            </div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: COLORS.white, letterSpacing: '-0.01em' }}>
+              {fmtWon(item.value)}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{
+        background: 'rgba(49,130,246,0.1)',
+        borderRadius: 12,
+        padding: '12px 16px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        border: '1px solid rgba(49,130,246,0.2)',
+      }}>
+        <span style={{ fontSize: 13, color: COLORS.textSecondary, fontWeight: 500 }}>총 예상 비용</span>
+        <span style={{ fontSize: 20, fontWeight: 700, color: '#3182F6', letterSpacing: '-0.01em' }}>{fmtWon(totalCost)}</span>
+      </div>
+    </div>
+  );
+};
+
+// ─── Card 8: Split List (기회 & 리스크) ───
+const ChartSplitList = ({ data }) => {
+  const hasData = data && (data.opportunities || data.risks);
+  const opportunities = hasData ? (data.opportunities || []) : [
+    { title: '높은 유동인구', detail: '일 평균 2만명 이상' },
+    { title: '오피스 밀집', detail: '점심/오후 수요 높음' },
+    { title: '역세권', detail: '도보 3분 거리' },
+  ];
+  const risks = hasData ? (data.risks || []) : [
+    { title: '높은 경쟁 강도', detail: '카페 47개 과밀 상권' },
+    { title: '높은 임대료', detail: '월 320만원 수준' },
+  ];
+
+  const renderItem = (item, borderColor) => {
+    const title = typeof item === 'string' ? item : (item.title || item.label || '');
+    const detail = typeof item === 'object' ? (item.detail || item.description || '') : '';
+    return (
+      <div style={{
+        borderLeft: `3px solid ${borderColor}`,
+        padding: '8px 10px',
+        marginBottom: 6,
+        borderRadius: '0 8px 8px 0',
+        background: `${borderColor}0D`,
+      }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: COLORS.white, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: borderColor, flexShrink: 0 }} />
+          {title}
+        </div>
+        {detail && (
+          <div style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 3, paddingLeft: 12, lineHeight: 1.4 }}>
+            {detail}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ padding: '20px 16px 16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1px 1fr', gap: 12 }}>
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: '#34D399', marginBottom: 10, letterSpacing: '0.02em' }}>
+            기회 요인
+          </div>
+          {opportunities.map((item, i) => (
+            <React.Fragment key={i}>{renderItem(item, '#34D399')}</React.Fragment>
+          ))}
+        </div>
+        <div style={{ background: 'rgba(255,255,255,0.1)', width: 1 }} />
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: '#F87171', marginBottom: 10, letterSpacing: '0.02em' }}>
+            리스크 요인
+          </div>
+          {risks.map((item, i) => (
+            <React.Fragment key={i}>{renderItem(item, '#F87171')}</React.Fragment>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── Card 9: Circular Progress (배달 분석) ───
+const ChartCircularProgress = ({ data }) => {
+  const hasData = data && Array.isArray(data.items) && data.items.length > 0;
+  const items = hasData ? data.items : [
+    { label: '\uCE58\uD0A8', value: 28 }, { label: '\uD55C\uC2DD', value: 22 }, { label: '\uBD84\uC2DD', value: 18 },
+    { label: '\uC911\uC2DD', value: 14 }, { label: '\uCE74\uD398', value: 8 },
+  ];
+  const r = 20;
+  const circumference = 2 * Math.PI * r;
+  const cols = items.length;
+  const cellW = 56;
+  const totalW = cols * cellW;
+  const svgW = Math.max(totalW + 20, 300);
+  return (
+    <svg width="100%" height="100%" viewBox={`0 0 ${svgW} 110`} preserveAspectRatio="xMidYMid meet" style={{ overflow: 'visible' }}>
+      {items.map((item, i) => {
+        const cx = (svgW - totalW) / 2 + i * cellW + cellW / 2;
+        const cy = 38;
+        const pct = Math.min(item.value, 100) / 100;
+        const dash = pct * circumference;
+        const isHighlight = item.label === '\uCE74\uD398';
+        const strokeColor = isHighlight ? '#3182F6' : COLORS.graphMuted;
+        const strokeOpacity = isHighlight ? 0.9 : 0.6;
+        return (
+          <g key={i}>
+            <circle cx={cx} cy={cy} r={r} fill="none" stroke={COLORS.graphBgBar} strokeWidth={5} />
+            <circle cx={cx} cy={cy} r={r} fill="none" stroke={strokeColor} strokeWidth={5}
+              strokeDasharray={`${dash} ${circumference}`}
+              strokeLinecap="round" opacity={strokeOpacity}
+              transform={`rotate(-90 ${cx} ${cy})`}
+              style={{ transition: 'stroke-dasharray 0.4s ease' }}
+            />
+            <text x={cx} y={cy + 4} textAnchor="middle" fill={COLORS.white} fontSize={9} fontWeight={700}>{item.value}%</text>
+            <text x={cx} y={78} textAnchor="middle" fill={COLORS.textMuted} fontSize={7} fontFamily="'Pretendard', -apple-system, sans-serif">{item.label}</text>
+            {isHighlight && <rect x={cx - 14} y={86} width={28} height={14} rx={7} fill="rgba(49,130,246,0.15)" />}
+            {isHighlight && <text x={cx} y={96} textAnchor="middle" fill="#3182F6" fontSize={6} fontWeight={600}>{'\uD604\uC7AC'}</text>}
+          </g>
+        );
+      })}
+    </svg>
+  );
+};
+
+// ─── Card 10: Word Cloud (SNS 트렌드) ───
+const ChartWordCloud = ({ data }) => {
+  const hasData = data && data.keywords && data.keywords.length > 0;
+  const defaultKeywords = [
+    { text: '\uCE74\uD398\uCC3D\uC5C5', weight: 100 }, { text: '\uB514\uC800\uD2B8', weight: 88 },
+    { text: '\uC2A0\uADDC\uC624\uD508', weight: 82 }, { text: '\uBE0C\uB7F0\uCE58', weight: 75 },
+    { text: '\uC544\uBA54\uB9AC\uCE74\uB178', weight: 70 }, { text: '\uB8E8\uD504\uD0D1', weight: 65 },
+    { text: '\uC778\uD14C\uB9AC\uC5B4', weight: 60 }, { text: '\uBD84\uC704\uAE30\uC88B\uC740', weight: 56 },
+    { text: '\uC2A4\uD398\uC15C\uD2F0', weight: 52 }, { text: '\uD14C\uC774\uD06C\uC544\uC6C3', weight: 48 },
+    { text: '\uC0C1\uAD8C\uBD84\uC11D', weight: 44 }, { text: '\uD504\uB79C\uCC28\uC774\uC988', weight: 40 },
+    { text: '\uC6D4\uC138\uAD8C', weight: 36 }, { text: '\uC720\uB3D9\uC778\uAD6C', weight: 33 },
+    { text: '\uBC30\uB2EC\uB9E4\uCD9C', weight: 30 }, { text: '\uC778\uC2A4\uD0C0\uADF8\uB7A8', weight: 28 },
+    { text: '\uB124\uC774\uBC84\uD50C\uB808\uC774\uC2A4', weight: 25 }, { text: '\uC8FC\uCC28', weight: 22 },
+    { text: '\uC5ED\uC138\uAD8C', weight: 20 }, { text: '\uD558\uB4DC\uC6E8\uC5B4', weight: 18 },
+  ];
+  const keywords = hasData ? data.keywords : defaultKeywords;
+  const displayCount = Math.min(keywords.length, 20);
+  const sentimentPos = hasData && data.sentimentPos != null ? data.sentimentPos : 72;
+  const sentimentNeg = 100 - sentimentPos;
+
+  // Generate scattered positions for up to 20 keywords
+  const positions = [
+    { x: 55, y: 18 }, { x: 160, y: 12 }, { x: 270, y: 20 }, { x: 100, y: 35 },
+    { x: 215, y: 32 }, { x: 310, y: 40 }, { x: 35, y: 48 }, { x: 140, y: 52 },
+    { x: 245, y: 50 }, { x: 70, y: 68 }, { x: 185, y: 70 }, { x: 290, y: 65 },
+    { x: 120, y: 82 }, { x: 230, y: 85 }, { x: 40, y: 88 }, { x: 310, y: 82 },
+    { x: 170, y: 92 }, { x: 80, y: 98 }, { x: 260, y: 96 }, { x: 150, y: 30 },
+  ];
+
+  const maxWeight = Math.max(...keywords.slice(0, displayCount).map(k => k.weight), 1);
+
+  // Generate unique float animation params per keyword
+  const floatParams = useMemo(() => {
+    return Array.from({ length: displayCount }, (_, i) => ({
+      yOffset: 2 + (i % 5) * 0.8,
+      xOffset: 1.5 + (i % 4) * 0.5,
+      duration: 3 + (i % 7) * 0.6,
+      delay: (i * 0.3) % 3,
+    }));
+  }, [displayCount]);
+
+  return (
+    <svg width="100%" height="100%" viewBox="0 0 340 150" preserveAspectRatio="xMidYMid meet" style={{ overflow: 'visible' }}>
+      <defs>
+        <style>{`
+          @keyframes wcFloat0 { 0%,100%{transform:translate(0,0)} 33%{transform:translate(1.5px,-2.5px)} 66%{transform:translate(-1px,2px)} }
+          @keyframes wcFloat1 { 0%,100%{transform:translate(0,0)} 25%{transform:translate(-1.8px,2px)} 75%{transform:translate(1.2px,-2.8px)} }
+          @keyframes wcFloat2 { 0%,100%{transform:translate(0,0)} 40%{transform:translate(2px,1.5px)} 80%{transform:translate(-1.5px,-2px)} }
+          @keyframes wcFloat3 { 0%,100%{transform:translate(0,0)} 30%{transform:translate(-1px,-2.2px)} 60%{transform:translate(1.8px,1.8px)} }
+          @keyframes wcFloat4 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(1.2px,2.5px)} }
+        `}</style>
+      </defs>
+      {keywords.slice(0, displayCount).map((kw, i) => {
+        const pos = positions[i % positions.length];
+        const sizeRatio = kw.weight / maxWeight;
+        const fontSize = 5 + sizeRatio * 9;
+        const opacity = 0.35 + sizeRatio * 0.55;
+        const fp = floatParams[i];
+        const animName = `wcFloat${i % 5}`;
+        const animDur = `${fp.duration}s`;
+        const animDelay = `${fp.delay}s`;
+        return (
+          <text key={i} x={pos.x} y={pos.y} textAnchor="middle"
+            fill={COLORS.white} fontSize={fontSize} fontWeight={sizeRatio > 0.6 ? 700 : sizeRatio > 0.3 ? 600 : 400}
+            opacity={opacity} fontFamily="'Pretendard', -apple-system, sans-serif"
+            style={{ animation: `${animName} ${animDur} ease-in-out ${animDelay} infinite` }}
+          >{kw.text}</text>
+        );
+      })}
+      <rect x={40} y={118} width={260} height={7} rx={3.5} fill={COLORS.graphBgBar} />
+      <rect x={40} y={118} width={260 * sentimentPos / 100} height={7} rx={3.5} fill="rgba(52,199,89,0.7)" />
+      <rect x={40 + 260 * sentimentPos / 100} y={118} width={260 * sentimentNeg / 100} height={7} rx={3.5} fill="rgba(255,69,58,0.5)" />
+      <text x={40} y={138} fill="rgba(52,199,89,0.8)" fontSize={7} fontWeight={600} fontFamily="'Pretendard', -apple-system, sans-serif">{'\uAE0D\uC815'} {sentimentPos}%</text>
+      <text x={300} y={138} textAnchor="end" fill="rgba(255,69,58,0.7)" fontSize={7} fontWeight={600} fontFamily="'Pretendard', -apple-system, sans-serif">{'\uBD80\uC815'} {sentimentNeg}%</text>
+    </svg>
+  );
+};
+
+// ─── Card 11: Weather Impact (날씨 영향) ───
+const WeatherSvgIcon = ({ type, x, y, color }) => {
+  switch (type) {
+    case 'sun':
+      return (
+        <g>
+          <circle cx={x} cy={y} r={6} fill="none" stroke={color} strokeWidth={1.2} />
+          {[0,45,90,135,180,225,270,315].map(a => {
+            const rad = a * Math.PI / 180;
+            return <line key={a} x1={x+8*Math.cos(rad)} y1={y+8*Math.sin(rad)} x2={x+10*Math.cos(rad)} y2={y+10*Math.sin(rad)} stroke={color} strokeWidth={1} strokeLinecap="round" />;
+          })}
+        </g>
+      );
+    case 'cloud':
+      return <path d={`M${x-8},${y+3} a5,5 0 0,1 4,-7 a6,6 0 0,1 10,0 a4,4 0 0,1 2,7 Z`} fill="none" stroke={color} strokeWidth={1.2} />;
+    case 'rain':
+      return (
+        <g>
+          <path d={`M${x-7},${y} a4,4 0 0,1 3,-5 a5,5 0 0,1 8,0 a3,3 0 0,1 2,5 Z`} fill="none" stroke={color} strokeWidth={1} />
+          <line x1={x-3} y1={y+4} x2={x-4} y2={y+8} stroke={color} strokeWidth={1} strokeLinecap="round" />
+          <line x1={x+1} y1={y+4} x2={x} y2={y+8} stroke={color} strokeWidth={1} strokeLinecap="round" />
+          <line x1={x+5} y1={y+4} x2={x+4} y2={y+8} stroke={color} strokeWidth={1} strokeLinecap="round" />
+        </g>
+      );
+    case 'snow':
+      return (
+        <g>
+          <path d={`M${x-7},${y-2} a4,4 0 0,1 3,-5 a5,5 0 0,1 8,0 a3,3 0 0,1 2,5 Z`} fill="none" stroke={color} strokeWidth={1} />
+          <text x={x-3} y={y+8} fill={color} fontSize={5} fontFamily="sans-serif">*</text>
+          <text x={x+2} y={y+7} fill={color} fontSize={4} fontFamily="sans-serif">*</text>
+          <text x={x+5} y={y+9} fill={color} fontSize={5} fontFamily="sans-serif">*</text>
+        </g>
+      );
+    default: return null;
+  }
+};
+
+const ChartWeatherImpact = ({ data }) => {
+  const hasData = data && Array.isArray(data.items) && data.items.length > 0;
+  const items = hasData ? data.items : [
+    { label: '\uB9D1\uC74C', icon: 'sun', value: 12 },
+    { label: '\uD750\uB9BC', icon: 'cloud', value: -3 },
+    { label: '\uBE44', icon: 'rain', value: -15 },
+    { label: '\uB208', icon: 'snow', value: -22 },
+  ];
+  const maxAbs = Math.max(...items.map(d => Math.abs(d.value)), 1);
+  const barMaxW = 90;
+  const centerX = 170;
+  return (
+    <svg width="100%" height="100%" viewBox="0 0 340 135" preserveAspectRatio="xMidYMid meet" style={{ overflow: 'visible' }}>
+      <line x1={centerX} y1={10} x2={centerX} y2={120} stroke={COLORS.white} strokeWidth={0.5} opacity={0.08} />
+      <text x={centerX} y={8} textAnchor="middle" fill={COLORS.textMuted} fontSize={6}>0%</text>
+      {items.map((item, i) => {
+        const y = 28 + i * 28;
+        const bW = (Math.abs(item.value) / maxAbs) * barMaxW;
+        const isPos = item.value >= 0;
+        const barX = isPos ? centerX : centerX - bW;
+        const fillColor = isPos ? 'rgba(52,199,89,0.7)' : 'rgba(255,69,58,0.5)';
+        return (
+          <g key={i}>
+            <WeatherSvgIcon type={item.icon} x={35} y={y} color={COLORS.textSecondary} />
+            <text x={60} y={y + 4} fill={COLORS.textMuted} fontSize={8} fontWeight={500} fontFamily="'Pretendard', -apple-system, sans-serif">{item.label}</text>
+            <rect x={barX} y={y - 6} width={bW} height={12} rx={4} fill={fillColor} style={{ transition: 'width 0.3s ease' }} />
+            <text x={isPos ? centerX + bW + 6 : centerX - bW - 6} y={y + 4}
+              textAnchor={isPos ? 'start' : 'end'}
+              fill={isPos ? 'rgba(52,199,89,0.9)' : 'rgba(255,69,58,0.8)'}
+              fontSize={8} fontWeight={600} fontFamily="'Pretendard', -apple-system, sans-serif">
+              {isPos ? '+' : ''}{item.value}%
+            </text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+};
+
+// ─── Card 12: Gauge Meter (경쟁 분석) ───
+const ChartGaugeMeter = ({ data }) => {
+  const hasData = data && data.score != null;
+  const score = hasData ? Math.min(Math.max(data.score, 0), 100) : 72;
+  const label = (hasData && data.label) ? data.label : '\uACBD\uC7C1 \uAC15\uB3C4';
+  const cx = 160, cy = 95, r = 70;
+  const startAngle = Math.PI, endAngle = 2 * Math.PI;
+  const totalAngle = endAngle - startAngle;
+  const describeArc = (sA, eA) => {
+    const x1 = cx + r * Math.cos(sA), y1 = cy + r * Math.sin(sA);
+    const x2 = cx + r * Math.cos(eA), y2 = cy + r * Math.sin(eA);
+    return `M ${x1},${y1} A ${r},${r} 0 ${(eA - sA) > Math.PI ? 1 : 0} 1 ${x2},${y2}`;
+  };
+  const needleAngle = startAngle + (score / 100) * totalAngle;
+  const nx = cx + (r - 10) * Math.cos(needleAngle);
+  const ny = cy + (r - 10) * Math.sin(needleAngle);
+  const scoreColor = score <= 33 ? 'rgba(52,199,89,0.9)' : score <= 66 ? 'rgba(255,204,0,0.9)' : 'rgba(255,69,58,0.9)';
+  return (
+    <svg width="100%" height="100%" viewBox="0 0 320 140" preserveAspectRatio="xMidYMid meet" style={{ overflow: 'visible' }}>
+      <defs>
+        <linearGradient id="gaugeGradCard12" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="rgba(52,199,89,0.7)" />
+          <stop offset="50%" stopColor="rgba(255,204,0,0.7)" />
+          <stop offset="100%" stopColor="rgba(255,69,58,0.7)" />
+        </linearGradient>
+      </defs>
+      <path d={describeArc(startAngle, endAngle)} fill="none" stroke={COLORS.graphBgBar} strokeWidth={14} strokeLinecap="round" />
+      <path d={describeArc(startAngle, endAngle)} fill="none" stroke="url(#gaugeGradCard12)" strokeWidth={14} strokeLinecap="round" />
+      <text x={cx - r - 5} y={cy + 16} textAnchor="middle" fill={COLORS.textMuted} fontSize={7}>0</text>
+      <text x={cx} y={cy - r + 2} textAnchor="middle" fill={COLORS.textMuted} fontSize={7}>50</text>
+      <text x={cx + r + 5} y={cy + 16} textAnchor="middle" fill={COLORS.textMuted} fontSize={7}>100</text>
+      <line x1={cx} y1={cy} x2={nx} y2={ny} stroke={COLORS.white} strokeWidth={2} strokeLinecap="round" opacity={0.8} />
+      <circle cx={cx} cy={cy} r={4} fill={COLORS.white} opacity={0.6} />
+      <text x={cx} y={cy + 28} textAnchor="middle" fill={scoreColor} fontSize={20} fontWeight={800} fontFamily="'Pretendard', -apple-system, sans-serif">{score}</text>
+      <text x={cx} y={cy + 42} textAnchor="middle" fill={COLORS.textMuted} fontSize={8} fontFamily="'Pretendard', -apple-system, sans-serif">{label}</text>
+    </svg>
+  );
+};
+
+// ─── Card 13: Score Card + Radar (AI 종합) ───
+const ChartScoreCard = ({ data }) => {
+  const hasData = data && data.overall != null;
+  const overall = hasData ? data.overall : 72;
+  const axes = hasData && data.axes ? data.axes : [
+    { label: '\uAE30\uD68C', value: 68 }, { label: '\uB9AC\uC2A4\uD06C', value: 35 },
+    { label: '\uACBD\uC7C1', value: 55 }, { label: '\uB9E4\uCD9C', value: 70 }, { label: '\uC785\uC9C0', value: 78 },
+  ];
+  const overallColor = overall >= 70 ? 'rgba(52,199,89,0.9)' : overall >= 40 ? 'rgba(255,204,0,0.9)' : 'rgba(255,69,58,0.9)';
+  const radarCx = 230, radarCy = 70, radarR = 45;
+  const n = axes.length;
+  const angleStep = (2 * Math.PI) / n;
+  const startOff = -Math.PI / 2;
+  const getPoint = (i, scale) => ({
+    x: radarCx + radarR * scale * Math.cos(startOff + i * angleStep),
+    y: radarCy + radarR * scale * Math.sin(startOff + i * angleStep),
+  });
+  const rings = [0.33, 0.66, 1.0];
+  const dataPts = axes.map((ax, i) => getPoint(i, Math.min(ax.value, 100) / 100));
+  const dataD = dataPts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ') + ' Z';
+  return (
+    <svg width="100%" height="100%" viewBox="0 0 340 150" preserveAspectRatio="xMidYMid meet" style={{ overflow: 'visible' }}>
+      <circle cx={80} cy={70} r={42} fill="none" stroke={COLORS.graphBgBar} strokeWidth={5} />
+      <circle cx={80} cy={70} r={42} fill="none" stroke={overallColor} strokeWidth={5}
+        strokeDasharray={`${(overall / 100) * 2 * Math.PI * 42} ${2 * Math.PI * 42}`}
+        strokeLinecap="round" transform="rotate(-90 80 70)" style={{ transition: 'stroke-dasharray 0.5s ease' }} />
+      <text x={80} y={65} textAnchor="middle" fill={COLORS.white} fontSize={22} fontWeight={800} fontFamily="'Pretendard', -apple-system, sans-serif">{overall}</text>
+      <text x={80} y={82} textAnchor="middle" fill={COLORS.textMuted} fontSize={9} fontFamily="'Pretendard', -apple-system, sans-serif">{'\uC885\uD569 \uC810\uC218'}</text>
+      <text x={80} y={128} textAnchor="middle" fill={overallColor} fontSize={10} fontWeight={600} fontFamily="'Pretendard', -apple-system, sans-serif">
+        {overall >= 70 ? '\uC591\uD638' : overall >= 40 ? '\uBCF4\uD1B5' : '\uC8FC\uC758'}
+      </text>
+      {rings.map((ring, ri) => {
+        const pts = Array.from({ length: n }, (_, i) => getPoint(i, ring));
+        return <path key={ri} d={pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ') + ' Z'} fill="none" stroke={COLORS.white} strokeWidth={0.4} opacity={0.08} />;
+      })}
+      {axes.map((_, i) => {
+        const p = getPoint(i, 1);
+        return <line key={i} x1={radarCx} y1={radarCy} x2={p.x} y2={p.y} stroke={COLORS.white} strokeWidth={0.3} opacity={0.1} />;
+      })}
+      <path d={dataD} fill="rgba(49,130,246,0.15)" stroke="rgba(49,130,246,0.6)" strokeWidth={1.2} />
+      {dataPts.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r={2.5} fill="rgba(49,130,246,0.8)" />)}
+      {axes.map((ax, i) => {
+        const p = getPoint(i, 1.22);
+        return <text key={i} x={p.x} y={p.y + 3} textAnchor="middle" fill={COLORS.textMuted} fontSize={7} fontFamily="'Pretendard', -apple-system, sans-serif">{ax.label}</text>;
+      })}
+    </svg>
+  );
+};
+
 // Returns a chart element with real data from card.chartData, falling back to demo data if null
 const getChartForCard = (card) => {
   if (!card) return null;
-  // Cards with no chart (e.g. opportunities/risks, SNS trends) - return null to skip chart area
+  // Cards with no chart (e.g. SNS trends) - return null to skip chart area
   if (card.chartType === null && card.chartData === null) return null;
   const chartData = card.chartData || null;
   switch (card.chartType) {
@@ -556,6 +1339,19 @@ const getChartForCard = (card) => {
     case 'donut': return chartData ? <ChartDonut data={chartData} /> : <ChartDonut />;
     case 'horizontal-bar': return chartData ? <ChartHorizontalBar data={chartData} /> : <ChartHorizontalBar />;
     case 'mixed': return chartData ? <ChartMixed data={chartData} /> : <ChartMixed />;
+    case 'bigNumberDonut': return chartData ? <ChartBigNumberDonut data={chartData} /> : <ChartBigNumberDonut />;
+    case 'gaugeGrid': return chartData ? <ChartGaugeGrid data={chartData} /> : <ChartGaugeGrid />;
+    case 'rankingList': return chartData ? <ChartRankingList data={chartData} /> : <ChartRankingList />;
+    case 'comparisonSplit': return chartData ? <ChartComparisonSplit data={chartData} /> : <ChartComparisonSplit />;
+    case 'bigNumberTrend': return chartData ? <ChartBigNumberTrend data={chartData} /> : <ChartBigNumberTrend />;
+    case 'heatmapBlocks': return chartData ? <ChartHeatmapBlocks data={chartData} /> : <ChartHeatmapBlocks />;
+    case 'priceCards': return chartData ? <ChartPriceCards data={chartData} /> : <ChartPriceCards />;
+    case 'splitList': return chartData ? <ChartSplitList data={chartData} /> : <ChartSplitList />;
+    case 'circularProgress': return chartData ? <ChartCircularProgress data={chartData} /> : <ChartCircularProgress />;
+    case 'wordCloud': return chartData ? <ChartWordCloud data={chartData} /> : <ChartWordCloud />;
+    case 'weatherImpact': return chartData ? <ChartWeatherImpact data={chartData} /> : <ChartWeatherImpact />;
+    case 'gaugeMeter': return chartData ? <ChartGaugeMeter data={chartData} /> : <ChartGaugeMeter />;
+    case 'scoreCard': return chartData ? <ChartScoreCard data={chartData} /> : <ChartScoreCard />;
     default: return null;
   }
 };
@@ -568,6 +1364,19 @@ const CHART_MAP = {
   donut: <ChartDonut />,
   'horizontal-bar': <ChartHorizontalBar />,
   mixed: <ChartMixed />,
+  bigNumberDonut: <ChartBigNumberDonut />,
+  gaugeGrid: <ChartGaugeGrid />,
+  rankingList: <ChartRankingList />,
+  comparisonSplit: <ChartComparisonSplit />,
+  bigNumberTrend: <ChartBigNumberTrend />,
+  heatmapBlocks: <ChartHeatmapBlocks />,
+  priceCards: <ChartPriceCards />,
+  splitList: <ChartSplitList />,
+  circularProgress: <ChartCircularProgress />,
+  wordCloud: <ChartWordCloud />,
+  weatherImpact: <ChartWeatherImpact />,
+  gaugeMeter: <ChartGaugeMeter />,
+  scoreCard: <ChartScoreCard />,
 };
 
 // ─── DataTable ───
@@ -767,9 +1576,17 @@ const MOCK_CARDS = [
     source: '오픈업/카카오/네이버',
     bruSummary: null,
     aiSummary: '반경 500m 내 카페 47개 (프랜차이즈 12개, 개인 35개). 개인카페 중심의 상권입니다.',
-    chartType: 'horizontal-bar',
+    chartType: 'bigNumberDonut',
     metaInfo: '카페 현황',
-    chartData: { items: [{ label: '전체 카페', value: 47 }, { label: '프랜차이즈', value: 12 }, { label: '개인카페', value: 35 }] },
+    chartData: {
+      bigNumber: 47, unit: '개',
+      subtitle: '베이커리 8개가 포함되어 있어요',
+      segments: [
+        { name: '프랜차이즈', pct: 12, color: '#1B2A4A' },
+        { name: '개인카페', pct: 35, color: '#6B7280' },
+        { name: '베이커리', pct: 8, color: '#374B78' },
+      ],
+    },
     bodyData: {
       cafes: 47,
       franchise: 12,
@@ -789,9 +1606,17 @@ const MOCK_CARDS = [
     source: '소상공인365',
     bruSummary: null,
     aiSummary: '30대 고객 비중이 가장 높으며, 여성 고객 비율이 높습니다.',
-    chartType: 'bar',
+    chartType: 'gaugeGrid',
     metaInfo: '고객',
-    chartData: { labels: ['20대', '30대', '40대', '50대', '60대'], values: [22, 34, 24, 13, 7] },
+    chartData: {
+      male: 43, female: 57,
+      ageGroups: [
+        { name: '20대', pct: 22 },
+        { name: '30대', pct: 34 },
+        { name: '40대', pct: 24 },
+        { name: '50대+', pct: 20 },
+      ],
+    },
     bodyData: {
       male: 43,
       female: 57,
@@ -811,9 +1636,17 @@ const MOCK_CARDS = [
     source: '오픈업/카카오',
     bruSummary: null,
     aiSummary: '반경 500m 내 프랜차이즈 12개. 스타벅스 등 7개 브랜드.',
-    chartType: 'donut',
+    chartType: 'rankingList',
     metaInfo: '프랜차이즈',
-    chartData: { segments: [{ name: '스타벅스', pct: 25 }, { name: '투썸플레이스', pct: 17 }, { name: '이디야', pct: 17 }, { name: '메가커피', pct: 17 }, { name: '빽다방', pct: 8 }, { name: '컴포즈', pct: 8 }, { name: '기타', pct: 8 }] },
+    chartData: {
+      items: [
+        { name: '스타벅스', count: 3 },
+        { name: '투썸플레이스', count: 2 },
+        { name: '이디야', count: 2 },
+        { name: '메가커피', count: 2 },
+        { name: '빽다방', count: 1 },
+      ],
+    },
     bodyData: {
       franchiseCount: 12,
       totalCafes: 47,
@@ -831,9 +1664,18 @@ const MOCK_CARDS = [
     source: '오픈업/카카오',
     bruSummary: null,
     aiSummary: '반경 500m 내 개인카페 35개. 점포당 월평균 매출 1,820만원.',
-    chartType: 'horizontal-bar',
+    chartType: 'comparisonSplit',
     metaInfo: '개인카페',
-    chartData: { items: [{ label: '개인카페', value: 35 }, { label: '프랜차이즈', value: 12 }, { label: '월매출(만)', value: 1820 }] },
+    chartData: {
+      left: {
+        label: '개인카페', count: 35,
+        metrics: [{ label: '월평균 매출', value: '1,820만원' }],
+      },
+      right: {
+        label: '프랜차이즈', count: 12,
+        metrics: [{ label: '아메리카노', value: '4,500~6,500원' }],
+      },
+    },
     bodyData: {
       independentCount: 35,
       avgMonthlySales: 1820,
@@ -843,7 +1685,7 @@ const MOCK_CARDS = [
     },
     tag: '개인카페',
   },
-  // Card 5: 매출 분석
+  // Card 5: 매출 분석 (Big Number + Mini Trend)
   {
     title: '매출 분석',
     subtitle: '월평균 예상 매출',
@@ -851,9 +1693,9 @@ const MOCK_CARDS = [
     source: '소상공인365',
     bruSummary: null,
     aiSummary: '카페 업종 월평균 매출 2,150만원, 동 전체 업종 평균 1,780만원. 동 평균 대비 높은 매출 수준입니다.',
-    chartType: 'line',
+    chartType: 'bigNumberTrend',
     metaInfo: '매출',
-    chartData: { labels: ['11월', '12월', '1월', '2월', '3월', '4월'], values: [1950, 1870, 2010, 2080, 2150, 2200] },
+    chartData: { bigNumber: 2150, unit: '만원', labels: ['11월', '12월', '1월', '2월', '3월', '4월'], values: [1950, 1870, 2010, 2080, 2150, 2200] },
     bodyData: {
       monthly: 21500000,
       dongAvg: 17800000,
@@ -861,7 +1703,7 @@ const MOCK_CARDS = [
       top5: ['한식', '카페', '치킨', '분식', '일식'],
     },
   },
-  // Card 6: 유동인구
+  // Card 6: 유동인구 (Heatmap Blocks)
   {
     title: '유동인구',
     subtitle: '시간대별 통행량 - 역삼동',
@@ -869,7 +1711,7 @@ const MOCK_CARDS = [
     source: '소상공인365',
     bruSummary: null,
     aiSummary: '일평균 유동인구 24,530명. 평일 유동인구가 주말보다 높습니다.',
-    chartType: 'area',
+    chartType: 'heatmapBlocks',
     metaInfo: '유동인구',
     chartData: { labels: ['6~9시', '9~12시', '12~15시', '15~18시', '18~21시', '21~24시'], values: [3200, 5800, 7100, 6400, 4800, 2100] },
     bodyData: {
@@ -885,7 +1727,7 @@ const MOCK_CARDS = [
       residentPop: null,
     },
   },
-  // Card 7: 임대/창업 정보
+  // Card 7: 임대/창업 정보 (Price Cards)
   {
     title: '임대/창업 정보',
     subtitle: '상가 시세 및 지원',
@@ -893,9 +1735,9 @@ const MOCK_CARDS = [
     source: '한국부동산원',
     bruSummary: null,
     aiSummary: '평균 월 임대료 320만원, 보증금 5,000만원.',
-    chartType: 'horizontal-bar',
+    chartType: 'priceCards',
     metaInfo: '임대',
-    chartData: { items: [{ label: '보증금', value: 5000 }, { label: '월임대', value: 320 }, { label: '권리금', value: 3500 }, { label: '인테리어', value: 4000 }] },
+    chartData: { items: [{ label: '보증금', value: 5000 }, { label: '월임대', value: 320 }, { label: '권리금', value: 3500 }, { label: '인테리어', value: 4000 }], totalCost: 12820 },
     bodyData: {
       rentPerPyeong: 320,
       deposit: 5000,
@@ -909,7 +1751,7 @@ const MOCK_CARDS = [
       premiumCost: 3500,
     },
   },
-  // Card 8: 기회 & 리스크
+  // Card 8: 기회 & 리스크 (Split List)
   {
     title: '기회 & 리스크',
     subtitle: '상권 기회 요인과 리스크 분석',
@@ -917,9 +1759,19 @@ const MOCK_CARDS = [
     source: 'Google Gemini',
     bruSummary: null,
     aiSummary: '유동인구가 풍부하고 오피스 밀집 지역으로 점심/오후 수요가 높습니다.',
-    chartType: null,
+    chartType: 'splitList',
     metaInfo: '기회/리스크',
-    chartData: null,
+    chartData: {
+      opportunities: [
+        { title: '높은 유동인구', detail: '일 평균 2만명 이상의 유동인구로 자연 유입 고객 확보 용이' },
+        { title: '오피스 밀집', detail: '반경 500m 내 대형 오피스 빌딩 다수, 점심 및 오후 커피 수요 높음' },
+        { title: '지하철 역세권', detail: '강남역 도보 3분 거리, 접근성 우수' },
+      ],
+      risks: [
+        { title: '높은 경쟁 강도', detail: '반경 500m 내 카페 47개로 과밀 상권' },
+        { title: '높은 임대료', detail: '월 320만원 수준의 임대료로 손익분기점이 높음' },
+      ],
+    },
     bodyData: {
       opportunities: [
         { title: '높은 유동인구', detail: '일 평균 2만명 이상의 유동인구로 자연 유입 고객 확보 용이' },
@@ -935,7 +1787,7 @@ const MOCK_CARDS = [
     },
     tag: '기회/리스크',
   },
-  // Card 9: 배달 분석
+  // Card 9: 배달 분석 — circularProgress
   {
     title: '배달 분석',
     subtitle: '배달 업종 현황',
@@ -943,7 +1795,7 @@ const MOCK_CARDS = [
     source: '소상공인365',
     bruSummary: null,
     aiSummary: '카페/음료 배달 매출 비중 8%. 배달 업종 내 5위.',
-    chartType: 'horizontal-bar',
+    chartType: 'circularProgress',
     metaInfo: '배달',
     chartData: { items: [{ label: '치킨', value: 28 }, { label: '한식', value: 22 }, { label: '분식', value: 18 }, { label: '중식', value: 14 }, { label: '카페', value: 8 }] },
     bodyData: {
@@ -953,7 +1805,7 @@ const MOCK_CARDS = [
       topCategory: '치킨',
     },
   },
-  // Card 10: SNS 트렌드
+  // Card 10: SNS 트렌드 — wordCloud
   {
     title: 'SNS 트렌드',
     subtitle: '소셜미디어 키워드 분석',
@@ -961,9 +1813,15 @@ const MOCK_CARDS = [
     source: '네이버/소상공인365',
     bruSummary: null,
     aiSummary: '주요 키워드: 강남카페, 디저트, 루프탑, 분위기, 브런치. 블로그 언급 3,842건.',
-    chartType: null,
+    chartType: 'wordCloud',
     metaInfo: 'SNS',
-    chartData: null,
+    chartData: {
+      keywords: [
+        { text: '강남카페', weight: 100 }, { text: '디저트', weight: 80 }, { text: '루프탑', weight: 65 },
+        { text: '분위기', weight: 55 }, { text: '브런치', weight: 45 },
+      ],
+      sentimentPos: 72,
+    },
     bodyData: {
       keywords: ['강남카페', '디저트', '루프탑', '분위기', '브런치'],
       sentiment: '긍정',
@@ -972,7 +1830,7 @@ const MOCK_CARDS = [
     },
     tag: 'SNS',
   },
-  // Card 11: 날씨 영향 분석
+  // Card 11: 날씨 영향 분석 — weatherImpact
   {
     title: '날씨 영향 분석',
     subtitle: '기상 조건별 매출 영향도',
@@ -980,8 +1838,15 @@ const MOCK_CARDS = [
     source: '기상청/소상공인365',
     bruSummary: null,
     aiSummary: '맑은 날 매출이 평균 대비 12% 높으며, 비 오는 날은 15% 감소하는 경향이 있습니다.',
-    chartType: null,
-    chartData: null,
+    chartType: 'weatherImpact',
+    chartData: {
+      items: [
+        { label: '맑음', icon: 'sun', value: 12 },
+        { label: '흐림', icon: 'cloud', value: -3 },
+        { label: '비', icon: 'rain', value: -15 },
+        { label: '눈', icon: 'snow', value: -22 },
+      ],
+    },
     bodyData: {
       regionType: '도심 오피스형',
       sunnyEffect: '+12%',
@@ -992,7 +1857,7 @@ const MOCK_CARDS = [
     },
     tag: '날씨',
   },
-  // Card 12: 상권 경쟁 분석
+  // Card 12: 상권 경쟁 분석 — gaugeMeter
   {
     title: '상권 경쟁 분석',
     subtitle: '상권 내 경쟁 수준',
@@ -1000,9 +1865,9 @@ const MOCK_CARDS = [
     source: '오픈업/카카오',
     bruSummary: null,
     aiSummary: '반경 500m 내 카페 47개, 경쟁 강도 "과밀". 프랜차이즈 비율 26%.',
-    chartType: 'donut',
+    chartType: 'gaugeMeter',
     metaInfo: '경쟁',
-    chartData: { segments: [{ name: '프랜차이즈', pct: 26 }, { name: '개인', pct: 74 }] },
+    chartData: { score: 78, label: '경쟁 강도' },
     bodyData: {
       level: '과밀',
       cafePerKm2: 60,
@@ -1010,7 +1875,7 @@ const MOCK_CARDS = [
       avgLifespan: '-',
     },
   },
-  // Card 13: AI 종합 분석
+  // Card 13: AI 종합 분석 — scoreCard
   {
     title: 'AI 종합 분석',
     subtitle: 'AI 에이전트 종합 피드백',
@@ -1018,9 +1883,15 @@ const MOCK_CARDS = [
     source: 'Google Gemini',
     bruSummary: null,
     aiSummary: '강남역 반경 500m는 높은 유동인구와 오피스 수요가 강점이나, 카페 과밀 상권으로 차별화 전략이 필수입니다. 스페셜티 커피와 디저트 특화 메뉴로 개인카페 경쟁력을 확보하는 것이 유리합니다.',
-    chartType: 'mixed',
+    chartType: 'scoreCard',
     metaInfo: 'AI종합',
-    chartData: { labels: ['종합', '기회', '리스크', '경쟁'], values: [72, 45, 30, 50] },
+    chartData: {
+      overall: 72,
+      axes: [
+        { label: '기회', value: 68 }, { label: '리스크', value: 35 },
+        { label: '경쟁', value: 55 }, { label: '매출', value: 70 }, { label: '입지', value: 78 },
+      ],
+    },
     bodyData: {
       overallScore: 72,
       opportunities: 3,
@@ -1080,9 +1951,10 @@ function RadiusSlider({ value = SLIDER_DEFAULT, onChange = () => {} }) {
 
 export default function UnifiedLayout({
   resultsReady = false,
-  cards = MOCK_CARDS,
+  cards: cardsProp = MOCK_CARDS,
   summaryMetrics = null,
   collectedData = null,
+  aiData = null,
   onSearch = () => {},
   onGoHome = () => {},
   onRadiusChange = null,
@@ -1114,6 +1986,22 @@ export default function UnifiedLayout({
   const [naverReady, setNaverReady] = useState(false);
   const [mapLoadFailed, setMapLoadFailed] = useState(false);
 
+  // ── Generate cards from collectedData via dataMapper (new chart types) ──
+  const mappedCards = useMemo(() => {
+    if (collectedData && resultsReady) {
+      try {
+        const result = mapCollectedDataToCards(collectedData, aiData || {}, radius);
+        if (result && result.length > 0) return result;
+      } catch (e) {
+        console.warn('[UnifiedLayout] mapCollectedDataToCards failed:', e);
+      }
+    }
+    return null;
+  }, [collectedData, aiData, radius, resultsReady]);
+
+  // Use mapped cards when available, otherwise fall back to prop cards
+  const cards = mappedCards || cardsProp;
+
   // ── Sync initialHomepageOpen prop ──
   useEffect(() => {
     if (initialHomepageOpen) setShowHomepage(true);
@@ -1128,6 +2016,7 @@ export default function UnifiedLayout({
   // ── Cafe Map Modal State ──
   const [showCafeMap, setShowCafeMap] = useState(false);
   const [cafeMapRadius, setCafeMapRadius] = useState(500);
+  const [cafeMapSelectedCategory, setCafeMapSelectedCategory] = useState(null);
   const cafeMapRef = useRef(null);
   const cafeMapCircleRef = useRef(null);
   const cafeMapMarkersRef = useRef([]);
@@ -1153,24 +2042,54 @@ export default function UnifiedLayout({
     cafeMapAnimFrameRef.current = requestAnimationFrame(step);
   }, []);
 
-  const updateCafeMarkerVisibility = useCallback((r) => {
+  const updateCafeMarkerVisibility = useCallback((r, selectedCat) => {
     cafeMapMarkersRef.current.forEach(item => {
-      if (!item.dist || !item.marker) return;
+      if (!item.marker || item.type === 'center') return;
+      if (!item.dist) return;
       try {
-        const shouldShow = r >= 500 || item.dist <= r;
+        const inRadius = r >= 500 || item.dist <= r;
+        // Category matching logic
+        let matchesCategory = true;
+        if (selectedCat) {
+          if (selectedCat === 'newOpen') {
+            matchesCategory = !!item.isNewOpen || (item.clusterCafes && item.clusterCafes.some(c => c.isNewOpen));
+          } else {
+            const itemTypes = item.clusterCafes ? item.clusterCafes.map(c => c._type) : [item.type];
+            matchesCategory = itemTypes.includes(selectedCat);
+          }
+        }
         const el = item.marker.getElement ? item.marker.getElement() : null;
-        if (el) { el.style.transition = 'opacity 0.3s ease'; el.style.opacity = shouldShow ? '1' : '0'; el.style.pointerEvents = shouldShow ? 'auto' : 'none'; }
-        else if (item.marker.setVisible) item.marker.setVisible(shouldShow);
+        if (el) {
+          el.style.transition = 'opacity 0.3s ease';
+          if (!inRadius) {
+            el.style.opacity = '0';
+            el.style.pointerEvents = 'none';
+          } else if (selectedCat && !matchesCategory) {
+            el.style.opacity = '0.25';
+            el.style.pointerEvents = 'auto';
+          } else {
+            el.style.opacity = '1';
+            el.style.pointerEvents = 'auto';
+          }
+        } else if (item.marker.setVisible) {
+          item.marker.setVisible(inRadius);
+        }
       } catch (e) {}
     });
   }, []);
 
-  const handleCafeMapRadiusChange = useCallback((newR) => {
+  const handleCafeMapRadiusChange = useCallback((newR, selectedCat) => {
     const prevR = cafeMapCircleRef.current ? cafeMapCircleRef.current.getRadius() : 500;
     setCafeMapRadius(newR);
     animateCafeCircleRadius(prevR, newR);
-    updateCafeMarkerVisibility(newR);
-  }, [animateCafeCircleRadius, updateCafeMarkerVisibility]);
+    updateCafeMarkerVisibility(newR, selectedCat !== undefined ? selectedCat : cafeMapSelectedCategory);
+  }, [animateCafeCircleRadius, updateCafeMarkerVisibility, cafeMapSelectedCategory]);
+
+  const handleCafeMapCategoryClick = useCallback((catKey) => {
+    const newCat = cafeMapSelectedCategory === catKey ? null : catKey;
+    setCafeMapSelectedCategory(newCat);
+    updateCafeMarkerVisibility(cafeMapRadius, newCat);
+  }, [cafeMapSelectedCategory, cafeMapRadius, updateCafeMarkerVisibility]);
 
   // ── Cafe Map: Naver Map rendering ──
   useEffect(() => {
@@ -1178,6 +2097,7 @@ export default function UnifiedLayout({
     const coords = cd?.coordinates;
     if (!showCafeMap || !coords || !window.naver?.maps) return;
     setCafeMapRadius(500);
+    setCafeMapSelectedCategory(null);
     const timer = setTimeout(() => {
       try {
         const container = document.getElementById('unified-cafe-map-container');
@@ -1196,10 +2116,10 @@ export default function UnifiedLayout({
         });
         const circle = new window.naver.maps.Circle({ map, center, radius: 500, strokeColor: '#2196F3', strokeWeight: 2, fillColor: '#2196F3', fillOpacity: 0.08 });
         cafeMapCircleRef.current = circle;
-        // Mug SVGs
-        const mugSvg = (color) => `<svg width="24" height="32" viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg"><path d="M12 1 C6 1 1 5.5 1 11 C1 18 12 31 12 31 C12 31 23 18 23 11 C23 5.5 18 1 12 1Z" fill="${color}" stroke="#fff" stroke-width="1.5"/><ellipse cx="12" cy="11" rx="4.5" ry="3.5" fill="#fff" opacity="0.9" transform="rotate(-30 12 11)"/><path d="M10 9 Q12 11 14 9" fill="none" stroke="${color}" stroke-width="1.2" stroke-linecap="round"/></svg>`;
+        // Flag/pin SVGs for map markers
+        const mugSvg = (color) => `<svg width="24" height="36" viewBox="0 0 24 36" xmlns="http://www.w3.org/2000/svg"><path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24C24 5.4 18.6 0 12 0z" fill="${color}" stroke="#fff" stroke-width="1.5"/><circle cx="12" cy="12" r="5" fill="#fff" opacity="0.9"/><path d="M10 10 L10 15 L15 12.5 Z" fill="${color}"/></svg>`;
         // Center marker
-        const centerMarker = new window.naver.maps.Marker({ map, position: center, icon: { content: mugSvg('#EF4444'), anchor: new window.naver.maps.Point(12, 31) }, zIndex: 100 });
+        const centerMarker = new window.naver.maps.Marker({ map, position: center, icon: { content: mugSvg('#EF4444'), anchor: new window.naver.maps.Point(12, 36) }, zIndex: 100 });
         cafeMapMarkersRef.current.push({ marker: centerMarker, dist: null, type: 'center', origIcon: mugSvg('#EF4444') });
         const infoWindow = new window.naver.maps.InfoWindow({ content: '', borderWidth: 0, backgroundColor: 'transparent', disableAnchor: true, pixelOffset: new window.naver.maps.Point(0, -8) });
         cafeMapInfoWindowRef.current = infoWindow;
@@ -1218,17 +2138,20 @@ export default function UnifiedLayout({
         // Group by location
         const groups = {};
         allCafes.forEach(c => { const lat2=parseFloat(c.lat),lng2=parseFloat(c.lng); if(isNaN(lat2)||isNaN(lng2))return; const k=`${Math.round(lat2/0.00015)*0.00015}_${Math.round(lng2/0.00015)*0.00015}`; if(!groups[k])groups[k]=[]; groups[k].push(c); });
+        // 개별 카페 마커 생성 헬퍼 (단일 카페용)
+        const createSingleMarker = (c) => {
+          const pos=new window.naver.maps.LatLng(parseFloat(c.lat),parseFloat(c.lng));
+          const color = c._type==='bakery'?'#F59E0B':c._type==='franchise'?(c.isNewOpen?'#A855F7':'#3B82F6'):(c.isNewOpen?'#A855F7':'#22C55E');
+          const icon=mugSvg(color);
+          const marker=new window.naver.maps.Marker({map,position:pos,icon:{content:icon,anchor:new window.naver.maps.Point(12,36)}});
+          const displayName=c._type==='bakery'?c.name+' (베이커리)':(c.isNewOpen?c.name+' (신규)':c.name);
+          window.naver.maps.Event.addListener(marker,'click',()=>{infoWindow.setContent(makeInfo(displayName,c.addr,c.dist));infoWindow.open(map,marker);});
+          const dist=typeof c.dist==='number'?c.dist:parseFloat(c.dist)||999;
+          cafeMapMarkersRef.current.push({marker,dist,type:c._type,origIcon:icon,isNewOpen:!!c.isNewOpen});
+        };
         Object.values(groups).forEach(group => {
-          if (group.length===1) {
-            const c=group[0]; const pos=new window.naver.maps.LatLng(parseFloat(c.lat),parseFloat(c.lng));
-            const color = c._type==='bakery'?'#F59E0B':c._type==='franchise'?(c.isNewOpen?'#A855F7':'#3B82F6'):(c.isNewOpen?'#A855F7':'#22C55E');
-            const icon=mugSvg(color);
-            const marker=new window.naver.maps.Marker({map,position:pos,icon:{content:icon,anchor:new window.naver.maps.Point(12,31)}});
-            const displayName=c._type==='bakery'?c.name+' (베이커리)':(c.isNewOpen?c.name+' (신규)':c.name);
-            window.naver.maps.Event.addListener(marker,'click',()=>{infoWindow.setContent(makeInfo(displayName,c.addr,c.dist));infoWindow.open(map,marker);});
-            const dist=typeof c.dist==='number'?c.dist:parseFloat(c.dist)||999;
-            cafeMapMarkersRef.current.push({marker,dist,type:c._type,origIcon:icon,isNewOpen:!!c.isNewOpen});
-          } else {
+          if (group.length >= 2) {
+            // 2개 이상 → 클러스터 마커
             const avgLat=group.reduce((s,c)=>s+parseFloat(c.lat),0)/group.length;
             const avgLng=group.reduce((s,c)=>s+parseFloat(c.lng),0)/group.length;
             const pos=new window.naver.maps.LatLng(avgLat,avgLng);
@@ -1240,6 +2163,9 @@ export default function UnifiedLayout({
             window.naver.maps.Event.addListener(marker,'click',()=>{infoWindow.setContent(makeClusterInfo(group));infoWindow.open(map,marker);});
             const minDist=Math.min(...group.map(c=>typeof c.dist==='number'?c.dist:parseFloat(c.dist)||999));
             cafeMapMarkersRef.current.push({marker,dist:minDist,type:dom,origIcon:svg,isNewOpen:group.some(c=>c.isNewOpen),clusterCafes:group});
+          } else {
+            // 단일 카페 또는 빈 그룹 → 개별 핀 마커 (클러스터 원 "1" 방지)
+            group.forEach(c => createSingleMarker(c));
           }
         });
       } catch(e) { console.warn('[CafeMap] init failed:', e.message); }
@@ -1328,6 +2254,7 @@ export default function UnifiedLayout({
 
   // Update map center when searchAddress changes
   useEffect(() => {
+    console.log('[MapUpdate] naverReady:', naverReady, 'mapRef:', !!naverMapRef.current, 'coords:', collectedData?.coordinates);
     if (!naverReady || !naverMapRef.current) return;
     const coords = collectedData?.coordinates;
     if (!coords?.lat || !coords?.lng) return;
@@ -1361,7 +2288,7 @@ export default function UnifiedLayout({
       fillColor: '#3b82f6',
       fillOpacity: 0.1
     });
-  }, [naverReady, collectedData?.coordinates, radius]);
+  }, [naverReady, collectedData?.coordinates?.lat, collectedData?.coordinates?.lng, radius]);
 
   // Update circle radius when slider changes
   useEffect(() => {
@@ -1529,21 +2456,68 @@ export default function UnifiedLayout({
                 </button>
               </div>
             </div>
-            {/* Legend */}
-            <div style={{ display: 'flex', gap: 12, padding: '8px 18px', flexWrap: 'wrap' }}>
-              {[
-                { color: '#EF4444', label: '검색 위치' },
-                { color: '#3B82F6', label: '프랜차이즈' },
-                { color: '#22C55E', label: '개인카페' },
-                { color: '#F59E0B', label: '베이커리' },
-                { color: '#A855F7', label: '신규 오픈' },
-              ].map(item => (
-                <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: item.color }} />
-                  <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>{item.label}</span>
-                </div>
-              ))}
+            {/* Legend - clickable category filters */}
+            <div style={{ display: 'flex', gap: 10, padding: '8px 18px', flexWrap: 'wrap', alignItems: 'center' }}>
+              {(() => {
+                const fr = collectedData?.nearbyFranchiseList || [];
+                const ind = collectedData?.nearbyIndependentList || [];
+                const bk = collectedData?.nearbyBakeryList || [];
+                const allCafesForCount = [...fr, ...ind, ...bk].filter(c => c.lat && c.lng);
+                const inRadiusCount = cafeMapRadius >= 500
+                  ? allCafesForCount.length
+                  : allCafesForCount.filter(c => {
+                      const d = typeof c.dist === 'number' ? c.dist : parseFloat(c.dist);
+                      return !isNaN(d) && d <= cafeMapRadius;
+                    }).length;
+                const categories = [
+                  { color: '#EF4444', label: '검색 위치', key: null },
+                  { color: '#3B82F6', label: '프랜차이즈', key: 'franchise' },
+                  { color: '#22C55E', label: '개인카페', key: 'independent' },
+                  { color: '#F59E0B', label: '베이커리', key: 'bakery' },
+                  { color: '#A855F7', label: '신규 오픈', key: 'newOpen' },
+                ];
+                return (
+                  <>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: '#3182F6', marginRight: 4 }}>
+                      {inRadiusCount}개
+                    </span>
+                    {categories.map(item => {
+                      const isClickable = item.key !== null;
+                      const isSelected = cafeMapSelectedCategory === item.key;
+                      const isDimmed = cafeMapSelectedCategory && !isSelected && isClickable;
+                      return (
+                        <div
+                          key={item.label}
+                          onClick={isClickable ? () => handleCafeMapCategoryClick(item.key) : undefined}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 4,
+                            cursor: isClickable ? 'pointer' : 'default',
+                            padding: '3px 8px', borderRadius: 12,
+                            background: isSelected ? 'rgba(255,255,255,0.12)' : 'transparent',
+                            border: isSelected ? '1px solid rgba(255,255,255,0.25)' : '1px solid transparent',
+                            opacity: isDimmed ? 0.4 : 1,
+                            transition: 'all 0.2s ease',
+                          }}
+                        >
+                          <div style={{ width: 8, height: 8, borderRadius: '50%', background: item.color }} />
+                          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', userSelect: 'none' }}>{item.label}</span>
+                        </div>
+                      );
+                    })}
+                  </>
+                );
+              })()}
             </div>
+            {/* Hide Naver Maps logo/watermark */}
+            <style>{`
+              #unified-cafe-map-container .nmap_logo_area,
+              #unified-cafe-map-container a[href*="naver.com"],
+              #unified-cafe-map-container img[src*="naver"] {
+                display: none !important;
+                opacity: 0 !important;
+                visibility: hidden !important;
+              }
+            `}</style>
             {/* Map container */}
             <div id="unified-cafe-map-container" style={{ flex: 1, minHeight: 0 }} />
           </div>
@@ -1887,12 +2861,12 @@ export default function UnifiedLayout({
                 height: '100%',
                 overflowY: 'auto',
                 overflowX: 'hidden',
-                padding: renderResults ? '0' : '24px 24px 48px',
+                padding: (renderResults && !mappedCards) ? '0' : '24px 24px 48px',
                 scrollSnapType: 'y proximity',
               }}
               className="unified-cards-scroll"
             >
-              {renderResults ? (
+              {(renderResults && !mappedCards) ? (
                 /* ── TossStyleResults from App.jsx (passed via renderResults prop) ── */
                 renderResults
               ) : (
