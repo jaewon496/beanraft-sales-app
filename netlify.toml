@@ -19,7 +19,7 @@
   timeout = 26
 
 [functions."sbiz-proxy"]
-  timeout = 26
+  timeout = 45
 
 [functions."reset-password"]
   timeout = 26
@@ -31,7 +31,7 @@
   timeout = 26
 
 [functions."openub-proxy"]
-  timeout = 26
+  timeout = 45
 
 [functions."openub-sales-proxy"]
   timeout = 26

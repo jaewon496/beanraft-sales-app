@@ -707,6 +707,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
   const [cardRadius, setCardRadius] = useState(500);
   const [showSourcesExpanded, setShowSourcesExpanded] = useState(false);
   const [activeLegend, setActiveLegend] = useState(null);
+  const activeLegendRef = useRef(null);
   const cafeMapRef = useRef(null);
   const cafeMapMarkersRef = useRef([]);
   const cafeMapInfoWindowRef = useRef(null);
@@ -1187,6 +1188,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
   // ── 범례 클릭: 마커 바운스 + 페이드 ──
   const mugSvgGray = `<svg width="24" height="32" viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg"><g opacity="0.3"><path d="M12 0C5.4 0 0 4.8 0 10.8c0 8.4 12 21.2 12 21.2s12-12.8 12-21.2C24 4.8 18.6 0 12 0z" fill="#999" stroke="#ccc" stroke-width="1"/><rect x="6" y="6" width="10" height="9" rx="2" fill="#fff" opacity="0.6"/><path d="M16 8.5c1.5 0 3 1 3 2.5s-1.5 2.5-3 2.5" fill="none" stroke="#fff" stroke-width="1.2" opacity="0.6"/><path d="M8 5.5c0.5-1 1-1.8 1.5-1.2s-0.2 1.5 0.5 1.2c0.7-0.3 0.3-1.5 1-1 0.7 0.5-0.1 1.3 0.5 1.5" fill="none" stroke="#fff" stroke-width="0.8" opacity="0.5"/></g></svg>`;
   const clusterSvgGray = (count) => `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="16" fill="#999" stroke="#ccc" stroke-width="2" opacity="0.3"/><text x="18" y="23" text-anchor="middle" fill="white" font-size="14" font-weight="bold" opacity="0.5">${count}</text></svg>`;
+  const makePinSvg = (color) => `<svg width="24" height="32" viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg"><path d="M12 0C5.4 0 0 4.8 0 10.8c0 8.4 12 21.2 12 21.2s12-12.8 12-21.2C24 4.8 18.6 0 12 0z" fill="${color}" stroke="#fff" stroke-width="1"/><rect x="6" y="6" width="10" height="9" rx="2" fill="#fff" opacity="0.9"/><path d="M16 8.5c1.5 0 3 1 3 2.5s-1.5 2.5-3 2.5" fill="none" stroke="#fff" stroke-width="1.2" opacity="0.9"/><path d="M8 5.5c0.5-1 1-1.8 1.5-1.2s-0.2 1.5 0.5 1.2c0.7-0.3 0.3-1.5 1-1 0.7 0.5-0.1 1.3 0.5 1.5" fill="none" stroke="#fff" stroke-width="0.8" opacity="0.7"/></svg>`;
 
   const bounceMarker = useCallback((marker) => {
     if (!marker || !window.naver?.maps) return null;
@@ -1213,7 +1215,14 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
     } catch (e) { return null; }
   }, []);
 
+  // activeLegend 상태를 ref에 동기화 (클러스터 클릭 핸들러에서 접근용)
+  useEffect(() => { activeLegendRef.current = activeLegend; }, [activeLegend]);
+
   const handleLegendClick = useCallback((type) => {
+    // 열린 인포윈도우 닫기
+    if (cafeMapInfoWindowRef.current) {
+      try { cafeMapInfoWindowRef.current.close(); } catch (e) { /* already closed */ }
+    }
     // 이전 바운스 인터벌 정리
     cafeMapBounceIntervalsRef.current.forEach(id => clearInterval(id));
     cafeMapBounceIntervalsRef.current = [];
@@ -1225,8 +1234,15 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
         if (!item.marker || !item.type) return;
         try {
           const isCluster = !!item.clusterCafes;
-          const anchor = isCluster ? new window.naver.maps.Point(18, 18) : new window.naver.maps.Point(12, 31);
-          item.marker.setIcon({ content: item.origIcon, anchor });
+          // 방어: 클러스터인데 카페가 1개뿐이면 핀 아이콘으로 복원 (클러스터 원 "1" 방지)
+          if (isCluster && item.clusterCafes.length === 1) {
+            const cafe = item.clusterCafes[0];
+            const pinColor = cafe._type === 'bakery' ? '#F59E0B' : cafe._type === 'franchise' ? (cafe.isNewOpen ? '#A855F7' : '#3B82F6') : (cafe.isNewOpen ? '#A855F7' : '#22C55E');
+            item.marker.setIcon({ content: makePinSvg(pinColor), anchor: new window.naver.maps.Point(12, 31) });
+          } else {
+            const anchor = isCluster ? new window.naver.maps.Point(18, 18) : new window.naver.maps.Point(12, 31);
+            item.marker.setIcon({ content: item.origIcon, anchor });
+          }
           item.marker.setZIndex(item.type === 'center' ? 100 : (isCluster ? 30 : 10));
           const el = item.marker.getElement ? item.marker.getElement() : null;
           if (el) el.style.filter = '';
@@ -1242,18 +1258,37 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
           if (isCenter) return; // 검색 위치 마커는 건드리지 않음
           const isCluster = !!item.clusterCafes;
           const anchor = isCluster ? new window.naver.maps.Point(18, 18) : new window.naver.maps.Point(12, 31);
-          // 클러스터: 그룹 내 ANY 카페가 매칭이면 매칭 처리
+          // 매칭 판정: 개별 마커는 type 일치, 클러스터는 그룹 내 해당 타입 존재 여부
           let isMatch;
+          let matchCount = 0; // 클러스터 내 매칭 카페 수
           if (isCluster) {
-            isMatch = type === 'newOpen'
-              ? item.clusterCafes.some(c => c.isNewOpen)
-              : (item.clusterTypes || []).includes(type);
+            if (type === 'newOpen') {
+              matchCount = item.clusterCafes.filter(c => c.isNewOpen).length;
+            } else {
+              matchCount = item.clusterCafes.filter(c => c._type === type).length;
+            }
+            isMatch = matchCount > 0;
           } else {
             isMatch = type === 'newOpen' ? item.isNewOpen : item.type === type;
           }
           if (isMatch) {
-            // 매칭 마커 → 원래 아이콘 + 바운스
-            item.marker.setIcon({ content: item.origIcon, anchor });
+            // 매칭 마커 → 바운스
+            if (isCluster && matchCount === 1) {
+              // 클러스터 내 1개만 매칭 (혼합이든 단일이든) → 개별 핀 마커로 표시 (클러스터 원 "1" 방지)
+              const colorMap = { franchise: '#3B82F6', independent: '#22C55E', bakery: '#F59E0B', newOpen: '#A855F7' };
+              const filterColor = colorMap[type] || '#3B82F6';
+              const singlePinSvg = makePinSvg(filterColor);
+              item.marker.setIcon({ content: singlePinSvg, anchor: new window.naver.maps.Point(12, 31) });
+            } else if (isCluster && matchCount < item.clusterCafes.length) {
+              // 혼합 클러스터 (2개 이상 매칭): 필터 타입 색상 + 매칭 카페 수만 표시
+              const colorMap = { franchise: '#3B82F6', independent: '#22C55E', bakery: '#F59E0B', newOpen: '#A855F7' };
+              const filterColor = colorMap[type] || '#3B82F6';
+              const filteredClusterSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="16" fill="${filterColor}" stroke="white" stroke-width="2"/><text x="18" y="23" text-anchor="middle" fill="white" font-size="14" font-weight="bold">${matchCount}</text></svg>`;
+              item.marker.setIcon({ content: filteredClusterSvg, anchor });
+            } else {
+              // 단일 마커 또는 전체 매칭 클러스터 (2개 이상) → 원래 아이콘
+              item.marker.setIcon({ content: item.origIcon, anchor });
+            }
             item.marker.setZIndex(50);
             const el = item.marker.getElement ? item.marker.getElement() : null;
             if (el) el.style.filter = '';
@@ -1262,8 +1297,10 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
           } else {
             // 비매칭 마커 → 회색 반투명
             const isCluster = !!item.clusterCafes;
-            const grayIcon = isCluster ? clusterSvgGray(item.clusterCafes.length) : mugSvgGray;
-            item.marker.setIcon({ content: grayIcon, anchor });
+            // 방어: 클러스터인데 1개뿐이면 회색 핀 아이콘 사용 (회색 원 "1" 방지)
+            const grayIcon = isCluster ? (item.clusterCafes.length === 1 ? mugSvgGray : clusterSvgGray(item.clusterCafes.length)) : mugSvgGray;
+            const grayAnchor = (isCluster && item.clusterCafes.length >= 2) ? anchor : new window.naver.maps.Point(12, 31);
+            item.marker.setIcon({ content: grayIcon, anchor: grayAnchor });
             item.marker.setZIndex(1);
             const el = item.marker.getElement ? item.marker.getElement() : null;
             if (el) el.style.filter = '';
@@ -1379,25 +1416,26 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
         locationGroups[key].push(cafe);
       });
 
+      // ── 개별 카페 마커 생성 헬퍼 (단일 카페용) ──
+      const createSingleCafeMarker = (cafe) => {
+        const pos = new window.naver.maps.LatLng(parseFloat(cafe.lat), parseFloat(cafe.lng));
+        let iconSvg;
+        if (cafe._type === 'bakery') iconSvg = mugSvgOrange();
+        else if (cafe._type === 'franchise') iconSvg = cafe.isNewOpen ? mugSvgPurple() : mugSvgBlue();
+        else iconSvg = cafe.isNewOpen ? mugSvgPurple() : mugSvgGreen();
+        const marker = new window.naver.maps.Marker({ map, position: pos, icon: { content: iconSvg, anchor: new window.naver.maps.Point(12, 31) } });
+        const displayName = cafe._type === 'bakery' ? cafe.name + ' (베이커리)' : (cafe.isNewOpen ? cafe.name + ' (신규)' : cafe.name);
+        window.naver.maps.Event.addListener(marker, 'click', () => {
+          infoWindow.setContent(makeInfoContent(displayName, cafe.addr, cafe.dist));
+          infoWindow.open(map, marker);
+        });
+        const cafeDist = typeof cafe.dist === 'number' ? cafe.dist : parseFloat(cafe.dist) || 999;
+        cafeMapMarkersRef.current.push({ marker, dist: cafeDist, type: cafe._type, origIcon: iconSvg, isNewOpen: !!cafe.isNewOpen, clusterCafes: null });
+      };
+
       // ── 그룹별 마커 생성 ──
       Object.values(locationGroups).forEach(group => {
-        if (group.length === 1) {
-          // 단일 카페 → 기존 개별 마커
-          const cafe = group[0];
-          const pos = new window.naver.maps.LatLng(parseFloat(cafe.lat), parseFloat(cafe.lng));
-          let iconSvg;
-          if (cafe._type === 'bakery') iconSvg = mugSvgOrange();
-          else if (cafe._type === 'franchise') iconSvg = cafe.isNewOpen ? mugSvgPurple() : mugSvgBlue();
-          else iconSvg = cafe.isNewOpen ? mugSvgPurple() : mugSvgGreen();
-          const marker = new window.naver.maps.Marker({ map, position: pos, icon: { content: iconSvg, anchor: new window.naver.maps.Point(12, 31) } });
-          const displayName = cafe._type === 'bakery' ? cafe.name + ' (베이커리)' : (cafe.isNewOpen ? cafe.name + ' (신규)' : cafe.name);
-          window.naver.maps.Event.addListener(marker, 'click', () => {
-            infoWindow.setContent(makeInfoContent(displayName, cafe.addr, cafe.dist));
-            infoWindow.open(map, marker);
-          });
-          const cafeDist = typeof cafe.dist === 'number' ? cafe.dist : parseFloat(cafe.dist) || 999;
-          cafeMapMarkersRef.current.push({ marker, dist: cafeDist, type: cafe._type, origIcon: iconSvg, isNewOpen: !!cafe.isNewOpen, clusterCafes: null });
-        } else {
+        if (group.length >= 2) {
           // 2개 이상 → 클러스터 마커
           const avgLat = group.reduce((s, c) => s + parseFloat(c.lat), 0) / group.length;
           const avgLng = group.reduce((s, c) => s + parseFloat(c.lng), 0) / group.length;
@@ -1413,8 +1451,19 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
           const clusterSvg = createClusterSvg(group.length, mainColor);
           const marker = new window.naver.maps.Marker({ map, position: pos, icon: { content: clusterSvg, anchor: new window.naver.maps.Point(18, 18) }, zIndex: 30 });
           window.naver.maps.Event.addListener(marker, 'click', () => {
-            infoWindow.setContent(makeClusterInfoContent(group));
-            infoWindow.open(map, marker);
+            const currentFilter = activeLegendRef.current;
+            let displayCafes = group;
+            if (currentFilter) {
+              if (currentFilter === 'newOpen') {
+                displayCafes = group.filter(c => c.isNewOpen);
+              } else {
+                displayCafes = group.filter(c => c._type === currentFilter);
+              }
+            }
+            if (displayCafes.length > 0) {
+              infoWindow.setContent(makeClusterInfoContent(displayCafes));
+              infoWindow.open(map, marker);
+            }
           });
           // 클러스터의 dist = 그룹 내 최소 거리
           const minDist = Math.min(...group.map(c => typeof c.dist === 'number' ? c.dist : parseFloat(c.dist) || 999));
@@ -1422,6 +1471,9 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
           const clusterTypes = [...new Set(group.map(c => c._type))];
           const hasNewOpen = group.some(c => c.isNewOpen);
           cafeMapMarkersRef.current.push({ marker, dist: minDist, type: dominantType, origIcon: clusterSvg, isNewOpen: hasNewOpen, clusterCafes: group, clusterTypes });
+        } else {
+          // 단일 카페 또는 빈 그룹 → 개별 핀 마커 (클러스터 원 "1" 방지)
+          group.forEach(cafe => createSingleCafeMarker(cafe));
         }
       });
       } catch (e) { console.warn('[CafeMap] Map initialization failed:', e.message); }
@@ -1458,7 +1510,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
         <div className="cafe-map-modal-overlay" onClick={() => { setShowCafeMap(false); setActiveLegend(null); }}>
           <div className="cafe-map-modal" onClick={e => e.stopPropagation()}>
             <div className="cafe-map-header">
-              <h3 style={{ fontSize: 16, fontWeight: 700, color: t1, margin: 0 }}>카페 {(() => {
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: '#171717', margin: 0 }}>카페 {(() => {
                 const allMapCafes = [...(cd?.nearbyFranchiseList || []), ...(cd?.nearbyIndependentList || []), ...(cd?.nearbyBakeryList || [])];
                 if (allMapCafes.length === 0) return safeCafeCount;
                 if (cafeMapRadius >= 500) return allMapCafes.length;
@@ -8362,7 +8414,7 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
        setApiCollectProgress(prev => ({ ...prev, current: currentStep, status: `[${region.sigungu}] 상가정보 수집 중...` }));
        
        try {
-         const storeRes = await fetch(`${PROXY_SERVER_URL}/api/store/radius?cx=${region.lng}&cy=${region.lat}&radius=1000&numOfRows=1000&pageNo=1`, { signal: AbortSignal.timeout(25000) });
+         const storeRes = await fetch(`${PROXY_SERVER_URL}/api/store/radius?cx=${region.lng}&cy=${region.lat}&radius=1000&numOfRows=1000&pageNo=1`, { signal: AbortSignal.timeout(30000) });
          if (storeRes.ok) {
            const storeData = await storeRes.json();
            console.log(`[${region.sigungu}] 상가 API 응답:`, JSON.stringify(storeData).substring(0, 500));
@@ -10196,7 +10248,7 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
        // ════════════════════════════════════════════════════════
        const collectStoreRadius = async () => {
          try {
-           const storeRadiusRes = await fetch(`${PROXY_SERVER_URL}/api/store/radius?cx=${coordinates.lng}&cy=${coordinates.lat}&radius=550&numOfRows=500&pageNo=1`, { signal: AbortSignal.timeout(25000) });
+           const storeRadiusRes = await fetch(`${PROXY_SERVER_URL}/api/store/radius?cx=${coordinates.lng}&cy=${coordinates.lat}&radius=550&numOfRows=500&pageNo=1`, { signal: AbortSignal.timeout(30000) });
            if (!storeRadiusRes.ok) return { cafes: [], franchiseList: [], independentList: [], franchiseCounts: {}, nearbyItems: [], bakeryList: [], dessertList: [] };
            const storeRadiusRaw = await storeRadiusRes.json();
            let nearbyItems = [];
@@ -10272,6 +10324,7 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
            const BAKERY_KEYWORDS = ['베이커리','빵','브레드','bread','bakery','제과'];
            const DESSERT_KEYWORDS = ['디저트','마카롱','케이크','타르트','와플','크레페','아이스크림','젤라토'];
            const BAKERY_MCLSCDS = ['Q05'];
+           const NOT_BAKERY_KEYWORDS = ['주식회사', '(주)', '뷰티', '화장품', '미용', '에스테틱', '글로벌', '무역', '유통', '물류', '건설', '부동산', '인테리어', '컨설팅', '솔루션', '테크', '소프트', '시스템', '네트워크', '통신', '전자', '기계', '금속', '섬유', '의류', '패션', '학원', '교육', '병원', '의원', '약국', '치과', '한의원', '동물', '펫', '세탁', '클리닝', '주유소', '자동차', '모터스', '타이어'];
 
            // ── 베이커리 판별: isBakeryCheck는 상위 스코프에 정의됨 ──
            const bakeryListSR = [];
@@ -10286,7 +10339,12 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
              if (i.lat && i.lon) {
                if (calcDistParallel(coordinates.lat, coordinates.lng, parseFloat(i.lat), parseFloat(i.lon)) > 550) return;
              }
-             const isBakery = BAKERY_MCLSCDS.includes(mclsCd) || BAKERY_KEYWORDS.some(kw => bizNm.includes(kw));
+             const hasPositiveBakeryKw = BAKERY_KEYWORDS.some(kw => bizNm.includes(kw));
+             const hasNegativeKw = NOT_BAKERY_KEYWORDS.some(kw => bizNm.includes(kw.toLowerCase()));
+             if (hasNegativeKw) console.log('[BAKERY-FILTERED]', bizNm, mclsCd);
+             const matchesMclsCd = BAKERY_MCLSCDS.includes(mclsCd);
+             // Q05 코드만 매칭되고 이름에 베이커리 키워드가 없는 경우, 제외 키워드가 있으면 스킵
+             const isBakery = hasPositiveBakeryKw ? !hasNegativeKw : (matchesMclsCd && !hasNegativeKw);
              const isDessert = DESSERT_KEYWORDS.some(kw => bizNm.includes(kw));
              if (!isBakery && !isDessert) return;
              let isFranchise = false;
