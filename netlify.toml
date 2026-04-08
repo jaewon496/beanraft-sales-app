@@ -39,7 +39,13 @@
 [functions."sbiz-report-proxy"]
   timeout = 26
 
+[functions."nicebizmap-proxy"]
+  timeout = 26
+
 [functions."openub-heartbeat"]
+  schedule = "*/5 * * * *"
+
+[functions."nicebizmap-heartbeat"]
   schedule = "*/5 * * * *"
 
 # Static assets: 302 redirect (browser fetches directly from origin, reduces proxy load)

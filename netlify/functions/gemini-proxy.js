@@ -75,7 +75,7 @@ export async function handler(event) {
 
         const callAgent = async (agent) => {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 25000);
+          const timeoutId = setTimeout(() => controller.abort(), 20000);
           try {
             const reqBody = {
               contents: [{ parts: [{ text: agent.prompt }] }],
@@ -102,6 +102,29 @@ export async function handler(event) {
               }
             );
             clearTimeout(timeoutId);
+            // 429 에러 시 3초 대기 후 1회 재시도
+            if (res.status === 429) {
+              await new Promise(r => setTimeout(r, 3000));
+              const retryController = new AbortController();
+              const retryTimeout = setTimeout(() => retryController.abort(), 15000);
+              const retryRes = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+                {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(reqBody),
+                  signal: retryController.signal
+                }
+              );
+              clearTimeout(retryTimeout);
+              if (!retryRes.ok) {
+                return { id: agent.id, success: false, error: `HTTP ${retryRes.status} (retry after 429)` };
+              }
+              const retryData = await retryRes.json();
+              const retryText = retryData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+              const retryGroundingMeta = retryData.candidates?.[0]?.groundingMetadata || null;
+              return { id: agent.id, success: true, text: retryText, groundingMeta: retryGroundingMeta || undefined };
+            }
             if (!res.ok) {
               return { id: agent.id, success: false, error: `HTTP ${res.status}` };
             }
@@ -116,9 +139,16 @@ export async function handler(event) {
           }
         };
 
-        const agentResults = await Promise.all(agents.map(callAgent));
+        // 순차 호출: 429 에러 방지를 위해 에이전트를 하나씩 호출 (1.5초 딜레이)
         const results = {};
-        agentResults.forEach(r => { results[r.id] = { success: r.success, text: r.text || undefined, error: r.error || undefined, groundingMeta: r.groundingMeta || undefined }; });
+        for (let i = 0; i < agents.length; i++) {
+          const result = await callAgent(agents[i]);
+          results[result.id] = { success: result.success, text: result.text || undefined, error: result.error || undefined, groundingMeta: result.groundingMeta || undefined };
+          // 마지막 에이전트가 아니면 1.5초 대기
+          if (i < agents.length - 1) {
+            await new Promise(r => setTimeout(r, 1500));
+          }
+        }
         return { statusCode: 200, headers, body: JSON.stringify({ results }) };
       }
 

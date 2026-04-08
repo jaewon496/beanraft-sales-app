@@ -117,6 +117,8 @@ exports.handler = async (event, context) => {
     // 헬퍼: endpoint 경로 정규화 (슬래시 보장 + /search.json suffix 보장)
     const normalizeEndpoint = (ep) => {
       let path = ep.startsWith('/') ? ep : '/' + ep;
+      // 이미 .json으로 끝나면 그대로 사용 (GIS API 등)
+      if (path.endsWith('.json')) return path;
       if (!path.endsWith('/search.json')) {
         // /search.json 이 아예 없으면 붙이기
         if (path.endsWith('/')) path += 'search.json';
@@ -144,7 +146,46 @@ exports.handler = async (event, context) => {
     else if (api === 'open') {
       const name = apiName || endpoint;
       if (!name) return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'apiName 또는 endpoint 파라미터 필요' }) };
-      const openPath = `/sbiz/api/bizonSttus/${name}/search.json`;
+
+      // delivery → GIS 내부 API로 분기 (Open API /openApi/delivery 경로 404 대응)
+      if (name === 'delivery') {
+        const { wgs84_lat, wgs84_lng, tpbizNm, crtrYm } = queryParams;
+        if (!wgs84_lat || !wgs84_lng) {
+          return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'delivery API: wgs84_lat, wgs84_lng 필요' }) };
+        }
+        const tm = wgs84ToTM(parseFloat(wgs84_lat), parseFloat(wgs84_lng));
+        const dlvParams = new URLSearchParams({
+          x: tm.x.toString(),
+          y: tm.y.toString(),
+          tpbizNm: tpbizNm || '카페',
+          crtrYm: crtrYm || new Date().toISOString().slice(0, 7).replace('-', '')
+        });
+        const dlvUrl = `https://bigdata.sbiz.or.kr/gis/delivery/getAdmAnlsByCty.json?${dlvParams.toString()}`;
+        console.log('[프록시] delivery GIS:', dlvUrl);
+        const dlvData = await new Promise((resolve, reject) => {
+          const req = https.get(dlvUrl, {
+            rejectUnauthorized: false,
+            headers: {
+              'Accept': 'application/json',
+              'User-Agent': 'Mozilla/5.0',
+              'X-Requested-With': 'XMLHttpRequest',
+              'Referer': 'https://bigdata.sbiz.or.kr/gis/delivery'
+            },
+            timeout: 15000
+          }, (res) => {
+            let body = '';
+            res.on('data', chunk => body += chunk);
+            res.on('end', () => { try { resolve({ status: res.statusCode, data: JSON.parse(body) }); } catch(e) { resolve({ status: res.statusCode, data: body }); } });
+          });
+          req.on('error', reject);
+          req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
+        });
+        return { statusCode: 200, headers: corsHeaders, body: JSON.stringify({ success: true, status: dlvData.status, data: dlvData.data, elapsedMs: Date.now() - startTime }) };
+      }
+
+      // slsIndex → 실제 API 경로는 slsIdex (오타가 아닌 실제 API 스펙)
+      const actualName = name === 'slsIndex' ? 'slsIdex' : name;
+      const openPath = `/sbiz/api/bizonSttus/${actualName}/search.json`;
       const urlParams = new URLSearchParams();
       // certKey 추가 (SBIZ_OPEN_API_KEYS에서 해당 API 키 조회)
       const certKey = SBIZ_OPEN_API_KEYS[name];

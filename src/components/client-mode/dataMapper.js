@@ -1,3 +1,7 @@
+// 라이프스타일 항목명 변환 맵 (소상공인365 원본 → UI 표시용)
+const LIFESTYLE_LABEL_MAP = { '식도락': '외식 활동', '여행': '타지 방문', '쇼핑': '생활 구매', '영화': '문화 여가' };
+export const convertLifestyleLabel = (name) => LIFESTYLE_LABEL_MAP[name] || name;
+
 /**
  * dataMapper.js
  * collectedData (from App.jsx salesMode search) -> UnifiedLayout cards format
@@ -29,6 +33,10 @@
  *   bar/line/area/mixed: { labels: string[], values: number[], values2?: number[] }
  *   donut: { segments: { name: string, pct: number }[] }
  *   horizontal-bar: { items: { label: string, value: number }[] }
+ *   bigNumberDonut: { bigNumber: number, unit: string, subtitle: string, segments: { name, pct, color }[] }
+ *   gaugeGrid: { male: number, female: number, ageGroups: { name, pct }[] }
+ *   rankingList: { items: { name: string, count: number }[] }
+ *   comparisonSplit: { left: { label, count, metrics[] }, right: { label, count, metrics[] } }
  *   null이면 차트 영역에 "데이터 없음" 표시
  */
 
@@ -97,12 +105,6 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     ? Math.round(vstCstRaw.reduce((s, d) => s + (d.pipcnt || 0), 0) / 30)
     : 0;
 
-  const card1ChartItems = [
-    { label: '전체 카페', value: totalCafes },
-    { label: '프랜차이즈', value: franchiseCount },
-    { label: '개인카페', value: independentCount },
-  ].filter(d => d.value > 0);
-
   const card1 = {
     title: '상권 분석 리포트',
     subtitle: `반경 ${radius}m 카페 현황`,
@@ -114,10 +116,19 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       : totalCafes > 0
         ? `반경 ${radius}m 내 카페 ${totalCafes}개 (프랜차이즈 ${franchiseCount}개, 개인 ${independentCount}개). ${franchiseCount > independentCount ? '프랜차이즈 비율이 높은 상권입니다.' : '개인카페 중심의 상권입니다.'}`
         : '카페 데이터를 수집 중입니다.',
-    chartType: 'horizontal-bar',
+    chartType: 'bigNumberDonut',
     metaInfo: '카페 현황',
-    chartData: card1ChartItems.length > 0
-      ? { items: card1ChartItems }
+    chartData: totalCafes > 0
+      ? {
+          bigNumber: totalCafes,
+          unit: '개',
+          subtitle: bakeryCount > 0 ? `베이커리 ${bakeryCount}개가 포함되어 있어요` : '',
+          segments: [
+            { name: '프랜차이즈', pct: franchiseCount, color: '#1B2A4A' },
+            { name: '개인카페', pct: independentCount, color: '#6B7280' },
+            ...(bakeryCount > 0 ? [{ name: '베이커리', pct: bakeryCount, color: '#374B78' }] : []),
+          ].filter(s => s.pct > 0),
+        }
       : null,
     bodyData: {
       cafes: totalCafes,
@@ -125,13 +136,11 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       individual: independentCount,
       bakery: bakeryCount,
       newOpen: newOpenCount,
-      '일 유동인구': card1DailyPop > 0 ? `${fmt(card1DailyPop)}명` : '-',
-      '방문고객': card1DailyVisitors > 0 ? `${fmt(card1DailyVisitors)}명` : '-',
       '폐업 매장': card1Closed,
     },
   };
 
-  // ── Card 2: 고객 분석 (방문 연령 분포) ──
+  // ── Card 2: 고객 분석 (방문 연령 분포) ── 3개 소스 통합: 소상공인365 + 배달핫플레이스 + 오픈업
   const vstCstData = apis.vstCst?.data;
   const vstAgeData = apis.vstAgeRnk?.data;
   let topAge = '';
@@ -177,15 +186,6 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     }
   }
 
-  let card2ChartData = null;
-  if (ageSegments.length >= 2) {
-    const barLabels = ageSegments.map(s => s.name);
-    const barValues = ageSegments.map(s => s.pct);
-    card2ChartData = { labels: barLabels, values: barValues };
-  } else if (femaleRatio !== 50 || maleRatio !== 50) {
-    card2ChartData = { labels: ['여성', '남성'], values: [femaleRatio, maleRatio] };
-  }
-
   // Extract cafe delivery count from baemin data
   let cafeDeliveryCount = 0;
   const baeminRawData = apis.baeminTpbiz?.data;
@@ -194,29 +194,215 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     cafeDeliveryCount = cafeBaemin?.orderCnt || cafeBaemin?.slsCnt || 0;
   }
 
+  // ── 소스2: 배달 핫플레이스 고객 데이터 ──
+  const dlvyHp = apis.deliveryHotplace?.data;
+  let dlvyGenderMale = null;
+  let dlvyGenderFemale = null;
+  let dlvyNewCustPct = null;
+  let dlvyRegularPct = null;
+  let dlvyMaleLife = [];
+  let dlvyFemaleLife = [];
+  let dlvyGenAgeMale = null;
+  let dlvyGenAgeFemale = null;
+  const dlvyAgeKeys = ['gen20CnsmpAmt', 'gen30CnsmpAmt', 'gen40CnsmpAmt', 'gen50CnsmpAmt', 'gen60OverCnsmpAmt'];
+  const dlvyAgeLabels = ['20대', '30대', '40대', '50대', '60대+'];
+
+  if (dlvyHp) {
+    const gList = dlvyHp.vstCustGenRtList || [];
+    const maleG = gList.find(g => (g.genNm || g.keyD || '').includes('남'));
+    const femaleG = gList.find(g => (g.genNm || g.keyD || '').includes('여'));
+    if (maleG) dlvyGenderMale = parseFloat(maleG.genPopnumRt ?? maleG.popnumRate ?? maleG.rtVal ?? maleG.valD ?? 0);
+    if (femaleG) dlvyGenderFemale = parseFloat(femaleG.genPopnumRt ?? femaleG.popnumRate ?? femaleG.rtVal ?? femaleG.valD ?? 0);
+
+    const ncList = dlvyHp.vstCustNewCstmRtList || [];
+    const regItem = ncList.find(c => (c.newCstmCustNm || c.keyD || c.cstmTpNm || '').includes('단골'));
+    const newItem = ncList.find(c => (c.newCstmCustNm || c.keyD || c.cstmTpNm || '').includes('신규'));
+    if (regItem) dlvyRegularPct = parseFloat(regItem.newCstmCntRate ?? regItem.newCstmRt ?? regItem.cstmPopnumRt ?? regItem.rtVal ?? regItem.valD ?? 0);
+    if (newItem) dlvyNewCustPct = parseFloat(newItem.newCstmCntRate ?? newItem.newCstmRt ?? newItem.cstmPopnumRt ?? newItem.rtVal ?? newItem.valD ?? 0);
+
+    dlvyMaleLife = (dlvyHp.vstMaleCustMjrLifeList || []).slice(0, 3).map(m => ({
+      name: convertLifestyleLabel(m.maleCustHbbNm ?? m.keyD ?? ''),
+      pct: parseFloat(m.maleCustRate ?? m.maleCustRt ?? m.rtVal ?? 0),
+    })).filter(x => x.name && x.pct > 0);
+    dlvyFemaleLife = (dlvyHp.vstFemaleCustMjrLifeList || []).slice(0, 3).map(f => ({
+      name: convertLifestyleLabel(f.femaleCustHbbNm ?? f.keyD ?? ''),
+      pct: parseFloat(f.femaleCustRate ?? f.femaleCustRt ?? f.rtVal ?? 0),
+    })).filter(x => x.name && x.pct > 0);
+
+    const genAgeList = dlvyHp.vstCustGenAgeSlamtList || [];
+    dlvyGenAgeMale = genAgeList.find(g => (g.cnsmpGenNm || '').includes('남'));
+    dlvyGenAgeFemale = genAgeList.find(g => (g.cnsmpGenNm || '').includes('여'));
+  }
+
+  // 배달핫플레이스 성별로 소상공인 성별 비율 보강 (소상공인 데이터 없을 때)
+  if (maleRatio === 50 && femaleRatio === 50 && dlvyGenderMale && dlvyGenderFemale) {
+    maleRatio = Math.round(dlvyGenderMale);
+    femaleRatio = Math.round(dlvyGenderFemale);
+  }
+
+  // 신규/단골 (소상공인365에서 안 나오면 배달핫플레이스에서 가져옴)
+  let newCustomerPct = 0;
+  let regularPct = 0;
+  if (dlvyNewCustPct !== null) newCustomerPct = Math.round(dlvyNewCustPct * 10) / 10;
+  if (dlvyRegularPct !== null) regularPct = Math.round(dlvyRegularPct * 10) / 10;
+
+  // ── 소스3: 오픈업 상권 결제 데이터 ──
+  const openubSales = apis.openubSales?.data;
+  let openubGenderStr = null;
+  let openubAgeStr = null;
+
+  if (openubSales) {
+    // 오픈업 gender 데이터: { male: number, female: number } 또는 배열
+    const gender = openubSales.gender;
+    if (gender && typeof gender === 'object') {
+      if (typeof gender.male === 'number' && typeof gender.female === 'number') {
+        const total = gender.male + gender.female;
+        if (total > 0) {
+          const oMale = Math.round((gender.male / total) * 100);
+          const oFemale = 100 - oMale;
+          openubGenderStr = `남성 ${oMale}% / 여성 ${oFemale}%`;
+          // 소상공인/배달 둘 다 없을 때 오픈업으로 보강
+          if (maleRatio === 50 && femaleRatio === 50) {
+            maleRatio = oMale;
+            femaleRatio = oFemale;
+          }
+        }
+      } else if (Array.isArray(gender) && gender.length >= 2) {
+        const total = gender.reduce((s, v) => s + (v || 0), 0);
+        if (total > 0) {
+          const oMale = Math.round((gender[0] / total) * 100);
+          openubGenderStr = `남성 ${oMale}% / 여성 ${100 - oMale}%`;
+          if (maleRatio === 50 && femaleRatio === 50) {
+            maleRatio = oMale;
+            femaleRatio = 100 - oMale;
+          }
+        }
+      }
+    }
+
+    // 오픈업 age 데이터: 배열 [20대, 30대, 40대, 50대, 60대+] 또는 객체
+    const age = openubSales.age;
+    if (age) {
+      if (Array.isArray(age) && age.length >= 4) {
+        const total = age.reduce((s, v) => s + (v || 0), 0);
+        if (total > 0 && ageSegments.length === 0) {
+          const labels = ['20대', '30대', '40대', '50대', '60대+'];
+          ageSegments = age.slice(0, 5).map((v, i) => ({
+            name: labels[i] || `${(i + 2) * 10}대`,
+            pct: Math.round((v / total) * 100),
+          })).filter(s => s.pct > 0);
+          if (ageSegments.length > 0) topAge = ageSegments[0].name;
+        }
+      } else if (typeof age === 'object' && !Array.isArray(age)) {
+        const entries = Object.entries(age).filter(([, v]) => typeof v === 'number' && v > 0);
+        const total = entries.reduce((s, [, v]) => s + v, 0);
+        if (total > 0 && ageSegments.length === 0) {
+          ageSegments = entries.map(([k, v]) => ({
+            name: k,
+            pct: Math.round((v / total) * 100),
+          })).filter(s => s.pct > 0).sort((a, b) => b.pct - a.pct);
+          if (ageSegments.length > 0) topAge = ageSegments[0].name;
+        }
+      }
+    }
+
+    // 오픈업 type(세대): { single, married, withChild } 등
+    const typeData = openubSales.type;
+    if (typeData && typeof typeData === 'object' && !Array.isArray(typeData)) {
+      const total = Object.values(typeData).reduce((s, v) => s + (typeof v === 'number' ? v : 0), 0);
+      if (total > 0) {
+        openubAgeStr = Object.entries(typeData)
+          .filter(([, v]) => typeof v === 'number' && v > 0)
+          .map(([k, v]) => `${k} ${Math.round((v / total) * 100)}%`)
+          .join(' / ');
+      }
+    }
+  }
+
+  // ── 연 평균소득 (earnAmt) ──
+  const earnAmtData = apis.earnAmt?.data;
+  let earnAmtStr = null;
+  if (earnAmtData && (earnAmtData.male || earnAmtData.female)) {
+    const parts = [];
+    if (earnAmtData.male) parts.push(`남 ${Number(earnAmtData.male).toLocaleString()}만원`);
+    if (earnAmtData.female) parts.push(`여 ${Number(earnAmtData.female).toLocaleString()}만원`);
+    earnAmtStr = parts.join(' / ');
+  }
+
+  // 데이터 소스 표기 (실제 수집된 소스만)
+  const card2Sources = ['소상공인365'];
+  if (dlvyHp) card2Sources.push('비즈맵');
+  if (openubSales) card2Sources.push('오픈업');
+
   const card2 = {
     title: '고객 분석',
     subtitle: '방문 고객 특성',
     date: dateStr,
-    source: '소상공인365',
+    source: card2Sources.join('/'),
     bruSummary: aiData?.consumers?.bruSummary || null,
     aiSummary: aiData?.consumers?.bruFeedback
       || (topAge
       ? `${topAge} 고객 비중이 가장 높으며, ${femaleRatio > maleRatio ? '여성' : '남성'} 고객 비율이 높습니다.`
       : '고객 데이터를 수집 중입니다.'),
-    chartType: 'bar',
+    chartType: 'gaugeGrid',
     metaInfo: '고객',
-    chartData: card2ChartData,
-    bodyData: {
-      male: maleRatio,
-      female: femaleRatio,
-      genderRatio: `남성 ${maleRatio}% / 여성 ${femaleRatio}%`,
-      newCustomer: 0,
-      regular: 0,
-      topAge: topAge || '-',
-      peakTime: aiData?.consumers?.peakTime || cd?.population?.peak || null,
-      cafeDeliveryCount: cafeDeliveryCount,
-    },
+    chartData: (() => {
+      const gaugeData = { male: maleRatio, female: femaleRatio, ageGroups: [] };
+      if (ageSegments.length >= 2) {
+        // Group into 20대, 30대, 40대, 50대+ buckets
+        const buckets = { '20대': 0, '30대': 0, '40대': 0, '50대+': 0 };
+        ageSegments.forEach(s => {
+          const name = s.name || '';
+          if (name.includes('20') || name.includes('이십')) buckets['20대'] += s.pct;
+          else if (name.includes('30') || name.includes('삼십')) buckets['30대'] += s.pct;
+          else if (name.includes('40') || name.includes('사십')) buckets['40대'] += s.pct;
+          else buckets['50대+'] += s.pct;
+        });
+        gaugeData.ageGroups = Object.entries(buckets)
+          .filter(([, v]) => v > 0)
+          .map(([k, v]) => ({ name: k, pct: v }));
+      }
+      return (gaugeData.ageGroups.length > 0 || maleRatio !== 50) ? gaugeData : null;
+    })(),
+    bodyData: (() => {
+      const bd = {};
+      // 성별 비율 (항상 표시 - 소상공인/배달/오픈업 중 하나라도 있으면)
+      if (maleRatio !== 50 || femaleRatio !== 50) {
+        bd.genderRatio = `남성 ${maleRatio}% / 여성 ${femaleRatio}%`;
+      }
+      // 주요 연령대
+      if (topAge) bd.topAge = topAge;
+      // 신규/단골 (배달핫플레이스)
+      if (newCustomerPct > 0) bd.newCustomer = newCustomerPct;
+      if (regularPct > 0) bd.regular = regularPct;
+      // 피크타임
+      const peakTime = aiData?.consumers?.peakTime || cd?.population?.peak;
+      if (peakTime) bd.peakTime = peakTime;
+      // 연 평균소득
+      if (earnAmtStr) bd.earnAmt = earnAmtStr;
+      // 라이프스타일 (배달핫플레이스 - 남/여 각각 TOP3)
+      if (dlvyMaleLife.length > 0) {
+        bd.maleLifestyle = dlvyMaleLife.map(l => `${l.name}(${l.pct.toFixed(1)}%)`).join(', ');
+      }
+      if (dlvyFemaleLife.length > 0) {
+        bd.femaleLifestyle = dlvyFemaleLife.map(l => `${l.name}(${l.pct.toFixed(1)}%)`).join(', ');
+      }
+      // 성별/연령별 소비매출 (배달핫플레이스)
+      if (dlvyGenAgeMale || dlvyGenAgeFemale) {
+        const ageParts = [];
+        dlvyAgeKeys.forEach((k, i) => {
+          const mVal = dlvyGenAgeMale?.[k];
+          const fVal = dlvyGenAgeFemale?.[k];
+          if (mVal || fVal) {
+            ageParts.push(`${dlvyAgeLabels[i]}: ${mVal ? `남${fmt(mVal)}만` : '-'}/${fVal ? `여${fmt(fVal)}만` : '-'}`);
+          }
+        });
+        if (ageParts.length > 0) bd.genAgeSales = ageParts.join(', ');
+      }
+      // 오픈업 세대 구성
+      if (openubAgeStr) bd.householdType = openubAgeStr;
+      return Object.keys(bd).length > 0 ? bd : { topAge: '-' };
+    })(),
   };
 
   // ── Card 3: 프랜차이즈 현황 ──
@@ -256,9 +442,22 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       || (franchiseCount > 0
         ? `반경 500m 내 프랜차이즈 ${franchiseCount}개. ${franchiseSegments.length > 0 ? `${franchiseSegments[0].name} 등 ${franchiseSegments.length}개 브랜드.` : ''}`
         : '프랜차이즈 데이터를 수집 중입니다.'),
-    chartType: 'donut',
+    chartType: 'rankingList',
     metaInfo: '프랜차이즈',
-    chartData: franchiseSegments.length > 0 ? { segments: franchiseSegments } : null,
+    chartData: (() => {
+      if (Object.keys(nearbyFC).length > 0) {
+        const sorted = Object.entries(nearbyFC).sort((a, b) => b[1] - a[1]);
+        return {
+          items: sorted.slice(0, 5).map(([brand, cnt]) => ({ name: brand, count: cnt })),
+        };
+      }
+      if (franchiseSegments.length > 0) {
+        return {
+          items: franchiseSegments.slice(0, 5).map(s => ({ name: s.name, count: Math.max(1, Math.round(s.pct * franchiseCount / 100)) })),
+        };
+      }
+      return null;
+    })(),
     bodyData: {
       franchiseCount: franchiseCount,
       totalCafes: totalCafes,
@@ -298,11 +497,6 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     franchiseMaxPrice = prices.length > 0 ? Math.max(...prices.filter(p => p > 0)) : 0;
   }
 
-  const indieBarItems = [];
-  if (indieCount > 0) indieBarItems.push({ label: '개인카페', value: indieCount });
-  if (franchiseCount > 0) indieBarItems.push({ label: '프랜차이즈', value: franchiseCount });
-  if (avgMonthlySales > 0) indieBarItems.push({ label: '월매출(만)', value: avgMonthlySales });
-
   const card4 = {
     title: '개인 카페 분석',
     subtitle: '주변 개인 카페 현황',
@@ -313,10 +507,25 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       || (indieCount > 0
         ? `반경 500m 내 개인카페 ${indieCount}개.${avgMonthlySales > 0 ? ` 점포당 월평균 매출 ${avgMonthlySales.toLocaleString()}만원.` : ''}`
         : '개인카페 데이터를 수집 중입니다.'),
-    chartType: 'horizontal-bar',
+    chartType: 'comparisonSplit',
     metaInfo: '개인카페',
-    chartData: indieBarItems.length > 0
-      ? { items: indieBarItems }
+    chartData: (indieCount > 0 || franchiseCount > 0)
+      ? {
+          left: {
+            label: '개인카페',
+            count: indieCount,
+            metrics: avgMonthlySales > 0
+              ? [{ label: '월평균 매출', value: `${avgMonthlySales.toLocaleString()}만원` }]
+              : [],
+          },
+          right: {
+            label: '프랜차이즈',
+            count: franchiseCount,
+            metrics: (franchiseMinPrice > 0 && franchiseMaxPrice > 0)
+              ? [{ label: '아메리카노', value: `${franchiseMinPrice.toLocaleString()}~${franchiseMaxPrice.toLocaleString()}원` }]
+              : [],
+          },
+        }
       : null,
     bodyData: {
       independentCount: indieCount,
@@ -390,8 +599,8 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
 
   // 우선순위 2: salesAvg 카페 vs 동 평균 비교 차트
   if (salesChartItems.length === 0 && cafeSales && cafeSales > 0) {
-    const cafeVal = Math.round(cafeSales / 10000) || 0;
-    const dongVal = dongAvg ? Math.round(dongAvg / 10000) : 0;
+    const cafeVal = Math.round(cafeSales) || 0;
+    const dongVal = dongAvg ? Math.round(dongAvg) : 0;
     salesChartType = 'bar';
     const items = [];
     if (cafeVal > 0) items.push({ label: '카페', value: cafeVal });
@@ -422,11 +631,11 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       || (cafeSales
       ? `카페 업종 월평균 매출 ${fmtWon(cafeSales)}${dongAvg ? `, 동 전체 업종 평균 ${fmtWon(dongAvg)}` : ''}. ${cafeSales > (dongAvg || 0) ? '동 평균 대비 높은 매출 수준입니다.' : '동 평균 수준의 매출입니다.'}`
       : '매출 데이터를 수집 중입니다.'),
-    chartType: salesChartType,
+    chartType: 'bigNumberTrend',
     metaInfo: '매출',
     chartData: salesChartItems.length > 0
-      ? { labels: salesChartItems.map(d => d.label), values: salesChartItems.map(d => d.value) }
-      : null,
+      ? { bigNumber: cafeSales ? Math.round(cafeSales) : (salesChartItems[salesChartItems.length - 1]?.value || 0), unit: '만원', labels: salesChartItems.map(d => d.label), values: salesChartItems.map(d => d.value) }
+      : (cafeSales > 0 ? { bigNumber: Math.round(cafeSales), unit: '만원', labels: [], values: [] } : null),
     bodyData: {
       monthly: cafeSales || 0,
       dongAvg: dongAvg || 0,
@@ -512,7 +721,7 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       || (dailyPop > 0
       ? `일평균 유동인구 ${fmt(dailyPop)}명. ${weekendPop > weekdayPop ? '주말 유동인구가 평일 대비 높습니다.' : '평일 유동인구가 주말보다 높습니다.'}`
       : '유동인구 데이터를 수집 중입니다.'),
-    chartType: 'area',
+    chartType: 'heatmapBlocks',
     metaInfo: '유동인구',
     chartData: floatChartValues.length > 0
       ? { labels: floatChartLabels, values: floatChartValues }
@@ -536,8 +745,6 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
         }
         return null;
       })(),
-      avgStay: aiData?.consumers?.avgStay || null,
-      residentPop: aiData?.overview?.residentPop || null,
     },
   };
 
@@ -589,9 +796,9 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       : aiData?.rent?.monthly && aiData.rent.monthly !== '-'
         ? `월 임대료 ${aiData.rent.monthly}, 보증금 ${aiData.rent.deposit || '-'}`
         : '임대 데이터를 수집 중입니다.'),
-    chartType: 'horizontal-bar',
+    chartType: 'priceCards',
     metaInfo: '임대',
-    chartData: rentBarItems.length > 0 ? { items: rentBarItems } : null,
+    chartData: rentBarItems.length > 0 ? { items: rentBarItems, totalCost: rentBarItems.reduce((s, it) => s + (it.value || 0), 0) } : null,
     bodyData: {
       rentPerPyeong: avgRent,
       deposit: avgDeposit,
@@ -633,9 +840,14 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
         : risksList.length > 0
           ? risksList[0]?.detail || risksList[0]?.title || ''
           : '기회/리스크 분석 데이터를 수집 중입니다.'),
-    chartType: null,
+    chartType: 'splitList',
     metaInfo: '기회/리스크',
-    chartData: null,
+    chartData: (opportunitiesList.length > 0 || risksList.length > 0)
+      ? {
+          opportunities: opportunitiesList.map(o => ({ title: o?.title || '', detail: o?.detail || '' })),
+          risks: risksList.map(r => ({ title: r?.title || '', detail: r?.detail || '' })),
+        }
+      : null,
     bodyData: {
       opportunities: opportunitiesList.map(o => ({ title: o?.title || '', detail: o?.detail || '' })),
       risks: risksList.map(r => ({ title: r?.title || '', detail: r?.detail || '' })),
@@ -685,7 +897,7 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       || (deliveryRatio > 0 || cafeDeliveryRank > 0
       ? `카페/음료 배달 매출 비중 ${deliveryRatio || '-'}%.${cafeDeliveryRank > 0 ? ` 배달 업종 내 ${cafeDeliveryRank}위.` : ''}`
       : '배달 데이터를 수집 중입니다.'),
-    chartType: 'horizontal-bar',
+    chartType: 'circularProgress',
     metaInfo: '배달',
     chartData: deliveryBarItems.length > 0 ? { items: deliveryBarItems } : null,
     bodyData: {
@@ -715,9 +927,19 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
         : blogMentions > 0
           ? `네이버 블로그 언급 ${fmt(blogMentions)}건.`
           : 'SNS 트렌드 데이터를 수집 중입니다.'),
-    chartType: null,
+    chartType: 'wordCloud',
     metaInfo: 'SNS',
-    chartData: null,
+    chartData: (() => {
+      if (Array.isArray(snsKeywords) && snsKeywords.length > 0) {
+        const kwList = snsKeywords.slice(0, 20).map((kw, i) => ({
+          text: typeof kw === 'string' ? kw : (kw.text || kw.keyword || ''),
+          weight: typeof kw === 'object' && kw.weight ? kw.weight : Math.max(100 - i * 5, 15),
+        }));
+        const posRatio = snsSentiment === '\uAE0D\uC815' ? 72 : snsSentiment === '\uBD80\uC815' ? 28 : 50;
+        return { keywords: kwList, sentimentPos: posRatio };
+      }
+      return null;
+    })(),
     bodyData: {
       keywords: snsKeywords,
       sentiment: snsSentiment,
@@ -733,8 +955,22 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     subtitle: '기상 조건별 매출 영향도',
     date: dateStr,
     bruSummary: aiData?.weatherImpact?.bruSummary || null,
-    chartType: null, // text-based card
-    chartData: null,
+    chartType: 'weatherImpact',
+    chartData: (() => {
+      const effects = aiData?.weatherImpact?.effects;
+      if (effects) {
+        const parseEffect = (v) => { const n = parseFloat(String(v || '0').replace(/[^0-9.\-+]/g, '')); return isNaN(n) ? 0 : n; };
+        return {
+          items: [
+            { label: '\uB9D1\uC74C', icon: 'sun', value: parseEffect(effects.sunny) },
+            { label: '\uD750\uB9BC', icon: 'cloud', value: parseEffect(effects.cloudy) },
+            { label: '\uBE44', icon: 'rain', value: parseEffect(effects.rain) },
+            { label: '\uB208', icon: 'snow', value: parseEffect(effects.snow) },
+          ],
+        };
+      }
+      return null;
+    })(),
     bodyData: {
       regionType: aiData?.weatherImpact?.regionType || cd?.apis?.weatherIndex?.data?.regionType || null,
       sunnyEffect: aiData?.weatherImpact?.effects?.sunny || null,
@@ -782,10 +1018,10 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       || (totalCafes > 0
       ? `반경 500m 내 카페 ${totalCafes}개, 경쟁 강도 "${competLevel}". 프랜차이즈 비율 ${franchRatio}%.`
       : '경쟁 데이터를 수집 중입니다.'),
-    chartType: 'donut',
+    chartType: 'gaugeMeter',
     metaInfo: '경쟁',
     chartData: totalCafes > 0
-      ? { segments: [{ name: '프랜차이즈', pct: franchRatio }, { name: '개인', pct: 100 - franchRatio }] }
+      ? { score: totalCafes > 80 ? 90 : totalCafes > 40 ? 72 : totalCafes > 15 ? 45 : 20, label: '\uACBD\uC7C1 \uAC15\uB3C4' }
       : null,
     bodyData: {
       level: competLevel,
@@ -886,16 +1122,21 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
 
   let card13ChartData = null;
   if (overallScore > 0) {
-    const mixedLabels = ['종합'];
-    const mixedValues = [overallScore];
-    if (opportunityCount > 0) { mixedLabels.push('기회'); mixedValues.push(opportunityCount * 15); }
-    if (riskCount > 0) { mixedLabels.push('리스크'); mixedValues.push(riskCount * 15); }
-    if (totalCafes > 0) {
-      const competScore = totalCafes > 80 ? 30 : totalCafes > 40 ? 50 : totalCafes > 15 ? 70 : 90;
-      mixedLabels.push('경쟁');
-      mixedValues.push(competScore);
-    }
-    card13ChartData = { labels: mixedLabels, values: mixedValues };
+    const opportunityScore = opportunityCount > 0 ? Math.min(opportunityCount * 20, 100) : 50;
+    const riskScore = riskCount > 0 ? Math.min(riskCount * 20, 100) : 30;
+    const competScore = totalCafes > 80 ? 30 : totalCafes > 40 ? 50 : totalCafes > 15 ? 70 : 90;
+    const salesScore = overallScore; // proxy
+    const locationScore = Math.round((overallScore + competScore) / 2);
+    card13ChartData = {
+      overall: overallScore,
+      axes: [
+        { label: '\uAE30\uD68C', value: opportunityScore },
+        { label: '\uB9AC\uC2A4\uD06C', value: riskScore },
+        { label: '\uACBD\uC7C1', value: competScore },
+        { label: '\uB9E4\uCD9C', value: salesScore },
+        { label: '\uC785\uC9C0', value: locationScore },
+      ],
+    };
   }
 
   const card13 = {
@@ -909,7 +1150,7 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       : aiData?.regionBrief
         ? String(aiData.regionBrief).substring(0, 300)
         : 'AI 분석 데이터를 수집 중입니다.',
-    chartType: 'mixed',
+    chartType: 'scoreCard',
     metaInfo: 'AI종합',
     chartData: card13ChartData,
     bodyData: {

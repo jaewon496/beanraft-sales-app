@@ -222,6 +222,88 @@ async function fetchBdSalesParallel(rdnus, totalDeadline) {
   return results;
 }
 
+// ─── pop/rp 모드 핸들러 (단일 호출 - cellTokens + center + radius) ───
+
+async function handlePopRp(reqBody) {
+  const { lat, lng, radius = 500 } = reqBody;
+
+  if (!lat || !lng) {
+    return {
+      statusCode: 400,
+      headers: CORS_HEADERS,
+      body: JSON.stringify({ error: 'lat, lng are required' })
+    };
+  }
+
+  const effectiveRadius = Math.min(radius, 1000);
+  const t0 = Date.now();
+
+  // 1) S2 셀 토큰 생성
+  const cellTokens = latLngToS2Tokens(lat, lng, effectiveRadius, S2_LEVEL);
+  console.log(`[openub-pop-rp] S2 tokens: ${cellTokens.length} cells for ${effectiveRadius}m radius`);
+
+  // 2) pop/rp 단일 호출 (cellTokens + center + radius)
+  try {
+    const data = await callOpenUB('pop/rp', {
+      cellTokens,
+      center: { lat, lng },
+      radius: effectiveRadius,
+      login: true
+    }, 15000);
+
+    const elapsed = Date.now() - t0;
+    console.log(`[openub-pop-rp] Done in ${elapsed}ms, population: ${data?.population}`);
+
+    return {
+      statusCode: 200,
+      headers: CORS_HEADERS,
+      body: JSON.stringify({
+        ok: true,
+        population: data?.population || 0,
+        singleHouseholds: data?.singles?.solo || 0,
+        totalHouseholds: data?.singles?.total || 0,
+        aptLiveRatio: data?.aptLiveRatio || 0,
+        ageGender: data?.ageGender || null,
+        aptPrices: data?.aptPrices || [],
+        hjdNames: data?.hjd_names || [],
+        date: data?.date || null,
+        meta: {
+          s2Level: S2_LEVEL,
+          s2Cells: cellTokens.length,
+          radiusUsed: effectiveRadius,
+          elapsedMs: elapsed
+        }
+      })
+    };
+  } catch (err) {
+    const elapsed = Date.now() - t0;
+    console.warn(`[openub-pop-rp] Failed in ${elapsed}ms:`, err.message);
+
+    return {
+      statusCode: 200,
+      headers: CORS_HEADERS,
+      body: JSON.stringify({
+        ok: false,
+        error: err.message,
+        population: 0,
+        singleHouseholds: 0,
+        totalHouseholds: 0,
+        aptLiveRatio: 0,
+        ageGender: null,
+        aptPrices: [],
+        hjdNames: [],
+        date: null,
+        meta: {
+          s2Level: S2_LEVEL,
+          s2Cells: cellTokens.length,
+          radiusUsed: effectiveRadius,
+          elapsedMs: elapsed
+        }
+      })
+    };
+  }
+}
+
 // ─── 메인 핸들러 ───
 
 export async function handler(event) {
@@ -239,6 +321,13 @@ export async function handler(event) {
 
   try {
     const reqBody = JSON.parse(event.body);
+    const { mode } = reqBody;
+
+    // pop/rp 모드 분기
+    if (mode === 'pop-rp') {
+      return await handlePopRp(reqBody);
+    }
+
     const { lat, lng, radius = 500 } = reqBody;
 
     if (!lat || !lng) {

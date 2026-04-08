@@ -1404,6 +1404,8 @@ const LABEL_MAP = {
   interior: '인테리어 제안', equipment: '설비 제안', menu: '메뉴 제안', beans: '원두 제안',
   education: '교육 제안', design: '디자인 제안', youtube: '유튜브 분석',
   revisitCycle: '재방문 주기', loyaltyIndex: '충성도 지수', scores: '점수',
+  earnAmt: '연 평균소득', maleLifestyle: '남성 라이프스타일', femaleLifestyle: '여성 라이프스타일',
+  genAgeSales: '연령별 소비매출', householdType: '세대 구성',
   franchiseCount: '프랜차이즈 수', totalCafes: '전체 카페 수', independentCount: '개인 카페 수',
   franchiseSummary: '주요 프랜차이즈', nearbySummary: '주변 카페',
   avgMonthlySales: '평균 월매출', franchiseMinPrice: '아메리카노 최저가', franchiseMaxPrice: '아메리카노 최고가',
