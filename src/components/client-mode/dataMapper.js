@@ -45,12 +45,32 @@ const fmt = (n) => {
   return Math.round(n).toLocaleString('ko-KR');
 };
 
+// 한국식 금액 표기 (원 단위 입력)
+function formatKoreanNumber(num) {
+  if (num == null || isNaN(num)) return '-';
+  const absNum = Math.abs(num);
+  const sign = num < 0 ? '-' : '';
+
+  if (absNum >= 100000000) {
+    // 억 단위
+    const eok = Math.floor(absNum / 100000000);
+    const man = Math.round((absNum % 100000000) / 10000);
+    if (man > 0) return `${sign}${eok}억 ${man.toLocaleString()}만`;
+    return `${sign}${eok}억`;
+  } else if (absNum >= 10000) {
+    // 만 단위
+    const man = Math.round(absNum / 10000);
+    return `${sign}${man.toLocaleString()}만`;
+  } else {
+    return `${sign}${absNum.toLocaleString()}`;
+  }
+}
+
+// 만원 단위 입력 → 한국식 금액 표기 + '원' 접미사
 const fmtWon = (n) => {
   if (!n || isNaN(n)) return '-';
-  const v = Math.round(n);
-  if (v >= 10000) return `${(v / 10000).toFixed(1).replace(/\.0$/, '')}억원`;
-  if (v >= 1) return `${fmt(v)}만원`;
-  return `${fmt(v)}만원`;
+  const wonValue = Math.round(n) * 10000; // 만원 → 원 변환
+  return formatKoreanNumber(wonValue) + '원';
 };
 
 export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
@@ -344,8 +364,8 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   let earnAmtStr = null;
   if (earnAmtData && (earnAmtData.male || earnAmtData.female)) {
     const parts = [];
-    if (earnAmtData.male) parts.push(`남 ${Number(earnAmtData.male).toLocaleString()}만원`);
-    if (earnAmtData.female) parts.push(`여 ${Number(earnAmtData.female).toLocaleString()}만원`);
+    if (earnAmtData.male) parts.push(`남 ${fmtWon(Number(earnAmtData.male))}`);
+    if (earnAmtData.female) parts.push(`여 ${fmtWon(Number(earnAmtData.female))}`);
     earnAmtStr = parts.join(' / ');
   }
 
@@ -363,7 +383,9 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     aiSummary: aiData?.consumers?.bruFeedback
       || (topAge
       ? `${topAge} 고객 비중이 가장 높으며, ${femaleRatio > maleRatio ? '여성' : '남성'} 고객 비율이 높습니다.`
-      : '고객 데이터를 수집 중입니다.'),
+      : (openubSales || (Array.isArray(vstCstData) && vstCstData.length > 0) || dlvyHp)
+        ? `${femaleRatio > maleRatio ? '여성' : '남성'} 고객 비율이 높습니다.`
+        : '고객 데이터를 수집 중입니다.'),
     chartType: 'gaugeGrid',
     metaInfo: '고객',
     chartData: (() => {
@@ -525,7 +547,7 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     bruSummary: aiData?.indieCafe?.bruSummary || null,
     aiSummary: aiData?.indieCafe?.bruFeedback
       || (indieCount > 0
-        ? `반경 500m 내 개인카페 ${indieCount}개.${avgMonthlySales > 0 ? ` 점포당 월평균 매출 ${avgMonthlySales.toLocaleString()}만원.` : ''}`
+        ? `반경 500m 내 개인카페 ${indieCount}개.${avgMonthlySales > 0 ? ` 점포당 월평균 매출 ${fmtWon(avgMonthlySales)}.` : ''}`
         : '개인카페 데이터를 수집 중입니다.'),
     chartType: 'comparisonSplit',
     metaInfo: '개인카페',
@@ -535,7 +557,7 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
             label: '개인카페',
             count: indieCount,
             metrics: avgMonthlySales > 0
-              ? [{ label: '월평균 매출', value: `${avgMonthlySales.toLocaleString()}만원` }]
+              ? [{ label: '월평균 매출', value: fmtWon(avgMonthlySales) }]
               : [],
           },
           right: {
@@ -654,8 +676,8 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     chartType: 'bigNumberTrend',
     metaInfo: '매출',
     chartData: salesChartItems.length > 0
-      ? { bigNumber: cafeSales ? Math.round(cafeSales) : (salesChartItems[salesChartItems.length - 1]?.value || 0), unit: '만원', labels: salesChartItems.map(d => d.label), values: salesChartItems.map(d => d.value) }
-      : (cafeSales > 0 ? { bigNumber: Math.round(cafeSales), unit: '만원', labels: [], values: [] } : null),
+      ? { bigNumber: cafeSales ? Math.round(cafeSales) : (salesChartItems[salesChartItems.length - 1]?.value || 0), unit: '만원', displayText: fmtWon(cafeSales || (salesChartItems[salesChartItems.length - 1]?.value || 0)), labels: salesChartItems.map(d => d.label), values: salesChartItems.map(d => d.value) }
+      : (cafeSales > 0 ? { bigNumber: Math.round(cafeSales), unit: '만원', displayText: fmtWon(cafeSales), labels: [], values: [] } : null),
     bodyData: {
       monthly: cafeSales || 0,
       dongAvg: dongAvg || 0,

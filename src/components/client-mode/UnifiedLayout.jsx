@@ -847,7 +847,7 @@ const ChartBigNumberTrend = ({ data }) => {
   return (
     <div style={{ padding: '24px 20px 16px', textAlign: 'center' }}>
       <div style={{ fontSize: 48, fontWeight: 800, color: '#3182F6', lineHeight: 1.1, letterSpacing: '-0.02em', fontFamily: "'Pretendard', -apple-system, sans-serif" }}>
-        {fmtBig(bigNumber)}<span style={{ fontSize: 24, fontWeight: 600, marginLeft: 4 }}>{unit}</span>
+        {data?.displayText ? data.displayText : <>{fmtBig(bigNumber)}<span style={{ fontSize: 24, fontWeight: 600, marginLeft: 4 }}>{unit}</span></>}
       </div>
       <div style={{ fontSize: 12, color: COLORS.textMuted, marginTop: 6, marginBottom: 16 }}>
         월평균 매출
@@ -934,7 +934,13 @@ const ChartPriceCards = ({ data }) => {
 
   const fmtWon = (n) => {
     if (n === null || n === undefined || isNaN(n)) return '-';
-    if (n >= 10000) return (n / 10000).toFixed(1) + '억';
+    // 만원 단위 입력 → 한국식 억/만 표기
+    if (n >= 10000) {
+      const eok = Math.floor(n / 10000);
+      const man = Math.round(n % 10000);
+      if (man > 0) return `${eok}억 ${man.toLocaleString('ko-KR')}만`;
+      return `${eok}억`;
+    }
     return Math.round(n).toLocaleString('ko-KR') + '만';
   };
 
@@ -1416,11 +1422,24 @@ const LABEL_MAP = {
 
 const formatValue = (key, val) => {
   if (Array.isArray(val)) return val.join(', ');
-  if (key === 'monthly' || key === 'dongAvg' || key === 'guAvg') return `${val.toLocaleString()}만원`;
+  if (key === 'monthly' || key === 'dongAvg' || key === 'guAvg') {
+    // 만원 단위 → 한국식 억/만 표기
+    const v = Number(val);
+    if (v >= 10000) { const e = Math.floor(v / 10000); const m = Math.round(v % 10000); return m > 0 ? `${e}억 ${m.toLocaleString()}만원` : `${e}억원`; }
+    return `${v.toLocaleString()}만원`;
+  }
   if (key === 'male' || key === 'female' || key === 'newCustomer' || key === 'regular') return `${val}%`;
   if (key === 'weekday' || key === 'weekend') return `${val.toLocaleString()}명`;
-  if (key === 'rentPerPyeong') return `${val}만원/평`;
-  if (key === 'deposit') return `${val.toLocaleString()}만원`;
+  if (key === 'rentPerPyeong') {
+    const v = Number(val);
+    if (v >= 10000) { const e = Math.floor(v / 10000); const m = Math.round(v % 10000); return m > 0 ? `${e}억 ${m.toLocaleString()}만원/평` : `${e}억원/평`; }
+    return `${v}만원/평`;
+  }
+  if (key === 'deposit') {
+    const v = Number(val);
+    if (v >= 10000) { const e = Math.floor(v / 10000); const m = Math.round(v % 10000); return m > 0 ? `${e}억 ${m.toLocaleString()}만원` : `${e}억원`; }
+    return `${v.toLocaleString()}만원`;
+  }
   if (key === 'supportPrograms') return `${val}건`;
   if (key === 'blogMentions') return `${val.toLocaleString()}건`;
   if (key === 'deliveryRatio' || key === 'closureRate') return `${val}%`;
