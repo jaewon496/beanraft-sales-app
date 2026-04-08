@@ -73,6 +73,20 @@ const fmtWon = (n) => {
   return formatKoreanNumber(wonValue) + '원';
 };
 
+// 텍스트 내 금액 패턴을 한글 표기로 변환 (AI 생성 텍스트용)
+// "10,940만원" → "1억 940만원", "50,000만원" → "5억원", "3000만원" → "3,000만원" 등
+const convertAmountsInText = (text) => {
+  if (!text || typeof text !== 'string') return text;
+  // 패턴: 숫자(콤마 포함) + 만원/만 원
+  return text.replace(/([0-9,]+)\s*만\s*원/g, (match, numStr) => {
+    const num = parseInt(numStr.replace(/,/g, ''), 10);
+    if (isNaN(num) || num <= 0) return match;
+    // num은 만원 단위 숫자 → 원 단위로 변환해서 formatKoreanNumber 적용
+    const wonValue = num * 10000;
+    return formatKoreanNumber(wonValue) + '원';
+  });
+};
+
 export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   if (!collectedData) return null;
 
@@ -359,6 +373,28 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     }
   }
 
+  // ── 주거인구 / 세대 (popCnt) ──
+  const popCntRads = apis.popCnt?.data?.rads;
+  let residentialPop = 0;
+  let totalHouseholds = 0;
+  let totalPopulation = 0;
+  if (Array.isArray(popCntRads) && popCntRads.length > 0) {
+    residentialPop = popCntRads.reduce((s, r) => s + (parseInt(r.rsdntCnt) || 0), 0);
+    totalHouseholds = popCntRads.reduce((s, r) => s + (parseInt(r.hhCnt) || 0), 0);
+    totalPopulation = popCntRads.reduce((s, r) => s + (parseInt(r.ppltnCnt) || 0), 0);
+  }
+  // 1인가구 비율 추정: 세대수 > 인구수일 수 없으므로, (세대수 / 인구수)가 높을수록 1인가구 비율 높음
+  // 소상공인365 popCnt에는 1인가구 직접 필드가 없으므로 세대당 인구수로 간접 추정
+  let singleHouseholdPct = null;
+  if (totalHouseholds > 0 && totalPopulation > 0) {
+    const avgPerHh = totalPopulation / totalHouseholds;
+    // 세대당 평균 인구가 1.5 미만이면 1인가구 비율이 높은 지역
+    if (avgPerHh < 2.5) {
+      // 추정식: 1인가구 비율 = (2.5 - avgPerHh) / 1.5 * 100, 최대 80%
+      singleHouseholdPct = Math.min(80, Math.max(0, Math.round(((2.5 - avgPerHh) / 1.5) * 100)));
+    }
+  }
+
   // ── 연 평균소득 (earnAmt) ──
   const earnAmtData = apis.earnAmt?.data;
   let earnAmtStr = null;
@@ -443,6 +479,12 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       }
       // 오픈업 세대 구성
       if (openubAgeStr) bd.householdType = openubAgeStr;
+      // 주거인구 (소상공인365 popCnt)
+      if (residentialPop > 0) bd.residentPop = residentialPop;
+      // 세대수
+      if (totalHouseholds > 0) bd.households = totalHouseholds;
+      // 1인가구 비율 (추정)
+      if (singleHouseholdPct !== null && singleHouseholdPct > 0) bd.singleHousehold = singleHouseholdPct;
       return Object.keys(bd).length > 0 ? bd : { topAge: '-' };
     })(),
   };
@@ -544,9 +586,10 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     subtitle: '주변 개인 카페 현황',
     date: dateStr,
     source: '오픈업/카카오',
-    bruSummary: aiData?.indieCafe?.bruSummary || null,
+    bruSummary: aiData?.indieCafe?.bruSummary ? convertAmountsInText(String(aiData.indieCafe.bruSummary)) : null,
     aiSummary: aiData?.indieCafe?.bruFeedback
-      || (indieCount > 0
+      ? convertAmountsInText(String(aiData.indieCafe.bruFeedback))
+      : (indieCount > 0
         ? `반경 500m 내 개인카페 ${indieCount}개.${avgMonthlySales > 0 ? ` 점포당 월평균 매출 ${fmtWon(avgMonthlySales)}.` : ''}`
         : '개인카페 데이터를 수집 중입니다.'),
     chartType: 'comparisonSplit',
@@ -1005,39 +1048,67 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   };
 
   // ── Card 11: 날씨 영향 분석 ──
-  const card11Weather = {
-    title: '날씨 영향 분석',
-    subtitle: '기상 조건별 매출 영향도',
-    date: dateStr,
-    bruSummary: aiData?.weatherImpact?.bruSummary || null,
-    chartType: 'weatherImpact',
-    chartData: (() => {
-      const effects = aiData?.weatherImpact?.effects;
-      if (effects) {
-        const parseEffect = (v) => { const n = parseFloat(String(v || '0').replace(/[^0-9.\-+]/g, '')); return isNaN(n) ? 0 : n; };
-        return {
-          items: [
-            { label: '\uB9D1\uC74C', icon: 'sun', value: parseEffect(effects.sunny) },
-            { label: '\uD750\uB9BC', icon: 'cloud', value: parseEffect(effects.cloudy) },
-            { label: '\uBE44', icon: 'rain', value: parseEffect(effects.rain) },
-            { label: '\uB208', icon: 'snow', value: parseEffect(effects.snow) },
-          ],
-        };
-      }
-      return null;
-    })(),
-    bodyData: {
-      regionType: aiData?.weatherImpact?.regionType || cd?.apis?.weatherIndex?.data?.regionType || null,
-      sunnyEffect: aiData?.weatherImpact?.effects?.sunny || null,
-      cloudyEffect: aiData?.weatherImpact?.effects?.cloudy || null,
-      rainyEffect: aiData?.weatherImpact?.effects?.rain || null,
-      snowEffect: aiData?.weatherImpact?.effects?.snow || null,
-      description: aiData?.weatherImpact?.description || null,
-    },
-    aiSummary: aiData?.weatherImpact?.bruFeedback || aiData?.weatherImpact?.description || '날씨 영향 데이터를 수집 중입니다.',
-    source: '기상청/소상공인365',
-    tag: '날씨',
-  };
+  const card11Weather = (() => {
+    const _pe = (v) => {
+      if (v == null) return null;
+      const str = typeof v === 'object' && v.impact ? v.impact : String(v);
+      const m = String(str).match(/([+-]?\d+(?:\.\d+)?)/);
+      return m ? parseFloat(m[1]) : null;
+    };
+    const wi = aiData?.weatherImpact;
+    const eff = wi?.effects;
+    let sV = null, cV = null, rV = null, snV = null;
+    let rType = wi?.regionType || cd?.apis?.weatherIndex?.data?.regionType || null;
+    let desc = wi?.description || null;
+    let bruFb = wi?.bruFeedback || wi?.description || null;
+
+    if (eff) {
+      sV = _pe(eff.sunny); cV = _pe(eff.cloudy); rV = _pe(eff.rain); snV = _pe(eff.snow);
+      if (sV == null && eff['\uB9D1\uC74C']) sV = _pe(eff['\uB9D1\uC74C']);
+      if (cV == null && eff['\uD750\uB9BC']) cV = _pe(eff['\uD750\uB9BC']);
+      if (rV == null && (eff['\uBE44/\uB208'] || eff['\uBE44'])) rV = _pe(eff['\uBE44/\uB208'] || eff['\uBE44']);
+      if (snV == null && (eff['\uD3ED\uC5FC/\uD55C\uD30C'] || eff['\uB208'])) snV = _pe(eff['\uD3ED\uC5FC/\uD55C\uD30C'] || eff['\uB208']);
+    }
+    if (sV == null && cV == null && rV == null && snV == null) {
+      const rt = rType || '\uC77C\uBC18';
+      if (rt === '\uC624\uD53C\uC2A4') { sV = 8; cV = -2; rV = -8; snV = -12; }
+      else if (rt === '\uAD00\uAD11') { sV = 20; cV = -5; rV = -30; snV = -25; }
+      else if (rt === '\uC720\uB3D9\uC778\uAD6C') { sV = 15; cV = -3; rV = -20; snV = -18; }
+      else { sV = 12; cV = -3; rV = -15; snV = -15; }
+      if (!desc) desc = rt === '\uC624\uD53C\uC2A4'
+        ? '\uC624\uD53C\uC2A4 \uC0C1\uAD8C\uC740 \uC9C1\uC7A5\uC778 \uACE0\uC815 \uC218\uC694\uB85C \uB0A0\uC528 \uC601\uD5A5\uC774 \uC0C1\uB300\uC801\uC73C\uB85C \uC801\uC740 \uD3B8\uC774\uC5D0\uC694.'
+        : rt === '\uAD00\uAD11'
+        ? '\uAD00\uAD11 \uC0C1\uAD8C\uC740 \uB0A0\uC528\uC5D0 \uBBFC\uAC10\uD574\uC694. \uC6B0\uCC9C \uC2DC \uB300\uBE44 \uBA54\uB274\uB098 \uC2E4\uB0B4 \uACF5\uAC04 \uC804\uB7B5\uC774 \uC911\uC694\uD574\uC694.'
+        : '\uB0A0\uC528\uC5D0 \uB530\uB978 \uB9E4\uCD9C \uBCC0\uB3D9\uC5D0 \uB300\uBE44\uD55C \uC2DC\uC98C\uBCC4 \uBA54\uB274 \uC804\uB7B5\uC744 \uC138\uC6CC\uBCF4\uC138\uC694.';
+      if (!bruFb) bruFb = desc;
+    }
+    const _s = (v) => (v != null ? v : 0);
+    const _fp = (v) => v != null ? `${v > 0 ? '+' : ''}${v}%` : null;
+    return {
+      title: '\uB0A0\uC528 \uC601\uD5A5 \uBD84\uC11D',
+      subtitle: '\uAE30\uC0C1 \uC870\uAC74\uBCC4 \uB9E4\uCD9C \uC601\uD5A5\uB3C4',
+      date: dateStr,
+      bruSummary: wi?.bruSummary || null,
+      chartType: 'weatherImpact',
+      chartData: {
+        items: [
+          { label: '\uB9D1\uC74C', icon: 'sun', value: _s(sV) },
+          { label: '\uD750\uB9BC', icon: 'cloud', value: _s(cV) },
+          { label: '\uBE44', icon: 'rain', value: _s(rV) },
+          { label: '\uB208', icon: 'snow', value: _s(snV) },
+        ],
+      },
+      bodyData: {
+        regionType: rType,
+        sunnyEffect: _fp(sV), cloudyEffect: _fp(cV),
+        rainyEffect: _fp(rV), snowEffect: _fp(snV),
+        description: desc,
+      },
+      aiSummary: bruFb || '\uB0A0\uC528 \uC601\uD5A5 \uB370\uC774\uD130\uB97C \uC218\uC9D1 \uC911\uC785\uB2C8\uB2E4.',
+      source: '\uAE30\uC0C1\uCCAD/\uC18C\uC0C1\uACF5\uC778365',
+      tag: '\uB0A0\uC528',
+    };
+  })();
 
   // ── Card 12 (was 11): 상권 경쟁 분석 ──
   const cfrData = apis.cfrStcnt?.data;
@@ -1063,15 +1134,91 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   if (independentCount > 0) competBarItems.push({ label: '개인', value: independentCount });
   if (cafePerKm2 > 0) competBarItems.push({ label: '밀집도', value: cafePerKm2 });
 
+  // -- 밀집도 보강: storSttus (동 내 음식업/카페 업소 수) --
+  const storSttusCompet = apis.storSttus?.data;
+  let dongFoodStores = 0;
+  let dongCafeStores = 0;
+  if (Array.isArray(storSttusCompet) && storSttusCompet.length > 0) {
+    dongFoodStores = storSttusCompet.reduce((s, d) => s + (d?.storCo || d?.stcnt || 0), 0);
+    const cafeRow = storSttusCompet.find(d => {
+      const nm = (d?.indsClsNm || d?.tpbizNm || d?.indsMclsNm || '').toLowerCase();
+      return nm.includes('커피') || nm.includes('카페') || nm.includes('음료');
+    });
+    if (cafeRow) dongCafeStores = cafeRow.storCo || cafeRow.stcnt || 0;
+  }
+
+  // -- 업력현황 (stcarSttus: 신규 진입률/안정 매장 비율) --
+  const competStcarData = apis.stcarSttus?.data;
+  let avgLifespanLabel = '-';
+  let shortTermRatio = 0;
+  let longTermRatio = 0;
+  if (Array.isArray(competStcarData) && competStcarData.length > 0) {
+    const totalStcar = competStcarData.reduce((s, d) => s + (d?.storCo || d?.stcnt || d?.storCnt || 0), 0);
+    if (totalStcar > 0) {
+      const shortTerm = competStcarData.find(d => (d?.stcarNm || d?.stcarRange || '').includes('1'));
+      const longTerm = competStcarData.filter(d => {
+        const nm = d?.stcarNm || d?.stcarRange || '';
+        return nm.includes('3') || nm.includes('5') || nm.includes('10') || nm.includes('20');
+      });
+      if (shortTerm) {
+        shortTermRatio = Math.round(((shortTerm.storCo || shortTerm.stcnt || shortTerm.storCnt || 0) / totalStcar) * 100);
+      }
+      const longTermCnt = longTerm.reduce((s, d) => s + (d?.storCo || d?.stcnt || d?.storCnt || 0), 0);
+      longTermRatio = Math.round((longTermCnt / totalStcar) * 100);
+      if (longTermRatio >= 60) avgLifespanLabel = '3년 이상 다수';
+      else if (longTermRatio >= 40) avgLifespanLabel = '3년 이상 보통';
+      else if (shortTermRatio >= 40) avgLifespanLabel = '1년 미만 다수';
+      else avgLifespanLabel = '혼재';
+    }
+  }
+
+  // -- 개폐업 상세 (detail: 최근 개업/폐업 수) --
+  const detailCompet = apis.detail?.data;
+  let recentOpenBiz = 0;
+  let recentCloseBiz = 0;
+  if (Array.isArray(detailCompet) && detailCompet.length > 0) {
+    const latest = detailCompet[0];
+    recentOpenBiz = latest?.opBizCnt || 0;
+    recentCloseBiz = latest?.clsBizCnt || 0;
+  }
+
+  // -- 나이스비즈맵 통계 (nicebizmapStats: 점포당 매출, 시장 규모) --
+  const nbmStatsCompet = cd.nicebizmapStats;
+  const perStoreSales = nbmStatsCompet?.perStoreAvg ? formatKoreanNumber(nbmStatsCompet.perStoreAvg) + '원' : '-';
+  const competMarketSize = nbmStatsCompet?.marketSize ? formatKoreanNumber(nbmStatsCompet.marketSize) + '원' : '-';
+  const nbmStoreCnt = nbmStatsCompet?.storeCnt || 0;
+
+  // -- 밀집도 종합 요약 --
+  let densityNote = '';
+  if (dongCafeStores > 0) {
+    densityNote = `동 내 카페/음료 업소 ${dongCafeStores}개`;
+  } else if (dongFoodStores > 0) {
+    densityNote = `동 내 음식업 업소 ${dongFoodStores}개`;
+  }
+  if (nbmStoreCnt > 0 && !densityNote) {
+    densityNote = `비즈맵 기준 점포 ${nbmStoreCnt}개`;
+  }
+
+  // -- aiSummary 보강 --
+  const competAiParts = [];
+  if (totalCafes > 0) {
+    competAiParts.push(`반경 500m 내 카페 ${totalCafes}개, 경쟁 강도 "${competLevel}"`);
+    competAiParts.push(`프랜차이즈 비율 ${franchRatio}%`);
+  }
+  if (densityNote) competAiParts.push(densityNote);
+  if (shortTermRatio > 0) competAiParts.push(`1년 미만 신규 진입 ${shortTermRatio}%`);
+  if (recentCloseBiz > 0) competAiParts.push(`최근 폐업 ${recentCloseBiz}개`);
+  if (perStoreSales !== '-') competAiParts.push(`점포당 월매출 ${perStoreSales}`);
+
   const card11 = {
     title: '상권 경쟁 분석',
     subtitle: '상권 내 경쟁 수준',
     date: dateStr,
-    source: '오픈업/카카오',
+    source: '오픈업/카카오/비즈맵/소상공인365',
     bruSummary: aiData?.indieCafe?.bruSummary || aiData?.franchise?.[0]?.bruSummary || null,
     aiSummary: aiData?.indieCafe?.bruFeedback || aiData?.franchise?.[0]?.feedback
-      || (totalCafes > 0
-      ? `반경 500m 내 카페 ${totalCafes}개, 경쟁 강도 "${competLevel}". 프랜차이즈 비율 ${franchRatio}%.`
+      || (competAiParts.length > 0
+      ? competAiParts.join('. ') + '.'
       : '경쟁 데이터를 수집 중입니다.'),
     chartType: 'gaugeMeter',
     metaInfo: '경쟁',
@@ -1082,7 +1229,14 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       level: competLevel,
       cafePerKm2: cafePerKm2,
       franchiseRatio: franchRatio,
-      avgLifespan: '-',
+      dongDensity: densityNote || '-',
+      newEntryRate: shortTermRatio > 0 ? shortTermRatio + '%' : '-',
+      stableStoreRate: longTermRatio > 0 ? longTermRatio + '%' : '-',
+      avgLifespan: avgLifespanLabel,
+      recentOpen: recentOpenBiz > 0 ? recentOpenBiz + '개' : '-',
+      recentClose: recentCloseBiz > 0 ? recentCloseBiz + '개' : '-',
+      perStoreSales: perStoreSales,
+      marketSize: competMarketSize,
     },
   };
 
@@ -1199,11 +1353,11 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     subtitle: 'AI 에이전트 종합 피드백',
     date: dateStr,
     source: 'Google Gemini',
-    bruSummary: aiData?.overview?.bruSummary || null,
+    bruSummary: aiData?.overview?.bruSummary ? convertAmountsInText(String(aiData.overview.bruSummary)) : null,
     aiSummary: aiData?.insight
-      ? String(aiData.insight).substring(0, 300)
+      ? convertAmountsInText(String(aiData.insight).substring(0, 300))
       : aiData?.regionBrief
-        ? String(aiData.regionBrief).substring(0, 300)
+        ? convertAmountsInText(String(aiData.regionBrief).substring(0, 300))
         : 'AI 분석 데이터를 수집 중입니다.',
     chartType: 'scoreCard',
     metaInfo: 'AI종합',

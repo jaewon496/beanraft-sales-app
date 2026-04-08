@@ -1399,6 +1399,7 @@ const LABEL_MAP = {
   cafeDeliveryRank: '카페 배달 순위', avgDeliveryOrder: '평균 배달 주문건수', topCategory: '1위 배달 업종',
   weekdaySales: '평일 매출', weekendSales: '주말 매출', cardRatio: '카드 결제 비율', cashRatio: '현금 결제 비율',
   level: '경쟁 강도', cafePerKm2: 'km2당 카페 수', franchiseRatio: '프랜차이즈 비율', avgLifespan: '평균 영업기간',
+  dongDensity: '동 내 밀집도', newEntryRate: '신규 진입률(1년 미만)', stableStoreRate: '안정 매장(3년+)', recentOpen: '최근 개업', recentClose: '최근 폐업', perStoreSales: '점포당 월매출', marketSize: '시장 규모',
   openCount: '신규 개업', closeCount: '폐업', netChange: '순증감', trend: '추세',
   survivalRate1y: '1년 생존율', survivalRate3y: '3년 생존율', survivalRate5y: '5년 생존율', survivalInsight: '생존율 분석',
   overallScore: '종합 점수', opportunities: '기회 요인', risks: '리스크 요인', recommendation: '추천 전략',
@@ -1412,6 +1413,7 @@ const LABEL_MAP = {
   revisitCycle: '재방문 주기', loyaltyIndex: '충성도 지수', scores: '점수',
   earnAmt: '연 평균소득', maleLifestyle: '남성 라이프스타일', femaleLifestyle: '여성 라이프스타일',
   genAgeSales: '연령별 소비매출', householdType: '세대 구성',
+  singleHousehold: '1인가구 비율(추정)', households: '세대수',
   franchiseCount: '프랜차이즈 수', totalCafes: '전체 카페 수', independentCount: '개인 카페 수',
   franchiseSummary: '주요 프랜차이즈', nearbySummary: '주변 카페',
   avgMonthlySales: '평균 월매출', franchiseMinPrice: '아메리카노 최저가', franchiseMaxPrice: '아메리카노 최고가',
@@ -1442,7 +1444,9 @@ const formatValue = (key, val) => {
   }
   if (key === 'supportPrograms') return `${val}건`;
   if (key === 'blogMentions') return `${val.toLocaleString()}건`;
-  if (key === 'deliveryRatio' || key === 'closureRate') return `${val}%`;
+  if (key === 'deliveryRatio' || key === 'closureRate' || key === 'singleHousehold') return `${val}%`;
+  if (key === 'residentPop') return `${Number(val).toLocaleString()}명`;
+  if (key === 'households') return `${Number(val).toLocaleString()}세대`;
   if (key === 'cafes' || key === 'franchise' || key === 'individual' || key === 'bakery' || key === 'newOpen') return `${val}개`;
   return String(val);
 };
@@ -1921,7 +1925,14 @@ const MOCK_CARDS = [
       level: '과밀',
       cafePerKm2: 60,
       franchiseRatio: 26,
-      avgLifespan: '-',
+      dongDensity: '동 내 카페/음료 업소 35개',
+      newEntryRate: '22%',
+      stableStoreRate: '48%',
+      avgLifespan: '3년 이상 보통',
+      recentOpen: '5개',
+      recentClose: '3개',
+      perStoreSales: '1,200만원',
+      marketSize: '5억 7,600만원',
     },
   },
   // Card 13: AI 종합 분석 — scoreCard
