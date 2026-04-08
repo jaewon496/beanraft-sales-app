@@ -234,6 +234,26 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     dlvyGenAgeFemale = genAgeList.find(g => (g.cnsmpGenNm || '').includes('여'));
   }
 
+  // 배달핫플레이스 연령대별 매출로 topAge/ageSegments 보강 (소상공인/오픈업 데이터 없을 때)
+  if (!topAge && (dlvyGenAgeMale || dlvyGenAgeFemale)) {
+    const combined = dlvyAgeKeys.map((k, i) => {
+      const mVal = parseFloat(dlvyGenAgeMale?.[k] || 0);
+      const fVal = parseFloat(dlvyGenAgeFemale?.[k] || 0);
+      return { name: dlvyAgeLabels[i], amt: mVal + fVal };
+    }).filter(x => x.amt > 0);
+    if (combined.length > 0) {
+      const totalAmt = combined.reduce((s, x) => s + x.amt, 0);
+      const sorted = [...combined].sort((a, b) => b.amt - a.amt);
+      if (!topAge) topAge = sorted[0].name;
+      if (ageSegments.length === 0 && totalAmt > 0) {
+        ageSegments = sorted.map(x => ({
+          name: x.name,
+          pct: Math.round((x.amt / totalAmt) * 100),
+        })).filter(s => s.pct > 0);
+      }
+    }
+  }
+
   // 배달핫플레이스 성별로 소상공인 성별 비율 보강 (소상공인 데이터 없을 때)
   if (maleRatio === 50 && femaleRatio === 50 && dlvyGenderMale && dlvyGenderFemale) {
     maleRatio = Math.round(dlvyGenderMale);
@@ -915,18 +935,30 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   const snsSummary = snsData?.summary || snsData?.analysis || null;
   const blogMentions = apis.naverBlog?.total || 0;
 
+  // 나이스비즈맵 인기메뉴/뜨는메뉴
+  const nbmMenuRaw = cd.nicebizmapMenu || [];
+  const trendMenus = Array.isArray(nbmMenuRaw)
+    ? nbmMenuRaw.map(m => ({
+        name: m.MENU_NM || m.menuNm || m.name || (typeof m === 'string' ? m : ''),
+        rank: m.RANK || m.rank || 0,
+        ratio: m.RATIO || m.ratio || 0,
+      })).filter(m => m.name)
+    : [];
+
   const card10 = {
     title: 'SNS 트렌드',
     subtitle: '소셜미디어 키워드 분석',
     date: dateStr,
-    source: '네이버/소상공인365',
+    source: trendMenus.length > 0 ? '네이버/소상공인365/나이스비즈맵' : '네이버/소상공인365',
     bruSummary: aiData?.snsTrend?.bruSummary || null,
     aiSummary: aiData?.snsTrend?.bruFeedback
       || (snsKeywords.length > 0
-        ? `주요 키워드: ${(Array.isArray(snsKeywords) ? snsKeywords.slice(0, 5).join(', ') : String(snsKeywords))}.${blogMentions > 0 ? ` 블로그 언급 ${fmt(blogMentions)}건.` : ''}`
-        : blogMentions > 0
-          ? `네이버 블로그 언급 ${fmt(blogMentions)}건.`
-          : 'SNS 트렌드 데이터를 수집 중입니다.'),
+        ? `주요 키워드: ${(Array.isArray(snsKeywords) ? snsKeywords.slice(0, 5).join(', ') : String(snsKeywords))}.${blogMentions > 0 ? ` 블로그 언급 ${fmt(blogMentions)}건.` : ''}${trendMenus.length > 0 ? ` 인기메뉴: ${trendMenus.slice(0, 3).map(m => m.name).join(', ')}.` : ''}`
+        : trendMenus.length > 0
+          ? `인기메뉴: ${trendMenus.slice(0, 5).map(m => m.name).join(', ')}.${blogMentions > 0 ? ` 블로그 언급 ${fmt(blogMentions)}건.` : ''}`
+          : blogMentions > 0
+            ? `네이버 블로그 언급 ${fmt(blogMentions)}건.`
+            : 'SNS 트렌드 데이터를 수집 중입니다.'),
     chartType: 'wordCloud',
     metaInfo: 'SNS',
     chartData: (() => {
@@ -945,6 +977,7 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       sentiment: snsSentiment,
       summary: snsSummary,
       blogMentions: blogMentions,
+      trendMenus: trendMenus,
     },
     tag: 'SNS',
   };

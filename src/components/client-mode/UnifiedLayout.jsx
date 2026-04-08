@@ -1399,7 +1399,7 @@ const LABEL_MAP = {
   dayOfWeek: '요일별 유동인구', avgStay: '평균 체류시간', residentPop: '상주인구', genderRatio: '성별 비율', peakTime: '피크타임',
   interiorCost: '인테리어 비용', equipmentCost: '설비/장비 비용', totalStartupCost: '총 창업비용', premiumCost: '권리금',
   perPyeong: '평당 임대료', medianMonthly: '월세 중위값', medianDeposit: '보증금 중위값',
-  keywords: 'SNS 키워드', sentiment: '감성 분석', summary: 'SNS 요약',
+  keywords: 'SNS 키워드', sentiment: '감성 분석', summary: 'SNS 요약', trendMenus: '인기/뜨는 메뉴',
   opportunityCount: '기회 요인 수', riskCount: '리스크 요인 수', beancraftPriority: '빈크래프트 우선순위',
   interior: '인테리어 제안', equipment: '설비 제안', menu: '메뉴 제안', beans: '원두 제안',
   education: '교육 제안', design: '디자인 제안', youtube: '유튜브 분석',
@@ -1539,6 +1539,27 @@ const DataTable = ({ data }) => {
             <div key={key} style={{ padding: '10px 0', borderBottom: i < entries.length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none' }}>
               <div style={{ fontSize: 14, color: COLORS.textMuted, marginBottom: 8 }}>{LABEL_MAP[key] || key}</div>
               <KeywordPills keywords={val} />
+            </div>
+          );
+        }
+        // Special rendering for trendMenus (nicebizmap rising menus)
+        if (key === 'trendMenus' && Array.isArray(val) && val.length > 0) {
+          return (
+            <div key={key} style={{ padding: '10px 0', borderBottom: i < entries.length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none' }}>
+              <div style={{ fontSize: 14, color: COLORS.textMuted, marginBottom: 8 }}>{LABEL_MAP[key] || key}</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {val.slice(0, 10).map((m, mi) => (
+                  <span key={mi} style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                    background: 'rgba(255,149,0,0.12)', borderRadius: 12,
+                    padding: '4px 10px', fontSize: 12, fontWeight: 600,
+                    color: 'rgba(255,149,0,0.9)',
+                  }}>
+                    {m.rank > 0 && <span style={{ fontSize: 10, opacity: 0.7 }}>{m.rank}</span>}
+                    {m.name}
+                  </span>
+                ))}
+              </div>
             </div>
           );
         }
@@ -1829,6 +1850,13 @@ const MOCK_CARDS = [
       sentiment: '긍정',
       summary: '강남역 주변 카페 검색량 증가 추세. 디저트와 분위기를 중시하는 리뷰가 다수.',
       blogMentions: 3842,
+      trendMenus: [
+        { name: '아메리카노', rank: 1, ratio: 0 },
+        { name: '카페라떼', rank: 2, ratio: 0 },
+        { name: '크로플', rank: 3, ratio: 0 },
+        { name: '딸기라떼', rank: 4, ratio: 0 },
+        { name: '바닐라라떼', rank: 5, ratio: 0 },
+      ],
     },
     tag: 'SNS',
   },

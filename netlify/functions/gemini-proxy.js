@@ -75,7 +75,7 @@ export async function handler(event) {
 
         const callAgent = async (agent) => {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 20000);
+          const timeoutId = setTimeout(() => controller.abort(), 15000); // 15초 개별 타임아웃
           try {
             const reqBody = {
               contents: [{ parts: [{ text: agent.prompt }] }],
@@ -106,7 +106,7 @@ export async function handler(event) {
             if (res.status === 429) {
               await new Promise(r => setTimeout(r, 3000));
               const retryController = new AbortController();
-              const retryTimeout = setTimeout(() => retryController.abort(), 15000);
+              const retryTimeout = setTimeout(() => retryController.abort(), 12000);
               const retryRes = await fetch(
                 `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
                 {
@@ -139,16 +139,18 @@ export async function handler(event) {
           }
         };
 
-        // 순차 호출: 429 에러 방지를 위해 에이전트를 하나씩 호출 (1.5초 딜레이)
+        // Promise.allSettled 병렬 호출: 모든 에이전트 동시 실행, 일부 실패해도 성공한 것 반환
+        const settled = await Promise.allSettled(agents.map(agent => callAgent(agent)));
         const results = {};
-        for (let i = 0; i < agents.length; i++) {
-          const result = await callAgent(agents[i]);
-          results[result.id] = { success: result.success, text: result.text || undefined, error: result.error || undefined, groundingMeta: result.groundingMeta || undefined };
-          // 마지막 에이전트가 아니면 1.5초 대기
-          if (i < agents.length - 1) {
-            await new Promise(r => setTimeout(r, 1500));
+        settled.forEach((s) => {
+          if (s.status === 'fulfilled') {
+            const r = s.value;
+            results[r.id] = { success: r.success, text: r.text || undefined, error: r.error || undefined, groundingMeta: r.groundingMeta || undefined };
+          } else {
+            // Promise 자체가 reject된 경우 (callAgent 내부에서 catch하므로 거의 발생 안 함)
+            results['unknown'] = { success: false, error: s.reason?.message || 'unknown error' };
           }
-        }
+        });
         return { statusCode: 200, headers, body: JSON.stringify({ results }) };
       }
 
