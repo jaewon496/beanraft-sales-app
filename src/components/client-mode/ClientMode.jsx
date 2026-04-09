@@ -177,6 +177,7 @@ export default function ClientMode({
               onGoHome={handleGoHome}
               searchAddress={searchAddress}
               collectedData={searchResult?.collectedData || null}
+              aiData={searchResult?.data || null}
               initialHomepageOpen={phase === PHASE.HOMEPAGE || isHomepageOpen}
               onHomepageClosed={handleReturnToResults}
               renderResults={renderResults}

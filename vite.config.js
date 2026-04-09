@@ -212,6 +212,87 @@ function ncpGeoProxyPlugin() {
   };
 }
 
+// 공공데이터 Store Radius API 로컬 프록시 미들웨어 (개발 서버 전용)
+// 로컬에서 /.netlify/functions/store-radius-proxy 요청을 직접 처리
+function storeRadiusProxyPlugin() {
+  return {
+    name: 'store-radius-local-proxy',
+    configureServer(server) {
+      const handler = async (req, res) => {
+        // CORS
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+
+        if (req.method === 'OPTIONS') {
+          res.writeHead(200);
+          res.end();
+          return;
+        }
+
+        if (req.method !== 'GET') {
+          res.writeHead(405, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Method not allowed' }));
+          return;
+        }
+
+        // 원본 URL에서 쿼리 파라미터 추출
+        const fullUrl = req.originalUrl || req.url;
+        const url = new URL(fullUrl, `http://${req.headers.host}`);
+        const params = Object.fromEntries(url.searchParams.entries());
+
+        // 필수 파라미터 확인
+        const { cx, cy, radius, numOfRows, pageNo, indsLclsCd, indsMclsCd } = params;
+        if (!cx || !cy) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'cx, cy parameters required' }));
+          return;
+        }
+
+        try {
+          // 공공데이터 API 호출용 쿼리 문자열 구성
+          // type=json 자동 추가
+          const queryParams = new URLSearchParams({
+            cx,
+            cy,
+            radius: radius || '1000',
+            numOfRows: numOfRows || '100',
+            pageNo: pageNo || '1',
+            indsLclsCd: indsLclsCd || 'I2',
+            indsMclsCd: indsMclsCd || 'I212',
+            type: 'json',
+            serviceKey: '02ca822d8e1bf0357b1d782a02dca991192a1b0a89e6cf6ff7e6c4368653cbcb'
+          });
+
+          const targetUrl = `https://apis.data.go.kr/B553077/api/open/sdsc2/storeListInRadius?${queryParams}`;
+          console.log('[store-radius-local] proxying:', targetUrl.substring(0, 120) + '...');
+
+          const apiRes = await fetch(targetUrl);
+
+          if (!apiRes.ok) {
+            res.writeHead(apiRes.status, { 'Content-Type': 'application/json' });
+            const errorText = await apiRes.text();
+            res.end(JSON.stringify({ error: `API returned ${apiRes.status}`, detail: errorText }));
+            return;
+          }
+
+          const data = await apiRes.json();
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(data));
+        } catch (err) {
+          console.error('[store-radius-local] error:', err.message);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      };
+
+      // /.netlify/functions/store-radius-proxy 경로 처리
+      server.middlewares.use('/.netlify/functions/store-radius-proxy', handler);
+    }
+  };
+}
+
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
@@ -227,7 +308,8 @@ export default defineConfig({
     }),
     swVersionPlugin(),
     openubProxyPlugin(),
-    ncpGeoProxyPlugin()
+    ncpGeoProxyPlugin(),
+    storeRadiusProxyPlugin()
   ],
   build: {
     outDir: 'dist',
@@ -264,6 +346,12 @@ export default defineConfig({
         target: 'https://beancraft-sales.netlify.app',
         changeOrigin: true,
         secure: true,
+        // store-radius-proxy는 로컬 미들웨어에서 처리하므로 프록시 바이패스
+        bypass(req) {
+          if (req.url && req.url.startsWith('/.netlify/functions/store-radius-proxy')) {
+            return req.url;
+          }
+        }
       },
       '/api': {
         target: 'https://beancraft-sales.netlify.app',

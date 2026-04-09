@@ -2162,6 +2162,7 @@ export default function UnifiedLayout({
       try {
         const container = document.getElementById('unified-cafe-map-container');
         if (!container) return;
+        if (!window.naver?.maps?.LatLng) return;
         const center = new window.naver.maps.LatLng(coords.lat, coords.lng);
         const map = new window.naver.maps.Map('unified-cafe-map-container', {
           center, zoom: 15,
@@ -2200,6 +2201,7 @@ export default function UnifiedLayout({
         allCafes.forEach(c => { const lat2=parseFloat(c.lat),lng2=parseFloat(c.lng); if(isNaN(lat2)||isNaN(lng2))return; const k=`${Math.round(lat2/0.00015)*0.00015}_${Math.round(lng2/0.00015)*0.00015}`; if(!groups[k])groups[k]=[]; groups[k].push(c); });
         // 개별 카페 마커 생성 헬퍼 (단일 카페용)
         const createSingleMarker = (c) => {
+          if (!window.naver?.maps?.LatLng) return;
           const pos=new window.naver.maps.LatLng(parseFloat(c.lat),parseFloat(c.lng));
           const color = c._type==='bakery'?'#F59E0B':c._type==='franchise'?(c.isNewOpen?'#A855F7':'#3B82F6'):(c.isNewOpen?'#A855F7':'#22C55E');
           const icon=mugSvg(color);
@@ -2212,6 +2214,7 @@ export default function UnifiedLayout({
         Object.values(groups).forEach(group => {
           if (group.length >= 2) {
             // 2개 이상 → 클러스터 마커
+            if (!window.naver?.maps?.LatLng) return;
             const avgLat=group.reduce((s,c)=>s+parseFloat(c.lat),0)/group.length;
             const avgLng=group.reduce((s,c)=>s+parseFloat(c.lng),0)/group.length;
             const pos=new window.naver.maps.LatLng(avgLat,avgLng);
@@ -2257,7 +2260,7 @@ export default function UnifiedLayout({
     let ro;
     loadNaverMapSDK()
       .then(() => {
-        if (!window.naver?.maps?.Map || !mapContainerRef.current) {
+        if (!window.naver?.maps?.Map || !window.naver?.maps?.LatLng || !mapContainerRef.current) {
           setMapLoadFailed(true);
           return;
         }
@@ -2315,7 +2318,7 @@ export default function UnifiedLayout({
   // Update map center when searchAddress changes
   useEffect(() => {
     console.log('[MapUpdate] naverReady:', naverReady, 'mapRef:', !!naverMapRef.current, 'coords:', collectedData?.coordinates);
-    if (!naverReady || !naverMapRef.current) return;
+    if (!naverReady || !naverMapRef.current || !window.naver?.maps?.LatLng) return;
     const coords = collectedData?.coordinates;
     if (!coords?.lat || !coords?.lng) return;
 
@@ -2368,7 +2371,7 @@ export default function UnifiedLayout({
     if (!naverMapRef.current || !navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        if (!window.naver?.maps) return;
+        if (!window.naver?.maps?.LatLng) return;
         const coord = new window.naver.maps.LatLng(pos.coords.latitude, pos.coords.longitude);
         naverMapRef.current.setCenter(coord);
       },

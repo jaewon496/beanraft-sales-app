@@ -586,9 +586,9 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     subtitle: '주변 개인 카페 현황',
     date: dateStr,
     source: '오픈업/카카오',
-    bruSummary: aiData?.indieCafe?.bruSummary ? convertAmountsInText(String(aiData.indieCafe.bruSummary)) : null,
+    bruSummary: aiData?.indieCafe?.bruSummary || null,
     aiSummary: aiData?.indieCafe?.bruFeedback
-      ? convertAmountsInText(String(aiData.indieCafe.bruFeedback))
+      ? String(aiData.indieCafe.bruFeedback)
       : (indieCount > 0
         ? `반경 500m 내 개인카페 ${indieCount}개.${avgMonthlySales > 0 ? ` 점포당 월평균 매출 ${fmtWon(avgMonthlySales)}.` : ''}`
         : '개인카페 데이터를 수집 중입니다.'),
@@ -1135,7 +1135,8 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   if (cafePerKm2 > 0) competBarItems.push({ label: '밀집도', value: cafePerKm2 });
 
   // -- 밀집도 보강: storSttus (동 내 음식업/카페 업소 수) --
-  const storSttusCompet = apis.storSttus?.data;
+  const storSttusRaw = apis.storSttus?.data;
+  const storSttusCompet = Array.isArray(storSttusRaw) ? storSttusRaw : (Array.isArray(storSttusRaw?.data) ? storSttusRaw.data : null);
   let dongFoodStores = 0;
   let dongCafeStores = 0;
   if (Array.isArray(storSttusCompet) && storSttusCompet.length > 0) {
@@ -1146,9 +1147,14 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     });
     if (cafeRow) dongCafeStores = cafeRow.storCo || cafeRow.stcnt || 0;
   }
+  // fallback: 카페 수집 데이터로 밀집도 계산
+  if (dongCafeStores === 0 && totalCafes > 0) {
+    dongCafeStores = totalCafes;
+  }
 
   // -- 업력현황 (stcarSttus: 신규 진입률/안정 매장 비율) --
-  const competStcarData = apis.stcarSttus?.data;
+  const competStcarRaw = apis.stcarSttus?.data;
+  const competStcarData = Array.isArray(competStcarRaw) ? competStcarRaw : (Array.isArray(competStcarRaw?.data) ? competStcarRaw.data : null);
   let avgLifespanLabel = '-';
   let shortTermRatio = 0;
   let longTermRatio = 0;
@@ -1171,9 +1177,15 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       else avgLifespanLabel = '혼재';
     }
   }
+  // fallback: newOpenCount(오픈업 gp-cafes)로 신규 진입률 추정
+  if (shortTermRatio === 0 && newOpenCount > 0 && totalCafes > 0) {
+    shortTermRatio = Math.round((newOpenCount / totalCafes) * 100);
+    if (avgLifespanLabel === '-') avgLifespanLabel = '혼재';
+  }
 
   // -- 개폐업 상세 (detail: 최근 개업/폐업 수) --
-  const detailCompet = apis.detail?.data;
+  const detailRaw = apis.detail?.data;
+  const detailCompet = Array.isArray(detailRaw) ? detailRaw : (Array.isArray(detailRaw?.data) ? detailRaw.data : null);
   let recentOpenBiz = 0;
   let recentCloseBiz = 0;
   if (Array.isArray(detailCompet) && detailCompet.length > 0) {
@@ -1181,12 +1193,32 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     recentOpenBiz = latest?.opBizCnt || 0;
     recentCloseBiz = latest?.clsBizCnt || 0;
   }
+  // fallback: newOpenCount(오픈업 gp-cafes)로 최근 개업 수 보충
+  if (recentOpenBiz === 0 && newOpenCount > 0) {
+    recentOpenBiz = newOpenCount;
+  }
 
   // -- 나이스비즈맵 통계 (nicebizmapStats: 점포당 매출, 시장 규모) --
   const nbmStatsCompet = cd.nicebizmapStats;
-  const perStoreSales = nbmStatsCompet?.perStoreAvg ? formatKoreanNumber(nbmStatsCompet.perStoreAvg) + '원' : '-';
-  const competMarketSize = nbmStatsCompet?.marketSize ? formatKoreanNumber(nbmStatsCompet.marketSize) + '원' : '-';
+  let perStoreSales = nbmStatsCompet?.perStoreAvg ? formatKoreanNumber(nbmStatsCompet.perStoreAvg) + '원' : '-';
+  let competMarketSize = nbmStatsCompet?.marketSize ? formatKoreanNumber(nbmStatsCompet.marketSize) + '원' : '-';
   const nbmStoreCnt = nbmStatsCompet?.storeCnt || 0;
+  // fallback: openubSales로 점포당 매출 보충
+  if (perStoreSales === '-') {
+    const oubSales = apis.openubSales?.data;
+    if (oubSales?.avgMonthlySales) {
+      perStoreSales = formatKoreanNumber(oubSales.avgMonthlySales) + '원';
+    } else if (oubSales?.avgSales) {
+      perStoreSales = formatKoreanNumber(oubSales.avgSales) + '원';
+    }
+  }
+  // fallback: 점포당 매출 * 카페수 = 시장 규모 추정
+  if (competMarketSize === '-' && perStoreSales !== '-' && totalCafes > 0) {
+    const perStoreNum = parseFloat(perStoreSales.replace(/[^0-9]/g, ''));
+    if (perStoreNum > 0) {
+      competMarketSize = formatKoreanNumber(perStoreNum * totalCafes * 10000) + '원';
+    }
+  }
 
   // -- 밀집도 종합 요약 --
   let densityNote = '';
@@ -1197,6 +1229,10 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   }
   if (nbmStoreCnt > 0 && !densityNote) {
     densityNote = `비즈맵 기준 점포 ${nbmStoreCnt}개`;
+  }
+  // fallback: 수집된 카페수로 밀집도
+  if (!densityNote && totalCafes > 0) {
+    densityNote = `반경 500m 카페 ${totalCafes}개`;
   }
 
   // -- aiSummary 보강 --
@@ -1241,7 +1277,8 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   };
 
   // ── Card 12: 상권 변화 추이 ──
-  const stcarData = apis.stcarSttus?.data;
+  const stcarRaw2 = apis.stcarSttus?.data;
+  const stcarData = Array.isArray(stcarRaw2) ? stcarRaw2 : (Array.isArray(stcarRaw2?.data) ? stcarRaw2.data : null);
   let survivalRate1y = 0;
   let openCnt = newOpenCount || 0;
   let closeCnt = 0;
@@ -1353,11 +1390,11 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     subtitle: 'AI 에이전트 종합 피드백',
     date: dateStr,
     source: 'Google Gemini',
-    bruSummary: aiData?.overview?.bruSummary ? convertAmountsInText(String(aiData.overview.bruSummary)) : null,
+    bruSummary: aiData?.overview?.bruSummary || null,
     aiSummary: aiData?.insight
-      ? convertAmountsInText(String(aiData.insight).substring(0, 300))
+      ? String(aiData.insight).substring(0, 300)
       : aiData?.regionBrief
-        ? convertAmountsInText(String(aiData.regionBrief).substring(0, 300))
+        ? String(aiData.regionBrief).substring(0, 300)
         : 'AI 분석 데이터를 수집 중입니다.',
     chartType: 'scoreCard',
     metaInfo: 'AI종합',
@@ -1377,7 +1414,17 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     },
   };
 
-  return [card1, card2, card3, card4, card5, card6, card7, card8, card9, card10, card11Weather, card11, card12, card13];
+  // ── 한글 금액 표기 일괄 적용 (AI 생성 텍스트 내 "X만원" → "X억 X만원") ──
+  const allCards = [card1, card2, card3, card4, card5, card6, card7, card8, card9, card10, card11Weather, card11, card12, card13];
+  for (const card of allCards) {
+    if (card.bruSummary && typeof card.bruSummary === 'string') {
+      card.bruSummary = convertAmountsInText(card.bruSummary);
+    }
+    if (card.aiSummary && typeof card.aiSummary === 'string') {
+      card.aiSummary = convertAmountsInText(card.aiSummary);
+    }
+  }
+  return allCards;
 }
 
 /**

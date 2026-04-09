@@ -39,6 +39,9 @@
 [functions."sbiz-report-proxy"]
   timeout = 26
 
+[functions."store-radius-proxy"]
+  timeout = 30
+
 [functions."nicebizmap-proxy"]
   timeout = 26
 
