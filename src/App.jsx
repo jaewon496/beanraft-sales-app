@@ -821,9 +821,80 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
   const elevatedBg = dark ? '#2C2C35' : '#F2F4F6';
   
   // 브루 피드백 - 접이식 상세보기 UI (AI 캐릭터 페르소나 지원)
-  const BruBubble = ({ text, summary, delay = 0.5, charName = 'AI 피드백', charColor = '#0EA5E9' }) => {
+  // v12: heroMetric, dimensions, citations, confidenceRange, narrative, loading 슬롯 확장
+  const BruBubble = ({
+    text,
+    summary,
+    heroMetric,         // { value, label, trend, comparison }
+    dimensions,         // [{ label, observation }, ...]
+    citations,          // [{ claim, source }, ...]
+    confidenceRange,    // { point, low, high, confidence }
+    narrative,          // string
+    loading = false,
+    delay = 0.5,
+    charName = 'AI 피드백',
+    charColor = '#0EA5E9'
+  }) => {
     const [open, setOpen] = React.useState(false);
-    if (!text) return null;
+    const [selectedDim, setSelectedDim] = React.useState(null);
+
+    // 캐릭터별 그라데이션 보조색 매핑 (공통)
+    const gradientMap = {
+      '#4F46E5': '#7C3AED', '#0EA5E9': '#3B82F6', '#F43F5E': '#EC4899',
+      '#10B981': '#059669', '#F59E0B': '#D97706', '#8B5CF6': '#6D28D9'
+    };
+    const gradEnd = gradientMap[charColor] || '#6366F1';
+
+    // shimmer 키프레임 주입 (한 번만)
+    React.useEffect(() => {
+      if (typeof document === 'undefined') return;
+      if (document.getElementById('bru-bubble-shimmer-style')) return;
+      const styleEl = document.createElement('style');
+      styleEl.id = 'bru-bubble-shimmer-style';
+      styleEl.textContent = `@keyframes bruShimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }`;
+      document.head.appendChild(styleEl);
+    }, []);
+
+    // 로딩 상태: Skeleton Shimmer
+    if (loading) {
+      const shimmerBase = {
+        background: 'linear-gradient(90deg, #2a2a2a 25%, #3a3a3a 50%, #2a2a2a 75%)',
+        backgroundSize: '200% 100%',
+        animation: 'bruShimmer 1.5s infinite',
+        borderRadius: 6,
+      };
+      return (
+        <FadeUpToss inView={true} delay={delay}>
+          <div style={{ marginTop: 20, position: 'relative', zIndex: 10 }}>
+            <div style={{
+              padding: '18px', background: `${charColor}0F`, borderRadius: 18,
+              borderLeft: `3px solid ${charColor}40`, display: 'flex', flexDirection: 'column', gap: 14,
+            }}>
+              {/* 제목 줄 */}
+              <div style={{ ...shimmerBase, height: 16, width: '40%' }} />
+              {/* Hero 숫자 */}
+              <div style={{ ...shimmerBase, height: 40, width: '55%', borderRadius: 10 }} />
+              {/* Chip row */}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ ...shimmerBase, height: 24, width: 64, borderRadius: 12 }} />
+                <div style={{ ...shimmerBase, height: 24, width: 64, borderRadius: 12 }} />
+                <div style={{ ...shimmerBase, height: 24, width: 64, borderRadius: 12 }} />
+                <div style={{ ...shimmerBase, height: 24, width: 64, borderRadius: 12 }} />
+              </div>
+              {/* 본문 3줄 */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ ...shimmerBase, height: 12, width: '95%' }} />
+                <div style={{ ...shimmerBase, height: 12, width: '88%' }} />
+                <div style={{ ...shimmerBase, height: 12, width: '72%' }} />
+              </div>
+            </div>
+          </div>
+        </FadeUpToss>
+      );
+    }
+
+    if (!text && !heroMetric && !narrative && (!dimensions || dimensions.length === 0)) return null;
+
     // JSON 문자열에서 bruFeedback 텍스트 추출 (Gemini가 JSON으로 응답한 경우)
     let extractedText = text;
     let extractedSummary = summary;
@@ -839,14 +910,41 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
       if (extractedText.bruFeedback) { extractedText = extractedText.bruFeedback; if (!extractedSummary && extractedText.bruSummary) extractedSummary = extractedText.bruSummary; }
       else { extractedText = JSON.stringify(extractedText); }
     }
-    const safeText = typeof extractedText === 'string' ? extractedText : String(extractedText);
+    const safeText = extractedText ? (typeof extractedText === 'string' ? extractedText : String(extractedText)) : '';
     const safeSummary = typeof extractedSummary === 'string' ? extractedSummary : (extractedSummary && typeof extractedSummary === 'object' ? JSON.stringify(extractedSummary) : extractedSummary ? String(extractedSummary) : null);
-    // 캐릭터별 그라데이션 보조색 매핑
-    const gradientMap = {
-      '#4F46E5': '#7C3AED', '#0EA5E9': '#3B82F6', '#F43F5E': '#EC4899',
-      '#10B981': '#059669', '#F59E0B': '#D97706', '#8B5CF6': '#6D28D9'
-    };
-    const gradEnd = gradientMap[charColor] || '#6366F1';
+
+    // 안전 파싱
+    const safeDimensions = Array.isArray(dimensions) ? dimensions.filter(d => d && (d.label || d.observation)) : [];
+    const safeCitations = Array.isArray(citations) ? citations.filter(c => c && (c.claim || c.source)) : [];
+    const hasHero = heroMetric && (heroMetric.value !== undefined && heroMetric.value !== null && heroMetric.value !== '');
+    const hasRange = confidenceRange && confidenceRange.point !== undefined && confidenceRange.point !== null;
+    const hasNarrative = narrative && typeof narrative === 'string' && narrative.trim().length > 0;
+
+    // 트렌드 아이콘/색상
+    const trendIcon = (() => {
+      if (!hasHero || !heroMetric.trend) return null;
+      const t = String(heroMetric.trend).toLowerCase();
+      if (t.includes('up') || t.includes('상승') || t.includes('+') || t === '▲') return { icon: '▲', color: '#10B981' };
+      if (t.includes('down') || t.includes('하락') || t.includes('-') || t === '▼') return { icon: '▼', color: '#EF4444' };
+      return { icon: '─', color: '#94A3B8' };
+    })();
+
+    // 선택된 dimension 객체
+    const selectedDimObj = selectedDim !== null && safeDimensions[selectedDim] ? safeDimensions[selectedDim] : null;
+
+    // confidence 색상 (테두리)
+    const confColor = (() => {
+      if (!hasRange || confidenceRange.confidence === undefined) return '#94A3B8';
+      const c = Number(confidenceRange.confidence);
+      if (c >= 80) return '#10B981';
+      if (c >= 60) return '#F59E0B';
+      return '#EF4444';
+    })();
+
+    // 접힌 상태 summary 인라인 프리뷰 (hero 포함)
+    const previewText = safeSummary || '';
+    const previewHero = hasHero ? `[${heroMetric.value}${trendIcon ? ' ' + trendIcon.icon : ''}] ` : '';
+
     return (
       <FadeUpToss inView={true} delay={delay}>
         <div style={{ marginTop: 20, position: 'relative', zIndex: 10 }}>
@@ -866,18 +964,19 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
               touchAction: 'manipulation',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
               <span style={{
                 display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                 width: 24, height: 24, borderRadius: '50%',
                 background: `linear-gradient(135deg, ${charColor}, ${gradEnd})`,
                 color: '#fff', fontSize: 11, fontWeight: 900,
                 boxShadow: `0 2px 8px ${charColor}4D`,
+                flexShrink: 0,
               }}>B</span>
-              <span style={{ fontSize: 14, color: charColor, fontWeight: 700 }}>{charName}</span>
-              {safeSummary && !open && (
-                <span style={{ fontSize: 12, color: t2, fontWeight: 500, marginLeft: 4, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block' }}>
-                  — {safeSummary.length > 25 ? safeSummary.substring(0, 25) + '...' : safeSummary}
+              <span style={{ fontSize: 14, color: charColor, fontWeight: 700, flexShrink: 0 }}>{charName}</span>
+              {(previewText || previewHero) && !open && (
+                <span style={{ fontSize: 12, color: t2, fontWeight: 500, marginLeft: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block', minWidth: 0 }}>
+                  — {previewHero}{previewText && previewText.length > 25 ? previewText.substring(0, 25) + '...' : previewText}
                 </span>
               )}
             </div>
@@ -886,12 +985,34 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
               transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
               transition: 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
               display: 'inline-block',
+              flexShrink: 0,
             }}>▾</span>
           </button>
 
+          {/* 접힌 상태 하단 chip 미리보기 (1-2개) */}
+          {!open && safeDimensions.length > 0 && (
+            <div style={{
+              display: 'flex', gap: 6, padding: '6px 18px 8px',
+              background: dark ? `${charColor}08` : `${charColor}05`,
+              borderRadius: '0 0 18px 18px',
+              borderLeft: `3px solid ${charColor}40`,
+              marginTop: -1,
+            }}>
+              {safeDimensions.slice(0, 2).map((d, i) => (
+                <span key={i} style={{
+                  fontSize: 11, padding: '3px 9px', borderRadius: 10,
+                  background: `${charColor}15`, color: charColor, fontWeight: 600,
+                }}>{d.label}</span>
+              ))}
+              {safeDimensions.length > 2 && (
+                <span style={{ fontSize: 11, color: t2, fontWeight: 500 }}>+{safeDimensions.length - 2}</span>
+              )}
+            </div>
+          )}
+
           {/* 펼쳐진 상세 내용 */}
           <div style={{
-            maxHeight: open ? 2000 : 0,
+            maxHeight: open ? 4000 : 0,
             opacity: open ? 1 : 0,
             overflow: open ? 'visible' : 'hidden',
             transition: 'max-height 0.5s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s ease',
@@ -899,13 +1020,151 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
           }}>
             <div style={{
               background: `${charColor}0F`, borderRadius: '0 0 18px 18px',
-              padding: '4px 18px 18px',
+              padding: '8px 18px 18px',
               borderLeft: `3px solid ${charColor}40`,
             }}>
-              <p style={{ fontSize: 14.5, color: t1, lineHeight: 1.75, letterSpacing: '-0.01em' }}>{safeText}</p>
-              {safeSummary && (
+              {/* Hero Metric 영역 */}
+              {hasHero && (
+                <div style={{ marginBottom: 14, paddingBottom: 12, borderBottom: `1px solid ${charColor}15` }}>
+                  <div style={{
+                    fontSize: 32, color: charColor, fontWeight: 900, letterSpacing: '-0.02em', lineHeight: 1.1,
+                  }}>
+                    {heroMetric.value}
+                  </div>
+                  {heroMetric.label && (
+                    <div style={{ fontSize: 13, color: t2, marginTop: 4, fontWeight: 500 }}>
+                      {heroMetric.label}
+                    </div>
+                  )}
+                  {(trendIcon || heroMetric.comparison) && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+                      {trendIcon && (
+                        <span style={{ fontSize: 13, color: trendIcon.color, fontWeight: 700 }}>
+                          {trendIcon.icon} {heroMetric.trend}
+                        </span>
+                      )}
+                      {heroMetric.comparison && (
+                        <span style={{ fontSize: 12, color: t2, fontWeight: 500 }}>
+                          {heroMetric.comparison}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Chip Row (dimensions) */}
+              {safeDimensions.length > 0 && (
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
+                  {safeDimensions.map((d, i) => {
+                    const isSelected = selectedDim === i;
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault(); e.stopPropagation();
+                          setSelectedDim(prev => prev === i ? null : i);
+                        }}
+                        style={{
+                          fontSize: 12, padding: '6px 12px', borderRadius: 14,
+                          background: isSelected ? charColor : 'transparent',
+                          color: isSelected ? '#fff' : charColor,
+                          border: `1px solid ${isSelected ? charColor : `${charColor}50`}`,
+                          fontWeight: 600, cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          WebkitTapHighlightColor: 'transparent',
+                        }}
+                      >
+                        {d.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* 본문: 선택된 dimension observation 또는 전체 text */}
+              {selectedDimObj && selectedDimObj.observation ? (
+                <p style={{ fontSize: 14.5, color: t1, lineHeight: 1.75, letterSpacing: '-0.01em' }}>
+                  {selectedDimObj.observation}
+                </p>
+              ) : (
+                safeText && (
+                  <p style={{ fontSize: 14.5, color: t1, lineHeight: 1.75, letterSpacing: '-0.01em' }}>
+                    {safeText}
+                  </p>
+                )
+              )}
+
+              {/* Citations 영역 */}
+              {safeCitations.length > 0 && (
+                <div style={{ marginTop: 14, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {safeCitations.map((c, i) => (
+                    <span
+                      key={i}
+                      title={c.claim || ''}
+                      style={{
+                        fontSize: 11, padding: '4px 10px', borderRadius: 10,
+                        background: `${charColor}10`, color: charColor,
+                        border: `1px solid ${charColor}25`,
+                        fontWeight: 600, cursor: c.claim ? 'help' : 'default',
+                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                      }}
+                    >
+                      {c.claim && (
+                        <span style={{ color: t2, fontWeight: 500, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {c.claim}
+                        </span>
+                      )}
+                      {c.source && (
+                        <span style={{ color: charColor }}>
+                          [{c.source}]
+                        </span>
+                      )}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Confidence Range 영역 */}
+              {hasRange && (
+                <div style={{
+                  marginTop: 14, padding: '12px 14px', borderRadius: 12,
+                  background: `${charColor}08`, border: `2px solid ${confColor}60`,
+                }}>
+                  {(confidenceRange.low !== undefined && confidenceRange.high !== undefined) && (
+                    <div style={{ fontSize: 15, color: t1, fontWeight: 800, letterSpacing: '-0.01em' }}>
+                      추정 범위: {confidenceRange.low} ~ {confidenceRange.high}
+                    </div>
+                  )}
+                  <div style={{ fontSize: 12, color: t2, fontWeight: 500, marginTop: 4 }}>
+                    중앙값 {confidenceRange.point}
+                    {confidenceRange.confidence !== undefined && (
+                      <> · 신뢰도 <span style={{ color: confColor, fontWeight: 700 }}>{confidenceRange.confidence}%</span></>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Summary (요약 박스, 기존 호환) */}
+              {safeSummary && !hasNarrative && (
                 <div style={{ marginTop: 14, padding: '10px 14px', background: `${charColor}0A`, borderRadius: 14, border: `1px solid ${charColor}15` }}>
                   <p style={{ fontSize: 13, color: charColor, fontWeight: 600, lineHeight: 1.55 }}>{safeSummary}</p>
+                </div>
+              )}
+
+              {/* Narrative 영역 */}
+              {hasNarrative && (
+                <div style={{
+                  marginTop: 14, paddingLeft: 12,
+                  borderLeft: `2px solid ${charColor}`,
+                }}>
+                  <p style={{
+                    fontSize: 12.5, color: t2, fontStyle: 'italic',
+                    lineHeight: 1.6, fontWeight: 500,
+                  }}>
+                    {narrative}
+                  </p>
                 </div>
               )}
             </div>
@@ -1807,7 +2066,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             </div>
           </FadeUpToss>
         )}
-        <BruBubble text={d.overview?.bruFeedback} summary={d.overview?.bruSummary} delay={0.6} charName="AI 피드백" charColor="#0EA5E9" />
+        <BruBubble text={d.overview?.bruFeedback} summary={d.overview?.bruSummary} heroMetric={d.overview?.heroMetric} dimensions={Array.isArray(d.overview?.dimensions) ? d.overview.dimensions : []} citations={Array.isArray(d.overview?.citations) ? d.overview.citations : []} confidenceRange={d.overview?.confidenceRange} narrative={d.overview?.narrative} loading={!d.overview?.bruFeedback} delay={0.6} charName="AI 피드백" charColor="#0EA5E9" />
       </div>
 
       {/* ━━━ 3. 사람이 있어? — 유동인구 & 방문고객 ━━━ */}
@@ -1924,7 +2183,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
         );
       })()}
 
-        <BruBubble text={d.consumers?.bruFeedback} summary={d.consumers?.bruSummary} delay={0.55} charName="AI 피드백" charColor="#0EA5E9" />
+        <BruBubble text={d.consumers?.bruFeedback} summary={d.consumers?.bruSummary} heroMetric={d.consumers?.heroMetric} dimensions={Array.isArray(d.consumers?.dimensions) ? d.consumers.dimensions : []} citations={Array.isArray(d.consumers?.citations) ? d.consumers.citations : []} confidenceRange={d.consumers?.confidenceRange} narrative={d.consumers?.narrative} loading={!d.consumers?.bruFeedback} delay={0.55} charName="AI 피드백" charColor="#0EA5E9" />
 
       {/* ━━━ 3-2. 사람이 있어? — 피크 타임 분석 ━━━ */}
       {(cd?.apis?.dynPplCmpr?.data || cd?.apis?.nbmTimeSlots?.data || cd?.apis?.floatingTime?.data || cd?.apis?.cafeTimeData?.data || cd?.apis?.simpleAnls?.data?.population) && (() => {
@@ -2321,7 +2580,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
               )}
             </>);
           })()}
-          <BruBubble text={d.floatingPopTimeFeedback} summary={d.floatingPopTimeSummary} delay={0.4} charName="AI 피드백" charColor="#0EA5E9" />
+          <BruBubble text={d.floatingPopTimeFeedback} summary={d.floatingPopTimeSummary} heroMetric={d.floatingTime?.heroMetric} dimensions={Array.isArray(d.floatingTime?.dimensions) ? d.floatingTime.dimensions : []} citations={Array.isArray(d.floatingTime?.citations) ? d.floatingTime.citations : []} confidenceRange={d.floatingTime?.confidenceRange} narrative={d.floatingTime?.narrative} loading={!d.floatingPopTimeFeedback} delay={0.4} charName="AI 피드백" charColor="#0EA5E9" />
         </div>
         );
       })()}
@@ -2641,7 +2900,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
               </FadeUpToss>
             );
           })()}
-          <BruBubble text={d.consumers?.bruFeedback || d.overview?.bruFeedback} summary={d.consumers?.bruSummary} delay={0.5} charName="AI 피드백" charColor="#0EA5E9" />
+          <BruBubble text={d.consumers?.bruFeedback || d.overview?.bruFeedback} summary={d.consumers?.bruSummary} heroMetric={d.consumers?.heroMetric} dimensions={Array.isArray(d.consumers?.dimensions) ? d.consumers.dimensions : []} citations={Array.isArray(d.consumers?.citations) ? d.consumers.citations : []} confidenceRange={d.consumers?.confidenceRange} narrative={d.consumers?.narrative} loading={!(d.consumers?.bruFeedback || d.overview?.bruFeedback)} delay={0.5} charName="AI 피드백" charColor="#0EA5E9" />
         </div>
       )}
 
@@ -2799,7 +3058,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
         </div>
       )}
 
-        <BruBubble text={d.franchise?.[0]?.feedback} summary={d.franchise?.[0]?.bruSummary} delay={0.5} charName="AI 피드백" charColor="#0EA5E9" />
+        <BruBubble text={d.franchise?.[0]?.feedback} summary={d.franchise?.[0]?.bruSummary} heroMetric={d.franchise?.[0]?.heroMetric} dimensions={Array.isArray(d.franchise?.[0]?.dimensions) ? d.franchise[0].dimensions : []} citations={Array.isArray(d.franchise?.[0]?.citations) ? d.franchise[0].citations : []} confidenceRange={d.franchise?.[0]?.confidenceRange} narrative={d.franchise?.[0]?.narrative} loading={!d.franchise?.[0]?.feedback} delay={0.5} charName="AI 피드백" charColor="#0EA5E9" />
 
 
       {/* ━━━ 5-2. 경쟁은? — 개인 카페 경쟁 분석 ━━━ */}
@@ -3024,7 +3283,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
         </div>
       )}
 
-        <BruBubble text={d.indieCafe?.bruFeedback} summary={d.indieCafe?.bruSummary} delay={0.5} charName="AI 피드백" charColor="#0EA5E9" />
+        <BruBubble text={d.indieCafe?.bruFeedback} summary={d.indieCafe?.bruSummary} heroMetric={d.indieCafe?.heroMetric} dimensions={Array.isArray(d.indieCafe?.dimensions) ? d.indieCafe.dimensions : []} citations={Array.isArray(d.indieCafe?.citations) ? d.indieCafe.citations : []} confidenceRange={d.indieCafe?.confidenceRange} narrative={d.indieCafe?.narrative} loading={!d.indieCafe?.bruFeedback} delay={0.5} charName="AI 피드백" charColor="#0EA5E9" />
 
 
       {/* ━━━ 6. 돈은 돼? — 월 매출 (업종별 Top 5) ━━━ */}
@@ -3328,7 +3587,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
       )}
 
 
-        <BruBubble text={d.topSales?.bruFeedback} summary={d.topSales?.bruSummary} delay={0.3} charName="AI 피드백" charColor="#0EA5E9" />
+        <BruBubble text={d.topSales?.bruFeedback} summary={d.topSales?.bruSummary} heroMetric={d.topSales?.heroMetric} dimensions={Array.isArray(d.topSales?.dimensions) ? d.topSales.dimensions : []} citations={Array.isArray(d.topSales?.citations) ? d.topSales.citations : []} confidenceRange={d.topSales?.confidenceRange} narrative={d.topSales?.narrative} loading={!d.topSales?.bruFeedback} delay={0.3} charName="AI 피드백" charColor="#0EA5E9" />
 
 
       {/* ━━━ 7. 자리값은? — 예상 창업비용 ━━━ */}
@@ -3409,7 +3668,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
                 {d.rent.articleCount && d.rent.articleCount !== '0건' && d.rent.articleCount !== '0' && d.rent.articleCount !== 0 && <p style={{ fontSize: 11, color: t3, marginTop: 12 }}>매물 {S(d.rent.articleCount)}</p>}
                 {d.rent.bruFeedback && (
                   <div style={{ marginTop: 12 }}>
-                    <BruBubble text={d.rent.bruFeedback} summary={d.rent?.bruSummary} delay={0.3} charName="AI 피드백" charColor="#0EA5E9" />
+                    <BruBubble text={d.rent.bruFeedback} summary={d.rent?.bruSummary} heroMetric={d.rent?.heroMetric} dimensions={Array.isArray(d.rent?.dimensions) ? d.rent.dimensions : []} citations={Array.isArray(d.rent?.citations) ? d.rent.citations : []} confidenceRange={d.rent?.confidenceRange} narrative={d.rent?.narrative} loading={!d.rent?.bruFeedback} delay={0.3} charName="AI 피드백" charColor="#0EA5E9" />
                   </div>
                 )}
               </div>
@@ -3553,7 +3812,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
         </div>
       )}
 
-        <BruBubble text={d.startupCost?.bruFeedback} summary={d.startupCost?.bruSummary} delay={0.35} charName="AI 피드백" charColor="#0EA5E9" />
+        <BruBubble text={d.startupCost?.bruFeedback} summary={d.startupCost?.bruSummary} heroMetric={d.startupCost?.heroMetric} dimensions={Array.isArray(d.startupCost?.dimensions) ? d.startupCost.dimensions : []} citations={Array.isArray(d.startupCost?.citations) ? d.startupCost.citations : []} confidenceRange={d.startupCost?.confidenceRange} narrative={d.startupCost?.narrative} loading={!d.startupCost?.bruFeedback} delay={0.35} charName="AI 피드백" charColor="#0EA5E9" />
 
 
       {/* ━━━ 8. 살아남아? — 시장 생존율 ━━━ */}
@@ -3652,7 +3911,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
         </div>
       )}
 
-        <BruBubble text={d.marketSurvival?.bruFeedback} summary={d.marketSurvival?.bruSummary} delay={0.3} charName="AI 피드백" charColor="#0EA5E9" />
+        <BruBubble text={d.marketSurvival?.bruFeedback} summary={d.marketSurvival?.bruSummary} heroMetric={d.marketSurvival?.heroMetric} dimensions={Array.isArray(d.marketSurvival?.dimensions) ? d.marketSurvival.dimensions : []} citations={Array.isArray(d.marketSurvival?.citations) ? d.marketSurvival.citations : []} confidenceRange={d.marketSurvival?.confidenceRange} narrative={d.marketSurvival?.narrative} loading={!d.marketSurvival?.bruFeedback} delay={0.3} charName="AI 피드백" charColor="#0EA5E9" />
 
 
       {/* ━━━ 8-2. 살아남아? — 상권 트렌드 ━━━ */}
@@ -4179,7 +4438,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
               })()}
             </div>
           </FadeUpToss>
-          <BruBubble text={d.deliveryFeedback || "이 지역 배달 트렌드를 파악해서, 카페 배달 메뉴 구성 여부를 생각해보세요."} summary={d.deliverySummary} delay={0.35} charName="AI 피드백" charColor="#0EA5E9" />
+          <BruBubble text={d.deliveryFeedback || "이 지역 배달 트렌드를 파악해서, 카페 배달 메뉴 구성 여부를 생각해보세요."} summary={d.deliverySummary} heroMetric={d.delivery?.heroMetric} dimensions={Array.isArray(d.delivery?.dimensions) ? d.delivery.dimensions : []} citations={Array.isArray(d.delivery?.citations) ? d.delivery.citations : []} confidenceRange={d.delivery?.confidenceRange} narrative={d.delivery?.narrative} loading={!d.deliveryFeedback} delay={0.35} charName="AI 피드백" charColor="#0EA5E9" />
         </div>
       )}
 
@@ -4356,7 +4615,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
         </div>
       )}
 
-        <BruBubble text={d.snsTrend?.bruFeedback} summary={d.snsTrend?.bruSummary} delay={0.3} charName="AI 피드백" charColor="#0EA5E9" />
+        <BruBubble text={d.snsTrend?.bruFeedback} summary={d.snsTrend?.bruSummary} heroMetric={d.snsTrend?.heroMetric} dimensions={Array.isArray(d.snsTrend?.dimensions) ? d.snsTrend.dimensions : []} citations={Array.isArray(d.snsTrend?.citations) ? d.snsTrend.citations : []} confidenceRange={d.snsTrend?.confidenceRange} narrative={d.snsTrend?.narrative} loading={!d.snsTrend?.bruFeedback} delay={0.3} charName="AI 피드백" charColor="#0EA5E9" />
 
 
       {/* ━━━ 10-2. 온라인 반응 — 날씨 영향 분석 ━━━ */}
@@ -4763,7 +5022,7 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
       )}
 
 
-        <BruBubble text={d.opportunities?.[0]?.bruFeedback || d.risks?.[0]?.bruFeedback} summary={d.opportunities?.[0]?.bruSummary || d.risks?.[0]?.bruSummary} delay={0.4} charName="AI 피드백" charColor="#0EA5E9" />
+        <BruBubble text={d.opportunities?.[0]?.bruFeedback || d.risks?.[0]?.bruFeedback} summary={d.opportunities?.[0]?.bruSummary || d.risks?.[0]?.bruSummary} heroMetric={d.opportunities?.[0]?.heroMetric || d.risks?.[0]?.heroMetric} dimensions={Array.isArray(d.opportunities?.[0]?.dimensions) ? d.opportunities[0].dimensions : (Array.isArray(d.risks?.[0]?.dimensions) ? d.risks[0].dimensions : [])} citations={Array.isArray(d.opportunities?.[0]?.citations) ? d.opportunities[0].citations : (Array.isArray(d.risks?.[0]?.citations) ? d.risks[0].citations : [])} confidenceRange={d.opportunities?.[0]?.confidenceRange || d.risks?.[0]?.confidenceRange} narrative={d.opportunities?.[0]?.narrative || d.risks?.[0]?.narrative} loading={!(d.opportunities?.[0]?.bruFeedback || d.risks?.[0]?.bruFeedback)} delay={0.4} charName="AI 피드백" charColor="#0EA5E9" />
 
 
       {/* ━━━ 12-2. 결론 — AI 종합 분석 + 빈크래프트 ━━━ */}
@@ -15877,22 +16136,29 @@ JSON 형식으로 응답:
        const isDetailed = /\d+[-번]/.test(query) || query.includes('로 ') || query.includes('길 ');
        
        // 카드별 프롬프트 생성 (prompts.js에서 빌드)
+       const regionInfo = {
+         sido: addressInfo?.sido || '',
+         sigungu: addressInfo?.sigungu || '',
+         dong: addressInfo?.dong || collectedData?.dongInfo?.admdstCdNm || collectedData?.dongInfo?.dongNm || '',
+         station: query || '',
+         fallback: '서울'
+       };
        const cardPrompts = {
-         overview: buildCardPrompt('overview', crossData),
-         consumers: buildCardPrompt('consumers', crossData),
-         spendingAge: buildCardPrompt('spendingAge', crossData),
-         franchise: buildCardPrompt('franchise', crossData),
-         indieCafe: buildCardPrompt('indieCafe', crossData),
-         cafeSales: buildCardPrompt('cafeSales', crossData),
-         floatingTime: buildCardPrompt('floatingTime', crossData),
-         rent: buildCardPrompt('rent', crossData),
-         startupCost: buildCardPrompt('startupCost', crossData),
-         opportunity: buildCardPrompt('opportunity', crossData),
-         risk: buildCardPrompt('risk', crossData),
-         delivery: buildCardPrompt('delivery', crossData),
-         snsAnaly: buildCardPrompt('snsAnaly', crossData),
-         survival: buildCardPrompt('survival', crossData),
-         insight: buildCardPrompt('insight', crossData),
+         overview: buildCardPrompt('overview', crossData, regionInfo),
+         consumers: buildCardPrompt('consumers', crossData, regionInfo),
+         spendingAge: buildCardPrompt('spendingAge', crossData, regionInfo),
+         franchise: buildCardPrompt('franchise', crossData, regionInfo),
+         indieCafe: buildCardPrompt('indieCafe', crossData, regionInfo),
+         cafeSales: buildCardPrompt('cafeSales', crossData, regionInfo),
+         floatingTime: buildCardPrompt('floatingTime', crossData, regionInfo),
+         rent: buildCardPrompt('rent', crossData, regionInfo),
+         startupCost: buildCardPrompt('startupCost', crossData, regionInfo),
+         opportunity: buildCardPrompt('opportunity', crossData, regionInfo),
+         risk: buildCardPrompt('risk', crossData, regionInfo),
+         delivery: buildCardPrompt('delivery', crossData, regionInfo),
+         snsAnaly: buildCardPrompt('snsAnaly', crossData, regionInfo),
+         survival: buildCardPrompt('survival', crossData, regionInfo),
+         insight: buildCardPrompt('insight', crossData, regionInfo),
        };
        // --- 기존 인라인 cardPrompts 제거됨 (2026-04-10) ---
        if (false) {
@@ -16181,6 +16447,47 @@ ${crossData.tourStr && crossData.tourStr !== '미수집' ? `관광축제: ${cros
          operating_time: window.__USER_SETTINGS__?.operating_time || '미설정'
        };
        const settingContext = `[사용자 설정] 예산: ${userSettings.budget} | 아이템: ${userSettings.item} | 타겟: ${userSettings.target} | 운영시간: ${userSettings.operating_time}`;
+       // [v12+] 잘린 JSON 자동 복구: maxOutputTokens 초과/네트워크 컷오프로 끝이 잘렸을 때 복구 시도
+       const repairTruncatedJson = (str) => {
+         if (!str || typeof str !== 'string') return null;
+         let s = str.trim();
+         // 1. markdown 코드블록 제거
+         s = s.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
+         // 2. { 로 시작하지 않으면 처음 { 찾기
+         const firstBrace = s.indexOf('{');
+         if (firstBrace > 0) s = s.substring(firstBrace);
+         if (!s.startsWith('{')) return null;
+         // 3. 마지막 불완전 라인 제거
+         const lines = s.split(/\r?\n/);
+         while (lines.length > 1) {
+           const last = lines[lines.length - 1].trim();
+           if (!last) { lines.pop(); continue; }
+           if (/^[}\],]+$/.test(last)) break;
+           const quoteCount = (last.match(/"/g) || []).length;
+           if (quoteCount % 2 === 1) { lines.pop(); continue; }
+           if (/[\[{,:]\s*$/.test(last)) { lines.pop(); continue; }
+           break;
+         }
+         s = lines.join('\n');
+         // 4. trailing comma 제거
+         s = s.replace(/,(\s*[}\]])/g, '$1');
+         // 5. 괄호 수 맞추기
+         let openCurly = 0, openSquare = 0, inStr = false, esc = false;
+         for (let i = 0; i < s.length; i++) {
+           const c = s[i];
+           if (esc) { esc = false; continue; }
+           if (c === '\\') { esc = true; continue; }
+           if (c === '"') { inStr = !inStr; continue; }
+           if (inStr) continue;
+           if (c === '{') openCurly++;
+           else if (c === '}') openCurly--;
+           else if (c === '[') openSquare++;
+           else if (c === ']') openSquare--;
+         }
+         while (openSquare > 0) { s += ']'; openSquare--; }
+         while (openCurly > 0) { s += '}'; openCurly--; }
+         try { return JSON.parse(s); } catch (e) { return null; }
+       };
        const callCard = async (key, extraContext = '') => {
          for (let attempt = 0; attempt < 2; attempt++) {
            try {
@@ -16188,13 +16495,13 @@ ${crossData.tourStr && crossData.tourStr !== '미수집' ? `관광축제: ${cros
              const cleanCrossData = Object.fromEntries(
                  Object.entries(crossData).filter(([k, v]) => v != null && v !== '' && v !== undefined)
              );
-             const crossDataStr = JSON.stringify(cleanCrossData, null, 0).substring(0, 15000); // Cap at 15k chars
+             const crossDataStr = JSON.stringify(cleanCrossData, null, 0).substring(0, 8000); // Cap at 8k chars (reduced from 15k to lower truncation risk)
              const promptText = settingContext + '\n' + extraContext + (extraContext ? '\n' : '') + '[전체 원천 데이터]\n' + crossDataStr + '\n\n' + cardPrompts[key];
              // [v12] Anchor cards get higher thinking budget
              const isAnchor = anchorCardKeys.includes(key);
              const requestBody = {
                contents: [{ parts: [{ text: promptText }] }],
-               generationConfig: { temperature: 0.7, maxOutputTokens: 1200, responseMimeType: 'application/json', thinkingConfig: { thinkingBudget: isAnchor ? 2048 : 1024 } }
+               generationConfig: { temperature: 0.7, maxOutputTokens: 3000, responseMimeType: 'application/json', thinkingConfig: { thinkingBudget: isAnchor ? 2048 : 1024 } }
              };
              // [v12] Both anchor cards (risk, snsAnaly) get Google Search grounding
              if (key === 'risk' || key === 'snsAnaly') {
@@ -16208,6 +16515,16 @@ ${crossData.tourStr && crossData.tourStr !== '미수집' ? `관광축제: ${cros
              });
              if (!res.ok) { if (attempt === 0) { await new Promise(r => setTimeout(r, 1500)); continue; } return { key, data: null }; }
              const d = await res.json();
+             // [v12 앵커] Google Search 수행 여부 로깅 (risk, snsAnaly만)
+             if (key === 'risk' || key === 'snsAnaly') {
+               const grounding = d?.candidates?.[0]?.groundingMetadata;
+               console.log(`[v12 앵커] ${key} 검색 수행 여부:`, {
+                 searchEntryPoint: !!grounding?.searchEntryPoint,
+                 webSearchQueries: grounding?.webSearchQueries || [],
+                 groundingChunks: grounding?.groundingChunks?.length || 0,
+                 sources: grounding?.groundingChunks?.slice(0, 3).map(c => c.web?.uri || c.web?.title) || []
+               });
+             }
              const txt = d.candidates?.[0]?.content?.parts?.[0]?.text || '';
             let parsed = null;
             // 0차: responseMimeType=json이면 txt 자체가 유효 JSON일 가능성 높음
@@ -16231,6 +16548,14 @@ ${crossData.tourStr && crossData.tourStr !== '미수집' ? `관광축제: ${cros
                     .replace(/,\s*([}\]])/g, '$1');
                   parsed = JSON.parse(fixedJson);
                 } catch {}
+              }
+            }
+            // 2.5차: 잘린 JSON 자동 복구 (maxOutputTokens 초과로 끝이 잘렸을 때)
+            if (!parsed) {
+              const repaired = repairTruncatedJson(txt);
+              if (repaired) {
+                parsed = repaired;
+                console.log(`카드 ${key}: 잘린 JSON 복구 성공`);
               }
             }
             // 3차: 핵심 필드 직접 regex 추출 (bruFeedback/bruSummary/insight)
@@ -16321,56 +16646,85 @@ ${crossData.tourStr && crossData.tourStr !== '미수집' ? `관광축제: ${cros
          if (cardData.bruSummary && typeof cardData.bruSummary !== 'string') cardData.bruSummary = safeStr(cardData.bruSummary);
          if (cardData.insight && typeof cardData.insight !== 'string') cardData.insight = safeStr(cardData.insight);
          
+         // v12 JSON fields: heroMetric / dimensions / citations / confidenceRange / narrative
+         const _v12 = {
+           heroMetric: cardData.heroMetric || null,
+           dimensions: Array.isArray(cardData.dimensions) ? cardData.dimensions : [],
+           citations: Array.isArray(cardData.citations) ? cardData.citations : [],
+           confidenceRange: cardData.confidenceRange || null,
+           narrative: cardData.narrative || null
+         };
          switch(key) {
            case 'overview':
-             if (cardData.bruFeedback) { data.overview = { ...data.overview, bruFeedback: cardData.bruFeedback, bruSummary: cardData.bruSummary }; }
+             if (cardData.bruFeedback) { data.overview = { ...data.overview, bruFeedback: cardData.bruFeedback, bruSummary: cardData.bruSummary, ..._v12 }; }
              break;
            case 'consumers':
-             if (cardData.bruFeedback) { data.consumers = { ...data.consumers, bruFeedback: cardData.bruFeedback, bruSummary: cardData.bruSummary }; }
+             if (cardData.bruFeedback) { data.consumers = { ...data.consumers, bruFeedback: cardData.bruFeedback, bruSummary: cardData.bruSummary, ..._v12 }; }
              break;
            case 'spendingAge':
-             if (cardData.bruFeedback) { data.spendingAgeFeedback = cardData.bruFeedback; data.spendingAgeSummary = cardData.bruSummary; }
+             if (cardData.bruFeedback) {
+               data.spendingAgeFeedback = cardData.bruFeedback;
+               data.spendingAgeSummary = cardData.bruSummary;
+               data.spendingAge = { ...(data.spendingAge || {}), bruFeedback: cardData.bruFeedback, bruSummary: cardData.bruSummary, ..._v12 };
+             }
              break;
            case 'franchise':
              if (cardData.bruFeedback) {
-               if (data.franchise?.[0]) { data.franchise[0].feedback = cardData.bruFeedback; data.franchise[0].bruSummary = cardData.bruSummary; }
-               else { if (!data.franchise) data.franchise = []; if (data.franchise.length === 0) data.franchise.push({}); data.franchise[0].feedback = cardData.bruFeedback; data.franchise[0].bruSummary = cardData.bruSummary; }
+               if (!data.franchise) data.franchise = [];
+               if (data.franchise.length === 0) data.franchise.push({});
+               data.franchise[0] = { ...data.franchise[0], feedback: cardData.bruFeedback, bruSummary: cardData.bruSummary, ..._v12 };
              }
              break;
            case 'indieCafe':
              if (cardData.bruFeedback) {
-               data.indieCafe = { bruFeedback: cardData.bruFeedback, bruSummary: cardData.bruSummary };
+               data.indieCafe = { bruFeedback: cardData.bruFeedback, bruSummary: cardData.bruSummary, ..._v12 };
              }
              break;
            case 'cafeSales':
-             if (cardData.bruFeedback) { data.topSales = { ...data.topSales, bruFeedback: cardData.bruFeedback, bruSummary: cardData.bruSummary }; }
+             if (cardData.bruFeedback) { data.topSales = { ...data.topSales, bruFeedback: cardData.bruFeedback, bruSummary: cardData.bruSummary, ..._v12 }; }
              break;
            case 'floatingTime':
-             if (cardData.bruFeedback) { data.floatingPopTimeFeedback = cardData.bruFeedback; data.floatingPopTimeSummary = cardData.bruSummary; }
+             if (cardData.bruFeedback) {
+               data.floatingPopTimeFeedback = cardData.bruFeedback;
+               data.floatingPopTimeSummary = cardData.bruSummary;
+               data.floatingTime = { ...(data.floatingTime || {}), bruFeedback: cardData.bruFeedback, bruSummary: cardData.bruSummary, ..._v12 };
+             }
              break;
            case 'rent':
-             if (cardData.bruFeedback) { data.rent = { ...data.rent, bruFeedback: cardData.bruFeedback, bruSummary: cardData.bruSummary }; }
+             if (cardData.bruFeedback) { data.rent = { ...data.rent, bruFeedback: cardData.bruFeedback, bruSummary: cardData.bruSummary, ..._v12 }; }
              break;
            case 'startupCost':
-             if (cardData.bruFeedback) { data.startupCost = { ...data.startupCost, bruFeedback: cardData.bruFeedback, bruSummary: cardData.bruSummary }; }
+             if (cardData.bruFeedback) { data.startupCost = { ...data.startupCost, bruFeedback: cardData.bruFeedback, bruSummary: cardData.bruSummary, ..._v12 }; }
              break;
            case 'opportunity':
              if (cardData.bruFeedback) {
-               if (data.opportunities?.[0]) { data.opportunities[0].bruFeedback = cardData.bruFeedback; data.opportunities[0].bruSummary = cardData.bruSummary; }
-               else { if (!data.opportunities) data.opportunities = []; if (data.opportunities.length === 0) data.opportunities.push({ title: '기회 분석', detail: '' }); data.opportunities[0].bruFeedback = cardData.bruFeedback; data.opportunities[0].bruSummary = cardData.bruSummary; }
+               if (!data.opportunities) data.opportunities = [];
+               if (data.opportunities.length === 0) data.opportunities.push({ title: '기회 분석', detail: '' });
+               data.opportunities[0] = { ...data.opportunities[0], bruFeedback: cardData.bruFeedback, bruSummary: cardData.bruSummary, ..._v12 };
              }
              break;
            case 'risk':
              if (cardData.bruFeedback) {
-               if (data.risks?.[0]) { data.risks[0].bruFeedback = cardData.bruFeedback; data.risks[0].bruSummary = cardData.bruSummary; }
-               else { if (!data.risks) data.risks = []; if (data.risks.length === 0) data.risks.push({ title: '리스크 분석', detail: '' }); data.risks[0].bruFeedback = cardData.bruFeedback; data.risks[0].bruSummary = cardData.bruSummary; }
+               if (!data.risks) data.risks = [];
+               if (data.risks.length === 0) data.risks.push({ title: '리스크 분석', detail: '' });
+               data.risks[0] = { ...data.risks[0], bruFeedback: cardData.bruFeedback, bruSummary: cardData.bruSummary, ..._v12 };
              }
              break;
            case 'delivery':
-             if (cardData.bruFeedback) { data.deliveryFeedback = cardData.bruFeedback; data.deliverySummary = cardData.bruSummary; }
+             if (cardData.bruFeedback) {
+               data.deliveryFeedback = cardData.bruFeedback;
+               data.deliverySummary = cardData.bruSummary;
+               data.delivery = { ...(data.delivery || {}), bruFeedback: cardData.bruFeedback, bruSummary: cardData.bruSummary, ..._v12 };
+             }
+             break;
+           case 'snsAnaly':
+             if (cardData.bruFeedback) {
+               data.snsTrend = { ...(data.snsTrend || {}), bruFeedback: cardData.bruFeedback, bruSummary: cardData.bruSummary, ..._v12 };
+               data.snsAnaly = { ...(data.snsAnaly || {}), bruFeedback: cardData.bruFeedback, bruSummary: cardData.bruSummary, ..._v12 };
+             }
              break;
            case 'survival':
-             if (cardData.bruFeedback) { data.marketSurvival = { ...data.marketSurvival, bruFeedback: cardData.bruFeedback, bruSummary: cardData.bruSummary }; }
+             if (cardData.bruFeedback) { data.marketSurvival = { ...data.marketSurvival, bruFeedback: cardData.bruFeedback, bruSummary: cardData.bruSummary, ..._v12 }; }
              break;
            case 'insight':
              if (cardData.insight && !data.insight) { data.insight = cardData.insight; }
