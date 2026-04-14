@@ -16501,7 +16501,13 @@ ${crossData.tourStr && crossData.tourStr !== '미수집' ? `관광축제: ${cros
              const isAnchor = anchorCardKeys.includes(key);
              const requestBody = {
                contents: [{ parts: [{ text: promptText }] }],
-               generationConfig: { temperature: 0.7, maxOutputTokens: 3000, responseMimeType: 'application/json', thinkingConfig: { thinkingBudget: isAnchor ? 2048 : 1024 } }
+               generationConfig: {
+                 temperature: 0.7,
+                 maxOutputTokens: 3000,
+                 // [v12] 앵커 카드는 JSON 모드 해제 (Google Search tool과 충돌 방지)
+                 ...(isAnchor ? {} : { responseMimeType: 'application/json' }),
+                 thinkingConfig: { thinkingBudget: isAnchor ? 2048 : 1024 }
+               }
              };
              // [v12] Both anchor cards (risk, snsAnaly) get Google Search grounding
              if (key === 'risk' || key === 'snsAnaly') {
@@ -16515,20 +16521,46 @@ ${crossData.tourStr && crossData.tourStr !== '미수집' ? `관광축제: ${cros
              });
              if (!res.ok) { if (attempt === 0) { await new Promise(r => setTimeout(r, 1500)); continue; } return { key, data: null }; }
              const d = await res.json();
-             // [v12 앵커] Google Search 수행 여부 로깅 (risk, snsAnaly만)
+             const txt = d.candidates?.[0]?.content?.parts?.[0]?.text || '';
+             // [v12 앵커] Google Search 수행 여부 + 응답 형태 로깅 (risk, snsAnaly만)
              if (key === 'risk' || key === 'snsAnaly') {
                const grounding = d?.candidates?.[0]?.groundingMetadata;
-               console.log(`[v12 앵커] ${key} 검색 수행 여부:`, {
-                 searchEntryPoint: !!grounding?.searchEntryPoint,
-                 webSearchQueries: grounding?.webSearchQueries || [],
-                 groundingChunks: grounding?.groundingChunks?.length || 0,
-                 sources: grounding?.groundingChunks?.slice(0, 3).map(c => c.web?.uri || c.web?.title) || []
-               });
+               if (grounding) {
+                 console.log(`[v12 앵커] ${key} 검색 성공:`, JSON.stringify({
+                   queries: grounding.webSearchQueries || [],
+                   chunks: grounding.groundingChunks?.length || 0,
+                   sources: grounding.groundingChunks?.slice(0, 5).map(c => ({ uri: c.web?.uri, title: c.web?.title })) || []
+                 }, null, 2));
+               } else {
+                 console.warn(`[v12 앵커] ${key} groundingMetadata 없음 - 검색 미수행 가능성`);
+               }
+               // 텍스트 앞 200자도 출력해서 응답 형태 확인
+               console.log(`[v12 앵커] ${key} 응답 텍스트 앞 200자:`, txt.substring(0, 200));
              }
-             const txt = d.candidates?.[0]?.content?.parts?.[0]?.text || '';
             let parsed = null;
+
+            // [v12 앵커] Google Search 응답은 텍스트에 자연어+JSON이 섞일 수 있음
+            // 코드블록 또는 첫 { 부터 마지막 } 까지 추출 시도
+            if (isAnchor) {
+              // ```json ... ``` 블록 우선
+              const codeBlockMatch = txt.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+              if (codeBlockMatch) {
+                try { parsed = JSON.parse(codeBlockMatch[1]); } catch {}
+              }
+              // 그래도 못 찾으면 첫 { 부터 마지막 } 추출
+              if (!parsed) {
+                const firstBrace = txt.indexOf('{');
+                const lastBrace = txt.lastIndexOf('}');
+                if (firstBrace !== -1 && lastBrace > firstBrace) {
+                  try { parsed = JSON.parse(txt.substring(firstBrace, lastBrace + 1)); } catch {}
+                }
+              }
+            }
+
             // 0차: responseMimeType=json이면 txt 자체가 유효 JSON일 가능성 높음
-            try { parsed = JSON.parse(txt); } catch {}
+            if (!parsed) {
+              try { parsed = JSON.parse(txt); } catch {}
+            }
             // 1차: 마크다운/코드블록 완전 제거 후 JSON 추출
             if (!parsed) {
               const clean = txt.replace(/```(?:json|JSON)?\s*\n?/g, '').replace(/\n?\s*```/g, '').trim();
