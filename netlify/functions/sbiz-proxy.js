@@ -4,6 +4,43 @@
 const https = require('https');
 const http = require('http');
 const zlib = require('zlib');
+const { booleanPointInPolygon } = require('@turf/boolean-point-in-polygon');
+const { point: turfPoint, polygon: turfPolygon } = require('@turf/helpers');
+
+// WKT POLYGON 파싱: "POLYGON ((x1 y1, x2 y2, ...))" → GeoJSON ring 배열
+// 소상공인365 geom은 TM 좌표(EPSG:5181 변형, x≈200000, y≈450000)이므로 비교 좌표도 TM이어야 함
+function parsePolygonWKT(wkt) {
+  if (!wkt || typeof wkt !== 'string') return null;
+  // POLYGON 또는 MULTIPOLYGON 모두 처리. 우선 첫 번째 ring만 추출(외곽 경계)
+  // POLYGON ((x1 y1, x2 y2, ...))
+  let match = wkt.match(/POLYGON\s*\(\(([^)]+)\)\)/i);
+  if (match) {
+    const coords = match[1].split(',').map(p => {
+      const parts = p.trim().split(/\s+/).map(Number);
+      return [parts[0], parts[1]];
+    }).filter(c => isFinite(c[0]) && isFinite(c[1]));
+    if (coords.length < 4) return null;
+    // 첫/끝점이 동일해야 GeoJSON 폴리곤 유효
+    if (coords[0][0] !== coords[coords.length-1][0] || coords[0][1] !== coords[coords.length-1][1]) {
+      coords.push([coords[0][0], coords[0][1]]);
+    }
+    return [coords];
+  }
+  // MULTIPOLYGON (((...)),((...)))
+  match = wkt.match(/MULTIPOLYGON\s*\(\(\(([^)]+)\)\)/i);
+  if (match) {
+    const coords = match[1].split(',').map(p => {
+      const parts = p.trim().split(/\s+/).map(Number);
+      return [parts[0], parts[1]];
+    }).filter(c => isFinite(c[0]) && isFinite(c[1]));
+    if (coords.length < 4) return null;
+    if (coords[0][0] !== coords[coords.length-1][0] || coords[0][1] !== coords[coords.length-1][1]) {
+      coords.push([coords[0][0], coords[0][1]]);
+    }
+    return [coords];
+  }
+  return null;
+}
 
 const DATA_GO_KR_API_KEY = '02ca822d8e1bf0357b1d782a02dca991192a1b0a89e6cf6ff7e6c4368653cbcb';
 
@@ -20,6 +57,37 @@ const SBIZ_OPEN_API_KEYS = {
   weather: '843e44cd955ebc42a684c9c892ada0b122713650e0e85c1f3ebe09c9aeff6319',
   hpReport: 'd269ecf98403fa878587eb925ded6ecf9e02f297da19f5d8ffec5cac7309647a'
 };
+
+// TM 박스 좌표 범위 생성 (기본 ±550m: 500m 반경 외접 사각형 + 여유)
+// Gemini Pro 권장: 박스를 ±550m로 좁혀도 안전. 빈 응답 시 ±1km/±2km로 fallback
+function getCoordRange(centerX, centerY, distance = 550) {
+  return {
+    minXAxis: centerX - distance,
+    maxXAxis: centerX + distance,
+    minYAxis: centerY - distance,
+    maxYAxis: centerY + distance
+  };
+}
+
+// TM 박스 자동 확대 폴백 (550 → 1000 → 2000)
+// urlBuilder(range): {minXAxis, maxXAxis, minYAxis, maxYAxis} 받아서 호출 URL 반환
+// fetcher(url): URL로 데이터 fetch (Promise<응답>)
+// isEmpty(data): 응답이 비어있는지 판정
+async function fetchWithBoxExpand(centerX, centerY, urlBuilder, fetcher, isEmpty) {
+  const expandSizes = [550, 1000, 2000];
+  let lastData = null;
+  for (const size of expandSizes) {
+    const range = getCoordRange(centerX, centerY, size);
+    const url = urlBuilder(range);
+    const data = await fetcher(url);
+    lastData = data;
+    if (!isEmpty(data)) {
+      return { data, _bboxSizeM: size };
+    }
+    console.log(`[bbox-expand] size=${size}m → empty, 확대 재시도`);
+  }
+  return { data: lastData, _bboxSizeM: 2000, empty: true };
+}
 
 function wgs84ToTM(lat, lng) {
   const a = 6378137.0, f = 1 / 298.257222101;
@@ -108,7 +176,7 @@ exports.handler = async (event, context) => {
 
   const params = event.queryStringParameters || {};
   const { api, endpoint, apiName, ...queryParams } = params;
-  if (!api) return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'api 파라미터 필요', available: ['sbiz','coord','store','storeRadius','storeInds','gis','open','simpleAnls','detailAnls','weather','seoul','fftc'] }) };
+  if (!api) return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'api 파라미터 필요', available: ['sbiz','coord','store','storeRadius','storeInds','gis','open','simpleAnls','detailAnls','weather','seoul','fftc','bizonRnkTop10'] }) };
 
   const startTime = Date.now();
   try {
@@ -132,10 +200,48 @@ exports.handler = async (event, context) => {
       const gisPath = normalizeEndpoint(endpoint);
       if (queryParams.wgs84_lat && queryParams.wgs84_lng) {
         const tm = wgs84ToTM(parseFloat(queryParams.wgs84_lat), parseFloat(queryParams.wgs84_lng));
-        const margin = parseInt(queryParams.margin) || 1000;
-        const urlParams = new URLSearchParams({ minXAxis: (tm.x-margin).toString(), maxXAxis: (tm.x+margin).toString(), minYAxis: (tm.y-margin).toString(), maxYAxis: (tm.y+margin).toString(), mapLevel: queryParams.mapLevel || '14' });
-        ['chkedList','indsLclsCd','indsLclsNm','indsMclsCd','indsMclsNm'].forEach(k => { if (queryParams[k]) urlParams.append(k, queryParams[k]); });
-        targetUrl = `https://bigdata.sbiz.or.kr${gisPath}?${urlParams.toString()}`;
+        // 기본값 변경: 1000 → 550 (500m 반경 외접 사각형 + 여유)
+        // 사용자 명시 margin 있으면 우선, 없으면 550으로 시작 후 빈 응답시 폴백
+        const userMargin = parseInt(queryParams.margin);
+        const buildUrl = (range) => {
+          const urlParams = new URLSearchParams({
+            minXAxis: range.minXAxis.toString(),
+            maxXAxis: range.maxXAxis.toString(),
+            minYAxis: range.minYAxis.toString(),
+            maxYAxis: range.maxYAxis.toString(),
+            mapLevel: queryParams.mapLevel || '14'
+          });
+          ['chkedList','indsLclsCd','indsLclsNm','indsMclsCd','indsMclsNm'].forEach(k => { if (queryParams[k]) urlParams.append(k, queryParams[k]); });
+          return `https://bigdata.sbiz.or.kr${gisPath}?${urlParams.toString()}`;
+        };
+
+        // 사용자 명시 margin 있으면 단일 호출 (폴백 없음)
+        if (userMargin && isFinite(userMargin) && userMargin > 0) {
+          const range = getCoordRange(tm.x, tm.y, userMargin);
+          targetUrl = buildUrl(range);
+        } else {
+          // 자동 폴백: 550 → 1000 → 2000
+          const isEmptyResp = (d) => {
+            if (!d) return true;
+            if (Array.isArray(d) && d.length === 0) return true;
+            if (d.list && Array.isArray(d.list) && d.list.length === 0) return true;
+            if (d.data && Array.isArray(d.data) && d.data.length === 0) return true;
+            return false;
+          };
+          const result = await fetchWithBoxExpand(tm.x, tm.y, buildUrl, fetchJsonSimple, isEmptyResp);
+          console.log(`[gis] ${gisPath} → bbox=${result._bboxSizeM}m, empty=${result.empty || false}`);
+          return {
+            statusCode: 200,
+            headers: corsHeaders,
+            body: JSON.stringify({
+              success: true,
+              status: 200,
+              data: result.data,
+              _bboxSizeM: result._bboxSizeM,
+              elapsedMs: Date.now() - startTime
+            })
+          };
+        }
       } else {
         const urlParams = new URLSearchParams();
         Object.keys(queryParams).forEach(k => { if (queryParams[k]) urlParams.append(k, queryParams[k]); });
@@ -147,6 +253,138 @@ exports.handler = async (event, context) => {
       const name = apiName || endpoint;
       if (!name) return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'apiName 또는 endpoint 파라미터 필요' }) };
 
+      // deliveryHotplace → 좌표 기반 동적 mjrBzznno 매핑 후 /gis/hpAnls/report.json 호출
+      // (Gemini Pro 권장 알고리즘: Point-in-Polygon 1순위 + 200m 거리 임계값 2순위 + 그 외 매핑 실패)
+      if (name === 'deliveryHotplace') {
+        const { wgs84_lat, wgs84_lng, mjrBzznno: forcedMjr, anlsNo, anlsDt: anlsDtParam, rptpInfoTpcd, bizonTheme } = queryParams;
+        const theme = bizonTheme || 'DLVY';
+
+        // 1) mjrBzznno 결정: 강제값 우선 → 좌표로 자동 매핑
+        let mjrBzznno = forcedMjr || null;
+        let mjrBizonNm = null;
+        let nearestDist = null;
+        let matchType = forcedMjr ? 'forced' : null; // 'inside' | 'nearest' | 'none' | 'forced'
+
+        if (!mjrBzznno) {
+          if (!wgs84_lat || !wgs84_lng) {
+            return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'deliveryHotplace: wgs84_lat, wgs84_lng 또는 mjrBzznno 필요' }) };
+          }
+          const tm = wgs84ToTM(parseFloat(wgs84_lat), parseFloat(wgs84_lng));
+          // 폴리곤은 TM 좌표(EPSG:5181 변형). 비교 점도 TM 좌표 사용.
+          const targetPt = turfPoint([tm.x, tm.y]);
+
+          // 점진적 박스 확대로 후보 영역 수집 (550m 시작 → 폴백)
+          // deliveryHotplace는 영역 매핑이 목적이라 1500m 이상에서도 가능하지만, 일관성 위해 550m부터 시작
+          const tryMargins = [550, 1500, 5000, 15000];
+          let candidates = [];
+          for (const margin of tryMargins) {
+            const range = getCoordRange(tm.x, tm.y, margin);
+            const shapeUrl = `https://bigdata.sbiz.or.kr/gis/api/searchBizonShpeData.json?minXAxis=${range.minXAxis}&maxXAxis=${range.maxXAxis}&minYAxis=${range.minYAxis}&maxYAxis=${range.maxYAxis}&mapLevel=14&bizonTheme=${theme}`;
+            const shapeResp = await fetchJsonSimple(shapeUrl);
+            const arr = Array.isArray(shapeResp) ? shapeResp : [];
+            if (arr.length > 0) {
+              candidates = arr;
+              console.log(`[deliveryHotplace] margin=${margin}m → ${arr.length}개 영역 후보`);
+              break;
+            }
+          }
+
+          // 1순위: Point-in-Polygon (좌표가 폴리곤 내부에 있는 영역 즉시 매핑)
+          let chosen = null;
+          for (const zone of candidates) {
+            const ring = parsePolygonWKT(zone.geom);
+            if (!ring) continue;
+            try {
+              const poly = turfPolygon(ring);
+              if (booleanPointInPolygon(targetPt, poly)) {
+                chosen = { mjr: zone.mjrBzznno, nm: zone.mjrBizonNm, dist: 0 };
+                matchType = 'inside';
+                break;
+              }
+            } catch (e) {
+              // 폴리곤 파싱 실패는 무시하고 계속
+            }
+          }
+
+          // 2순위: 폴리곤 외부면 500m 이내 가장 가까운 중심점만 매핑 (검색 반경과 동일)
+          if (!chosen) {
+            let best = null;
+            for (const zone of candidates) {
+              const cx = parseFloat(zone.centerXCrdnt);
+              const cy = parseFloat(zone.centerYCrdnt);
+              if (!isFinite(cx) || !isFinite(cy)) continue;
+              const dd = Math.sqrt((tm.x - cx) ** 2 + (tm.y - cy) ** 2);
+              if (!best || dd < best.dist) {
+                best = { mjr: zone.mjrBzznno, nm: zone.mjrBizonNm, dist: dd };
+              }
+            }
+            if (best && best.dist <= 500) {
+              chosen = best;
+              matchType = 'nearest';
+            } else {
+              matchType = 'none';
+              const nearestM = best ? Math.round(best.dist) : null;
+              console.log(`[deliveryHotplace] 매핑 실패: lat=${wgs84_lat}, lng=${wgs84_lng}, 가장가까운영역=${best?.nm || 'none'} (${nearestM}m)`);
+              return {
+                statusCode: 200,
+                headers: corsHeaders,
+                body: JSON.stringify({
+                  success: true,
+                  matched: false,
+                  matchType: 'none',
+                  data: {},
+                  message: '검색 위치가 핫플레이스 분석영역(mjrBzznno) 500m 이내가 아닙니다.',
+                  nearestZoneNm: best?.nm || null,
+                  nearestZoneMjr: best?.mjr || null,
+                  nearestDistM: nearestM,
+                  wgs84_lat, wgs84_lng,
+                  theme,
+                  elapsedMs: Date.now() - startTime
+                })
+              };
+            }
+          }
+
+          mjrBzznno = chosen.mjr;
+          mjrBizonNm = chosen.nm;
+          nearestDist = Math.round(chosen.dist);
+          console.log(`[deliveryHotplace] 좌표 매핑(${matchType}): lat=${wgs84_lat}, lng=${wgs84_lng} → mjrBzznno=${mjrBzznno} (${mjrBizonNm}, ${nearestDist}m)`);
+        }
+
+        // 2) /gis/hpAnls/report.json 호출
+        const today = new Date();
+        const dtStr = anlsDtParam || `${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}`;
+        const reportParams = new URLSearchParams({
+          bizonTheme: theme,
+          mjrBzznno,
+          anlsNo: anlsNo || '106610748',
+          anlsDt: dtStr,
+          rptpInfoTpcd: rptpInfoTpcd || 'RT5',
+          xtLoginId: ''
+        });
+        const reportUrl = `https://bigdata.sbiz.or.kr/gis/hpAnls/report.json?${reportParams.toString()}`;
+        console.log('[deliveryHotplace] report 호출:', reportUrl);
+        const reportData = await fetchJsonSimple(reportUrl);
+
+        return {
+          statusCode: 200,
+          headers: corsHeaders,
+          body: JSON.stringify({
+            success: true,
+            matched: true,
+            matchType,
+            data: reportData,
+            mjrBzznno,
+            mjrBizonNm,
+            matchedZoneNm: mjrBizonNm,
+            matchedZoneMjr: mjrBzznno,
+            matchedDistM: nearestDist,
+            nearestDistM: nearestDist,
+            elapsedMs: Date.now() - startTime
+          })
+        };
+      }
+
       // delivery → GIS 내부 API로 분기 (Open API /openApi/delivery 경로 404 대응)
       if (name === 'delivery') {
         const { wgs84_lat, wgs84_lng, tpbizNm, crtrYm } = queryParams;
@@ -154,33 +392,75 @@ exports.handler = async (event, context) => {
           return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'delivery API: wgs84_lat, wgs84_lng 필요' }) };
         }
         const tm = wgs84ToTM(parseFloat(wgs84_lat), parseFloat(wgs84_lng));
-        const dlvParams = new URLSearchParams({
-          x: tm.x.toString(),
-          y: tm.y.toString(),
-          tpbizNm: tpbizNm || '카페',
-          crtrYm: crtrYm || new Date().toISOString().slice(0, 7).replace('-', '')
-        });
-        const dlvUrl = `https://bigdata.sbiz.or.kr/gis/delivery/getAdmAnlsByCty.json?${dlvParams.toString()}`;
-        console.log('[프록시] delivery GIS:', dlvUrl);
-        const dlvData = await new Promise((resolve, reject) => {
-          const req = https.get(dlvUrl, {
-            rejectUnauthorized: false,
-            headers: {
-              'Accept': 'application/json',
-              'User-Agent': 'Mozilla/5.0',
-              'X-Requested-With': 'XMLHttpRequest',
-              'Referer': 'https://bigdata.sbiz.or.kr/gis/delivery'
-            },
-            timeout: 15000
-          }, (res) => {
-            let body = '';
-            res.on('data', chunk => body += chunk);
-            res.on('end', () => { try { resolve({ status: res.statusCode, data: JSON.parse(body) }); } catch(e) { resolve({ status: res.statusCode, data: body }); } });
+        // tpbizNm 정확 매칭 필요: '카페'/'커피' 입력시 0건 반환됨. 실제 카테고리명은 '카페·디저트'
+        const normalizedTpbizNm = (() => {
+          const raw = (tpbizNm || '').trim();
+          if (!raw) return '카페·디저트';
+          // 카페/커피/디저트 키워드 입력시 정확 매칭으로 보정
+          if (/^(카페|커피|디저트|음료)$/i.test(raw)) return '카페·디저트';
+          return raw;
+        })();
+        // 기준월 자동 보정: 소상공인365 배달 데이터는 3개월 지연 → 3개월 전 기본
+        const getYmAgo = (monthsAgo) => {
+          const d = new Date();
+          d.setMonth(d.getMonth() - monthsAgo);
+          return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
+        };
+
+        // 단일 호출 함수 (특정 crtrYm으로 호출)
+        const fetchDelivery = (ym) => {
+          const dlvParams = new URLSearchParams({
+            x: tm.x.toString(),
+            y: tm.y.toString(),
+            tpbizNm: normalizedTpbizNm,
+            crtrYm: ym
           });
-          req.on('error', reject);
-          req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
-        });
-        return { statusCode: 200, headers: corsHeaders, body: JSON.stringify({ success: true, status: dlvData.status, data: dlvData.data, elapsedMs: Date.now() - startTime }) };
+          const dlvUrl = `https://bigdata.sbiz.or.kr/gis/delivery/getAdmAnlsByCty.json?${dlvParams.toString()}`;
+          console.log('[프록시] delivery GIS:', dlvUrl);
+          return new Promise((resolve) => {
+            const req = https.get(dlvUrl, {
+              rejectUnauthorized: false,
+              headers: {
+                'Accept': 'application/json',
+                'User-Agent': 'Mozilla/5.0',
+                'X-Requested-With': 'XMLHttpRequest',
+                'Referer': 'https://bigdata.sbiz.or.kr/gis/delivery'
+              },
+              timeout: 15000
+            }, (res) => {
+              let body = '';
+              res.on('data', chunk => body += chunk);
+              res.on('end', () => { try { resolve({ status: res.statusCode, data: JSON.parse(body), usedYm: ym }); } catch(e) { resolve({ status: res.statusCode, data: body, usedYm: ym }); } });
+            });
+            req.on('error', () => resolve({ status: 500, data: null, usedYm: ym }));
+            req.on('timeout', () => { req.destroy(); resolve({ status: 504, data: null, usedYm: ym }); });
+          });
+        };
+
+        // 사용자가 명시적으로 crtrYm 넘기면 그것 우선 (폴백 없이 단일 호출)
+        if (crtrYm) {
+          const single = await fetchDelivery(crtrYm);
+          return { statusCode: 200, headers: corsHeaders, body: JSON.stringify({ success: true, status: single.status, data: single.data, usedCrtrYm: single.usedYm, elapsedMs: Date.now() - startTime }) };
+        }
+
+        // 자동 폴백: 3 → 4 → 5 → 6개월 전까지 시도, 첫 nonZero 응답 채택
+        const monthsToTry = [3, 4, 5, 6];
+        let finalResp = null;
+        for (const m of monthsToTry) {
+          const ym = getYmAgo(m);
+          const resp = await fetchDelivery(ym);
+          const arr = Array.isArray(resp?.data) ? resp.data : (resp?.data?.data || resp?.data?.list || []);
+          const nonZero = Array.isArray(arr) ? arr.filter(r => r && r.mmavgSlsAmt && r.mmavgSlsAmt !== '0원').length : 0;
+          console.log(`[프록시] delivery 폴백 시도: crtrYm=${ym}, rows=${Array.isArray(arr) ? arr.length : 0}, nonZero=${nonZero}`);
+          if (nonZero > 0) {
+            finalResp = resp;
+            break;
+          }
+          // 마지막 시도 결과는 보관 (전부 0이면 마지막 응답이라도 반환)
+          finalResp = resp;
+        }
+
+        return { statusCode: 200, headers: corsHeaders, body: JSON.stringify({ success: true, status: finalResp?.status || 200, data: finalResp?.data || null, usedCrtrYm: finalResp?.usedYm || null, elapsedMs: Date.now() - startTime }) };
       }
 
       // slsIndex → 실제 API 경로는 slsIdex (오타가 아닌 실제 API 스펙)
@@ -188,11 +468,21 @@ exports.handler = async (event, context) => {
       const openPath = `/sbiz/api/bizonSttus/${actualName}/search.json`;
       const urlParams = new URLSearchParams();
       // certKey 추가 (SBIZ_OPEN_API_KEYS에서 해당 API 키 조회)
+      // 인증 불필요 API(MaxSlsBiz 등)는 매핑에 없어도 certKey 없이 호출 가능 (curl 검증 완료)
       const certKey = SBIZ_OPEN_API_KEYS[name];
       if (certKey) urlParams.append('certKey', certKey);
       const proxyKeys = ['api', 'apiName', 'endpoint', '_debug'];
       Object.keys(queryParams).forEach(k => { if (queryParams[k] && !proxyKeys.includes(k)) urlParams.append(k, queryParams[k]); });
       targetUrl = `https://bigdata.sbiz.or.kr${openPath}?${urlParams.toString()}`;
+    }
+    // bizonRnkTop10: 시군구 핫플 TOP10 (6테마: MZ/DINT/NWB/DLVY/BLOCN/RE) - 인증 불필요
+    else if (api === 'bizonRnkTop10') {
+      const { mtpctdCd, sggCd, dongCd: bDongCd } = queryParams;
+      if (!mtpctdCd || !sggCd || !bDongCd) {
+        return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'bizonRnkTop10: mtpctdCd(2), sggCd(4), dongCd(8) 필요' }) };
+      }
+      const urlParams = new URLSearchParams({ mtpctdCd, sggCd, dongCd: bDongCd });
+      targetUrl = `https://bigdata.sbiz.or.kr/gis/hpAnls/getBizonRnkTop10.json?${urlParams.toString()}`;
     }
     // 3. SBIZ
     else if (api === 'sbiz' && endpoint) {
@@ -349,12 +639,21 @@ exports.handler = async (event, context) => {
     }
     // startupPublic: 상권지도 (rnkType: overall, comp, survival, prospect, engagement)
     else if (api === 'startupPublic') {
-      const { minXAxis, maxXAxis, minYAxis, maxYAxis, rnkType, tpbizCode, crtrYm } = queryParams;
+      const { minXAxis, maxXAxis, minYAxis, maxYAxis, rnkType, tpbizCode, crtrYm, wgs84_lat, wgs84_lng } = queryParams;
       const rType = rnkType || 'overall';
       const tCode = tpbizCode || 'I21201';
       const ym = crtrYm || '202601';
 
       try {
+        // 좌표 기반 호출 지원: wgs84_lat/lng 들어오면 ±550m 박스로 변환 + 빈 응답시 폴백
+        if (wgs84_lat && wgs84_lng && !minXAxis) {
+          const tm = wgs84ToTM(parseFloat(wgs84_lat), parseFloat(wgs84_lng));
+          const buildUrl = (range) => `https://bigdata.sbiz.or.kr/gis/startUp/publicData/adv?crtrYm=${ym}&minXAxis=${range.minXAxis}&maxXAxis=${range.maxXAxis}&minYAxis=${range.minYAxis}&maxYAxis=${range.maxYAxis}&rnkType=${rType}&tpbizCode=${tCode}`;
+          const isEmptyResp = (d) => !d || (Array.isArray(d) && d.length === 0);
+          const result = await fetchWithBoxExpand(tm.x, tm.y, buildUrl, fetchJsonSimple, isEmptyResp);
+          return { statusCode: 200, headers: corsHeaders, body: JSON.stringify({ success: true, count: Array.isArray(result.data) ? result.data.length : 0, data: result.data, _bboxSizeM: result._bboxSizeM }) };
+        }
+        // 명시적 박스 좌표 또는 기본 박스(서울 중심 6km)
         const url = `https://bigdata.sbiz.or.kr/gis/startUp/publicData/adv?crtrYm=${ym}&minXAxis=${minXAxis || 200000}&maxXAxis=${maxXAxis || 206000}&minYAxis=${minYAxis || 441000}&maxYAxis=${maxYAxis || 447000}&rnkType=${rType}&tpbizCode=${tCode}`;
         const data = await fetchJsonSimple(url);
         return { statusCode: 200, headers: corsHeaders, body: JSON.stringify({ success: true, count: Array.isArray(data) ? data.length : 0, data }) };
@@ -367,10 +666,13 @@ exports.handler = async (event, context) => {
       const { lat, lng } = queryParams;
       if (!lat || !lng) return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'lat, lng 필요' }) };
       const tm = wgs84ToTM(parseFloat(lat), parseFloat(lng));
-      const margins = [1000, 2000, 3000];
+      // 박스 시작값 변경: 1000 → 550 (500m 반경 외접 사각형 + 여유), 빈 응답시 1000/2000/3000으로 확대
+      const margins = [550, 1000, 2000, 3000];
       let coordResult = null;
+      let usedMargin = null;
       for (const margin of margins) {
-        const coordUrl = `https://bigdata.sbiz.or.kr/gis/api/getCoordToAdmPoint.json?minXAxis=${tm.x-margin}&maxXAxis=${tm.x+margin}&minYAxis=${tm.y-margin}&maxYAxis=${tm.y+margin}&mapLevel=14`;
+        const range = getCoordRange(tm.x, tm.y, margin);
+        const coordUrl = `https://bigdata.sbiz.or.kr/gis/api/getCoordToAdmPoint.json?minXAxis=${range.minXAxis}&maxXAxis=${range.maxXAxis}&minYAxis=${range.minYAxis}&maxYAxis=${range.maxYAxis}&mapLevel=14`;
         const coordData = await new Promise((resolve, reject) => {
           const req = https.get(coordUrl, { rejectUnauthorized: false, headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://bigdata.sbiz.or.kr/' }, timeout: 15000 }, (res) => {
             let body = '';
@@ -382,6 +684,7 @@ exports.handler = async (event, context) => {
         });
         if (Array.isArray(coordData) && coordData.length > 0) {
           coordResult = coordData;
+          usedMargin = margin;
           console.log(`[coord] margin=${margin}m → ${coordData.length}개 행정동 찾음`);
           break;
         }
@@ -389,7 +692,7 @@ exports.handler = async (event, context) => {
       return {
         statusCode: 200,
         headers: corsHeaders,
-        body: JSON.stringify({ success: true, status: 200, data: coordResult || [], elapsedMs: Date.now() - startTime })
+        body: JSON.stringify({ success: true, status: 200, data: coordResult || [], _bboxSizeM: usedMargin, elapsedMs: Date.now() - startTime })
       };
     }
     // 5. store (공공데이터포털)
@@ -724,7 +1027,7 @@ exports.handler = async (event, context) => {
       };
     }
     else {
-      return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: '지원하지 않는 api 타입', available: ['sbiz','coord','simpleAnls','detailAnls','weather','store','storeRadius','storeInds','gis','open','seoul','fftc'] }) };
+      return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: '지원하지 않는 api 타입', available: ['sbiz','coord','simpleAnls','detailAnls','weather','store','storeRadius','storeInds','gis','open','seoul','fftc','bizonRnkTop10'] }) };
     }
 
     console.log('[프록시]', api, targetUrl?.substring(0, 200));

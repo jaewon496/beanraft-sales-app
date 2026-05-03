@@ -1748,6 +1748,76 @@ export function separateBufferZoneCafes(centerLat, centerLng, radius, allCafes) 
 
 const FIREBASE_DB_URL = import.meta.env.VITE_FIREBASE_DATABASE_URL;
 
+// 행정동 코드 → 동 이름 매핑 (3,412개 전국, nicebizmap-data.json에서 추출)
+import ADMI_CD_NAME_MAP from './admiCdNameMap.json';
+
+/**
+ * 시군구 안의 모든 행정동 코드 목록 반환
+ * @param {string} sigunguCd5 - 5자리 시군구 코드 (예: "11680" = 강남구)
+ * @returns {string[]} 8자리 행정동 코드 배열
+ */
+export function listSigunguAdmiCds(sigunguCd5) {
+  if (!sigunguCd5 || sigunguCd5.length < 5) return [];
+  const prefix = String(sigunguCd5).slice(0, 5);
+  return Object.keys(ADMI_CD_NAME_MAP).filter(k => k.startsWith(prefix));
+}
+
+/**
+ * 행정동 코드로 동 이름 조회
+ * @param {string} admiCd - 8자리 행정동 코드
+ * @returns {string} 동 이름 (없으면 빈 문자열)
+ */
+export function getAdmiName(admiCd) {
+  if (!admiCd) return '';
+  return ADMI_CD_NAME_MAP[String(admiCd)] || '';
+}
+
+/**
+ * 시군구 안 모든 동의 카페 매출 데이터를 Firebase에서 병렬 조회
+ * @param {string} sigunguCd5 - 5자리 시군구 코드 (예: "11680")
+ * @returns {Promise<Array<{admiCd, admiNm, perStoreAvg, recentSale, recentStoreCnt}>>}
+ *   각 동의 점포당 월평균 매출(만원) + 최근월 동 총매출(억원) + 점포수
+ */
+export async function fetchSigunguDongsSales(sigunguCd5) {
+  if (!sigunguCd5 || !FIREBASE_DB_URL) return [];
+  const codes = listSigunguAdmiCds(sigunguCd5);
+  if (codes.length === 0) return [];
+
+  const sidoCode = String(sigunguCd5).slice(0, 2);
+  const results = await Promise.all(codes.map(async (cd) => {
+    try {
+      const res = await fetch(`${FIREBASE_DB_URL}/nicebizmap/${sidoCode}/${cd}.json`);
+      if (!res.ok) return null;
+      const j = await res.json();
+      if (!j || !Array.isArray(j.c) || j.c.length === 0) return null;
+
+      // 최근 6개월 점포당 월평균 매출 (만원)
+      const recent = j.c.slice(-6);
+      let perStoreSum = 0, count = 0;
+      for (const item of recent) {
+        if (item.s && item.sc) {
+          // s는 억원 단위 → 만원: s * 10000
+          perStoreSum += (item.s * 10000) / item.sc;
+          count++;
+        }
+      }
+      const perStoreAvg = count > 0 ? Math.round(perStoreSum / count) : 0;
+      const last = recent[recent.length - 1] || {};
+      return {
+        admiCd: cd,
+        admiNm: getAdmiName(cd),
+        perStoreAvg,
+        recentSale: last.s || 0,         // 동 카페 총매출 (억원)
+        recentStoreCnt: last.sc || 0     // 동 카페 점포수
+      };
+    } catch (e) {
+      return null;
+    }
+  }));
+
+  return results.filter(Boolean);
+}
+
 /**
  * 단일 행정동의 나이스비즈맵 데이터를 Firebase RTDB에서 조회
  * @param {string} admiCd - 8자리 행정동 코드 (예: "11170530")
