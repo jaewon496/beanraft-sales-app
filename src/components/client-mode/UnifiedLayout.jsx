@@ -1,6 +1,16 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis } from 'recharts';
 import CardTemplate from './CardTemplate';
+import Card01MarketReport from './cards/Card01MarketReport';
+import Card02CustomerAnalysis from './cards/Card02CustomerAnalysis';
+import Card3FranchiseAnalysis from './Card3FranchiseAnalysis';
+import Card4IndieCafeAnalysis from './Card4IndieCafeAnalysis';
+import Card5SalesAnalysis from './Card5SalesAnalysis';
+import Card6FloatingPop from './Card6FloatingPop';
+import Card8OpportunityRisk from './Card8OpportunityRisk';
+import Card9DeliveryAvgPrice from './Card9DeliveryAvgPrice';
+import AINarrationEngine from './AINarrationEngine';
 import { COLORS, TIMING, BLUR, LAYOUT } from './constants';
 import { mapCollectedDataToCards } from './dataMapper';
 
@@ -550,11 +560,21 @@ const ChartBigNumberDonut = ({ data }) => {
   const bigNum = hasData ? data.bigNumber : 330;
   const unit = data?.unit || '개';
   const subtitle = data?.subtitle || '';
-  const segments = data?.segments || [
-    { name: '프랜차이즈', pct: 25, color: '#1B2A4A' },
-    { name: '개인카페', pct: 55, color: '#6B7280' },
-    { name: '베이커리', pct: 20, color: '#374B78' },
+  // Card 1 상권 분석 리포트 확정 팔레트: 프랜차이즈=#1E3A8A, 개인카페=#3B82F6, 베이커리=#FFFFFF
+  const CARD1_COLOR_OVERRIDE = {
+    '프랜차이즈': '#1E3A8A',
+    '개인카페': '#3B82F6',
+    '베이커리': '#FFFFFF',
+  };
+  const rawSegments = data?.segments || [
+    { name: '프랜차이즈', pct: 25 },
+    { name: '개인카페', pct: 55 },
+    { name: '베이커리', pct: 20 },
   ];
+  const segments = rawSegments.map((seg) => ({
+    ...seg,
+    color: CARD1_COLOR_OVERRIDE[seg.name] || seg.color,
+  }));
 
   const r = 32;
   const cx = 46;
@@ -985,63 +1005,238 @@ const ChartPriceCards = ({ data }) => {
   );
 };
 
-// ─── Card 8: Split List (기회 & 리스크) ───
+// ─── Card 8: Split List (카페 기회 - 단일 컬럼) ───
+// [카페 중심 재지향] externalIntel(Gemini Google Search) 기회 목록만 사용.
+// 리스크 섹션 제거. 기회를 풀너비로 넓게 표시. 내부 데이터 폴백 절대 금지.
 const ChartSplitList = ({ data }) => {
-  const hasData = data && (data.opportunities || data.risks);
-  const opportunities = hasData ? (data.opportunities || []) : [
-    { title: '높은 유동인구', detail: '일 평균 2만명 이상' },
-    { title: '오피스 밀집', detail: '점심/오후 수요 높음' },
-    { title: '역세권', detail: '도보 3분 거리' },
-  ];
-  const risks = hasData ? (data.risks || []) : [
-    { title: '높은 경쟁 강도', detail: '카페 47개 과밀 상권' },
-    { title: '높은 임대료', detail: '월 320만원 수준' },
-  ];
+  // [카페 중심 재지향] 기회(opportunities)만 처리.
+  const opportunities = Array.isArray(data?.opportunities) ? data.opportunities : [];
 
-  const renderItem = (item, borderColor) => {
-    const title = typeof item === 'string' ? item : (item.title || item.label || '');
-    const detail = typeof item === 'object' ? (item.detail || item.description || '') : '';
-    return (
-      <div style={{
-        borderLeft: `3px solid ${borderColor}`,
-        padding: '8px 10px',
-        marginBottom: 6,
-        borderRadius: '0 8px 8px 0',
-        background: `${borderColor}0D`,
-      }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: COLORS.white, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: borderColor, flexShrink: 0 }} />
-          {title}
-        </div>
-        {detail && (
-          <div style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 3, paddingLeft: 12, lineHeight: 1.4 }}>
-            {detail}
+  const ITEM_HEIGHT = 200; // 카드 1건 높이 (1줄 summary 기준 컴팩트화)
+
+  // SVG 아이콘 (이모지 금지)
+  const IconUp = ({ color }) => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M7 17L17 7" />
+      <path d="M8 7h9v9" />
+    </svg>
+  );
+
+  const formatDate = (raw) => {
+    if (!raw || typeof raw !== 'string') return '';
+    // "2026-04-15" → "04.15"
+    const m = raw.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return `${m[2]}.${m[3]}`;
+    return raw.slice(0, 10);
+  };
+
+  const SideColumn = ({ kind, items }) => {
+    // [카페 중심 재지향] kind는 'opp' 고정. 리스크 색상/라벨 분기 제거.
+    const baseColor = '#1E3A8A';
+    const label = '카페 기회';
+    const scrollRef = useRef(null);
+    const [activeIdx, setActiveIdx] = useState(0);
+
+    useEffect(() => {
+      const el = scrollRef.current;
+      if (!el) return;
+      const onScroll = () => {
+        const idx = Math.round(el.scrollTop / ITEM_HEIGHT);
+        if (idx !== activeIdx) setActiveIdx(idx);
+      };
+      el.addEventListener('scroll', onScroll, { passive: true });
+      return () => el.removeEventListener('scroll', onScroll);
+    }, [activeIdx]);
+
+    const scrollBoxStyle = {
+      height: ITEM_HEIGHT,
+      overflowY: 'auto',
+      scrollSnapType: 'y mandatory',
+      scrollbarWidth: 'none',
+      msOverflowStyle: 'none',
+      borderRadius: 16,
+    };
+
+    const renderCard = (item, i) => {
+      const obj = typeof item === 'object' && item !== null ? item : { title: String(item || '') };
+      const title = obj.title || obj.label || '';
+      const summary = obj.summary || '';
+      const tags = Array.isArray(obj.tags) ? obj.tags.filter(Boolean).slice(0, 4) : [];
+      const url = obj.url || '';
+      const hasUrl = !!(url && typeof url === 'string' && url.startsWith('http'));
+      const dateStr = formatDate(obj.publishedAt);
+
+      return (
+        <div
+          key={`${kind}-${i}`}
+          style={{
+            height: ITEM_HEIGHT,
+            minHeight: ITEM_HEIGHT,
+            boxSizing: 'border-box',
+            scrollSnapAlign: 'start',
+            scrollSnapStop: 'always',
+            padding: 20,
+            borderRadius: 16,
+            border: '1px solid rgba(30,58,138,0.25)',
+            background: 'linear-gradient(135deg, rgba(30,58,138,0.08), rgba(30,58,138,0.02))',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 10,
+            marginBottom: 12,
+          }}
+        >
+          {/* 상단: 아이콘 + 날짜 (출처 제거 2026-05-02) */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 20 }}>
+            <IconUp color={baseColor} />
+            {dateStr && (
+              <span style={{ fontSize: 11, color: 'rgba(148,163,184,0.7)', marginLeft: 'auto' }}>{dateStr}</span>
+            )}
           </div>
-        )}
+
+          {/* 제목 (제목은 흰색/무채색, 기회/리스크 구분은 배경·테두리·아이콘·해시태그로만) */}
+          <div style={{
+            fontSize: 17,
+            fontWeight: 600,
+            lineHeight: 1.35,
+            color: '#f1f5f9',
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+          }}>
+            {title || '제목 없음'}
+          </div>
+
+          {/* 요약 (1줄 고정, 넘치면 말줄임) */}
+          {summary && (
+            <div style={{
+              fontSize: 13,
+              lineHeight: 1.5,
+              color: '#94a3b8',
+              display: '-webkit-box',
+              WebkitLineClamp: 1,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+              whiteSpace: 'nowrap',
+              textOverflow: 'ellipsis',
+            }}>
+              {summary}
+            </div>
+          )}
+
+          {/* 하단: 태그 + 원문보기 */}
+          <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flex: 1, minWidth: 0 }}>
+              {tags.map((tag, ti) => {
+                const t = String(tag).replace(/^#/, '');
+                return (
+                  <span key={ti} style={{
+                    fontSize: 12,
+                    fontWeight: 500,
+                    padding: '4px 10px',
+                    borderRadius: 6,
+                    background: 'rgba(30,58,138,0.15)',
+                    color: baseColor,
+                    whiteSpace: 'nowrap',
+                  }}>#{t}</span>
+                );
+              })}
+            </div>
+            {hasUrl && (
+              <a
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  fontSize: 12,
+                  fontWeight: 500,
+                  color: baseColor,
+                  textDecoration: 'none',
+                  whiteSpace: 'nowrap',
+                  opacity: 0.9,
+                }}
+              >원문 보기 ↗</a>
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    const total = items.length;
+    const currentIdx = total > 0 ? Math.min(activeIdx, total - 1) : 0;
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, width: '100%' }}>
+        <div style={{
+          fontSize: 12,
+          fontWeight: 600,
+          color: baseColor,
+          marginBottom: 10,
+          letterSpacing: '0.02em',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingLeft: 2,
+          paddingRight: 2,
+          overflow: 'visible',
+          whiteSpace: 'nowrap',
+        }}>
+          <span style={{ paddingLeft: 2 }}>{label}{total > 0 ? ` (${currentIdx + 1}/${total})` : ''}</span>
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+          <div ref={scrollRef} style={{ ...scrollBoxStyle, flex: 1, minWidth: 0 }}>
+            {total > 0 ? (
+              items.map((item, i) => renderCard(item, i))
+            ) : (
+              <div style={{
+                height: ITEM_HEIGHT,
+                border: '1px dashed rgba(30,58,138,0.25)',
+                borderRadius: 16,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 12,
+                color: 'rgba(148,163,184,0.7)',
+                padding: 20,
+                textAlign: 'center',
+                background: 'rgba(30,58,138,0.03)',
+              }}>
+                곧 업데이트됩니다
+              </div>
+            )}
+          </div>
+
+          {/* 세로 점 인디케이터 */}
+          {total > 1 && (
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              gap: 6,
+              padding: '0 2px',
+            }}>
+              {items.map((_, i) => (
+                <span key={i} style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: 999,
+                  background: i === currentIdx ? baseColor : 'rgba(148,163,184,0.3)',
+                  transition: 'background 0.2s',
+                }} />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     );
   };
 
   return (
-    <div style={{ padding: '20px 16px 16px' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1px 1fr', gap: 12 }}>
-        <div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: '#34D399', marginBottom: 10, letterSpacing: '0.02em' }}>
-            기회 요인
-          </div>
-          {opportunities.map((item, i) => (
-            <React.Fragment key={i}>{renderItem(item, '#34D399')}</React.Fragment>
-          ))}
-        </div>
-        <div style={{ background: 'rgba(255,255,255,0.1)', width: 1 }} />
-        <div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: '#F87171', marginBottom: 10, letterSpacing: '0.02em' }}>
-            리스크 요인
-          </div>
-          {risks.map((item, i) => (
-            <React.Fragment key={i}>{renderItem(item, '#F87171')}</React.Fragment>
-          ))}
-        </div>
+    <div style={{ padding: '20px 16px 16px', width: '100%', boxSizing: 'border-box', minWidth: 0 }}>
+      {/* [카페 중심 재지향] 2분할 grid 제거. 기회 단일 컬럼 풀너비 */}
+      <div style={{ width: '100%', minWidth: 0 }}>
+        <SideColumn kind="opp" items={opportunities} />
       </div>
     </div>
   );
@@ -1093,19 +1288,22 @@ const ChartCircularProgress = ({ data }) => {
 // ─── Card 10: Word Cloud (SNS 트렌드) ───
 const ChartWordCloud = ({ data }) => {
   const hasData = data && data.keywords && data.keywords.length > 0;
-  const defaultKeywords = [
-    { text: '\uCE74\uD398\uCC3D\uC5C5', weight: 100 }, { text: '\uB514\uC800\uD2B8', weight: 88 },
-    { text: '\uC2A0\uADDC\uC624\uD508', weight: 82 }, { text: '\uBE0C\uB7F0\uCE58', weight: 75 },
-    { text: '\uC544\uBA54\uB9AC\uCE74\uB178', weight: 70 }, { text: '\uB8E8\uD504\uD0D1', weight: 65 },
-    { text: '\uC778\uD14C\uB9AC\uC5B4', weight: 60 }, { text: '\uBD84\uC704\uAE30\uC88B\uC740', weight: 56 },
-    { text: '\uC2A4\uD398\uC15C\uD2F0', weight: 52 }, { text: '\uD14C\uC774\uD06C\uC544\uC6C3', weight: 48 },
-    { text: '\uC0C1\uAD8C\uBD84\uC11D', weight: 44 }, { text: '\uD504\uB79C\uCC28\uC774\uC988', weight: 40 },
-    { text: '\uC6D4\uC138\uAD8C', weight: 36 }, { text: '\uC720\uB3D9\uC778\uAD6C', weight: 33 },
-    { text: '\uBC30\uB2EC\uB9E4\uCD9C', weight: 30 }, { text: '\uC778\uC2A4\uD0C0\uADF8\uB7A8', weight: 28 },
-    { text: '\uB124\uC774\uBC84\uD50C\uB808\uC774\uC2A4', weight: 25 }, { text: '\uC8FC\uCC28', weight: 22 },
-    { text: '\uC5ED\uC138\uAD8C', weight: 20 }, { text: '\uD558\uB4DC\uC6E8\uC5B4', weight: 18 },
-  ];
-  const keywords = hasData ? data.keywords : defaultKeywords;
+  // 깨진 키워드 교체 맵 + 블랙리스트 (dataMapper.js와 동일)
+  const WC_BROKEN_MAP = { '\uC2A0\uADDC\uC624\uD508': '\uC2E0\uADDC\uC624\uD508' };
+  const WC_BLACKLIST = ['\uD558\uB4DC\uC6E8\uC5B4', '\uC18C\uD504\uD2B8\uC6E8\uC5B4', '\uC804\uC790\uC81C\uD488', '\uCEF4\uD4E8\uD130'];
+  const sanitizeWC = (items) => items
+    .map(k => {
+      const fixed = WC_BROKEN_MAP[k.text] || k.text;
+      if (WC_BLACKLIST.includes(fixed)) return null;
+      return { ...k, text: fixed };
+    })
+    .filter(Boolean);
+  // [v14] defaultKeywords \uC81C\uAC70 - \uBA54\uD0C0/\uC77C\uBC18\uB860 \uD0A4\uC6CC\uB4DC \uB178\uCD9C \uCC28\uB2E8. \uB370\uC774\uD130 \uC5C6\uC73C\uBA74 \uC6CC\uB4DC\uD074\uB77C\uC6B0\uB4DC \uC790\uCCB4 \uC228\uAE40
+  const defaultKeywords = [];
+  const keywords = sanitizeWC(hasData ? data.keywords : defaultKeywords);
+  if (keywords.length === 0) {
+    return null;
+  }
   const displayCount = Math.min(keywords.length, 20);
   const sentimentPos = hasData && data.sentimentPos != null ? data.sentimentPos : 72;
   const sentimentNeg = 100 - sentimentPos;
@@ -1205,37 +1403,45 @@ const WeatherSvgIcon = ({ type, x, y, color }) => {
   }
 };
 
+// 연간 기상 분포 차트: 실측 일수 기반 가로 막대. 매출 영향% 표기 제거 (2026-04-15).
 const ChartWeatherImpact = ({ data }) => {
   const hasData = data && Array.isArray(data.items) && data.items.length > 0;
   const items = hasData ? data.items : [
-    { label: '\uB9D1\uC74C', icon: 'sun', value: 12 },
-    { label: '\uD750\uB9BC', icon: 'cloud', value: -3 },
-    { label: '\uBE44', icon: 'rain', value: -15 },
-    { label: '\uB208', icon: 'snow', value: -22 },
+    { label: '\uB9D1\uC74C', icon: 'sun', value: 0, unit: '\uC77C' },
+    { label: '\uD750\uB9BC', icon: 'cloud', value: 0, unit: '\uC77C' },
+    { label: '\uBE44', icon: 'rain', value: 0, unit: '\uC77C' },
+    { label: '\uB208', icon: 'snow', value: 0, unit: '\uC77C' },
   ];
-  const maxAbs = Math.max(...items.map(d => Math.abs(d.value)), 1);
-  const barMaxW = 90;
-  const centerX = 170;
+  const totalForPct = items.reduce((s, it) => s + (Number(it.value) || 0), 0);
+  const maxV = Math.max(...items.map(d => Number(d.value) || 0), 1);
+  const barMaxW = 180;
+  const startX = 80;
+  const palette = {
+    sun: 'rgba(255,204,0,0.85)',
+    cloud: 'rgba(174,174,178,0.75)',
+    rain: 'rgba(10,132,255,0.85)',
+    snow: 'rgba(191,219,254,0.85)',
+  };
   return (
     <svg width="100%" height="100%" viewBox="0 0 340 135" preserveAspectRatio="xMidYMid meet" style={{ overflow: 'visible' }}>
-      <line x1={centerX} y1={10} x2={centerX} y2={120} stroke={COLORS.white} strokeWidth={0.5} opacity={0.08} />
-      <text x={centerX} y={8} textAnchor="middle" fill={COLORS.textMuted} fontSize={6}>0%</text>
       {items.map((item, i) => {
-        const y = 28 + i * 28;
-        const bW = (Math.abs(item.value) / maxAbs) * barMaxW;
-        const isPos = item.value >= 0;
-        const barX = isPos ? centerX : centerX - bW;
-        const fillColor = isPos ? 'rgba(52,199,89,0.7)' : 'rgba(255,69,58,0.5)';
+        const y = 22 + i * 26;
+        const val = Number(item.value) || 0;
+        const bW = (val / maxV) * barMaxW;
+        const fillColor = palette[item.icon] || 'rgba(120,120,128,0.6)';
+        const pct = totalForPct > 0 ? Math.round((val / totalForPct) * 1000) / 10 : 0;
+        const unit = item.unit || '\uC77C';
         return (
           <g key={i}>
-            <WeatherSvgIcon type={item.icon} x={35} y={y} color={COLORS.textSecondary} />
-            <text x={60} y={y + 4} fill={COLORS.textMuted} fontSize={8} fontWeight={500} fontFamily="'Pretendard', -apple-system, sans-serif">{item.label}</text>
-            <rect x={barX} y={y - 6} width={bW} height={12} rx={4} fill={fillColor} style={{ transition: 'width 0.3s ease' }} />
-            <text x={isPos ? centerX + bW + 6 : centerX - bW - 6} y={y + 4}
-              textAnchor={isPos ? 'start' : 'end'}
-              fill={isPos ? 'rgba(52,199,89,0.9)' : 'rgba(255,69,58,0.8)'}
-              fontSize={8} fontWeight={600} fontFamily="'Pretendard', -apple-system, sans-serif">
-              {isPos ? '+' : ''}{item.value}%
+            <WeatherSvgIcon type={item.icon} x={25} y={y} color={COLORS.textSecondary} />
+            <text x={52} y={y + 4} fill={COLORS.textMuted} fontSize={8} fontWeight={500} fontFamily="'Pretendard', -apple-system, sans-serif">{item.label}</text>
+            <rect x={startX} y={y - 6} width={Math.max(bW, 1)} height={12} rx={4} fill={fillColor} style={{ transition: 'width 0.3s ease' }} />
+            <text x={startX + Math.max(bW, 1) + 6} y={y + 4}
+              textAnchor="start"
+              fill={COLORS.textSecondary}
+              fontSize={8} fontWeight={700} fontFamily="'Pretendard', -apple-system, sans-serif">
+              {val}{unit}
+              <tspan fill={COLORS.textMuted} fontWeight={500}>  {pct}%</tspan>
             </text>
           </g>
         );
@@ -1283,12 +1489,98 @@ const ChartGaugeMeter = ({ data }) => {
   );
 };
 
+// ─── Card 12 (v14): Competition Score — 5축 점수 Hero + 막대 ───
+const ChartCompetitionScore = ({ data }) => {
+  const hasData = data && data.overallScore != null && data.axes;
+  const fallbackAxes = {
+    density:            { value: 5,    score: 75,  unit: '개/km²', label: '카페 밀도' },
+    franchiseRatio:     { value: 40,   score: 60,  unit: '%',      label: '프랜차이즈 비율' },
+    potentialPerStore:  { value: 10000, score: 20, unit: '명',     label: '카페당 잠재 고객' },
+    openCloseTrend:     { value: 0,    score: 50,  unit: '비율',   label: '개폐업 추세' },
+    salesRentMargin:    { value: 0.5,  score: 50,  unit: '비율',   label: '매출-임대 여유' },
+  };
+  const overallScore = hasData ? Math.min(Math.max(data.overallScore, 0), 100) : 68;
+  const tierLabel    = hasData ? data.tierLabel : '양호';
+  const tierColor    = hasData ? data.tierColor : '#FBBF24';
+  const axesMap      = hasData ? data.axes : fallbackAxes;
+
+  // axes 순서 고정 (dataMapper/utils 와 동일)
+  const axisOrder = ['density', 'franchiseRatio', 'potentialPerStore', 'openCloseTrend', 'salesRentMargin'];
+  const axesList = axisOrder
+    .map(k => ({ key: k, ...(axesMap[k] || {}) }))
+    .filter(a => a.score != null);
+
+  const formatAxisValue = (a) => {
+    if (a.key === 'density') return `${a.value} ${a.unit}`;
+    if (a.key === 'franchiseRatio') return `${a.value}%`;
+    if (a.key === 'potentialPerStore') return `${(a.value || 0).toLocaleString()}명`;
+    if (a.key === 'openCloseTrend') return `${a.value > 0 ? '+' : ''}${a.value}`;
+    if (a.key === 'salesRentMargin') return `${a.value}`;
+    return String(a.value);
+  };
+
+  const barColor = (score) => {
+    if (score >= 80) return '#1E3A8A';
+    if (score >= 60) return '#FBBF24';
+    if (score >= 40) return '#F59E0B';
+    return '#F04452';
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: '4px 6px' }}>
+      {/* Hero: 종합 점수 + 구간 배지 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '6px 4px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+          <span style={{ fontSize: 44, fontWeight: 800, color: tierColor, lineHeight: 1, fontFamily: "'Pretendard', -apple-system, sans-serif" }}>
+            {overallScore}
+          </span>
+          <span style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 2 }}>종합 경쟁 점수 (0~100)</span>
+        </div>
+        <div style={{
+          background: tierColor,
+          color: '#0B0F19',
+          fontSize: 13,
+          fontWeight: 700,
+          padding: '6px 12px',
+          borderRadius: 999,
+          fontFamily: "'Pretendard', -apple-system, sans-serif",
+        }}>
+          {tierLabel}
+        </div>
+      </div>
+
+      {/* 5개 축 막대 */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {axesList.map((a) => (
+          <div key={a.key} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <span style={{ fontSize: 12, color: COLORS.textSecondary, fontWeight: 600 }}>{a.label}</span>
+              <span style={{ fontSize: 11, color: COLORS.textMuted }}>
+                {formatAxisValue(a)} <span style={{ color: barColor(a.score), fontWeight: 700, marginLeft: 6 }}>{a.score}점</span>
+              </span>
+            </div>
+            <div style={{ height: 8, background: 'rgba(255,255,255,0.06)', borderRadius: 4, overflow: 'hidden' }}>
+              <div style={{
+                width: `${Math.min(Math.max(a.score, 0), 100)}%`,
+                height: '100%',
+                background: barColor(a.score),
+                borderRadius: 4,
+                transition: 'width 0.5s ease',
+              }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 // ─── Card 13: Score Card + Radar (AI 종합) ───
 const ChartScoreCard = ({ data }) => {
   const hasData = data && data.overall != null;
   const overall = hasData ? data.overall : 72;
   const axes = hasData && data.axes ? data.axes : [
-    { label: '\uAE30\uD68C', value: 68 }, { label: '\uB9AC\uC2A4\uD06C', value: 35 },
+    { label: '\uAE30\uD68C', value: 68 }, { label: '\uC548\uC804', value: 65 },
     { label: '\uACBD\uC7C1', value: 55 }, { label: '\uB9E4\uCD9C', value: 70 }, { label: '\uC785\uC9C0', value: 78 },
   ];
   const overallColor = overall >= 70 ? 'rgba(52,199,89,0.9)' : overall >= 40 ? 'rgba(255,204,0,0.9)' : 'rgba(255,69,58,0.9)';
@@ -1332,6 +1624,388 @@ const ChartScoreCard = ({ data }) => {
   );
 };
 
+// ─── Card 14: AI Insight Dashboard (v14 - 시각 중심 종합) ───
+// headline + 3 KPI + Recharts RadarChart + Signals + Tags
+// data: { headline, kpis[], radarAxes[], signals[], tags[], overall, axes[] }
+const ChartInsightDashboard = ({ data }) => {
+  const hasData = data && (data.headline || data.kpis?.length > 0 || data.radarAxes?.length > 0);
+  const headline = hasData && data.headline ? String(data.headline) : '데이터 부족';
+  const analysis = hasData && data.analysis ? String(data.analysis) : '';
+  const kpis = hasData && Array.isArray(data.kpis) && data.kpis.length > 0 ? data.kpis : [
+    { label: '종합 점수', value: 0, unit: '점', trend: '유지' },
+    { label: '기회', value: 0, unit: '건', trend: '유지' },
+    { label: '리스크', value: 0, unit: '건', trend: '유지' },
+  ];
+  const radarData = hasData && Array.isArray(data.radarAxes) && data.radarAxes.length > 0 ? data.radarAxes : [
+    { axis: '밀집도', value: 0, fullMark: 100 },
+    { axis: '경쟁', value: 0, fullMark: 100 },
+    { axis: '잠재력', value: 0, fullMark: 100 },
+    { axis: '추세', value: 0, fullMark: 100 },
+    { axis: '비용여유', value: 0, fullMark: 100 },
+  ];
+  const signals = hasData && Array.isArray(data.signals) ? data.signals : [];
+  const tags = hasData && Array.isArray(data.tags) ? data.tags : [];
+
+  // Trend arrow
+  const trendArrow = (t) => {
+    if (t === '상승') return { glyph: '▲', color: '#34C759' };
+    if (t === '하락') return { glyph: '▼', color: '#FF453A' };
+    return { glyph: '—', color: 'rgba(255,255,255,0.45)' };
+  };
+
+  // Signal icon
+  const signalIcon = (type) => {
+    if (type === 'positive') return { glyph: '+', color: '#34C759', bg: 'rgba(52,199,89,0.09)' };
+    if (type === 'negative') return { glyph: '−', color: '#FF453A', bg: 'rgba(255,69,58,0.09)' };
+    return { glyph: '·', color: 'rgba(255,255,255,0.55)', bg: 'rgba(255,255,255,0.04)' };
+  };
+
+  return (
+    <div style={{
+      width: '100%', padding: 0, boxSizing: 'border-box',
+      display: 'flex', flexDirection: 'column', gap: 18,
+      fontFamily: "'Pretendard', -apple-system, sans-serif",
+    }}>
+      {/* Headline */}
+      <div style={{
+        fontSize: 'clamp(1.4rem, 3.2vw, 2.1rem)',
+        fontWeight: 800, lineHeight: 1.25, letterSpacing: '-0.02em',
+        color: COLORS.white, textAlign: 'left', wordBreak: 'keep-all',
+      }}>
+        {headline}
+      </div>
+
+      {/* KPI 3개 (가로 배치, 모바일에서도 유지) */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+        {kpis.slice(0, 3).map((kpi, i) => {
+          const arrow = trendArrow(kpi.trend);
+          return (
+            <div key={i} style={{
+              background: 'rgba(255,255,255,0.05)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: 12, padding: '10px 10px 12px',
+              display: 'flex', flexDirection: 'column', gap: 4,
+              minWidth: 0,
+            }}>
+              <div style={{
+                fontSize: 11, color: 'rgba(255,255,255,0.5)', fontWeight: 500,
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+              }}>{kpi.label}</div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, minWidth: 0 }}>
+                <span style={{
+                  fontSize: 'clamp(16px, 2.2vw, 22px)', fontWeight: 800, color: COLORS.white,
+                  letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                }}>
+                  {kpi.value}
+                </span>
+                {kpi.unit && (
+                  <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontWeight: 500 }}>
+                    {kpi.unit}
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize: 11, color: arrow.color, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3 }}>
+                <span style={{ fontSize: 10 }}>{arrow.glyph}</span>
+                <span>{kpi.trend || '유지'}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Analysis 본문 */}
+      {analysis && (
+        <div style={{ padding: '4px 0' }}>
+          <div style={{
+            fontSize: 12, color: 'rgba(255,255,255,0.45)', fontWeight: 600,
+            marginBottom: 12, letterSpacing: '0.03em',
+          }}>
+            디렉터 분석
+          </div>
+          <div style={{
+            fontSize: 15, color: 'rgba(255,255,255,0.88)', lineHeight: 1.85,
+            fontWeight: 400, wordBreak: 'keep-all',
+          }}>
+            {analysis.split(/\n+/).filter(Boolean).map((para, i) => (
+              <p key={i} style={{
+                margin: 0, marginBottom: i < analysis.split(/\n+/).filter(Boolean).length - 1 ? 14 : 0,
+              }}>
+                {para}
+              </p>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Radar Chart (Recharts) */}
+      <div style={{ width: '100%', height: 220 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <RadarChart data={radarData} outerRadius="75%">
+            <PolarGrid stroke="rgba(255,255,255,0.1)" />
+            <PolarAngleAxis
+              dataKey="axis"
+              tick={{ fill: 'rgba(255,255,255,0.65)', fontSize: 11, fontFamily: "'Pretendard', sans-serif" }}
+            />
+            <PolarRadiusAxis
+              angle={90} domain={[0, 100]} tickCount={5}
+              tick={{ fill: 'rgba(255,255,255,0.25)', fontSize: 9 }}
+              stroke="rgba(255,255,255,0.08)" axisLine={false}
+            />
+            <Radar
+              name="score" dataKey="value"
+              stroke="rgba(49,130,246,0.85)" strokeWidth={1.6}
+              fill="rgba(49,130,246,0.2)" fillOpacity={1}
+              dot={{ r: 3, fill: 'rgba(49,130,246,0.95)', stroke: 'rgba(255,255,255,0.9)', strokeWidth: 1 }}
+            />
+          </RadarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Signals 리스트 */}
+      {signals.length > 0 && (
+        <div>
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', fontWeight: 600, marginBottom: 8, letterSpacing: '0.02em' }}>
+            주요 시그널
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {signals.map((s, i) => {
+              const icon = signalIcon(s.type);
+              return (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  background: icon.bg, borderRadius: 10, padding: '8px 12px',
+                }}>
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    width: 18, height: 18, borderRadius: '50%',
+                    fontSize: 13, fontWeight: 700, color: icon.color, flexShrink: 0,
+                  }}>
+                    {icon.glyph}
+                  </span>
+                  <span style={{ fontSize: 13, color: COLORS.white, lineHeight: 1.4, fontWeight: 500 }}>
+                    {s.text}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Tags (외부 신호 키워드 칩) */}
+      {tags.length > 0 && (
+        <div>
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', fontWeight: 600, marginBottom: 8, letterSpacing: '0.02em' }}>
+            외부 신호
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {tags.map((t, i) => (
+              <span key={i} style={{
+                fontSize: 12, color: 'rgba(255,255,255,0.85)', fontWeight: 500,
+                background: 'rgba(255,255,255,0.06)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: 999, padding: '4px 10px', whiteSpace: 'nowrap',
+              }}>
+                #{t}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── Card 12: Market Trend (상권 변화 추이) ───
+const ChartMarketTrend = ({ data }) => {
+  const [hovered, setHovered] = useState(null);
+  const hasData = data && Array.isArray(data.trendValues) && data.trendValues.length > 0;
+
+  // Generate month labels (recent 6 months)
+  const generateMonthLabels = (count = 6) => {
+    const now = new Date();
+    const labels = [];
+    for (let i = count - 1; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const yy = String(d.getFullYear()).slice(2);
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      labels.push(`${yy}.${mm}`);
+    }
+    return labels;
+  };
+
+  let monthLabels, trendVals, openVals, closeVals;
+  if (hasData) {
+    monthLabels = data.monthLabels || generateMonthLabels(data.trendValues.length);
+    trendVals = data.trendValues;
+    openVals = data.openValues || trendVals.map(() => 0);
+    closeVals = data.closeValues || trendVals.map(() => 0);
+  } else {
+    monthLabels = generateMonthLabels(6);
+    trendVals = [45, 50, 48, 52, 55, 58];
+    openVals = [2, 1, 3, 2, 1, 2];
+    closeVals = [1, 2, 1, 3, 1, 1];
+  }
+
+  const n = trendVals.length;
+  const padLeft = 45;
+  const padRight = 15;
+  const padTop = 30;
+  const padBottom = 40;
+  const chartW = 340 - padLeft - padRight;
+  const chartH = 145 - padTop - padBottom;
+  const maxTrend = Math.max(...trendVals, 100);
+  const minTrend = Math.min(...trendVals, 0);
+  const rangeTrend = maxTrend - minTrend || 1;
+
+  const xStep = n > 1 ? chartW / (n - 1) : chartW;
+  const trendPoints = trendVals.map((v, i) => [
+    padLeft + i * xStep,
+    padTop + chartH - ((v - minTrend) / rangeTrend) * chartH,
+  ]);
+  const curveD = smoothPath(trendPoints);
+  const areaD = curveD + ` L${trendPoints[n - 1][0]},${padTop + chartH} L${trendPoints[0][0]},${padTop + chartH} Z`;
+
+  // Y-axis ticks
+  const yTicks = [0, 25, 50, 75, 100].filter(v => v >= minTrend && v <= maxTrend + 10);
+  const getY = (v) => padTop + chartH - ((v - minTrend) / rangeTrend) * chartH;
+
+  // Open/close max for bar scaling
+  const maxOC = Math.max(...openVals, ...closeVals, 1);
+  const barMaxH = 18;
+  const barW = Math.min(6, xStep * 0.25);
+
+  const lastIdx = n - 1;
+  const lastVal = trendVals[lastIdx];
+
+  return (
+    <svg width="100%" height="100%" viewBox="0 0 340 170" preserveAspectRatio="xMidYMid meet" style={{ overflow: 'visible' }}>
+      <defs>
+        <linearGradient id="marketTrendArea" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="rgba(255,255,255,0.12)" />
+          <stop offset="100%" stopColor="rgba(255,255,255,0.01)" />
+        </linearGradient>
+        <filter id="glowLast">
+          <feGaussianBlur stdDeviation="2.5" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
+
+      {/* Y-axis label (vertical) */}
+      <text x={6} y={padTop + chartH / 2} textAnchor="middle" fill="#999999" fontSize={6}
+        fontFamily="'Pretendard', -apple-system, sans-serif"
+        transform={`rotate(-90, 6, ${padTop + chartH / 2})`}>
+        장사 안정성 지수
+      </text>
+
+      {/* Y-axis ticks + grid lines */}
+      {yTicks.map(v => {
+        const yPos = getY(v);
+        return (
+          <g key={`ytick-${v}`}>
+            <line x1={padLeft - 4} y1={yPos} x2={padLeft + chartW} y2={yPos} stroke="rgba(255,255,255,0.06)" strokeWidth={0.5} />
+            <text x={padLeft - 6} y={yPos + 3} textAnchor="end" fill="#999999" fontSize={6.5}
+              fontFamily="'Pretendard', -apple-system, sans-serif">{v}</text>
+          </g>
+        );
+      })}
+
+      {/* Area fill */}
+      <path d={areaD} fill="url(#marketTrendArea)" />
+
+      {/* Trend line */}
+      <path d={curveD} fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+
+      {/* Open/Close bar markers at each point */}
+      {trendPoints.map((p, i) => {
+        const openH = (openVals[i] / maxOC) * barMaxH;
+        const closeH = (closeVals[i] / maxOC) * barMaxH;
+        const baseY = padTop + chartH + 2;
+        return (
+          <g key={`oc-${i}`}>
+            {/* Open bar (blue, upward from baseline area) */}
+            {openVals[i] > 0 && (
+              <circle cx={p[0] - barW * 0.8} cy={p[1] - 1} r={Math.max(2, openH * 0.5)}
+                fill="#4A90D9" opacity={0.8} />
+            )}
+            {/* Close bar (red) */}
+            {closeVals[i] > 0 && (
+              <circle cx={p[0] + barW * 0.8} cy={p[1] + 1} r={Math.max(2, closeH * 0.5)}
+                fill="#E74C3C" opacity={0.8} />
+            )}
+          </g>
+        );
+      })}
+
+      {/* Data points on trend line */}
+      {trendPoints.map((p, i) => (
+        <g key={`pt-${i}`}>
+          <circle cx={p[0]} cy={p[1]}
+            r={i === lastIdx ? 5 : (hovered === i ? 4.5 : 2.5)}
+            fill={i === lastIdx ? '#FFFFFF' : 'rgba(255,255,255,0.6)'}
+            opacity={i === lastIdx ? 1 : (hovered === i ? 0.9 : 0.6)}
+            filter={i === lastIdx ? 'url(#glowLast)' : undefined}
+            style={{ cursor: 'pointer', transition: 'r 0.15s, opacity 0.15s' }}
+            onMouseEnter={() => setHovered(i)}
+            onMouseLeave={() => setHovered(null)}
+            onTouchStart={() => setHovered(i)}
+          />
+        </g>
+      ))}
+
+      {/* Last point "현재" label */}
+      <text x={trendPoints[lastIdx][0] + 8} y={trendPoints[lastIdx][1] - 6}
+        fill="#FFFFFF" fontSize={7} fontWeight={700}
+        fontFamily="'Pretendard', -apple-system, sans-serif">
+        {lastVal}
+      </text>
+      <text x={trendPoints[lastIdx][0] + 8} y={trendPoints[lastIdx][1] + 3}
+        fill="#999999" fontSize={6}
+        fontFamily="'Pretendard', -apple-system, sans-serif">
+        현재
+      </text>
+
+      {/* X-axis month labels */}
+      {trendPoints.map((p, i) => (
+        <text key={`xl-${i}`} x={p[0]} y={padTop + chartH + 14} textAnchor="middle"
+          fill="#999999" fontSize={6.5}
+          fontFamily="'Pretendard', -apple-system, sans-serif">
+          {monthLabels[i]}
+        </text>
+      ))}
+
+      {/* Legend (top right, inside chart area) */}
+      <g transform={`translate(${padLeft + chartW - 105}, ${padTop + 2})`}>
+        <rect x={-5} y={-8} width={110} height={16} rx={3} fill="rgba(0,0,0,0.5)" />
+        <circle cx={0} cy={0} r={3.5} fill="#4A90D9" />
+        <text x={7} y={3} fill="rgba(255,255,255,0.7)" fontSize={7.5} fontFamily="'Pretendard', -apple-system, sans-serif">개업</text>
+        <circle cx={35} cy={0} r={3.5} fill="#E74C3C" />
+        <text x={42} y={3} fill="rgba(255,255,255,0.7)" fontSize={7.5} fontFamily="'Pretendard', -apple-system, sans-serif">폐업</text>
+        <line x1={70} y1={0} x2={82} y2={0} stroke="rgba(255,255,255,0.5)" strokeWidth={1.5} strokeLinecap="round" />
+        <text x={85} y={3} fill="rgba(255,255,255,0.7)" fontSize={7.5} fontFamily="'Pretendard', -apple-system, sans-serif">흐름</text>
+      </g>
+
+      {/* Tooltip on hover */}
+      {hovered !== null && (
+        <g>
+          <rect x={trendPoints[hovered][0] - 28} y={trendPoints[hovered][1] - 26}
+            width={56} height={18} rx={4} fill="rgba(0,0,0,0.75)" />
+          <text x={trendPoints[hovered][0]} y={trendPoints[hovered][1] - 14}
+            textAnchor="middle" fill="#FFFFFF" fontSize={7} fontWeight={600}
+            fontFamily="'Pretendard', -apple-system, sans-serif">
+            지수 {trendVals[hovered]} | +{openVals[hovered]} -{closeVals[hovered]}
+          </text>
+        </g>
+      )}
+
+      {/* 출처 텍스트 제거 (2026-05-02 의뢰인 요청) */}
+    </svg>
+  );
+};
+
 // Returns a chart element with real data from card.chartData, falling back to demo data if null
 const getChartForCard = (card) => {
   if (!card) return null;
@@ -1357,7 +2031,10 @@ const getChartForCard = (card) => {
     case 'wordCloud': return chartData ? <ChartWordCloud data={chartData} /> : <ChartWordCloud />;
     case 'weatherImpact': return chartData ? <ChartWeatherImpact data={chartData} /> : <ChartWeatherImpact />;
     case 'gaugeMeter': return chartData ? <ChartGaugeMeter data={chartData} /> : <ChartGaugeMeter />;
+    case 'competitionScore': return chartData ? <ChartCompetitionScore data={chartData} /> : <ChartCompetitionScore />;
     case 'scoreCard': return chartData ? <ChartScoreCard data={chartData} /> : <ChartScoreCard />;
+    case 'marketTrend': return chartData ? <ChartMarketTrend data={chartData} /> : <ChartMarketTrend />;
+    case 'insightDashboard': return chartData ? <ChartInsightDashboard data={chartData} /> : <ChartInsightDashboard />;
     default: return null;
   }
 };
@@ -1382,7 +2059,10 @@ const CHART_MAP = {
   wordCloud: <ChartWordCloud />,
   weatherImpact: <ChartWeatherImpact />,
   gaugeMeter: <ChartGaugeMeter />,
+  competitionScore: <ChartCompetitionScore />,
   scoreCard: <ChartScoreCard />,
+  marketTrend: <ChartMarketTrend />,
+  insightDashboard: <ChartInsightDashboard />,
 };
 
 // ─── DataTable ───
@@ -1391,22 +2071,30 @@ const LABEL_MAP = {
   cafes: '카페 수', franchise: '프랜차이즈', individual: '개인카페', bakery: '베이커리 카페', newOpen: '신규 오픈',
   floatingPop: '일 유동인구', closed: '폐업 매장',
   '일 유동인구': '일 유동인구', '방문고객': '방문고객', '폐업 매장': '폐업 매장',
-  monthly: '월평균 매출', dongAvg: '동 평균', guAvg: '구 평균', top5: '매출 상위 5곳',
+  monthly: '월평균 매출', dongAvg: '동 평균', guAvg: '구 평균', cafeSalesRank: '카페 매출 순위', cafePctInTop5: '카페 비중',
+  siAvg: '시 평균', prevYearGuAmt: '작년 강남구 매출', prevMonGuAmt: '전월 강남구 매출',
+  prevMonRate: '전월 대비 변동률', prevYearRate: '작년 대비 변동률',
+  topFiveDongs: '매출 TOP 5 동', gusignguStores: '강남구 카페 매장수', sigaongStores: '서울 카페 매장수',
+  annualSalesTrend: '13개월 매출 추이',
   weekday: '평일 유동인구', weekend: '주말 유동인구', peakHour: '피크 시간대', ratio: '평일/주말 비율',
   male: '남성 비율', female: '여성 비율', newCustomer: '신규 고객', regular: '단골 고객', topAge: '주요 연령대',
   rentPerPyeong: '평당 임대료', deposit: '보증금', supportPrograms: '지원 프로그램',
-  blogMentions: '블로그 언급수', deliveryRatio: '배달 비중', trendDirection: '트렌드 방향', closureRate: '폐업률',
-  cafeDeliveryRank: '카페 배달 순위', avgDeliveryOrder: '평균 배달 주문건수', topCategory: '1위 배달 업종',
+  blogMentions: '블로그 언급수', trendDirection: '트렌드 방향', closureRate: '폐업률',
   weekdaySales: '평일 매출', weekendSales: '주말 매출', cardRatio: '카드 결제 비율', cashRatio: '현금 결제 비율',
-  level: '경쟁 강도', cafePerKm2: 'km2당 카페 수', franchiseRatio: '프랜차이즈 비율', avgLifespan: '평균 영업기간',
-  dongDensity: '동 내 밀집도', newEntryRate: '신규 진입률(1년 미만)', stableStoreRate: '안정 매장(3년+)', recentOpen: '최근 개업', recentClose: '최근 폐업', perStoreSales: '점포당 월매출', marketSize: '시장 규모',
+  level: '주변 카페 경쟁 수준', cafePerKm2: 'km2당 카페 수', franchiseRatio: '프랜차이즈 비율', avgLifespan: '평균 영업기간',
+  dongDensity: '동 내 밀집 정도', newEntryRate: '신규 진입률(1년 미만)', stableStoreRate: '안정 매장(3년+)', recentOpen: '최근 개업', recentClose: '최근 폐업', perStoreSales: '점포당 월매출', marketSize: '시장 규모',
+  cafeCount: '카페 수', radius: '수집 반경', dailyPopulation: '일 유동인구', potentialPerStore: '카페당 잠재 고객',
+  openCloseTrend: '개폐업 추세', monthlyRent: '월 임대료', salesRentMargin: '매출-임대 여유',
   openCount: '신규 개업', closeCount: '폐업', netChange: '순증감', trend: '추세',
-  survivalRate1y: '1년 생존율', survivalRate3y: '3년 생존율', survivalRate5y: '5년 생존율', survivalInsight: '생존율 분석',
-  overallScore: '종합 점수', opportunities: '기회 요인', risks: '리스크 요인', recommendation: '추천 전략',
-  dayOfWeek: '요일별 유동인구', avgStay: '평균 체류시간', residentPop: '상주인구', genderRatio: '성별 비율', peakTime: '피크타임',
+  survivalRate1y: '1년 생존 확률', survivalRate3y: '3년 생존 확률', survivalRate5y: '5년 생존 확률', survivalInsight: '생존 확률 분석', weatherSalesImpact: '날씨별 매출 변동',
+  overallScore: '종합 점수', overallGrade: '종합 등급', opportunities: '기회 요인', risks: '리스크 요인', recommendation: '추천 전략',
+  dayOfWeek: '요일별 유동인구', avgStay: '평균 체류시간', residentPop: '상주인구', genderRatio: '성별 비율', peakTime: '손님이 가장 많은 시간',
   interiorCost: '인테리어 비용', equipmentCost: '설비/장비 비용', totalStartupCost: '총 창업비용', premiumCost: '권리금',
   perPyeong: '평당 임대료', medianMonthly: '월세 중위값', medianDeposit: '보증금 중위값',
-  keywords: 'SNS 키워드', sentiment: '감성 분석', summary: 'SNS 요약', trendMenus: '인기/뜨는 메뉴',
+  keywords: 'SNS 키워드', sentiment: '감성 분석', summary: 'SNS 요약',
+  // Card 10 SNS 트렌드 - 보조 필드
+  negativeKeywords: '주의 키워드', instagramPosts: '인스타그램 게시물',
+  searchIntents: '검색 유입 경로', topShops: '후기 좋은 매장',
   opportunityCount: '기회 요인 수', riskCount: '리스크 요인 수', beancraftPriority: '빈크래프트 우선순위',
   interior: '인테리어 제안', equipment: '설비 제안', menu: '메뉴 제안', beans: '원두 제안',
   education: '교육 제안', design: '디자인 제안', youtube: '유튜브 분석',
@@ -1418,36 +2106,209 @@ const LABEL_MAP = {
   franchiseSummary: '주요 프랜차이즈', nearbySummary: '주변 카페',
   avgMonthlySales: '평균 월매출', franchiseMinPrice: '아메리카노 최저가', franchiseMaxPrice: '아메리카노 최고가',
   cafeDeliveryCount: '카페 배달 건수', americanoPriceRange: '아메리카노 가격대', nearestFranchise: '최근접 프랜차이즈',
+  // [v15] Card 1 - 상권 종합 (비즈맵 summary-report)
+  blockType: '상권 유형', subway: '지하철', busStop: '버스정류장', publicFacility: '관공서',
+  eduFacility: '교육시설', financeFacility: '금융시설',
+  popularUpjongSale: '매출 TOP 업종', popularUpjongStore: '점포수 TOP 업종',
+  nearbyHjd: '주변 행정동', seoulFclty: '서울 집객시설', blockCount: '블록 밀집도',
+  // [v15] Card 2 - 고객 분석 (오픈업 pop/rp + 비즈맵 genderAge)
+  openubPopulation: '오픈업 주거인구', openubSingleHh: '오픈업 1인가구',
+  openubTotalHh: '오픈업 전체가구', openubAptRatio: '아파트 거주 비율',
+  openubResidentStatus: '오픈업 주거 상태', bizmapGenderAge: '비즈맵 성별×연령 매출',
+  seoulRepop: '서울 상주인구', openubGenAgeSales: '오픈업 성별×연령 결제',
+  openubSalesStatus: '오픈업 결제 상태',
+  // [v15] Card 3 - 프랜차이즈 (TOP 10)
+  brandTop10: '브랜드 TOP 10', totalFranchiseBrands: '전체 프랜차이즈 종수',
+  // [v15] Card 4 - 개인카페 (목록)
+  indieCafeList: '개인카페 목록', priceHistogram: '메뉴가 분포',
+  // [v15] Card 5 - 매출
+  bizmapQuartile: '매출 분위수', marketSize13mChange: '13개월 시장 변화',
+  marketSizeTrend: '시장 규모 추이', usageCount: '월 이용 건수', avgPayment: '결제단가',
+  weeklyHeatmap: '요일별 집중도', hourlyPeak: '시간대 피크',
+  hourlyBars: '시간대별 집중도', bizmapTrendCount: '비즈맵 업종 수',
+  nationalChart6m: '전국 6개월 추이',
+  averageSalesListRaw: '매출 분위수 바', weeklyBars: '요일별 집중도 바',
+  openubTimes: '오픈업 시간대별 결제', openubWeekday: '오픈업 요일별 결제',
+  openubStatus: '오픈업 결제 상태', seoulQuarterSales: '서울 분기 매출',
+  salesIndex: '매출지수',
+  // [v15] Card 6 - 유동인구
+  wdTimeline: '평일 시간대 유동', weTimeline: '주말 시간대 유동',
+  genderFlow: '성별 유동 비율', tourEvents: '관광축제', seoulFlpop: '서울 유동인구',
+  // [v15] Card 7 - 임대/창업
+  costBreakdown: '비용 분해', costBreakdownList: '비용 분해 차트',
+  supportProgramList: '창업 지원 프로그램', rentPerPyeongCalc: '평당 임대료',
+  rentVsNational: '전국 평균 대비',
+  // [v15] Card 8 - 기회/리스크
+  anchorContextText: 'Google 앵커 원문', sourceTags: '소스 태그',
+  newsOppsTimeline: '뉴스 타임라인',
+  // [v15] Card 9 - 배달
+  deliveryByDow: '요일별 배달', deliveryPeakDow: '배달 피크 요일',
+  cafeVsAllDelivery: '카페 vs 전업종',
+  // [v15] Card 10 - SNS 트렌드
+  popularMenuTop10: '인기 메뉴 TOP 10', risingMenuDetail: '급상승 메뉴',
+  snsAnalyRaw: 'Google SNS 원문', hotPlaces: '핫플레이스', socialTags: '소셜 태그',
+  // [v15] Card 11 - 기상 (월별)
+  monthlyAvgTemp: '월별 평균기온', monthlyRainDays: '월별 강수일',
+  monthlySunshineHours: '월별 일조시간', sbizWeatherIndex: '창업기상도 점수',
+  // [v15] Card 13 - 상권 변화
+  storeCountTrend: '13개월 점포수', storeCount13mChange: '13개월 변화',
+  storeChangeSummary: '점포 증감', ageDistribution: '업력 분포',
+  storSttusCount: '업소 상태', seoulTrdarStor: '서울 상권 점포',
+  stabilityGauge: '장사 안정성 지수',
+  storeChangeBars: '개폐업 이중 바',
   regionType: '상권 유형', sunnyEffect: '맑은 날 영향', cloudyEffect: '흐린 날 영향',
   rainyEffect: '비 오는 날 영향', snowEffect: '눈 오는 날 영향', description: '날씨 분석 요약',
+  rainDays: '연 강수일', rainPct: '강수일 비율', sunnyDays: '연 맑은 날', sunnyPct: '맑은 날 비율',
+  cloudyDays: '연 흐린 날', cloudyPct: '흐린 날 비율', snowDays: '연 눈 오는 날', snowPct: '눈 비율',
+  heavyRainDays: '호우일(30mm+)', heatWaveDays: '폭염일(33도+)', coldWaveDays: '한파일(-12도-)',
+  avgTemp: '연평균 기온', winterMinTemp: '겨울 최저기온', summerMaxTemp: '여름 최고기온',
+  totalDays: '집계 일수', relativePosition: '전국 평균 대비', nationalAvgRainDays: '전국 평년 강수일',
+  dataSource: '데이터 출처 기간',
+  cafeDeliveryContext: '카페 배달 포지션', industryComparison: '업계 평균 비교',
+  saleTypeBreakdown: '판매 채널 비중',
+  netProfit: '배달 포함 실질 순이익', netProfitMarginPct: '실질 순이익률',
+  profitHealthPct: '수익 건전성', profitHealthNote: '수익 건전성 분석',
+  totalPop: '일 유동인구', visitors: '일 방문고객',
+  topArea: '상위 유동인구 지역',
+  brands: '주요 브랜드',
+  avgMenuPrice: '평균 메뉴가',
+  avgAmericanoPrice: '아메리카노 평균',
+  avgDessertPrice: '디저트 평균',
+  potentialCustomers: '일평균 잠재고객',
+  targetAge: '핵심 타겟 연령',
+  peakTimeCustomers: '피크타임 예상 고객',
+  // Card 15: 창업 지원 프로그램
+  totalPrograms: '전체 프로그램 수',
+  filteredCount: '카페 관련 프로그램 수',
+  // [v16] 비즈맵 키 - Card 2 (성별/연령)
+  bizmapGenderRatio: '성별 결제비율',
+  bizmapTopAge: '주력 결제 연령',
+  // [v16] 비즈맵 키 - Card 5 (매출)
+  bizmapTopSales: '상위 20% 매출',
+  bizmapAvgSales: '동 평균 매출',
+  bizmapBottomSales: '하위 20% 매출',
+  bizmapAvgUsageCnt: '월 이용 건수',
+  bizmapAvgUnitPrice: '평균 결제단가',
+  bizmapUsageTrend: '이용 추세',
+  bizmapMarketSize: '시장 규모',
+  bizmapMarketTrend: '시장 변동률',
+  // [v16] 비즈맵 키 - Card 6 (피크)
+  bizmapPeakHour: '최고 매출 시간대',
+  bizmapPeakHourPct: '최고 시간대 비중',
+  bizmapPeakDay: '최고 매출 요일',
+  bizmapPeakDayPct: '최고 요일 비중',
+  bizmapHourlyChart: '시간대별 매출',
+  bizmapWeeklyChart: '요일별 매출',
+  // [v16] 비즈맵 키 - Card 8 (비용 구조)
+  bizmapOpIncomePct: '영업이익률',
+  bizmapMaterialPct: '식재료비율',
+  bizmapLaborPct: '인건비율',
+  bizmapRentPct: '임차료비율',
+  bizmapEtcPct: '기타비율',
+  bizmapCostSummary: '비용 구조 요약',
+  // [v16] 비즈맵 키 - Card 13 (점포 변화)
+  bizmapStoreLatest: '카페 점포수(이번달)',
+  bizmapStoreFirst: '카페 점포수(13개월전)',
+  bizmapStoreNetChange: '13개월 점포 증감',
+  bizmapStoreTrendLabel: '점포 추세',
+  bizmapStoreTrendChart: '점포수 추이',
+  // [v17] 비즈맵 보조 키 - Card 7/9/11/12
+  bizmapBlockType: '비즈맵 상권 유형',
+  bizmapPeakDayDelivery: '비즈맵 매출 피크 요일',
+  bizmapPeakDayDeliveryPct: '비즈맵 피크 요일 비중',
+  bizmapPeakHourWeather: '비즈맵 매출 피크 시간대',
+  bizmapPeakHourWeatherPct: '비즈맵 피크 시간 비중',
+  bizmapTopUpjongByStore: '비즈맵 점포수 TOP 업종',
 };
 
 const formatValue = (key, val) => {
-  if (Array.isArray(val)) return val.join(', ');
-  if (key === 'monthly' || key === 'dongAvg' || key === 'guAvg') {
+  if (Array.isArray(val)) {
+    // [Phase 7 재작업] 객체 배열은 [object Object] 반복을 피하기 위해 빈 문자열 반환
+    if (val.length > 0 && typeof val[0] === 'object' && val[0] !== null) return '';
+    return val.join(', ');
+  }
+  if (key === 'monthly' || key === 'dongAvg' || key === 'guAvg' || key === 'siAvg' || key === 'prevYearGuAmt' || key === 'prevMonGuAmt') {
     // 만원 단위 → 한국식 억/만 표기
     const v = Number(val);
+    if (!v || v <= 0) return '-';
     if (v >= 10000) { const e = Math.floor(v / 10000); const m = Math.round(v % 10000); return m > 0 ? `${e}억 ${m.toLocaleString()}만원` : `${e}억원`; }
     return `${v.toLocaleString()}만원`;
   }
+  if (key === 'prevMonRate' || key === 'prevYearRate') {
+    if (val === null || val === undefined || val === '') return '-';
+    const v = Number(val);
+    if (!isFinite(v)) return '-';
+    return `${v.toFixed(1)}%`;
+  }
+  if (key === 'gusignguStores' || key === 'sigaongStores') {
+    const v = Number(val);
+    if (!v || v <= 0) return '-';
+    return `${v.toLocaleString()}개`;
+  }
+  if (key === 'topFiveDongs') {
+    if (!val) return '-';
+    return String(val);
+  }
+  if (key === 'annualSalesTrend') return '';
   if (key === 'male' || key === 'female' || key === 'newCustomer' || key === 'regular') return `${val}%`;
   if (key === 'weekday' || key === 'weekend') return `${val.toLocaleString()}명`;
   if (key === 'rentPerPyeong') {
     const v = Number(val);
+    if (!v || v <= 0) return '-';
     if (v >= 10000) { const e = Math.floor(v / 10000); const m = Math.round(v % 10000); return m > 0 ? `${e}억 ${m.toLocaleString()}만원/평` : `${e}억원/평`; }
     return `${v}만원/평`;
   }
   if (key === 'deposit') {
     const v = Number(val);
+    if (!v || v <= 0) return '-';
     if (v >= 10000) { const e = Math.floor(v / 10000); const m = Math.round(v % 10000); return m > 0 ? `${e}억 ${m.toLocaleString()}만원` : `${e}억원`; }
     return `${v.toLocaleString()}만원`;
   }
   if (key === 'supportPrograms') return `${val}건`;
   if (key === 'blogMentions') return `${val.toLocaleString()}건`;
-  if (key === 'deliveryRatio' || key === 'closureRate' || key === 'singleHousehold') return `${val}%`;
+  if (key === 'closureRate' || key === 'singleHousehold') return `${val}%`;
   if (key === 'residentPop') return `${Number(val).toLocaleString()}명`;
   if (key === 'households') return `${Number(val).toLocaleString()}세대`;
   if (key === 'cafes' || key === 'franchise' || key === 'individual' || key === 'bakery' || key === 'newOpen') return `${val}개`;
+  if (key === 'totalPop' || key === 'visitors') return `${Number(val).toLocaleString()}명`;
+  if (key === 'survivalRate1y' || key === 'survivalRate3y' || key === 'survivalRate5y') return `${val}%`;
+  if (key === 'avgMonthlySales') {
+    const v = Number(val);
+    if (!v || v <= 0) return null;
+    if (v >= 10000) { const e = Math.floor(v / 10000); const m = Math.round(v % 10000); return m > 0 ? `${e}억 ${m.toLocaleString()}만원` : `${e}억원`; }
+    return `${v.toLocaleString()}만원`;
+  }
+  if (key === 'franchiseMinPrice' || key === 'franchiseMaxPrice') {
+    const v = Number(val);
+    if (!v || v <= 0) return null;
+    return `${v.toLocaleString()}원`;
+  }
+  if (key === 'avgMenuPrice' || key === 'avgAmericanoPrice' || key === 'avgDessertPrice') {
+    return val ? `${Number(val).toLocaleString()}원` : null;
+  }
+  // [v16] 비즈맵 키 단위 처리 (bizmap 접두 키만)
+  if (typeof key === 'string' && key.startsWith('bizmap')) {
+    // 차트 배열형은 DataTable에서 안 보이게 (별도 ChartGrid 슬롯에서 렌더링)
+    if (/Chart$/.test(key) || /Labels$|Values$/.test(key)) return '';
+    if (val === null || val === undefined || val === '') return '-';
+    // 이미 포맷된 문자열(예: "14시 18.3%", "금요일", "+5.2%")은 그대로
+    if (typeof val === 'string') return val;
+    const num = Number(val);
+    if (!Number.isFinite(num)) return String(val);
+    if (/Pct$/.test(key)) return `${num}%`;
+    if (/(Amt|Sales|Size)$/.test(key)) {
+      if (!num || num <= 0) return '-';
+      if (num >= 10000) {
+        const e = Math.floor(num / 10000);
+        const m = Math.round(num % 10000);
+        return m > 0 ? `${e}억 ${m.toLocaleString()}만원` : `${e}억원`;
+      }
+      return `${num.toLocaleString()}만원`;
+    }
+    if (/(Count|Cnt|Latest|First|NetChange)$/.test(key)) return `${num.toLocaleString()}${/Cnt$|Count$/.test(key) ? '건' : '개'}`;
+    if (/Payment|UnitPrice/.test(key)) return `${num.toLocaleString()}원`;
+    return String(val);
+  }
   return String(val);
 };
 
@@ -1474,6 +2335,7 @@ const RiskOpportunityList = ({ items, type }) => {
               {item.detail || item.description}
             </div>
           )}
+          {/* 출처 표기 제거 (2026-05-02) */}
         </div>
       ))}
     </div>
@@ -1532,12 +2394,17 @@ const SentimentBar = ({ sentiment }) => {
   );
 };
 
-const DataTable = ({ data }) => {
+const DataTable = ({ data, chartType }) => {
   if (!data) return null;
   const entries = Object.entries(data);
+  const zeroAsNullKeys = new Set(['avgMonthlySales', 'franchiseMinPrice', 'franchiseMaxPrice', 'guAvg', 'siAvg', 'prevYearGuAmt', 'prevMonGuAmt', 'gusignguStores', 'sigaongStores', 'blogMentions', 'openCount', 'netChange', 'overallScore', 'opportunityCount', 'riskCount', 'perStoreSales', 'marketSize', 'newEntryRate', 'stableStoreRate', 'avgLifespan', 'recentOpen', 'recentClose', 'franchiseRatio']);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
       {entries.map(([key, val], i) => {
+        // Skip opportunities/risks arrays if chart already shows them (splitList)
+        if ((key === 'opportunities' || key === 'risks') && Array.isArray(val) && chartType === 'splitList') {
+          return null;
+        }
         // Special rendering for opportunities array
         if (key === 'opportunities' && Array.isArray(val)) {
           return (
@@ -1565,6 +2432,109 @@ const DataTable = ({ data }) => {
             </div>
           );
         }
+        // Card 10 - 인스타그램 게시물 한 줄 (instagramPosts)
+        if (key === 'instagramPosts' && typeof val === 'string' && val.trim()) {
+          return (
+            <div key={key} style={{ padding: '10px 0', borderBottom: i < entries.length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none' }}>
+              <div style={{ fontSize: 14, color: COLORS.textMuted, marginBottom: 4 }}>{LABEL_MAP[key] || key}</div>
+              <div style={{ fontSize: 13, color: COLORS.textSecondary }}>{val.trim()}</div>
+            </div>
+          );
+        }
+        // [v21] Card 10 - 후기 좋은 매장 (topShops) - 매장 카드 리스트
+        if (key === 'topShops' && Array.isArray(val) && val.length > 0) {
+          return (
+            <div key={key} style={{ padding: '10px 0', borderBottom: i < entries.length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none' }}>
+              <div style={{ fontSize: 14, color: COLORS.textMuted, marginBottom: 10 }}>{LABEL_MAP[key] || key}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {val.map((shop, si) => (
+                  <div key={si} style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 10,
+                    padding: '10px 14px',
+                    background: 'rgba(255,255,255,0.04)',
+                    borderRadius: 12,
+                    border: '1px solid rgba(255,255,255,0.06)',
+                  }}>
+                    <div style={{
+                      minWidth: 22,
+                      height: 22,
+                      borderRadius: 11,
+                      background: 'rgba(14,165,233,0.18)',
+                      color: 'rgba(125,211,252,1)',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginTop: 2,
+                    }}>{si + 1}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: COLORS.textPrimary }}>{shop.name}</span>
+                        <span style={{ fontSize: 12, color: 'rgba(125,211,252,1)', fontWeight: 600 }}>· {shop.menu}</span>
+                      </div>
+                      {shop.reason && (
+                        <div style={{ fontSize: 12, color: COLORS.textSecondary, lineHeight: 1.4 }}>{shop.reason}</div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        }
+        // [v20] Card 10 - 검색 유입 경로 (searchIntents) - 파란 칩
+        if (key === 'searchIntents' && Array.isArray(val) && val.length > 0) {
+          return (
+            <div key={key} style={{ padding: '10px 0', borderBottom: i < entries.length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none' }}>
+              <div style={{ fontSize: 14, color: COLORS.textMuted, marginBottom: 8 }}>{LABEL_MAP[key] || key}</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {val.map((q, qi) => (
+                  <span key={qi} style={{
+                    display: 'inline-block',
+                    padding: '5px 13px',
+                    borderRadius: 20,
+                    background: 'rgba(14,165,233,0.14)',
+                    border: '1px solid rgba(14,165,233,0.3)',
+                    fontSize: 12.5,
+                    color: 'rgba(125,211,252,1)',
+                    fontWeight: 500,
+                  }}>
+                    {typeof q === 'string' ? q : ''}
+                  </span>
+                ))}
+              </div>
+            </div>
+          );
+        }
+        // [v12.1] SNS 주의 키워드 (negativeKeywords) - 빨간 태그
+        if (key === 'negativeKeywords' && Array.isArray(val) && val.length > 0) {
+          return (
+            <div key={key} style={{ padding: '10px 0', borderBottom: i < entries.length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none' }}>
+              <div style={{ fontSize: 14, color: COLORS.textMuted, marginBottom: 8 }}>{LABEL_MAP[key] || key}</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {val.map((kw, ki) => (
+                  <span key={ki} style={{
+                    display: 'inline-block',
+                    padding: '4px 12px',
+                    borderRadius: 20,
+                    background: 'rgba(255,69,58,0.12)',
+                    border: '1px solid rgba(255,69,58,0.25)',
+                    fontSize: 12,
+                    color: 'rgba(255,99,89,0.95)',
+                    fontWeight: 500,
+                  }}>
+                    {typeof kw === 'string' ? kw : (kw.keyword || kw.name || '')}
+                  </span>
+                ))}
+              </div>
+            </div>
+          );
+        }
+        // [v14] SNS 트렌드 카드 정리: atmosphere/visitMotivation/strengths/weaknesses/cafeMenus/popularMenuType 섹션 제거
+        // 카드 목적 = 동네 카페 상권 전체 분위기. 카페별 메뉴/방문동기/강점/약점은 다른 카드에서 다룸.
         // Special rendering for trendMenus (nicebizmap rising menus)
         if (key === 'trendMenus' && Array.isArray(val) && val.length > 0) {
           return (
@@ -1592,6 +2562,554 @@ const DataTable = ({ data }) => {
             <div key={key} style={{ padding: '10px 0', borderBottom: i < entries.length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none' }}>
               <div style={{ fontSize: 14, color: COLORS.textMuted, marginBottom: 8 }}>{LABEL_MAP[key] || key}</div>
               <SentimentBar sentiment={val} />
+            </div>
+          );
+        }
+
+        // [v15] 브랜드 TOP 10 (name, count, nearest, density)
+        if (key === 'brandTop10' && Array.isArray(val) && val.length > 0) {
+          return (
+            <div key={key} style={{ padding: '10px 0', borderBottom: i < entries.length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none' }}>
+              <div style={{ fontSize: 14, color: COLORS.textMuted, marginBottom: 8 }}>{LABEL_MAP[key] || key}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {val.slice(0, 10).map((b, bi) => (
+                  <div key={bi} style={{
+                    display: 'grid', gridTemplateColumns: '24px 1fr 60px 70px 70px',
+                    gap: 8, alignItems: 'center', padding: '4px 0',
+                    fontSize: 12, color: COLORS.textSecondary,
+                    borderBottom: bi < val.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                  }}>
+                    <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 600 }}>{bi + 1}</span>
+                    <span style={{ fontWeight: 600 }}>{b.name}</span>
+                    <span style={{ textAlign: 'right' }}>{b.count}개</span>
+                    <span style={{ textAlign: 'right', color: COLORS.textMuted }}>{b.nearest}</span>
+                    <span style={{ textAlign: 'right', color: COLORS.textMuted }}>{b.density}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        }
+
+        // [v15] 개인카페 전체 목록 (근거리순)
+        if (key === 'indieCafeList' && Array.isArray(val) && val.length > 0) {
+          return (
+            <div key={key} style={{ padding: '10px 0', borderBottom: i < entries.length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none' }}>
+              <div style={{ fontSize: 14, color: COLORS.textMuted, marginBottom: 8 }}>{LABEL_MAP[key] || key} ({val.length}곳)</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 0, maxHeight: 360, overflowY: 'auto', paddingRight: 4 }}>
+                {val.map((c, ci) => (
+                  <div key={ci} style={{
+                    display: 'grid', gridTemplateColumns: '24px 1fr 60px 70px',
+                    gap: 8, alignItems: 'center', padding: '6px 0',
+                    fontSize: 12, color: COLORS.textSecondary,
+                    borderBottom: ci < val.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                  }}>
+                    <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 600 }}>{ci + 1}</span>
+                    <span style={{ fontWeight: 600 }}>{c.name}</span>
+                    <span style={{ textAlign: 'right', color: COLORS.textMuted }}>{c.dist != null ? c.dist + 'm' : '-'}</span>
+                    <span style={{ textAlign: 'right', color: COLORS.textMuted }}>{c.menuPrice ? Number(c.menuPrice).toLocaleString() + '원' : '-'}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        }
+
+        // [v15] 인기 메뉴 TOP 10
+        if (key === 'popularMenuTop10' && Array.isArray(val) && val.length > 0) {
+          return (
+            <div key={key} style={{ padding: '10px 0', borderBottom: i < entries.length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none' }}>
+              <div style={{ fontSize: 14, color: COLORS.textMuted, marginBottom: 8 }}>{LABEL_MAP[key] || key}</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
+                {val.slice(0, 10).map((m, mi) => (
+                  <div key={mi} style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '4px 8px', borderRadius: 6,
+                    background: 'rgba(255,255,255,0.04)',
+                    fontSize: 12,
+                  }}>
+                    <span style={{ color: 'rgba(255,149,0,0.8)', fontWeight: 700, minWidth: 18 }}>{m.rank}</span>
+                    <span style={{ color: COLORS.textSecondary, flex: 1 }}>{m.name}</span>
+                    {m.price > 0 && <span style={{ color: COLORS.textMuted, fontSize: 11 }}>{Number(m.price).toLocaleString()}원</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        }
+
+        // [v15] 급상승 메뉴 (증감률 화살표)
+        if (key === 'risingMenuDetail' && Array.isArray(val) && val.length > 0) {
+          return (
+            <div key={key} style={{ padding: '10px 0', borderBottom: i < entries.length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none' }}>
+              <div style={{ fontSize: 14, color: COLORS.textMuted, marginBottom: 8 }}>{LABEL_MAP[key] || key}</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {val.map((m, mi) => (
+                  <span key={mi} style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                    padding: '4px 10px', borderRadius: 12,
+                    background: 'rgba(100,200,150,0.12)',
+                    fontSize: 12, fontWeight: 600,
+                    color: 'rgba(100,200,150,0.9)',
+                  }}>
+                    <span style={{ fontSize: 10, opacity: 0.7 }}>▲</span>
+                    {m.name}
+                    {m.changeRate > 0 && <span style={{ fontSize: 10 }}>+{m.changeRate}%</span>}
+                  </span>
+                ))}
+              </div>
+            </div>
+          );
+        }
+
+        // [v15] 월별 기온 라인차트 (간단 SVG)
+        if ((key === 'monthlyAvgTemp' || key === 'monthlyRainDays' || key === 'monthlySunshineHours') && Array.isArray(val) && val.length === 12) {
+          const valid = val.map((v, mi) => v != null ? { month: mi + 1, value: Number(v) } : null).filter(Boolean);
+          if (valid.length < 2) return null;
+          const max = Math.max(...valid.map(v => v.value));
+          const min = Math.min(...valid.map(v => v.value));
+          const range = max - min || 1;
+          const W = 360; const H = 80; const pad = 6;
+          const colors = { monthlyAvgTemp: '#f59e0b', monthlyRainDays: '#3b82f6', monthlySunshineHours: '#fbbf24' };
+          const color = colors[key] || '#888';
+          const pts = valid.map((p, pi) => {
+            const x = pad + 12 + (pi * (W - pad * 2 - 12) / (valid.length - 1));
+            const y = H - pad - 12 - ((p.value - min) / range) * (H - pad * 2 - 12);
+            return [x, y];
+          });
+          const pathD = pts.map((p, pi) => `${pi === 0 ? 'M' : 'L'} ${p[0]} ${p[1]}`).join(' ');
+          const unit = key === 'monthlyAvgTemp' ? '°C' : key === 'monthlyRainDays' ? '일' : '시간';
+          const monthLabels = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+          // For monthlyRainDays, show as bars instead of line
+          const isBar = key === 'monthlyRainDays';
+          const barW = (W - pad * 2 - 12) / valid.length * 0.7;
+          return (
+            <div key={key} style={{ padding: '10px 0', borderBottom: i < entries.length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none' }}>
+              <div style={{ fontSize: 14, color: COLORS.textMuted, marginBottom: 6 }}>{LABEL_MAP[key] || key}</div>
+              <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" style={{ maxWidth: '100%' }}>
+                {isBar ? (
+                  pts.map((p, pi) => (
+                    <g key={pi}>
+                      <rect x={p[0] - barW / 2} y={p[1]} width={barW} height={H - pad - 12 - p[1]}
+                        fill={color} opacity="0.75" rx="1.5" />
+                    </g>
+                  ))
+                ) : (
+                  <>
+                    <path d={pathD} fill="none" stroke={color} strokeWidth="1.8" />
+                    {pts.map((p, pi) => (
+                      <circle key={pi} cx={p[0]} cy={p[1]} r="2" fill={color} />
+                    ))}
+                  </>
+                )}
+                {pts.map((p, pi) => (
+                  <text key={`l${pi}`} x={p[0]} y={H - 2} textAnchor="middle"
+                    fill="rgba(255,255,255,0.4)" fontSize="7"
+                    fontFamily="'Pretendard', sans-serif">{monthLabels[pi]}</text>
+                ))}
+              </svg>
+              <div style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 2 }}>
+                최저 {min.toFixed(1)}{unit} / 최고 {max.toFixed(1)}{unit} (1~12월)
+              </div>
+            </div>
+          );
+        }
+
+        // [Phase 7 재작업] 매출 분위수 바 (averageSalesListRaw)
+        if (key === 'averageSalesListRaw' && Array.isArray(val) && val.length >= 2) {
+          const amounts = val.map(r => r.amount).filter(a => a > 0);
+          if (amounts.length < 2) return null;
+          const maxA = Math.max(...amounts);
+          const minA = Math.min(...amounts);
+          const range = maxA - minA || 1;
+          // Find "current" tier (중/평균 position) - default to middle
+          const currentIdx = Math.floor(val.length / 2);
+          const fmtAmt = (v) => {
+            if (v >= 100000000) return (v / 100000000).toFixed(1) + '억';
+            if (v >= 10000) return Math.round(v / 10000) + '만';
+            return String(v);
+          };
+          return (
+            <div key={key} style={{ padding: '10px 0', borderBottom: i < entries.length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none' }}>
+              <div style={{ fontSize: 14, color: COLORS.textMuted, marginBottom: 8 }}>{LABEL_MAP[key] || key}</div>
+              <div style={{ position: 'relative', width: '100%', height: 10, background: 'linear-gradient(90deg, rgba(100,150,220,0.25), rgba(255,149,0,0.55))', borderRadius: 5, marginBottom: 22 }}>
+                {val.map((r, ri) => {
+                  const pct = ((r.amount - minA) / range) * 100;
+                  const isCurrent = ri === currentIdx;
+                  return (
+                    <div key={ri} style={{
+                      position: 'absolute', left: `calc(${pct}% - 4px)`,
+                      top: isCurrent ? -4 : 0,
+                      width: isCurrent ? 12 : 8, height: isCurrent ? 18 : 10,
+                      background: isCurrent ? '#ff9500' : 'rgba(255,255,255,0.4)',
+                      borderRadius: isCurrent ? 3 : '50%',
+                      border: isCurrent ? '2px solid #fff' : 'none',
+                    }} title={`${r.tier} ${fmtAmt(r.amount)}`} />
+                  );
+                })}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: COLORS.textMuted }}>
+                {val.map((r, ri) => (
+                  <span key={ri} style={{ flex: 1, textAlign: ri === 0 ? 'left' : ri === val.length - 1 ? 'right' : 'center' }}>
+                    {r.tier} {fmtAmt(r.amount)}
+                  </span>
+                ))}
+              </div>
+            </div>
+          );
+        }
+
+        // [Phase 7 재작업] 요일별 매출 집중도 바 (weeklyBars)
+        if (key === 'weeklyBars' && Array.isArray(val) && val.length >= 2) {
+          const max = Math.max(...val.map(r => r.value || 0));
+          if (max <= 0) return null;
+          return (
+            <div key={key} style={{ padding: '10px 0', borderBottom: i < entries.length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none' }}>
+              <div style={{ fontSize: 14, color: COLORS.textMuted, marginBottom: 8 }}>{LABEL_MAP[key] || key}</div>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 72 }}>
+                {val.map((r, ri) => {
+                  const pct = max > 0 ? (r.value / max) * 100 : 0;
+                  const isPeak = r.value === max;
+                  return (
+                    <div key={ri} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                      <span style={{ fontSize: 10, color: isPeak ? '#ff9500' : COLORS.textMuted, fontWeight: isPeak ? 700 : 500 }}>
+                        {r.value}%
+                      </span>
+                      <div style={{
+                        width: '100%', height: `${Math.max(4, pct)}%`,
+                        background: isPeak ? 'rgba(255,149,0,0.75)' : 'rgba(255,255,255,0.3)',
+                        borderRadius: 3, minHeight: 4,
+                      }} />
+                      <span style={{ fontSize: 10, color: COLORS.textMuted }}>{r.day}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        }
+
+        // [Phase 7 재작업] 개폐업 이중 바 (storeChangeBars = [{period, opened, closed}])
+        if (key === 'storeChangeBars' && Array.isArray(val) && val.length >= 2) {
+          const maxV = Math.max(...val.flatMap(r => [r.opened || 0, r.closed || 0]), 1);
+          return (
+            <div key={key} style={{ padding: '10px 0', borderBottom: i < entries.length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none' }}>
+              <div style={{ fontSize: 14, color: COLORS.textMuted, marginBottom: 8 }}>{LABEL_MAP[key] || key}</div>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 80, paddingBottom: 18, position: 'relative' }}>
+                {val.slice(0, 13).map((r, ri) => {
+                  const openPct = maxV > 0 ? (r.opened / maxV) * 100 : 0;
+                  const closePct = maxV > 0 ? (r.closed / maxV) * 100 : 0;
+                  return (
+                    <div key={ri} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, position: 'relative' }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 1, height: '100%', width: '100%', justifyContent: 'center' }}>
+                        <div title={`신규 ${r.opened}`} style={{
+                          width: '45%', height: `${Math.max(2, openPct)}%`,
+                          background: 'rgba(74,144,217,0.75)', borderRadius: '2px 2px 0 0', minHeight: 2,
+                        }} />
+                        <div title={`폐업 ${r.closed}`} style={{
+                          width: '45%', height: `${Math.max(2, closePct)}%`,
+                          background: 'rgba(231,76,60,0.75)', borderRadius: '2px 2px 0 0', minHeight: 2,
+                        }} />
+                      </div>
+                      <span style={{ position: 'absolute', bottom: -16, fontSize: 8, color: COLORS.textMuted, whiteSpace: 'nowrap' }}>
+                        {String(r.period).slice(-4)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{ display: 'flex', gap: 12, marginTop: 4, fontSize: 10, color: COLORS.textMuted }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ display: 'inline-block', width: 8, height: 8, background: 'rgba(74,144,217,0.75)', borderRadius: 2 }} /> 신규 개업
+                </span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ display: 'inline-block', width: 8, height: 8, background: 'rgba(231,76,60,0.75)', borderRadius: 2 }} /> 폐업
+                </span>
+              </div>
+            </div>
+          );
+        }
+
+        // [Phase 7 재작업] 전국 6개월 추이 (nationalChart6m = [{month, sale, stores}])
+        //                  -> [object Object] 버그 수정: 전용 라인 차트로 렌더
+        if (key === 'nationalChart6m' && Array.isArray(val) && val.length >= 2) {
+          const saleVals = val.map(r => Number(r?.sale || 0));
+          const maxS = Math.max(...saleVals); const minS = Math.min(...saleVals);
+          const rangeS = maxS - minS || 1;
+          const W = 360; const H = 70; const pad = 8;
+          const bottomLabel = H - 2;
+          const pts = saleVals.map((v, pi) => {
+            const x = pad + (pi * (W - pad * 2) / (saleVals.length - 1));
+            const y = pad + 4 + (1 - (v - minS) / rangeS) * (H - pad * 2 - 18);
+            return [x, y];
+          });
+          const pathD = pts.map((p, pi) => `${pi === 0 ? 'M' : 'L'} ${p[0]} ${p[1]}`).join(' ');
+          const fmt = (v) => {
+            if (v >= 100000000) return (v / 100000000).toFixed(1) + '억';
+            if (v >= 10000) return Math.round(v / 10000) + '만';
+            return String(v);
+          };
+          return (
+            <div key={key} style={{ padding: '10px 0', borderBottom: i < entries.length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none' }}>
+              <div style={{ fontSize: 14, color: COLORS.textMuted, marginBottom: 6 }}>{LABEL_MAP[key] || key}</div>
+              <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" style={{ maxWidth: '100%' }}>
+                <path d={pathD} fill="none" stroke="#ff9500" strokeWidth="1.8" />
+                {pts.map((p, pi) => (
+                  <circle key={pi} cx={p[0]} cy={p[1]} r="2.5" fill="#ff9500" />
+                ))}
+                {val.map((r, pi) => (
+                  <text key={`lab${pi}`} x={pts[pi][0]} y={bottomLabel} textAnchor="middle"
+                    fill="rgba(255,255,255,0.5)" fontSize="7.5"
+                    fontFamily="'Pretendard', sans-serif">
+                    {String(r?.month || '').slice(-2) + '월'}
+                  </text>
+                ))}
+              </svg>
+              <div style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 2 }}>
+                최저 {fmt(minS)} / 최고 {fmt(maxS)} (최근 6개월 매출)
+              </div>
+            </div>
+          );
+        }
+
+        // [v15] 13개월 점포수 추이 (라인차트)
+        if ((key === 'storeCountTrend' || key === 'marketSizeTrend') && Array.isArray(val) && val.length >= 2) {
+          const valueKey = key === 'marketSizeTrend' ? 'value' : 'count';
+          const pts = val.map(r => Number(r[valueKey] || 0)).filter(v => v > 0);
+          if (pts.length < 2) return null;
+          const max = Math.max(...pts); const min = Math.min(...pts); const range = max - min || 1;
+          const W = 360; const H = 50; const pad = 4;
+          const coords = pts.map((p, pi) => {
+            const x = pad + (pi * (W - pad * 2) / (pts.length - 1));
+            const y = H - pad - ((p - min) / range) * (H - pad * 2);
+            return [x, y];
+          });
+          const pathD = coords.map((p, pi) => `${pi === 0 ? 'M' : 'L'} ${p[0]} ${p[1]}`).join(' ');
+          return (
+            <div key={key} style={{ padding: '10px 0', borderBottom: i < entries.length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none' }}>
+              <div style={{ fontSize: 14, color: COLORS.textMuted, marginBottom: 6 }}>{LABEL_MAP[key] || key}</div>
+              <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ maxWidth: W }}>
+                <path d={pathD} fill="none" stroke="#60a5fa" strokeWidth="1.5" />
+              </svg>
+              <div style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 2 }}>
+                {val[0]?.month || ''} → {val[val.length - 1]?.month || ''}
+              </div>
+            </div>
+          );
+        }
+
+        // [v15] 요일별 배달 (bar)
+        if (key === 'deliveryByDow' && Array.isArray(val) && val.length > 0) {
+          const max = Math.max(...val.map(r => r.count || 0));
+          return (
+            <div key={key} style={{ padding: '10px 0', borderBottom: i < entries.length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none' }}>
+              <div style={{ fontSize: 14, color: COLORS.textMuted, marginBottom: 8 }}>{LABEL_MAP[key] || key}</div>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 60 }}>
+                {val.map((r, ri) => {
+                  const pct = max > 0 ? (r.count / max) * 100 : 0;
+                  return (
+                    <div key={ri} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                      <div style={{ width: '100%', height: `${pct}%`, background: 'rgba(100,150,220,0.5)', borderRadius: 3, minHeight: 2 }} />
+                      <span style={{ fontSize: 10, color: COLORS.textMuted }}>{r.day}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        }
+
+        // [v15] 시간대별 바 (hourlyBars)
+        if (key === 'hourlyBars' && Array.isArray(val) && val.length > 0) {
+          const max = Math.max(...val.map(r => r.value || 0));
+          return (
+            <div key={key} style={{ padding: '10px 0', borderBottom: i < entries.length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none' }}>
+              <div style={{ fontSize: 14, color: COLORS.textMuted, marginBottom: 8 }}>{LABEL_MAP[key] || key}</div>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 60 }}>
+                {val.slice(0, 24).map((r, ri) => {
+                  const pct = max > 0 ? (r.value / max) * 100 : 0;
+                  return (
+                    <div key={ri} title={`${r.hour} ${r.value}%`} style={{ flex: 1, height: `${Math.max(2, pct)}%`, background: 'rgba(255,149,0,0.5)', borderRadius: 2, minHeight: 2 }} />
+                  );
+                })}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: COLORS.textMuted, marginTop: 2 }}>
+                <span>{val[0]?.hour}</span>
+                <span>{val[val.length - 1]?.hour}</span>
+              </div>
+            </div>
+          );
+        }
+
+        // [v15] 주변 인프라 (busStop, publicFacility 등) 한 줄 요약
+        const infraKeys = ['blockType', 'subway', 'busStop', 'publicFacility', 'eduFacility', 'financeFacility'];
+        // handled by default renderer below
+
+        // [v15] 문자열 배열 (popularUpjongSale, popularUpjongStore, supportProgramList, sourceTags, socialTags, nearbyHjd)
+        const stringArrayKeys = new Set(['popularUpjongSale', 'popularUpjongStore', 'supportProgramList', 'sourceTags', 'socialTags', 'nearbyHjd']);
+        if (stringArrayKeys.has(key) && Array.isArray(val) && val.length > 0) {
+          return (
+            <div key={key} style={{ padding: '10px 0', borderBottom: i < entries.length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none' }}>
+              <div style={{ fontSize: 14, color: COLORS.textMuted, marginBottom: 8 }}>{LABEL_MAP[key] || key}</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {val.slice(0, 12).map((tag, ti) => (
+                  <span key={ti} style={{
+                    display: 'inline-block', padding: '3px 10px', borderRadius: 12,
+                    background: 'rgba(255,255,255,0.06)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    fontSize: 11, color: COLORS.textSecondary,
+                  }}>
+                    {typeof tag === 'string' ? tag : String(tag?.name || tag)}
+                  </span>
+                ))}
+              </div>
+            </div>
+          );
+        }
+
+        // [v15] 업력 분포 (ageDistribution: [{ range, count }])
+        if (key === 'ageDistribution' && Array.isArray(val) && val.length > 0) {
+          const max = Math.max(...val.map(r => r.count || 0));
+          return (
+            <div key={key} style={{ padding: '10px 0', borderBottom: i < entries.length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none' }}>
+              <div style={{ fontSize: 14, color: COLORS.textMuted, marginBottom: 8 }}>{LABEL_MAP[key] || key}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {val.map((r, ri) => {
+                  const pct = max > 0 ? Math.round((r.count / max) * 100) : 0;
+                  return (
+                    <div key={ri} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                      <span style={{ color: COLORS.textMuted, minWidth: 60 }}>{r.range}</span>
+                      <div style={{ flex: 1, height: 10, background: 'rgba(255,255,255,0.04)', borderRadius: 5, overflow: 'hidden' }}>
+                        <div style={{ width: pct + '%', height: '100%', background: 'rgba(100,150,220,0.5)', borderRadius: 5 }} />
+                      </div>
+                      <span style={{ color: COLORS.textSecondary, minWidth: 40, textAlign: 'right' }}>{r.count}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        }
+
+        // [v15] 뉴스 타임라인 (newsOppsTimeline)
+        if (key === 'newsOppsTimeline' && Array.isArray(val) && val.length > 0) {
+          return (
+            <div key={key} style={{ padding: '10px 0', borderBottom: i < entries.length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none' }}>
+              <div style={{ fontSize: 14, color: COLORS.textMuted, marginBottom: 8 }}>{LABEL_MAP[key] || key}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 220, overflowY: 'auto' }}>
+                {val.map((n, ni) => (
+                  <div key={ni} style={{
+                    borderLeft: '2px solid rgba(100,200,150,0.5)',
+                    paddingLeft: 10, paddingTop: 4, paddingBottom: 4,
+                  }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.textSecondary }}>{n.title}</div>
+                    {n.detail && <div style={{ fontSize: 11, color: COLORS.textMuted, lineHeight: 1.5, marginTop: 2 }}>{n.detail}</div>}
+                    {n.date && (
+                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>
+                        {n.date}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        }
+
+        // [v15] costBreakdownList (비용 배열)
+        if (key === 'costBreakdownList' && Array.isArray(val) && val.length > 0) {
+          return (
+            <div key={key} style={{ padding: '10px 0', borderBottom: i < entries.length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none' }}>
+              <div style={{ fontSize: 14, color: COLORS.textMuted, marginBottom: 8 }}>{LABEL_MAP[key] || key}</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {val.map((c, ci) => (
+                  <span key={ci} style={{
+                    padding: '4px 10px', borderRadius: 12,
+                    background: 'rgba(100,150,220,0.12)',
+                    fontSize: 12, fontWeight: 600,
+                    color: 'rgba(100,150,220,0.9)',
+                  }}>{c}</span>
+                ))}
+              </div>
+            </div>
+          );
+        }
+
+        // [v15] 평일/주말 시간대 비교 (wdTimeline / weTimeline)
+        if ((key === 'wdTimeline' || key === 'weTimeline') && Array.isArray(val) && val.length > 0) {
+          const max = Math.max(...val);
+          const color = key === 'wdTimeline' ? 'rgba(100,150,220,0.6)' : 'rgba(255,149,0,0.6)';
+          return (
+            <div key={key} style={{ padding: '10px 0', borderBottom: i < entries.length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none' }}>
+              <div style={{ fontSize: 14, color: COLORS.textMuted, marginBottom: 6 }}>{LABEL_MAP[key] || key}</div>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 40 }}>
+                {val.map((v, vi) => {
+                  const pct = max > 0 ? (v / max) * 100 : 0;
+                  return <div key={vi} title={v + '명'} style={{ flex: 1, height: Math.max(2, pct) + '%', background: color, borderRadius: 2 }} />;
+                })}
+              </div>
+            </div>
+          );
+        }
+
+        // [v15] 오픈업 시간대/요일 (openubTimes / openubWeekday)
+        if ((key === 'openubTimes' || key === 'openubWeekday') && Array.isArray(val) && val.length > 0) {
+          const max = Math.max(...val);
+          const labels = key === 'openubTimes' ? ['새벽', '아침', '점심', '오후', '저녁', '야간', '심야'] : ['월', '화', '수', '목', '금', '토', '일'];
+          return (
+            <div key={key} style={{ padding: '10px 0', borderBottom: i < entries.length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none' }}>
+              <div style={{ fontSize: 14, color: COLORS.textMuted, marginBottom: 6 }}>{LABEL_MAP[key] || key}</div>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 50 }}>
+                {val.slice(0, 7).map((v, vi) => {
+                  const pct = max > 0 ? (v / max) * 100 : 0;
+                  return (
+                    <div key={vi} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                      <div style={{ width: '100%', height: Math.max(2, pct) + '%', background: 'rgba(200,100,150,0.5)', borderRadius: 2 }} />
+                      <span style={{ fontSize: 9, color: COLORS.textMuted }}>{labels[vi]}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        }
+
+        // Skip null/undefined/empty values
+        if (val === null || val === undefined || val === '' || val === 'null' || val === '-') return null;
+        // Skip empty arrays
+        if (Array.isArray(val) && val.length === 0) return null;
+        // Skip zero values for keys where 0 is meaningless
+        if (val === 0 && zeroAsNullKeys.has(key)) return null;
+        // [Phase 7 재작업] Object-array fallback: 커스텀 렌더러가 없는 객체 배열은 스킵 (-> [object Object] 방지)
+        if (Array.isArray(val) && val.length > 0 && typeof val[0] === 'object' && val[0] !== null) {
+          return null;
+        }
+        // Skip complex objects that aren't arrays (topArea, dayOfWeek etc.)
+        if (typeof val === 'object' && !Array.isArray(val)) {
+          // Render object with name/pop or peakDay as text
+          const objStr = val.name ? `${val.name}${val.pop ? ' (' + val.pop.toLocaleString() + '명)' : ''}` : val.peakDay ? `${val.peakDay} ${val.peakDayPop ? val.peakDayPop.toLocaleString() + '명' : ''}` : null;
+          if (!objStr) return null;
+          return (
+            <div key={key} style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              padding: '10px 0',
+              borderBottom: i < entries.length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none',
+            }}>
+              <span style={{ fontSize: 14, color: COLORS.textMuted }}>{LABEL_MAP[key] || key}</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: COLORS.white }}>{objStr}</span>
+            </div>
+          );
+        }
+        // Long text values (deliveryFeeInfo, saleTypeBreakdown etc.) - block layout
+        const strVal = String(val);
+        if (strVal.length > 40) {
+          return (
+            <div key={key} style={{
+              padding: '10px 0',
+              borderBottom: i < entries.length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none',
+            }}>
+              <div style={{ fontSize: 14, color: COLORS.textMuted, marginBottom: 6 }}>{LABEL_MAP[key] || key}</div>
+              <div style={{ fontSize: 13, color: COLORS.textSecondary, lineHeight: 1.6 }}>{strVal}</div>
             </div>
           );
         }
@@ -1628,9 +3146,9 @@ const MOCK_CARDS = [
       bigNumber: 47, unit: '개',
       subtitle: '베이커리 8개가 포함되어 있어요',
       segments: [
-        { name: '프랜차이즈', pct: 12, color: '#1B2A4A' },
-        { name: '개인카페', pct: 35, color: '#6B7280' },
-        { name: '베이커리', pct: 8, color: '#374B78' },
+        { name: '프랜차이즈', pct: 12, color: '#1E3A8A' },
+        { name: '개인카페', pct: 35, color: '#3B82F6' },
+        { name: '베이커리', pct: 8, color: '#FFFFFF' },
       ],
     },
     bodyData: {
@@ -1797,173 +3315,196 @@ const MOCK_CARDS = [
       premiumCost: 3500,
     },
   },
-  // Card 8: 기회 & 리스크 (Split List)
+  // Card 8: 카페 기회 (Split List)
+  // [외부정보수집 고정] Mock/프리뷰 데이터도 내부 데이터 기반 표현 사용 금지.
+  // 실제 데이터는 externalIntel(Gemini Google Search) 결과만 사용한다.
   {
-    title: '기회 & 리스크',
-    subtitle: '상권 기회 요인과 리스크 분석',
+    title: '카페 기회',
+    subtitle: '카페 창업·운영 관련 최신 정보',
     date: '2026년 4월 기준',
-    source: 'Google Gemini',
+    source: 'Gemini Google Search',
     bruSummary: null,
-    aiSummary: '유동인구가 풍부하고 오피스 밀집 지역으로 점심/오후 수요가 높습니다.',
+    aiSummary: null,
     chartType: 'splitList',
-    metaInfo: '기회/리스크',
+    metaInfo: '카페 기회',
     chartData: {
-      opportunities: [
-        { title: '높은 유동인구', detail: '일 평균 2만명 이상의 유동인구로 자연 유입 고객 확보 용이' },
-        { title: '오피스 밀집', detail: '반경 500m 내 대형 오피스 빌딩 다수, 점심 및 오후 커피 수요 높음' },
-        { title: '지하철 역세권', detail: '강남역 도보 3분 거리, 접근성 우수' },
-      ],
-      risks: [
-        { title: '높은 경쟁 강도', detail: '반경 500m 내 카페 47개로 과밀 상권' },
-        { title: '높은 임대료', detail: '월 320만원 수준의 임대료로 손익분기점이 높음' },
-      ],
+      opportunities: [],
     },
-    bodyData: {
-      opportunities: [
-        { title: '높은 유동인구', detail: '일 평균 2만명 이상의 유동인구로 자연 유입 고객 확보 용이' },
-        { title: '오피스 밀집', detail: '반경 500m 내 대형 오피스 빌딩 다수, 점심 및 오후 커피 수요 높음' },
-        { title: '지하철 역세권', detail: '강남역 도보 3분 거리, 접근성 우수' },
-      ],
-      risks: [
-        { title: '높은 경쟁 강도', detail: '반경 500m 내 카페 47개로 과밀 상권' },
-        { title: '높은 임대료', detail: '월 320만원 수준의 임대료로 손익분기점이 높음' },
-      ],
-      opportunityCount: 3,
-      riskCount: 2,
-    },
-    tag: '기회/리스크',
+    bodyData: null,
+    tag: '카페 기회',
   },
-  // Card 9: 배달 분석 — circularProgress
+  // Card 9: 배달 객단가 (2026-05-02 본질 변경) — Card9DeliveryAvgPrice 컴포넌트 전용
   {
-    title: '배달 분석',
-    subtitle: '배달 업종 현황',
+    title: '배달 객단가',
+    subtitle: '이 동네 배달 객단가',
     date: '2026년 4월 기준',
     source: '소상공인365',
     bruSummary: null,
-    aiSummary: '카페/음료 배달 매출 비중 8%. 배달 업종 내 5위.',
-    chartType: 'circularProgress',
-    metaInfo: '배달',
-    chartData: { items: [{ label: '치킨', value: 28 }, { label: '한식', value: 22 }, { label: '분식', value: 18 }, { label: '중식', value: 14 }, { label: '카페', value: 8 }] },
+    aiSummary: null,
+    chartType: null,
+    metaInfo: '배달객단가',
+    chartData: null,
     bodyData: {
-      deliveryRatio: 8,
-      cafeDeliveryRank: 5,
-      avgDeliveryOrder: 15200,
-      topCategory: '치킨',
+      searchDongName: '',
+      searchAvgPrice: 0,
+      searchSales: 0,
+      searchOrders: 0,
+      nearbyDongs: [],
     },
   },
-  // Card 10: SNS 트렌드 — wordCloud
+  // Card 10: SNS 트렌드 — 워드클라우드 + 키워드 + 감성 + 보조 항목
   {
     title: 'SNS 트렌드',
-    subtitle: '소셜미디어 키워드 분석',
+    subtitle: '소셜미디어 카페 분위기 분석',
     date: '2026년 4월 기준',
-    source: '네이버/소상공인365',
+    source: 'AI 카페 트렌드 분석',
     bruSummary: null,
-    aiSummary: '주요 키워드: 강남카페, 디저트, 루프탑, 분위기, 브런치. 블로그 언급 3,842건.',
+    aiSummary: '강남역 주변 카페 검색량 증가 추세. 디저트와 분위기를 중시하는 리뷰가 다수.',
     chartType: 'wordCloud',
     metaInfo: 'SNS',
     chartData: {
       keywords: [
-        { text: '강남카페', weight: 100 }, { text: '디저트', weight: 80 }, { text: '루프탑', weight: 65 },
-        { text: '분위기', weight: 55 }, { text: '브런치', weight: 45 },
+        { text: '흑임자 크림 라떼', weight: 12 },
+        { text: '디카페인 강세', weight: 11 },
+        { text: '야외 테라스 명소', weight: 10 },
+        { text: '대형 갤러리 카페', weight: 9 },
+        { text: '이른 아침 오픈', weight: 8 },
+        { text: '30대 직장인 점심', weight: 7 },
+        { text: '사진 잘 나오는 인테리어', weight: 6 },
+        { text: '북카페 콘셉트', weight: 5 },
       ],
       sentimentPos: 72,
     },
     bodyData: {
-      keywords: ['강남카페', '디저트', '루프탑', '분위기', '브런치'],
-      sentiment: '긍정',
-      summary: '강남역 주변 카페 검색량 증가 추세. 디저트와 분위기를 중시하는 리뷰가 다수.',
-      blogMentions: 3842,
-      trendMenus: [
-        { name: '아메리카노', rank: 1, ratio: 0 },
-        { name: '카페라떼', rank: 2, ratio: 0 },
-        { name: '크로플', rank: 3, ratio: 0 },
-        { name: '딸기라떼', rank: 4, ratio: 0 },
-        { name: '바닐라라떼', rank: 5, ratio: 0 },
+      keywords: [
+        '흑임자 크림 라떼', '디카페인 강세', '야외 테라스 명소',
+        '대형 갤러리 카페', '이른 아침 오픈', '30대 직장인 점심',
+        '사진 잘 나오는 인테리어', '북카페 콘셉트',
       ],
+      negativeKeywords: ['비싸요', '웨이팅', '시끄러움'],
+      sentiment: { positive: 72, negative: 28 },
+      instagramPosts: '약 12만 게시물',
+      targetMatch: '30대 직장인 카페 수요 강세',
+      summary: '강남역 주변 카페 검색량 증가 추세. 디저트와 분위기를 중시하는 리뷰가 다수.',
+      blogMentions: 1240,
     },
     tag: 'SNS',
   },
-  // Card 11: 날씨 영향 분석 — weatherImpact
+  // Card 11: 연간 기상 분포 — weatherImpact
   {
-    title: '날씨 영향 분석',
-    subtitle: '기상 조건별 매출 영향도',
+    title: '연간 기상 분포',
+    subtitle: '최근 365일 실측 기상 분포',
     date: '2026년 4월 기준',
-    source: '기상청/소상공인365',
+    source: 'Open-Meteo',
     bruSummary: null,
-    aiSummary: '맑은 날 매출이 평균 대비 12% 높으며, 비 오는 날은 15% 감소하는 경향이 있습니다.',
+    aiSummary: '실측 기상 분포를 운영 구조 고민 재료로 활용할 수 있습니다.',
     chartType: 'weatherImpact',
     chartData: {
       items: [
-        { label: '맑음', icon: 'sun', value: 12 },
-        { label: '흐림', icon: 'cloud', value: -3 },
-        { label: '비', icon: 'rain', value: -15 },
-        { label: '눈', icon: 'snow', value: -22 },
+        { label: '맑음', icon: 'sun', value: 180, unit: '일' },
+        { label: '흐림', icon: 'cloud', value: 80, unit: '일' },
+        { label: '비', icon: 'rain', value: 95, unit: '일' },
+        { label: '눈', icon: 'snow', value: 10, unit: '일' },
       ],
     },
+    heroMetric: { value: '95일', label: '연 강수일', context: '전국 평년 105일 대비 평균' },
     bodyData: {
-      regionType: '도심 오피스형',
-      sunnyEffect: '+12%',
-      cloudyEffect: '-3%',
-      rainyEffect: '-15%',
-      snowEffect: '-22%',
-      description: '오피스 밀집 지역으로 날씨 영향이 상대적으로 적으나, 우천 시 테이크아웃 비중이 증가합니다.',
+      rainDays: 95, sunnyDays: 180, cloudyDays: 80, snowDays: 10,
+      heavyRainDays: 8, heatWaveDays: 15, coldWaveDays: 6,
+      avgTemp: 13.4, winterMinTemp: -11.2, summerMaxTemp: 34.1,
+      totalDays: 365, relativePosition: '평균', nationalAvgRainDays: 105,
     },
     tag: '날씨',
   },
-  // Card 12: 상권 경쟁 분석 — gaugeMeter
+  // Card 12: 상권 경쟁 분석 — competitionScore (5축 점수화)
   {
     title: '상권 경쟁 분석',
-    subtitle: '상권 내 경쟁 수준',
+    subtitle: '주변 카페 경쟁 정도',
     date: '2026년 4월 기준',
     source: '오픈업/카카오',
     bruSummary: null,
-    aiSummary: '반경 500m 내 카페 47개, 경쟁 강도 "과밀". 프랜차이즈 비율 26%.',
-    chartType: 'gaugeMeter',
+    aiSummary: '종합 경쟁 점수 55점 (경쟁). 반경 500m 내 카페 47개. 프랜차이즈 비율 26%.',
+    chartType: 'competitionScore',
     metaInfo: '경쟁',
-    chartData: { score: 78, label: '경쟁 강도' },
+    chartData: {
+      overallScore: 55,
+      tier: 'competitive',
+      tierLabel: '경쟁',
+      tierColor: '#F59E0B',
+      templateText: '이 지역은 경쟁이 치열한 구간입니다.',
+      axes: {
+        density:            { value: 60,    score: 0,   unit: '개/km²', label: '카페 밀도' },
+        franchiseRatio:     { value: 26,    score: 74,  unit: '%',      label: '프랜차이즈 비율' },
+        potentialPerStore:  { value: 25500, score: 51,  unit: '명',     label: '카페당 잠재 고객' },
+        openCloseTrend:     { value: 0.04,  score: 60,  unit: '비율',   label: '개폐업 추세' },
+        salesRentMargin:    { value: 0.83,  score: 83,  unit: '비율',   label: '매출-임대 여유' },
+      },
+    },
+    scoreDetail: {
+      tierColor: '#F59E0B',
+      templateText: '이 지역은 경쟁이 치열한 구간입니다.',
+    },
     bodyData: {
-      level: '과밀',
-      cafePerKm2: 60,
-      franchiseRatio: 26,
+      overallScore: '55점',
+      level: '경쟁 (과밀)',
+      cafeCount: '47개',
+      radius: '500m',
+      cafePerKm2: '60개/km²',
+      franchiseCount: '12개',
+      franchiseRatio: '26%',
+      dailyPopulation: '1,200,000명',
+      potentialPerStore: '25,500명',
       dongDensity: '동 내 카페/음료 업소 35개',
       newEntryRate: '22%',
       stableStoreRate: '48%',
       avgLifespan: '3년 이상 보통',
       recentOpen: '5개',
       recentClose: '3개',
+      openCloseTrend: '0.04',
+      monthlyRent: '250만원',
       perStoreSales: '1,200만원',
+      salesRentMargin: '0.83',
       marketSize: '5억 7,600만원',
     },
   },
-  // Card 13: AI 종합 분석 — scoreCard
+  // Card 14: AI 종합 분석 — [v14] insightDashboard (시각 중심)
   {
     title: 'AI 종합 분석',
-    subtitle: 'AI 에이전트 종합 피드백',
+    subtitle: '원천 데이터 + 외부 검색 종합',
     date: '2026년 4월 기준',
     source: 'Google Gemini',
     bruSummary: null,
-    aiSummary: '강남역 반경 500m는 높은 유동인구와 오피스 수요가 강점이나, 카페 과밀 상권으로 차별화 전략이 필수입니다. 스페셜티 커피와 디저트 특화 메뉴로 개인카페 경쟁력을 확보하는 것이 유리합니다.',
-    chartType: 'scoreCard',
+    aiSummary: null,
+    chartType: 'insightDashboard',
     metaInfo: 'AI종합',
     chartData: {
-      overall: 72,
-      axes: [
-        { label: '기회', value: 68 }, { label: '리스크', value: 35 },
-        { label: '경쟁', value: 55 }, { label: '매출', value: 70 }, { label: '입지', value: 78 },
+      headline: '오피스 기반 과밀 경쟁 상권',
+      kpis: [
+        { label: '종합 점수', value: 68, unit: '점', trend: '상승' },
+        { label: '매출 건전성', value: '양호', unit: '', trend: '유지' },
+        { label: '모멘텀', value: '상승', unit: '', trend: '상승' },
       ],
+      radarAxes: [
+        { axis: '밀집도', value: 55, fullMark: 100 },
+        { axis: '경쟁', value: 75, fullMark: 100 },
+        { axis: '잠재력', value: 80, fullMark: 100 },
+        { axis: '추세', value: 62, fullMark: 100 },
+        { axis: '비용여유', value: 58, fullMark: 100 },
+      ],
+      signals: [
+        { type: 'positive', text: '오피스 유동인구 강세' },
+        { type: 'positive', text: '개인카페 비중 60%' },
+        { type: 'neutral', text: '50대 방문층 높음' },
+        { type: 'negative', text: '임대료 부담 17%' },
+      ],
+      tags: ['강남역', '오피스', '스페셜티', '베이커리'],
     },
     bodyData: {
-      overallScore: 72,
+      overallScore: 68,
+      overallGrade: '양호',
       opportunities: 3,
       risks: 2,
       recommendation: '조건부 추천',
-      beancraftPriority: null,
-      interior: null,
-      equipment: null,
-      menu: null,
-      beans: null,
-      education: null,
-      design: null,
     },
   },
 ];
@@ -2032,6 +3573,25 @@ export default function UnifiedLayout({
   const [address, setAddress] = useState('');
   const [radius, setRadius] = useState(SLIDER_DEFAULT);
   const [mapRevealed, setMapRevealed] = useState(!resultsReady && !salesModeLoading);
+  // ── Sidebar collapse toggle (영업모드 결과 화면 좌측 영역 접기/펼치기) ──
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return typeof window !== 'undefined' && window.localStorage?.getItem('beancraft_sidebar_collapsed') === '1';
+    } catch (_) {
+      return false;
+    }
+  });
+  const toggleSidebar = useCallback(() => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        if (typeof window !== 'undefined') {
+          window.localStorage?.setItem('beancraft_sidebar_collapsed', next ? '1' : '0');
+        }
+      } catch (_) {}
+      return next;
+    });
+  }, []);
   const [bgLoaded, setBgLoaded] = useState(false);
   const [showHomepage, setShowHomepage] = useState(initialHomepageOpen);
   const [homepageUrl, setHomepageUrl] = useState('/site/');
@@ -2062,9 +3622,102 @@ export default function UnifiedLayout({
   // Use mapped cards when available, otherwise fall back to prop cards
   const cards = mappedCards || cardsProp;
 
-  // ── Sync initialHomepageOpen prop ──
+  // ── Card navigation state (toss-style one-card-per-viewport) ──
+  const [activeCardIndex, setActiveCardIndex] = useState(0);
+  const cardScrollRef = useRef(null);
+  const cardSectionRefs = useRef([]);
+
+  // Reset refs length when card count changes
   useEffect(() => {
-    if (initialHomepageOpen) setShowHomepage(true);
+    cardSectionRefs.current = cardSectionRefs.current.slice(0, cards.length);
+  }, [cards.length]);
+
+  // IntersectionObserver: track which card is currently centered in the scroll area
+  // [bugfix] refs are populated after AnimatePresence mounts the cards branch.
+  // We retry with rAF until at least one section is mounted so the observer doesn't
+  // silently attach to zero targets (the root case of the "nav stuck on 01" bug).
+  useEffect(() => {
+    if (!resultsReady) return;
+    if (!cards || cards.length === 0) return;
+
+    let observer = null;
+    let rafId = null;
+    let cancelled = false;
+
+    const attach = () => {
+      if (cancelled) return;
+      const root = cardScrollRef.current;
+      const observed = cardSectionRefs.current.filter(Boolean);
+      if (!root || observed.length === 0) {
+        rafId = requestAnimationFrame(attach);
+        return;
+      }
+      observer = new IntersectionObserver(
+        (entries) => {
+          let best = null;
+          entries.forEach((e) => {
+            if (!e.isIntersecting) return;
+            if (!best || e.intersectionRatio > best.intersectionRatio) best = e;
+          });
+          if (best) {
+            const idx = Number(best.target.getAttribute('data-card-section-index'));
+            if (!Number.isNaN(idx)) setActiveCardIndex(idx);
+          }
+        },
+        {
+          root,
+          // lower threshold so the first-frame intersection registers even when
+          // the section height exceeds the viewport
+          threshold: [0.1, 0.25, 0.5, 0.75],
+          // narrow the "active band" to the vertical center of the scroll root
+          rootMargin: '-35% 0px -35% 0px',
+        }
+      );
+      observed.forEach((el) => observer.observe(el));
+    };
+
+    attach();
+
+    return () => {
+      cancelled = true;
+      if (rafId) cancelAnimationFrame(rafId);
+      if (observer) observer.disconnect();
+    };
+  }, [resultsReady, cards.length]);
+
+  // Scroll to a specific card by index (smooth)
+  // [bugfix] using offsetTop relative to a non-offsetParent root returned the
+  // wrong coordinate when the sections' wrapper was the offsetParent; switch to
+  // querying by data attribute + using getBoundingClientRect so the math is
+  // correct regardless of intermediate layout wrappers.
+  // [v14.1] 마지막 카드(14)가 스크롤 스냅/높이 계산 때문에 이동 안 되던 버그 수정:
+  // 마지막 카드는 항상 scrollHeight - clientHeight (바닥)로 스크롤하도록 보장.
+  // 또한 이미 근접한 경우에도 activeCardIndex는 반드시 업데이트.
+  const scrollToCard = useCallback((idx) => {
+    const root = cardScrollRef.current;
+    if (!root) return;
+    const el =
+      cardSectionRefs.current[idx] ||
+      root.querySelector(`[data-card-section-index="${idx}"]`);
+    if (!el) return;
+    const rootRect = root.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    let top = root.scrollTop + (elRect.top - rootRect.top);
+    // 마지막 카드는 스크롤 바닥으로 강제 (scroll-snap + minHeight:100vh 환경에서
+    // 계산된 top이 이미 현재 scrollTop과 동일하거나 스냅이 되돌리는 경우 대비)
+    const isLast = idx === (cardSectionRefs.current.length - 1) || idx === (cards.length - 1);
+    if (isLast) {
+      top = Math.max(top, root.scrollHeight - root.clientHeight);
+    }
+    // 음수/초과 방지
+    top = Math.max(0, Math.min(top, root.scrollHeight - root.clientHeight));
+    root.scrollTo({ top, behavior: 'smooth' });
+    setActiveCardIndex(idx);
+  }, [cards.length]);
+
+  // ── Sync initialHomepageOpen prop (양방향 동기화: 부모가 닫으면 같이 닫힘) ──
+  useEffect(() => {
+    setShowHomepage(initialHomepageOpen);
   }, [initialHomepageOpen]);
 
   // ── Notify parent when homepage panel closes ──
@@ -2072,6 +3725,23 @@ export default function UnifiedLayout({
     setShowHomepage(false);
     if (onHomepageClosed) onHomepageClosed();
   }, [onHomepageClosed]);
+
+  // ── Data Source Modal State ──
+  const [showSourceModal, setShowSourceModal] = useState(false);
+
+  // ── Startup Program Popup State ──
+  const [showStartupPopup, setShowStartupPopup] = useState(false);
+  const [startupPopupTab, setStartupPopupTab] = useState('region'); // 'region' | 'all'
+  const [startupCatPage, setStartupCatPage] = useState({}); // 카테고리별 현재 페이지
+
+  // ── AI Director Popup State ──
+  const [showDirectorPopup, setShowDirectorPopup] = useState(false);
+  const [directorTab, setDirectorTab] = useState('market');
+  const [directorMuted, setDirectorMuted] = useState(false);
+  const [isAudioLoading, setIsAudioLoading] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [activeHighlight, setActiveHighlight] = useState(null);
+  const audioRef = useRef(null);
 
   // ── Cafe Map Modal State ──
   const [showCafeMap, setShowCafeMap] = useState(false);
@@ -2082,6 +3752,9 @@ export default function UnifiedLayout({
   const cafeMapMarkersRef = useRef([]);
   const cafeMapInfoWindowRef = useRef(null);
   const cafeMapAnimFrameRef = useRef(null);
+  const [cafeMapLoading, setCafeMapLoading] = useState(false);
+  const [cafeMapError, setCafeMapError] = useState(false);
+  const [cafeMapRetryTick, setCafeMapRetryTick] = useState(0);
 
   // ── Cafe Map: radius change animation ──
   const animateCafeCircleRadius = useCallback((fromR, toR) => {
@@ -2155,14 +3828,21 @@ export default function UnifiedLayout({
   useEffect(() => {
     const cd = collectedData;
     const coords = cd?.coordinates;
-    if (!showCafeMap || !coords || !window.naver?.maps) return;
+    if (!showCafeMap || !coords) return;
     setCafeMapRadius(500);
     setCafeMapSelectedCategory(null);
+    setCafeMapLoading(true);
+    setCafeMapError(false);
+    if (!window.naver?.maps) {
+      setCafeMapLoading(false);
+      setCafeMapError(true);
+      return;
+    }
     const timer = setTimeout(() => {
       try {
         const container = document.getElementById('unified-cafe-map-container');
-        if (!container) return;
-        if (!window.naver?.maps?.LatLng) return;
+        if (!container) { setCafeMapLoading(false); setCafeMapError(true); return; }
+        if (!window.naver?.maps?.LatLng) { setCafeMapLoading(false); setCafeMapError(true); return; }
         const center = new window.naver.maps.LatLng(coords.lat, coords.lng);
         const map = new window.naver.maps.Map('unified-cafe-map-container', {
           center, zoom: 15,
@@ -2175,7 +3855,7 @@ export default function UnifiedLayout({
         window.naver.maps.Event.addListener(map, 'click', () => {
           if (cafeMapInfoWindowRef.current) try { cafeMapInfoWindowRef.current.close(); } catch (e) {}
         });
-        const circle = new window.naver.maps.Circle({ map, center, radius: 500, strokeColor: '#2196F3', strokeWeight: 2, fillColor: '#2196F3', fillOpacity: 0.08 });
+        const circle = new window.naver.maps.Circle({ map, center, radius: 500, strokeColor: '#3182F6', strokeWeight: 2, fillColor: '#3182F6', fillOpacity: 0.08 });
         cafeMapCircleRef.current = circle;
         // Flag/pin SVGs for map markers
         const mugSvg = (color) => `<svg width="24" height="36" viewBox="0 0 24 36" xmlns="http://www.w3.org/2000/svg"><path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24C24 5.4 18.6 0 12 0z" fill="${color}" stroke="#fff" stroke-width="1.5"/><circle cx="12" cy="12" r="5" fill="#fff" opacity="0.9"/><path d="M10 10 L10 15 L15 12.5 Z" fill="${color}"/></svg>`;
@@ -2231,7 +3911,8 @@ export default function UnifiedLayout({
             group.forEach(c => createSingleMarker(c));
           }
         });
-      } catch(e) { console.warn('[CafeMap] init failed:', e.message); }
+        setCafeMapLoading(false);
+      } catch(e) { console.warn('[CafeMap] init failed:', e.message); setCafeMapLoading(false); setCafeMapError(true); }
     }, 100);
     return () => {
       clearTimeout(timer);
@@ -2244,7 +3925,7 @@ export default function UnifiedLayout({
         if(cafeMapRef.current){try{cafeMapRef.current.destroy();}catch(e){}cafeMapRef.current=null;}
       } catch(e) { console.warn('[CafeMap] cleanup error:', e.message); }
     };
-  }, [showCafeMap, collectedData?.coordinates, collectedData?.nearbyFranchiseList, collectedData?.nearbyIndependentList, collectedData?.nearbyBakeryList]);
+  }, [showCafeMap, collectedData?.coordinates, collectedData?.nearbyFranchiseList, collectedData?.nearbyIndependentList, collectedData?.nearbyBakeryList, cafeMapRetryTick]);
 
   // Preload bg
   useEffect(() => {
@@ -2439,11 +4120,35 @@ export default function UnifiedLayout({
     fetchKakaoSuggestions(val);
   }, [fetchKakaoSuggestions]);
 
-  const handleSuggestionClick = useCallback((label) => {
+  // ═══ [수집능력 고정 - 수정 금지] 자동완성 POI 좌표 획득 ═══
+  // 역/출구 패턴 감지 → "XX역 XX호선 X번출구" 전체로 카카오 키워드 검색
+  // → 원천 보고서와 0m 오차 좌표 획득
+  const handleSuggestionClick = useCallback((label, originalLabel) => {
     setAddress(label);
     setAutoCompleteOpen(false);
     setKakaoSuggestions([]);
-    onSearch(label, radius);
+    // 원래 검색어에 "역" 패턴이 있으면 역 이름으로 카카오 키워드 검색하여 POI 좌표 전달
+    const _origLabel = originalLabel || label;
+    const _stMatch = _origLabel.match(/(\S+역)/);
+    if (_stMatch) {
+      (async () => {
+        try {
+          // 원래 label 전체로 검색 (예: "강남역 2호선 1번출구") → 정확한 출구 좌표
+          const _kwQuery = _origLabel.includes('출구') ? _origLabel : _stMatch[1];
+          const kwRes = await fetch(`/.netlify/functions/kakao-proxy?type=keyword&query=${encodeURIComponent(_kwQuery)}&size=1`);
+          const kwData = await kwRes.json();
+          if (kwData.documents?.[0]) {
+            const doc = kwData.documents[0];
+            console.log('[POI-FIX] 자동완성 역 패턴 감지, 카카오 키워드 좌표 보정:', _stMatch[1], doc.y, doc.x);
+            onSearch(label, radius, { poiCoords: { lat: parseFloat(doc.y), lng: parseFloat(doc.x) } });
+            return;
+          }
+        } catch (e) { /* 폴백 */ }
+        onSearch(label, radius);
+      })();
+    } else {
+      onSearch(label, radius);
+    }
   }, [onSearch, radius]);
 
   const handleSubmit = useCallback(() => {
@@ -2464,7 +4169,15 @@ export default function UnifiedLayout({
     }
   }, [handleSubmit]);
 
-  const leftWidth = resultsReady ? LAYOUT.mapPanelWidthResult : salesModeLoading ? LAYOUT.mapPanelWidth : '100vw';
+  const leftWidth = resultsReady
+    ? (sidebarCollapsed ? '0%' : LAYOUT.mapPanelWidthResult)
+    : salesModeLoading
+      ? LAYOUT.mapPanelWidth
+      : '100vw';
+  // 토글 버튼은 영업모드 결과 화면(resultsReady)에서만 노출
+  const showSidebarToggle = resultsReady;
+  // 사이드바 접힘 CSS는 결과 화면(resultsReady)에서만 적용 — 검색/로딩 단계 슬라이드 진입 차단 방지
+  const sidebarCollapsedAttr = (resultsReady && sidebarCollapsed) ? 'true' : 'false';
 
   return (
     <div
@@ -2476,130 +4189,1332 @@ export default function UnifiedLayout({
         display: 'flex',
       }}
       className="unified-layout-root"
+      data-results={resultsReady ? 'true' : 'false'}
+      data-sidebar-collapsed={sidebarCollapsedAttr}
     >
-      {/* ── Cafe Map Modal ── */}
+      {/* ── Cafe Map Modal (Stitch v2 midnight_foundry) ── */}
       <AnimatePresence>
-      {showCafeMap && collectedData?.coordinates && (
-        <motion.div
-          key="cafe-map-backdrop"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.3, ease: 'easeOut' }}
-          onClick={() => setShowCafeMap(false)}
-          style={{
-            position: 'fixed', inset: 0, zIndex: 10000,
-            background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            willChange: 'opacity',
-          }}
-        >
+      {showCafeMap && collectedData?.coordinates && (() => {
+        // Compute in-radius count (filter by dist; avoids >=500 shortcut now that max=2000)
+        const fr = collectedData?.nearbyFranchiseList || [];
+        const ind = collectedData?.nearbyIndependentList || [];
+        const bk = collectedData?.nearbyBakeryList || [];
+        const allCafesForCount = [...fr, ...ind, ...bk].filter(c => c.lat && c.lng);
+        const inRadiusCount = allCafesForCount.filter(c => {
+          const d = typeof c.dist === 'number' ? c.dist : parseFloat(c.dist);
+          return !isNaN(d) && d <= cafeMapRadius;
+        }).length;
+        const isEmpty = !cafeMapLoading && !cafeMapError && inRadiusCount === 0;
+        const radiusLabel = cafeMapRadius < 1000 ? `${cafeMapRadius}m` : `${cafeMapRadius / 1000}km`;
+        const categories = [
+          { color: '#DC2626', label: '검색 위치', key: null },
+          { color: '#3B82F6', label: '프랜차이즈', key: 'franchise' },
+          { color: '#22C55E', label: '개인카페', key: 'independent' },
+          { color: '#F59E0B', label: '베이커리', key: 'bakery' },
+          { color: '#A855F7', label: '신규 오픈', key: 'newOpen' },
+        ];
+        return (
           <motion.div
-            key="cafe-map-panel"
-            initial={{ opacity: 0, transform: 'translateY(40px) translateZ(0)' }}
-            animate={{ opacity: 1, transform: 'translateY(0px) translateZ(0)' }}
-            exit={{ opacity: 0, transform: 'translateY(40px) translateZ(0)' }}
-            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-            onClick={e => e.stopPropagation()}
+            key="cafe-map-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3, ease: 'easeOut' }}
+            onClick={() => setShowCafeMap(false)}
             style={{
-              width: '90vw', maxWidth: 600, height: '70vh',
-              background: '#1a1a2e', borderRadius: 16,
-              display: 'flex', flexDirection: 'column', overflow: 'hidden',
-              boxShadow: '0 16px 48px rgba(0,0,0,0.4)',
-              willChange: 'transform, opacity',
-              backfaceVisibility: 'hidden',
+              position: 'fixed', inset: 0, zIndex: 10000,
+              background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              willChange: 'opacity',
             }}
           >
-            {/* Header */}
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.1)',
-            }}>
-              <h3 style={{ fontSize: 16, fontWeight: 700, color: COLORS.white, margin: 0 }}>
-                카페 위치 지도
-              </h3>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>반경 {cafeMapRadius}m</span>
-                <input
-                  type="range" min={100} max={500} step={50} value={cafeMapRadius}
-                  onChange={e => handleCafeMapRadiusChange(Number(e.target.value))}
-                  style={{ width: 100, accentColor: '#3182F6' }}
-                />
+            <motion.div
+              key="cafe-map-panel"
+              initial={{ opacity: 0, transform: 'translateY(40px) translateZ(0)' }}
+              animate={{ opacity: 1, transform: 'translateY(0px) translateZ(0)' }}
+              exit={{ opacity: 0, transform: 'translateY(40px) translateZ(0)' }}
+              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+              onClick={e => e.stopPropagation()}
+              style={{
+                width: '90vw', maxWidth: 600, height: '70vh',
+                background: '#000000', borderRadius: 16,
+                display: 'flex', flexDirection: 'column', overflow: 'hidden',
+                boxShadow: '0 16px 48px rgba(0,0,0,0.4)',
+                willChange: 'transform, opacity',
+                backfaceVisibility: 'hidden',
+                fontFamily: "'Inter', 'Pretendard', -apple-system, sans-serif",
+              }}
+            >
+              {/* ───────── Header ───────── */}
+              {cafeMapError ? (
+                // Error header (_2 style): [map icon] [center title] [settings icon]
+                <div style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  padding: '16px 24px', paddingTop: 32, background: 'rgba(14,14,14,0.9)',
+                }}>
+                  <div style={{ width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" />
+                      <line x1="8" y1="2" x2="8" y2="18" />
+                      <line x1="16" y1="6" x2="16" y2="22" />
+                    </svg>
+                  </div>
+                  <h3 style={{
+                    fontSize: 18, fontWeight: 700, color: '#FFFFFF', margin: 0,
+                    letterSpacing: '-0.02em', whiteSpace: 'nowrap',
+                  }}>
+                    카페 위치 지도
+                  </h3>
+                  <div style={{ width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <circle cx="12" cy="12" r="3" />
+                      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                    </svg>
+                  </div>
+                </div>
+              ) : isEmpty ? (
+                // Empty header (_1 style): [map icon BLUE fill] + title + [settings icon]
+                <div style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  padding: '16px 24px', paddingTop: 32, background: 'rgba(14,14,14,0.9)',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="#3B82F6" stroke="#3B82F6" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" />
+                      <line x1="8" y1="2" x2="8" y2="18" stroke="#000" />
+                      <line x1="16" y1="6" x2="16" y2="22" stroke="#000" />
+                    </svg>
+                    <h3 style={{
+                      fontSize: 18, fontWeight: 700, color: '#FFFFFF', margin: 0,
+                      letterSpacing: '-0.02em', whiteSpace: 'nowrap',
+                    }}>
+                      카페 위치 지도
+                    </h3>
+                  </div>
+                  <button
+                    onClick={() => setShowCafeMap(false)}
+                    aria-label="닫기"
+                    style={{
+                      width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      background: 'transparent', border: 'none', borderRadius: 9999,
+                      cursor: 'pointer', padding: 0, transition: 'background 0.2s ease',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#1B1B1B'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#B8B8B8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </div>
+              ) : (
+                // Default header (_5 style): [back arrow] + title | [close X]
+                <div style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  padding: '16px 24px', paddingTop: 32, background: 'rgba(14,14,14,0.9)',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                    <button
+                      onClick={() => setShowCafeMap(false)}
+                      aria-label="뒤로가기"
+                      style={{
+                        width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        background: 'transparent', border: 'none', padding: 0, cursor: 'pointer',
+                      }}
+                    >
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#B8B8B8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <line x1="19" y1="12" x2="5" y2="12" />
+                        <polyline points="12 19 5 12 12 5" />
+                      </svg>
+                    </button>
+                    <h3 style={{
+                      fontSize: 18, fontWeight: 500, color: '#FFFFFF', margin: 0,
+                      letterSpacing: '-0.02em', whiteSpace: 'nowrap',
+                    }}>
+                      카페 위치 지도
+                    </h3>
+                  </div>
+                  <button
+                    onClick={() => setShowCafeMap(false)}
+                    aria-label="닫기"
+                    style={{
+                      width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      background: 'transparent', border: 'none', borderRadius: 9999,
+                      cursor: 'pointer', padding: 0, transition: 'background 0.2s ease',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#1B1B1B'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#B8B8B8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+              {/* Slider + Filter bar: hidden in error/empty state */}
+              {!cafeMapError && !isEmpty && (
+                <>
+                  {/* ───────── Radius Slider ───────── */}
+                  <div style={{
+                    padding: '8px 24px 16px', borderBottom: '1px solid #1B1B1B',
+                    background: 'rgba(14,14,14,0.9)',
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <span style={{ fontSize: 14, fontWeight: 500, color: '#B8B8B8' }}>검색 반경</span>
+                      <span style={{ fontSize: 18, fontWeight: 700, color: '#3B82F6', letterSpacing: '-0.01em' }}>{radiusLabel}</span>
+                    </div>
+                    <input
+                      type="range" min={100} max={2000} step={50} value={cafeMapRadius}
+                      onChange={e => handleCafeMapRadiusChange(Number(e.target.value))}
+                      className="cafe-map-range"
+                      style={{
+                        width: '100%', height: 4, borderRadius: 8,
+                        background: '#353535', accentColor: '#3B82F6',
+                        appearance: 'none', WebkitAppearance: 'none', cursor: 'pointer',
+                      }}
+                    />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
+                      <span style={{ fontSize: 11, color: '#B8B8B8', opacity: 0.6 }}>100m</span>
+                      <span style={{ fontSize: 11, color: '#B8B8B8', opacity: 0.6 }}>2km</span>
+                    </div>
+                  </div>
+                  {/* ───────── Filter Bar: count + chips ───────── */}
+                  <div style={{ background: '#000000', boxShadow: '0 8px 30px rgba(0,0,0,0.5)', flexShrink: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', padding: '12px 24px' }}>
+                      <span style={{ fontSize: 14, fontWeight: 500, color: '#FFFFFF' }}>
+                        총 <span style={{ color: '#3B82F6', fontWeight: 700 }}>{inRadiusCount}개</span>의 결과
+                      </span>
+                    </div>
+                    <div
+                      style={{
+                        display: 'flex', gap: 8, padding: '0 24px 16px',
+                        overflowX: 'auto', overflowY: 'hidden', scrollbarWidth: 'none',
+                      }}
+                      className="cafe-map-chip-scroll"
+                    >
+                      {categories.map(item => {
+                        const isClickable = item.key !== null;
+                        const isSelected = cafeMapSelectedCategory === item.key;
+                        const isDimmed = cafeMapSelectedCategory && !isSelected && isClickable;
+                        // Active/default (_5 style): bg {color}1A, border {color}33, dot+text {color}
+                        // Dimmed (_3 pattern): bg #1B1B1B, border transparent, dot+text #B8B8B8
+                        const activeBg = `${item.color}1A`;
+                        const activeBorder = `${item.color}33`;
+                        return (
+                          <button
+                            key={item.label}
+                            type="button"
+                            onClick={isClickable ? () => handleCafeMapCategoryClick(item.key) : undefined}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 6,
+                              padding: '6px 12px', borderRadius: 9999,
+                              background: isDimmed ? '#1B1B1B' : activeBg,
+                              border: `1px solid ${isDimmed ? 'transparent' : activeBorder}`,
+                              cursor: isClickable ? 'pointer' : 'default',
+                              whiteSpace: 'nowrap', flexShrink: 0,
+                              transition: 'background 0.3s ease, border-color 0.3s ease',
+                              userSelect: 'none',
+                            }}
+                          >
+                            <span style={{
+                              width: 8, height: 8, borderRadius: '50%',
+                              background: isDimmed ? '#B8B8B8' : item.color,
+                              display: 'inline-block',
+                            }} />
+                            <span style={{
+                              fontSize: 12, fontWeight: 500,
+                              color: isDimmed ? '#B8B8B8' : item.color,
+                            }}>{item.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+              )}
+              {/* Hide Naver Maps logo/watermark + hide chip scrollbar */}
+              <style>{`
+                #unified-cafe-map-container .nmap_logo_area,
+                #unified-cafe-map-container a[href*="naver.com"],
+                #unified-cafe-map-container img[src*="naver"] {
+                  display: none !important;
+                  opacity: 0 !important;
+                  visibility: hidden !important;
+                }
+                .cafe-map-chip-scroll::-webkit-scrollbar { display: none; }
+                @keyframes cafeMapSpin { to { transform: rotate(360deg); } }
+              `}</style>
+              {/* ───────── Map area with overlays ───────── */}
+              <div style={{ flex: 1, minHeight: 0, position: 'relative', background: '#0E0E0E' }}>
+                <div id="unified-cafe-map-container" style={{ position: 'absolute', inset: 0, transform: 'translateZ(0)' }} />
+                {/* Loading overlay (kept from previous impl) */}
+                {cafeMapLoading && !cafeMapError && (
+                  <div style={{
+                    position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+                    alignItems: 'center', justifyContent: 'center', gap: 14,
+                    background: 'rgba(0,0,0,0.55)', zIndex: 5, pointerEvents: 'none',
+                  }}>
+                    <div style={{
+                      width: 40, height: 40, borderRadius: '50%',
+                      border: '3px solid rgba(59,130,246,0.2)', borderTopColor: '#3B82F6',
+                      animation: 'cafeMapSpin 0.9s linear infinite',
+                    }} />
+                    <span style={{ fontSize: 12, color: '#B8B8B8' }}>카페 정보를 불러오는 중...</span>
+                  </div>
+                )}
+                {/* Empty state overlay (_1 fullscreen) */}
+                {isEmpty && (
+                  <div style={{
+                    position: 'absolute', inset: 0, background: '#050505',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    zIndex: 4, overflow: 'hidden',
+                  }}>
+                    {/* Grid pattern overlay */}
+                    <div style={{
+                      position: 'absolute', inset: 0, opacity: 0.03, pointerEvents: 'none',
+                      backgroundImage: 'linear-gradient(to right, #ffffff 1px, transparent 1px), linear-gradient(to bottom, #ffffff 1px, transparent 1px)',
+                      backgroundSize: '64px 64px',
+                    }} />
+                    {/* Atmospheric glow */}
+                    <div style={{
+                      position: 'absolute', top: '50%', left: '50%',
+                      transform: 'translate(-50%, -50%)',
+                      width: 192, height: 192, borderRadius: '50%',
+                      background: '#1E3A8A', opacity: 0.08,
+                      filter: 'blur(60px)', pointerEvents: 'none',
+                    }} />
+                    <div style={{
+                      position: 'relative', zIndex: 10,
+                      display: 'flex', flexDirection: 'column', alignItems: 'center',
+                      textAlign: 'center', padding: '0 24px', maxWidth: 384,
+                    }}>
+                      {/* Info icon (thin stroke) */}
+                      <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <circle cx="12" cy="12" r="10" />
+                          <line x1="12" y1="16" x2="12" y2="12" />
+                          <line x1="12" y1="8" x2="12.01" y2="8" />
+                        </svg>
+                      </div>
+                      <h2 style={{
+                        fontSize: 18, fontWeight: 500, color: '#FFFFFF',
+                        margin: '0 0 8px', letterSpacing: '-0.02em',
+                      }}>반경 내 카페가 없습니다</h2>
+                      <p style={{
+                        fontSize: 14, fontWeight: 300, color: '#B8B8B8', margin: 0,
+                      }}>반경을 늘려보세요</p>
+                    </div>
+                  </div>
+                )}
+                {/* Error state overlay (_2 fullscreen) */}
+                {cafeMapError && (
+                  <div style={{
+                    position: 'absolute', inset: 0, background: '#1B1B1B',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    padding: 20, zIndex: 10, overflow: 'hidden',
+                  }}>
+                    {/* Dimmed grid decoration */}
+                    <div style={{
+                      position: 'absolute', inset: 0, opacity: 0.2, pointerEvents: 'none',
+                      display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gridTemplateRows: 'repeat(4, 1fr)',
+                      gap: 2,
+                    }}>
+                      <div style={{ background: '#353535', gridColumn: 'span 2', gridRow: 'span 1', borderRadius: 2 }} />
+                      <div style={{ background: '#353535', gridColumn: 'span 1', gridRow: 'span 2', borderRadius: 2 }} />
+                      <div style={{ background: '#353535', gridColumn: 'span 1', gridRow: 'span 1', borderRadius: 2 }} />
+                      <div style={{ background: '#353535', gridColumn: 'span 1', gridRow: 'span 1', borderRadius: 2 }} />
+                      <div style={{ background: '#353535', gridColumn: 'span 2', gridRow: 'span 2', borderRadius: 2 }} />
+                      <div style={{ background: '#353535', gridColumn: 'span 1', gridRow: 'span 3', borderRadius: 2 }} />
+                      <div style={{ background: '#353535', gridColumn: 'span 1', gridRow: 'span 1', borderRadius: 2 }} />
+                      <div style={{ background: '#353535', gridColumn: 'span 2', gridRow: 'span 1', borderRadius: 2 }} />
+                    </div>
+                    {/* Error card */}
+                    <div style={{
+                      position: 'relative', zIndex: 10,
+                      display: 'flex', flexDirection: 'column', alignItems: 'center',
+                      padding: 32, maxWidth: 320, width: '100%',
+                      background: '#000000', borderRadius: 16,
+                      border: '1px solid rgba(68,70,81,0.2)',
+                    }}>
+                      <div style={{
+                        width: 64, height: 64, borderRadius: '50%',
+                        background: 'rgba(147,0,10,0.2)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        marginBottom: 24,
+                      }}>
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="#F59E0B" aria-hidden="true">
+                          <path d="M12 2 L1 21 L23 21 Z" />
+                          <rect x="11" y="9" width="2" height="6" fill="#000" />
+                          <circle cx="12" cy="17.5" r="1.1" fill="#000" />
+                        </svg>
+                      </div>
+                      <h4 style={{
+                        fontSize: 18, fontWeight: 700, color: '#FFFFFF',
+                        margin: '0 0 8px', letterSpacing: '-0.02em',
+                      }}>
+                        지도를 불러올 수 없습니다
+                      </h4>
+                      <p style={{
+                        fontSize: 14, fontWeight: 300, color: '#B8B8B8',
+                        margin: '0 0 32px', textAlign: 'center',
+                      }}>
+                        네이버 지도 인증에 실패했습니다
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => { setCafeMapError(false); setCafeMapRetryTick(t => t + 1); }}
+                        style={{
+                          width: '100%', padding: '12px 24px', borderRadius: 8,
+                          background: 'transparent', border: '1px solid #FFFFFF',
+                          color: '#FFFFFF', fontSize: 14, fontWeight: 500,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                          cursor: 'pointer', transition: 'background 0.2s ease',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <polyline points="23 4 23 10 17 10" />
+                          <polyline points="1 20 1 14 7 14" />
+                          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10" />
+                          <path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14" />
+                        </svg>
+                        <span>다시 시도</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        );
+      })()}
+      </AnimatePresence>
+
+      {/* ── Startup Program Popup Modal ── */}
+      <AnimatePresence>
+      {showStartupPopup && (() => {
+        const startupCard = cards?.find(c => c.metaInfo === '창업지원');
+        if (!startupCard) return null;
+        const regionProgs = startupCard.regionPrograms || [];
+        const allProgs = startupCard.allPrograms || [];
+        const region = startupCard.bodyData?.region || '';
+        const activeProgs = startupPopupTab === 'region' ? regionProgs : allProgs;
+        // AI 한 줄 요약: 제목+본문에서 실제 지원 내용/목적 추출
+        const getShortDesc = (item) => {
+          const text = ((item.summary || '') + ' ' + (item.title || '')).replace(/<[^>]*>/g, '').replace(/&[a-z]+;/g, ' ');
+          const P = [
+            { re: /융자|대출|자금지원|육성자금/i, d: '카페 오픈에 필요한 자금을 저금리로 빌릴 수 있습니다. 보증금이나 인테리어 비용이 부족하면 활용하세요.' },
+            { re: /보증|특례보증|이차보전/i, d: '신용이 부족해도 보증을 통해 대출을 받을 수 있습니다. 담보가 없는 초기 창업자에게 유리합니다.' },
+            { re: /응원금|지원금|장려금/i, d: '카페 창업 초기 비용을 지원금으로 받을 수 있습니다. 조건이 맞으면 상환 없이 받는 자금입니다.' },
+            { re: /인테리어|리모델링|점포환경|시설개선/i, d: '카페 인테리어나 시설 개선 비용을 지원합니다. 매장 환경을 바꾸고 싶으면 활용하세요.' },
+            { re: /임대료|상가|점포/i, d: '카페 임대료 부담을 줄여주는 지원 사업입니다. 월세가 부담되면 확인하세요.' },
+            { re: /폐업|재기|새출발|사업정리/i, d: '폐업 후 재기를 지원합니다. 사업 정리 비용이나 재창업 준비에 활용할 수 있습니다.' },
+            { re: /경영안정|경영개선|운영안정/i, d: '카페 운영이 어려울 때 경영 안정 자금을 받을 수 있습니다.' },
+            { re: /청년|39세/i, d: '청년 소상공인을 위한 맞춤 지원입니다. 만 39세 이하라면 우선 확인하세요.' },
+            { re: /소상공인|자영업|골목/i, d: '카페 같은 소상공인을 위한 지원 사업입니다. 자격 조건을 확인하고 신청하세요.' },
+          ];
+          for (const { re, d } of P) { if (re.test(text)) return d; }
+          return '카페 창업 시 활용 가능한 지원 사업입니다. 상세보기에서 조건을 확인하세요.';
+        };
+        return (
+          <motion.div
+            key="startup-popup-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3, ease: 'easeOut' }}
+            onClick={() => setShowStartupPopup(false)}
+            style={{
+              position: 'fixed', inset: 0, zIndex: 10000,
+              background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              willChange: 'opacity',
+            }}
+          >
+            <motion.div
+              key="startup-popup-panel"
+              initial={{ opacity: 0, transform: 'translateY(40px) translateZ(0)' }}
+              animate={{ opacity: 1, transform: 'translateY(0px) translateZ(0)' }}
+              exit={{ opacity: 0, transform: 'translateY(40px) translateZ(0)' }}
+              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+              onClick={e => e.stopPropagation()}
+              style={{
+                width: '90vw', maxWidth: 600, height: '75vh',
+                background: '#111111', borderRadius: 16,
+                display: 'flex', flexDirection: 'column', overflow: 'hidden',
+                boxShadow: '0 16px 48px rgba(0,0,0,0.6)',
+                willChange: 'transform, opacity',
+                backfaceVisibility: 'hidden',
+              }}
+            >
+              {/* Header */}
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '16px 20px', borderBottom: '1px solid #333',
+              }}>
+                <h3 style={{ fontSize: 20, fontWeight: 700, color: COLORS.white, margin: 0 }}>
+                  카페 창업 지원 프로그램
+                </h3>
                 <button
-                  onClick={() => setShowCafeMap(false)}
-                  style={{ background: 'none', border: 'none', color: COLORS.white, fontSize: 22, cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}
+                  onClick={() => setShowStartupPopup(false)}
+                  style={{ background: 'none', border: 'none', color: COLORS.white, fontSize: 24, cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}
                 >
                   x
                 </button>
               </div>
-            </div>
-            {/* Legend - clickable category filters */}
-            <div style={{ display: 'flex', gap: 10, padding: '8px 18px', flexWrap: 'wrap', alignItems: 'center' }}>
-              {(() => {
-                const fr = collectedData?.nearbyFranchiseList || [];
-                const ind = collectedData?.nearbyIndependentList || [];
-                const bk = collectedData?.nearbyBakeryList || [];
-                const allCafesForCount = [...fr, ...ind, ...bk].filter(c => c.lat && c.lng);
-                const inRadiusCount = cafeMapRadius >= 500
-                  ? allCafesForCount.length
-                  : allCafesForCount.filter(c => {
-                      const d = typeof c.dist === 'number' ? c.dist : parseFloat(c.dist);
-                      return !isNaN(d) && d <= cafeMapRadius;
-                    }).length;
-                const categories = [
-                  { color: '#EF4444', label: '검색 위치', key: null },
-                  { color: '#3B82F6', label: '프랜차이즈', key: 'franchise' },
-                  { color: '#22C55E', label: '개인카페', key: 'independent' },
-                  { color: '#F59E0B', label: '베이커리', key: 'bakery' },
-                  { color: '#A855F7', label: '신규 오픈', key: 'newOpen' },
-                ];
-                return (
-                  <>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: '#3182F6', marginRight: 4 }}>
-                      {inRadiusCount}개
-                    </span>
-                    {categories.map(item => {
-                      const isClickable = item.key !== null;
-                      const isSelected = cafeMapSelectedCategory === item.key;
-                      const isDimmed = cafeMapSelectedCategory && !isSelected && isClickable;
-                      return (
-                        <div
-                          key={item.label}
-                          onClick={isClickable ? () => handleCafeMapCategoryClick(item.key) : undefined}
-                          style={{
-                            display: 'flex', alignItems: 'center', gap: 4,
-                            cursor: isClickable ? 'pointer' : 'default',
-                            padding: '3px 8px', borderRadius: 12,
-                            background: isSelected ? 'rgba(255,255,255,0.12)' : 'transparent',
-                            border: isSelected ? '1px solid rgba(255,255,255,0.25)' : '1px solid transparent',
-                            opacity: isDimmed ? 0.4 : 1,
-                            transition: 'opacity 0.3s ease, background 0.3s ease, border-color 0.3s ease',
-                          }}
-                        >
-                          <div style={{ width: 8, height: 8, borderRadius: '50%', background: item.color }} />
-                          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', userSelect: 'none' }}>{item.label}</span>
-                        </div>
-                      );
-                    })}
-                  </>
-                );
-              })()}
-            </div>
-            {/* Hide Naver Maps logo/watermark */}
-            <style>{`
-              #unified-cafe-map-container .nmap_logo_area,
-              #unified-cafe-map-container a[href*="naver.com"],
-              #unified-cafe-map-container img[src*="naver"] {
-                display: none !important;
-                opacity: 0 !important;
-                visibility: hidden !important;
-              }
-            `}</style>
-            {/* Map container */}
-            <div id="unified-cafe-map-container" style={{ flex: 1, minHeight: 0, transform: 'translateZ(0)' }} />
+              {/* Tab bar */}
+              <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid #333' }}>
+                {region && (
+                  <button
+                    onClick={() => setStartupPopupTab('region')}
+                    style={{
+                      flex: 1, padding: '12px 0', border: 'none', cursor: 'pointer',
+                      fontSize: 14, fontWeight: startupPopupTab === 'region' ? 700 : 400,
+                      color: startupPopupTab === 'region' ? COLORS.white : '#999',
+                      background: 'transparent',
+                      borderBottom: startupPopupTab === 'region' ? '2px solid #fff' : '2px solid transparent',
+                      transition: 'all 0.2s',
+                      fontFamily: 'Pretendard, sans-serif',
+                    }}
+                  >
+                    {region} ({regionProgs.length}건)
+                  </button>
+                )}
+                <button
+                  onClick={() => setStartupPopupTab('all')}
+                  style={{
+                    flex: 1, padding: '12px 0', border: 'none', cursor: 'pointer',
+                    fontSize: 14, fontWeight: startupPopupTab === 'all' ? 700 : 400,
+                    color: startupPopupTab === 'all' ? COLORS.white : '#999',
+                    background: 'transparent',
+                    borderBottom: startupPopupTab === 'all' ? '2px solid #fff' : '2px solid transparent',
+                    transition: 'all 0.2s',
+                    fontFamily: 'Pretendard, sans-serif',
+                  }}
+                >
+                  전체 ({allProgs.length}건)
+                </button>
+              </div>
+              {/* Program list - 카테고리별 3개씩 페이지네이션 */}
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                {activeProgs.length > 0 ? (() => {
+                  const catDefs = [
+                    { key: 'fund', label: '자금 지원', re: /자금|융자|대출|보증|이차보전|응원금/i },
+                    { key: 'space', label: '공간 / 시설', re: /인테리어|리모델링|임대료|점포|상가|시설/i },
+                    { key: 'restart', label: '재기 / 전환', re: /폐업|재기|새출발|사업정리|경영안정/i },
+                    { key: 'youth', label: '청년 소상공인', re: /청년|39세/i },
+                  ];
+                  const grouped = {};
+                  const used = new Set();
+                  catDefs.forEach(({ key, re }) => {
+                    grouped[key] = activeProgs.filter((p, i) => {
+                      if (used.has(i)) return false;
+                      const t = ((p.summary || '') + ' ' + (p.title || '') + ' ' + (p.tags || '')).replace(/<[^>]*>/g, '');
+                      if (re.test(t)) { used.add(i); return true; }
+                      return false;
+                    });
+                  });
+                  grouped['etc'] = activeProgs.filter((_, i) => !used.has(i));
+                  const allCats = [...catDefs, { key: 'etc', label: '기타 지원' }].filter(c => (grouped[c.key] || []).length > 0);
+
+                  return (
+                    <>
+                      {/* 카테고리 가로 스크롤 탭 */}
+                      <div style={{
+                        display: 'flex', gap: 0, overflowX: 'auto', borderBottom: '1px solid #222',
+                        padding: '0 20px', flexShrink: 0,
+                        scrollbarWidth: 'none', msOverflowStyle: 'none',
+                      }}>
+                        {allCats.map(({ key, label }) => {
+                          const isActive = (startupCatPage._activeCat || allCats[0]?.key) === key;
+                          return (
+                            <div
+                              key={key}
+                              onClick={() => setStartupCatPage(prev => ({ ...prev, _activeCat: key, [key]: 0 }))}
+                              style={{
+                                padding: '10px 14px', cursor: 'pointer', whiteSpace: 'nowrap',
+                                fontSize: 13, fontWeight: isActive ? 700 : 400,
+                                color: isActive ? COLORS.white : '#666',
+                                borderBottom: isActive ? '2px solid #fff' : '2px solid transparent',
+                                transition: 'all 0.2s',
+                              }}
+                            >
+                              {label} ({grouped[key].length})
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {/* 선택된 카테고리의 항목 3개씩 */}
+                      {(() => {
+                        const activeCatKey = startupCatPage._activeCat || allCats[0]?.key;
+                        const items = grouped[activeCatKey] || [];
+                        const PER = 3;
+                        const page = startupCatPage[activeCatKey] || 0;
+                        const totalPages = Math.ceil(items.length / PER);
+                        const pageItems = items.slice(page * PER, (page + 1) * PER);
+
+                        return (
+                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                            {/* 카드 리스트 */}
+                            <div style={{ flex: 1, overflowY: 'auto', padding: '12px 20px' }}>
+                              {pageItems.map((prog, pi) => {
+                                // 제목에서 [지역] 추출
+                                const regionMatch = prog.title.match(/^\[([^\]]+)\]/);
+                                const regionTag = regionMatch ? regionMatch[1] : (prog.org || '').replace(/(특별시|광역시|특별자치시|특별자치도|도)$/, '').slice(0, 2);
+                                const cleanTitle = prog.title.replace(/^\[[^\]]+\]\s*/, '');
+                                return (
+                                <div key={pi} style={{
+                                  padding: '20px 16px', marginBottom: 12,
+                                  background: '#1a1a1a', borderRadius: 12,
+                                }}>
+                                  {/* 상단: 지역 태그 + 대상 */}
+                                  <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+                                    {regionTag && (
+                                      <span style={{
+                                        fontSize: 12, color: '#ccc', background: '#2a2a2a',
+                                        padding: '3px 8px', borderRadius: 4, fontWeight: 500,
+                                      }}>{regionTag}</span>
+                                    )}
+                                    {prog.target && (
+                                      <span style={{
+                                        fontSize: 12, color: '#999', background: '#222',
+                                        padding: '3px 8px', borderRadius: 4,
+                                      }}>{prog.target}</span>
+                                    )}
+                                  </div>
+                                  {/* 제목 */}
+                                  <div style={{
+                                    fontSize: 16, fontWeight: 700, color: COLORS.white,
+                                    lineHeight: 1.5, marginBottom: 10,
+                                  }}>
+                                    {cleanTitle}
+                                  </div>
+                                  {/* 기관 + 기간 */}
+                                  <div style={{ fontSize: 13, color: '#777', marginBottom: 12 }}>
+                                    {prog.org}{prog.executor && prog.executor !== prog.org ? ` / ${prog.executor}` : ''}
+                                    {prog.period ? `  |  ${prog.period}` : ''}
+                                  </div>
+                                  {/* AI 요약 */}
+                                  <div style={{
+                                    fontSize: 14, color: '#bbb', lineHeight: 1.7,
+                                    paddingLeft: 12, borderLeft: '2px solid #333',
+                                  }}>
+                                    {getShortDesc(prog)}
+                                  </div>
+                                  {/* 상세보기 */}
+                                  {prog.url && (
+                                    <div style={{ textAlign: 'right', marginTop: 10 }}>
+                                      <span
+                                        onClick={() => window.open(prog.url, '_blank', 'noopener')}
+                                        style={{
+                                          display: 'inline-block',
+                                          fontSize: 13, color: '#FFFFFF',
+                                          background: 'transparent',
+                                          border: '1px solid #FFFFFF',
+                                          borderRadius: 8,
+                                          padding: '6px 12px',
+                                          cursor: 'pointer',
+                                          transition: 'background 0.15s',
+                                        }}
+                                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+                                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                      >상세보기 →</span>
+                                    </div>
+                                  )}
+                                </div>
+                                );
+                              })}
+                            </div>
+                            {/* 페이지네이션 */}
+                            {totalPages > 1 && (
+                              <div style={{
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                gap: 4, padding: '12px 0', borderTop: '1px solid #222', flexShrink: 0,
+                              }}>
+                                <span
+                                  onClick={() => page > 0 && setStartupCatPage(prev => ({ ...prev, [activeCatKey]: page - 1 }))}
+                                  style={{ padding: '6px 10px', cursor: page > 0 ? 'pointer' : 'default', color: page > 0 ? '#ccc' : '#444', fontSize: 14 }}
+                                >
+                                  {'<'}
+                                </span>
+                                {Array.from({ length: totalPages }, (_, i) => (
+                                  <span
+                                    key={i}
+                                    onClick={() => setStartupCatPage(prev => ({ ...prev, [activeCatKey]: i }))}
+                                    style={{
+                                      padding: '6px 11px', cursor: 'pointer', borderRadius: 6,
+                                      fontSize: 14, fontWeight: i === page ? 700 : 400,
+                                      color: i === page ? '#fff' : '#666',
+                                      background: i === page ? '#333' : 'transparent',
+                                    }}
+                                  >
+                                    {i + 1}
+                                  </span>
+                                ))}
+                                <span
+                                  onClick={() => page < totalPages - 1 && setStartupCatPage(prev => ({ ...prev, [activeCatKey]: page + 1 }))}
+                                  style={{ padding: '6px 10px', cursor: page < totalPages - 1 ? 'pointer' : 'default', color: page < totalPages - 1 ? '#ccc' : '#444', fontSize: 14 }}
+                                >
+                                  {'>'}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </>
+                  );
+                })() : (
+                  <div style={{ textAlign: 'center', padding: '40px 0', color: '#999', fontSize: 15 }}>
+                    {startupPopupTab === 'region'
+                      ? `${region} 지역의 카페 창업 지원 프로그램이 없습니다.`
+                      : '카페 창업 지원 프로그램 정보가 없습니다.'
+                    }
+                  </div>
+                )}
+              </div>
+            </motion.div>
           </motion.div>
-        </motion.div>
-      )}
+        );
+      })()}
+      </AnimatePresence>
+
+
+      {/* ── AI Director Dashboard Popup Modal (v2 redesign) ── */}
+      <AnimatePresence>
+      {showDirectorPopup && (() => {
+        // AnimatedNumber: counts from 0 to target value with easeOutCubic
+        const AnimatedNumber = ({ value, active, suffix = '', prefix = '' }) => {
+          const [display, setDisplay] = React.useState(0);
+          const rafRef = React.useRef(null);
+          React.useEffect(() => {
+            if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+            if (!active) { setDisplay(0); return; }
+            const target = typeof value === 'number' ? value : parseInt(String(value).replace(/[^0-9]/g, '')) || 0;
+            if (target === 0) return;
+            const duration = 1200;
+            const startTime = performance.now();
+            const animate = (now) => {
+              const elapsed = now - startTime;
+              const progress = Math.min(elapsed / duration, 1);
+              const eased = 1 - Math.pow(1 - progress, 3);
+              setDisplay(Math.round(target * eased));
+              if (progress < 1) rafRef.current = requestAnimationFrame(animate);
+              else rafRef.current = null;
+            };
+            rafRef.current = requestAnimationFrame(animate);
+            return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+          }, [active, value]);
+          return <span>{prefix}{display.toLocaleString()}{suffix}</span>;
+        };
+
+        // ── Data extraction from cards ──
+        const insightCard = cards?.find(c => c.metaInfo === 'AI\uC885\uD569');
+        const director = insightCard?.chartData?.director || {};
+        const dCard1 = cards?.find(c => c.metaInfo === '\uCE74\uD398 \uD604\uD669');
+        const dCard2 = cards?.find(c => c.metaInfo === '\uACE0\uAC1D');
+        const dCard3 = cards?.find(c => c.metaInfo === '\uD504\uB79C\uCC28\uC774\uC988');
+        const dCard5 = cards?.find(c => c.metaInfo === '\uB9E4\uCD9C');
+        const dCard6 = cards?.find(c => c.metaInfo === '\uC720\uB3D9\uC778\uAD6C');
+        const dCard7 = cards?.find(c => c.metaInfo === '\uC784\uB300');
+        const dCardWeather = cards?.find(c => c.chartType === 'weatherImpact');
+        const dCard12 = cards?.find(c => c.metaInfo === '\uACBD\uC7C1');
+        const dCard13 = cards?.find(c => c.metaInfo === '\uC0C1\uAD8C\uBCC0\uD654');
+
+        // Section 1: Market overview
+        const totalCafes = dCard1?.bodyData?.cafes || dCard1?.chartData?.bigNumber || 0;
+        const franchiseCount = dCard1?.bodyData?.franchise || 0;
+        const individualCount = dCard1?.bodyData?.individual || 0;
+        const blockType = dCard1?.bodyData?.blockType || dCard1?.bodyData?.regionType || null;
+        const closedCount = dCard1?.bodyData?.['\uD3D0\uC5C5 \uB9E4\uC7A5'] || 0;
+        const dailyPop = dCard6?.bodyData?.totalPop || 0;
+        const monthlyPop = dailyPop > 0 ? dailyPop * 30 : 0;
+
+        // Section 2: Customer
+        const maleRatio = dCard2?.chartData?.male || 50;
+        const femaleRatio = dCard2?.chartData?.female || 50;
+        const ageGroups = dCard2?.chartData?.ageGroups || [];
+        // 원천 데이터(vstAgeRnk)에서 직접 방문 수 가져오기
+        const _vstAge = collectedData?.apis?.vstAgeRnk?.data;
+        const _ageCountMap = {};
+        if (Array.isArray(_vstAge)) _vstAge.forEach(a => { const k = a.age?.replace('M','') + '대'; _ageCountMap[k] = a.pipcnt || 0; });
+        const _ageOrder = ['10대','20대','30대','40대','50대','50대+','60대','60대+'];
+        const ageBarData = ageGroups.map(g => ({ name: g.name, value: g.pct, count: _ageCountMap[g.name] || g.count || 0 })).sort((a, b) => _ageOrder.indexOf(a.name) - _ageOrder.indexOf(b.name));
+        const maleLifestyle = dCard2?.bodyData?.maleLifestyle || null;
+        const femaleLifestyle = dCard2?.bodyData?.femaleLifestyle || null;
+
+        // Section 3: Competition
+        const donutData = [];
+        if (individualCount > 0) donutData.push({ name: '\uAC1C\uC778\uCE74\uD398', value: individualCount });
+        if (franchiseCount > 0) donutData.push({ name: '\uD504\uB79C\uCC28\uC774\uC988', value: franchiseCount });
+        const donutColors = ['#F59E0B', '#3182F6'];
+        const indieRatio = (totalCafes > 0 && individualCount > 0) ? Math.round((individualCount / totalCafes) * 100) : 0;
+        const fcBrandCount = collectedData?.nearbyFranchiseCounts ? Object.keys(collectedData.nearbyFranchiseCounts).length : (dCard3?.bodyData?.brands?.length || dCard3?.chartData?.items?.length || 0);
+        const americanoPrice = collectedData?.cafeAvgPrices?.americano || dCard1?.bodyData?.avgAmericanoPrice || null;
+        const dessertPrice = collectedData?.cafeAvgPrices?.dessert || null;
+
+        // Section 4: Profit
+        const monthlySales = dCard5?.bodyData?.monthly || 0;
+        const avgRent = dCard7?.bodyData?.rentPerPyeong || 0;
+        const survivalRate1y = dCard13?.bodyData?.survivalRate1y || null;
+        // 매출등급: 기준표 적용 (S=일50만+ A=40~50만 B=30~40만 C=20~30만 D=20만미만)
+        const _monthlySalesNum = parseInt(String(monthlySales).replace(/[^0-9]/g, '')) || 0;
+        const _dailySales = _monthlySalesNum > 0 ? Math.round(_monthlySalesNum / 30) : 0;
+        const salesGrade = _dailySales >= 50 ? 'S' : _dailySales >= 40 ? 'A' : _dailySales >= 30 ? 'B' : _dailySales >= 20 ? 'C' : _dailySales > 0 ? 'D' : (dCard12?.chartData?.tierLabel || null);
+        const _deliveryDetail = collectedData?.deliveryDetail;
+        const topDeliveryCat = _deliveryDetail?.categories?.[0]?.name || null;
+        const deliveryTotal = _deliveryDetail?.totalOrders || 0;
+        const sunnyDays = dCardWeather?.bodyData?.sunnyDays || null;
+        const rainImpact = (() => {
+          const ws = dCard13?.bodyData?.weatherSalesImpact;
+          if (ws && typeof ws === 'string') {
+            const m = ws.match(/([+-]?\d+)%/);
+            return m ? m[1] + '%' : null;
+          }
+          return null;
+        })();
+
+        // Section 5: Direction
+        const signals = insightCard?.chartData?.signals || [];
+
+        // Format helpers
+        const fmtNum = (v) => {
+          if (v == null || isNaN(v)) return '\u2014';
+          if (v >= 10000) return (v / 10000).toFixed(1) + '\uC5B5';
+          if (v >= 1000) return Math.round(v).toLocaleString();
+          return String(v);
+        };
+        const fmtPop = (v) => {
+          if (v == null || isNaN(v)) return '\u2014';
+          if (v >= 10000) return (v / 10000).toFixed(1) + '\uB9CC';
+          return v.toLocaleString();
+        };
+
+        // ── Highlight style (GPU-accelerated, 60fps) ──
+        const hlStyle = (section) => {
+          const base = {
+            transition: 'opacity 0.6s cubic-bezier(0.4,0,0.2,1), transform 0.6s cubic-bezier(0.4,0,0.2,1)',
+            willChange: 'transform, opacity',
+            transform: 'translateZ(0)',
+          };
+          if (!activeHighlight) return { ...base, opacity: 1 };
+          if (activeHighlight === section) return {
+            ...base, opacity: 1,
+            boxShadow: '0 0 20px rgba(49,130,246,0.3)',
+            borderColor: '#3182F6',
+          };
+          return { ...base, opacity: 0.3 };
+        };
+
+        // ── Section card style ──
+        const sectionStyle = (section) => ({
+          marginBottom: 20,
+          padding: 16,
+          background: '#1a1a1a',
+          borderRadius: 12,
+          border: '1px solid #222',
+          ...hlStyle(section),
+        });
+
+        // ── Metric card style ──
+        const metricCard = { background: '#111', borderRadius: 10, padding: '14px 12px', display: 'flex', flexDirection: 'column', gap: 4, border: '1px solid #222' };
+        const metricLabel = { fontSize: 11, color: '#888', fontWeight: 500, letterSpacing: '0.02em' };
+        const metricValue = { fontSize: 20, color: '#fff', fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.2 };
+
+        // ── TTS handler ──
+        const handleTTS = async () => {
+          if (isPlaying) {
+            if (audioRef.current) { audioRef.current.pause(); audioRef.current.currentTime = 0; }
+            setIsPlaying(false);
+            setActiveHighlight(null);
+            return;
+          }
+          const d = director;
+          const hlSegments = [
+            { section: 'market', text: (d.market || '').substring(0, 60) },
+            { section: 'customer', text: (d.customer || '').substring(0, 60) },
+            { section: 'competition', text: (d.competition || '').substring(0, 60) },
+            { section: 'profit', text: (d.profit || '').substring(0, 60) },
+            { section: 'direction', text: (d.direction || '').substring(0, 60) },
+          ];
+          const hlTotalChars = hlSegments.reduce((s, seg) => s + seg.text.length + 20, 0);
+
+          const pcmToWav = (audioBytes) => {
+            const sr = 24000;
+            const wb = new ArrayBuffer(44 + audioBytes.length);
+            const dv = new DataView(wb);
+            const ws = (o, s) => { for (let ii = 0; ii < s.length; ii++) dv.setUint8(o + ii, s.charCodeAt(ii)); };
+            ws(0, 'RIFF'); dv.setUint32(4, 36 + audioBytes.length, true);
+            ws(8, 'WAVE'); ws(12, 'fmt ');
+            dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
+            dv.setUint32(24, sr, true); dv.setUint32(28, sr * 2, true);
+            dv.setUint16(32, 2, true); dv.setUint16(34, 16, true);
+            ws(36, 'data'); dv.setUint32(40, audioBytes.length, true);
+            new Uint8Array(wb, 44).set(audioBytes);
+            return { wavBuf: wb, sampleRate: sr };
+          };
+
+          const playWithHighlight = (audioBytes) => {
+            const { wavBuf, sampleRate } = pcmToWav(audioBytes);
+            const blob = new Blob([wavBuf], { type: 'audio/wav' });
+            const url = URL.createObjectURL(blob);
+            audioRef.current.src = url;
+            audioRef.current.play().then(() => {
+              setIsPlaying(true);
+              const totalDuration = audioBytes.length / (sampleRate * 2);
+              let cumRatio = 0;
+              const timings = hlSegments.map(seg => {
+                const ratio = (seg.text.length + 20) / hlTotalChars;
+                const start = cumRatio * totalDuration;
+                cumRatio += ratio;
+                return { section: seg.section, start, end: cumRatio * totalDuration };
+              });
+              const onTimeUpdate = () => {
+                if (!audioRef.current) return;
+                const ct = audioRef.current.currentTime;
+                const active = timings.find(t => ct >= t.start && ct < t.end);
+                setActiveHighlight(active ? active.section : null);
+              };
+              audioRef.current.addEventListener('timeupdate', onTimeUpdate);
+              audioRef.current.onended = () => {
+                setIsPlaying(false);
+                setActiveHighlight(null);
+                audioRef.current.removeEventListener('timeupdate', onTimeUpdate);
+                URL.revokeObjectURL(url);
+              };
+            }).catch(err => {
+              console.log('TTS play error:', err.message);
+              URL.revokeObjectURL(url);
+            });
+          };
+
+          if (window.__pregenTTS) {
+            setIsAudioLoading(true);
+            try {
+              const binary = atob(window.__pregenTTS);
+              const bytes = new Uint8Array(binary.length);
+              for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+              playWithHighlight(bytes);
+            } catch(e) { console.log('Pregen TTS error:', e.message); }
+            setIsAudioLoading(false);
+            return;
+          }
+
+          setIsAudioLoading(true);
+          const script = `Client: \uC774 \uC0C1\uAD8C \uBD84\uC11D \uACB0\uACFC\uAC00 \uC5B4\uB5A4\uAC00\uC694?\nDirector: ${d.market || '\uB370\uC774\uD130\uB97C \uBD84\uC11D \uC911\uC785\uB2C8\uB2E4.'}\nClient: \uACE0\uAC1D\uC740 \uC5B4\uB5A4 \uD2B9\uC131\uC774 \uC788\uB098\uC694?\nDirector: ${d.customer || '\uACE0\uAC1D \uB370\uC774\uD130\uB97C \uD655\uC778 \uC911\uC785\uB2C8\uB2E4.'}\nClient: \uACBD\uC7C1 \uC0C1\uD669\uC740\uC694?\nDirector: ${d.competition || '\uACBD\uC7C1 \uAD6C\uC870\uB97C \uD30C\uC545 \uC911\uC785\uB2C8\uB2E4.'}\nClient: \uC218\uC775\uC131\uC740 \uAD1C\uCC2E\uC744\uAE4C\uC694?\nDirector: ${d.profit || '\uC218\uC775\uC131\uC744 \uACC4\uC0B0 \uC911\uC785\uB2C8\uB2E4.'}\nClient: \uC5B4\uB5A4 \uBC29\uD5A5\uC73C\uB85C \uC900\uBE44\uD558\uBA74 \uB420\uAE4C\uC694?\nDirector: ${d.direction || '\uBC29\uD5A5\uC744 \uC815\uB9AC \uC911\uC785\uB2C8\uB2E4.'}`;
+
+          try {
+            const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+            if (!apiKey) throw new Error('No API key');
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: script }] }],
+                generationConfig: {
+                  responseModalities: ['AUDIO'],
+                  speechConfig: {
+                    multiSpeakerVoiceConfig: {
+                      speakerVoiceConfigs: [
+                        { speaker: 'Client', voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Aoede' } } },
+                        { speaker: 'Director', voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Charon' } } }
+                      ]
+                    }
+                  }
+                }
+              })
+            });
+            const result = await response.json();
+            const audioData = result.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+            if (!audioData) throw new Error('No audio');
+            const binary = atob(audioData);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+            playWithHighlight(bytes);
+          } catch(e) { console.log('TTS error:', e.message); }
+          setIsAudioLoading(false);
+        };
+
+        return (
+          <motion.div
+            key="director-popup-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3, ease: 'easeOut' }}
+            onClick={() => { setShowDirectorPopup(false); if (audioRef.current) { audioRef.current.pause(); setIsPlaying(false); setActiveHighlight(null); } }}
+            style={{
+              position: 'fixed', inset: 0, zIndex: 10000,
+              background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              willChange: 'opacity',
+            }}
+          >
+            <motion.div
+              key="director-popup-panel"
+              initial={{ opacity: 0, transform: 'translateY(40px) translateZ(0)' }}
+              animate={{ opacity: 1, transform: 'translateY(0px) translateZ(0)' }}
+              exit={{ opacity: 0, transform: 'translateY(40px) translateZ(0)' }}
+              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+              onClick={e => e.stopPropagation()}
+              style={{
+                width: '95vw', maxWidth: 900, height: '85vh',
+                background: '#111111', borderRadius: 16,
+                display: 'flex', flexDirection: 'column', overflow: 'hidden',
+                boxShadow: '0 16px 48px rgba(0,0,0,0.7)',
+                willChange: 'transform, opacity',
+                backfaceVisibility: 'hidden',
+              }}
+            >
+              {/* Header: close · title · mute toggle */}
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '14px 20px', borderBottom: '1px solid #222', flexShrink: 0,
+              }}>
+                <button
+                  onClick={() => { setShowDirectorPopup(false); if (audioRef.current) { audioRef.current.pause(); setIsPlaying(false); setActiveHighlight(null); } if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel(); }}
+                  style={{ background: 'transparent', border: '1px solid #FFFFFF', color: '#FFFFFF', fontSize: 12, cursor: 'pointer', padding: '4px 10px', borderRadius: 8, fontFamily: 'Pretendard, sans-serif' }}
+                >
+                  X 닫기
+                </button>
+                <h3 style={{ fontSize: 18, fontWeight: 700, color: '#fff', margin: 0, fontFamily: 'Pretendard, sans-serif' }}>
+                  AI {'\uB514\uB809\uD130'}
+                </h3>
+                <button
+                  onClick={() => setDirectorMuted(v => !v)}
+                  title={directorMuted ? '음소거 해제' : '음소거'}
+                  style={{ background: directorMuted ? 'rgba(255,255,255,0.12)' : 'transparent', border: '1px solid #FFFFFF', color: '#FFFFFF', fontSize: 12, cursor: 'pointer', padding: '4px 10px', borderRadius: 8, fontFamily: 'Pretendard, sans-serif' }}
+                >
+                  {directorMuted ? '음소거' : '사운드'}
+                </button>
+              </div>
+
+              {/* Tab navigation: 시장 · 경쟁 · 생존 (outline white, active = navy underline) */}
+              <div style={{
+                display: 'flex', gap: 6, padding: '10px 20px', borderBottom: '1px solid #222',
+                background: '#000', flexShrink: 0, justifyContent: 'center',
+              }}>
+                {[
+                  { key: 'market', label: '시장' },
+                  { key: 'competition', label: '경쟁' },
+                  { key: 'direction', label: '생존' },
+                ].map(tab => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setDirectorTab(tab.key)}
+                    style={{
+                      background: 'transparent',
+                      border: '1px solid #FFFFFF',
+                      borderBottom: directorTab === tab.key ? '2px solid #1E3A8A' : '1px solid #FFFFFF',
+                      color: '#FFFFFF',
+                      fontSize: 13, fontWeight: 600,
+                      padding: '6px 18px', borderRadius: 8, cursor: 'pointer',
+                      fontFamily: 'Pretendard, sans-serif',
+                      letterSpacing: '0.02em',
+                    }}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* ── Cinematic Narration View (top of content) ── */}
+              <div style={{ padding: '14px 20px 4px', background: '#000', flexShrink: 0 }}>
+                {(() => {
+                  // TODO: replace with Gemini-produced JSON (narrationScript field)
+                  // from the insightCard once backend emits it. Uses real card
+                  // values where available so the demo feels grounded.
+                  const demoByTab = {
+                    market: [
+                      { text: `이 지역의 총 카페 수는 ${totalCafes || 0}개입니다`,
+                        target: 'card1.count.totalCafe', anim: 'countUp',
+                        duration: 4000, value: totalCafes || 0, unit: '개', emphasis: 'navy' },
+                      { text: `월 유동인구는 약 ${fmtPop(monthlyPop) || '—'}명 수준입니다`,
+                        target: 'card6.info.pop', anim: 'borderGlow',
+                        duration: 4000, value: monthlyPop || 0, unit: '명', emphasis: 'mint' },
+                    ],
+                    competition: [
+                      { text: `프랜차이즈 ${franchiseCount || 0}곳, 개인카페 ${individualCount || 0}곳입니다`,
+                        target: 'card3.donut.franchise', anim: 'donutFill',
+                        duration: 5000, value: indieRatio || 50, unit: '%', emphasis: 'gold' },
+                      { text: `경쟁 구조와 가격대를 함께 살펴봅니다`,
+                        target: 'card12.info.comp', anim: 'borderGlow',
+                        duration: 4000, emphasis: 'red' },
+                    ],
+                    direction: [
+                      { text: `월세 수준은 평당 ${avgRent ? avgRent.toLocaleString() + '원' : '—'}입니다`,
+                        target: 'card5.slot.monthlyRent', anim: 'slotRoll',
+                        duration: 5000, value: avgRent || 0, unit: '원', emphasis: 'navy' },
+                      { text: `종합 점수와 생존 방향을 확인합니다`,
+                        target: 'card14.ring.score', anim: 'ringProgress',
+                        duration: 5000, value: 87, unit: '점', emphasis: 'navy' },
+                    ],
+                  };
+                  const script = { segments: demoByTab[directorTab] || demoByTab.market };
+                  return (
+                    <AINarrationEngine
+                      key={directorTab}
+                      script={script}
+                      muted={directorMuted}
+                      onRequestMuteToggle={(v) => setDirectorMuted(v)}
+                    />
+                  );
+                })()}
+              </div>
+
+              {/* Scrollable dashboard content */}
+              <div style={{ flex: 1, overflow: 'auto', padding: '16px 20px', fontFamily: 'Pretendard, sans-serif', background: '#000000' }}>
+
+                {/* == Section 1: Market Overview == */}
+                <div data-highlight="market" style={sectionStyle('market')}>
+                  <div style={{ fontSize: 13, color: '#3182F6', fontWeight: 600, marginBottom: 12, letterSpacing: '0.04em' }}>{'\uC0C1\uAD8C \uC885\uD569'}</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+                    <div style={metricCard}>
+                      <span style={metricLabel}>{'\uCD1D \uCE74\uD398'}</span>
+                      <span style={metricValue}>
+                        {(activeHighlight === 'market' && totalCafes > 0) ? <AnimatedNumber value={totalCafes} active={true} suffix={'\uAC1C'} /> : (totalCafes > 0 ? totalCafes + '\uAC1C' : '\u2014')}
+                      </span>
+                    </div>
+                    <div style={metricCard}>
+                      <span style={metricLabel}>{'\uC0C1\uAD8C\uC720\uD615'}</span>
+                      <span style={{ ...metricValue, fontSize: 16 }}>{blockType || '\u2014'}</span>
+                    </div>
+                    <div style={metricCard}>
+                      <span style={metricLabel}>{'\uC6D4 \uC720\uB3D9\uC778\uAD6C'}</span>
+                      <span style={metricValue}>
+                        {(activeHighlight === 'market' && monthlyPop > 0) ? <AnimatedNumber value={monthlyPop} active={true} suffix={'\uBA85'} /> : (monthlyPop > 0 ? fmtPop(monthlyPop) + '\uBA85' : '\u2014')}
+                      </span>
+                    </div>
+                    <div style={metricCard}>
+                      <span style={metricLabel}>{'\uD3D0\uC5C5 \uB9E4\uC7A5'}</span>
+                      <span style={{ ...metricValue, color: closedCount > 0 ? '#EF4444' : '#fff' }}>
+                        {closedCount > 0 ? closedCount + '\uACF3' : '\u2014'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* == Section 2: Customer Analysis == */}
+                <div data-highlight="customer" style={sectionStyle('customer')}>
+                  <div style={{ fontSize: 13, color: '#3182F6', fontWeight: 600, marginBottom: 12, letterSpacing: '0.04em' }}>{'\uACE0\uAC1D \uBD84\uC11D'}</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 14 }}>
+                    {/* Gender ratio */}
+                    <div style={{ ...metricCard, justifyContent: 'center', alignItems: 'center', padding: 16 }}>
+                      <span style={{ ...metricLabel, marginBottom: 8 }}>{'\uC131\uBCC4 \uBE44\uC728'}</span>
+                      <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 11, color: '#999', width: 20, textAlign: 'right' }}>{'\uB0A8'}</span>
+                          <div style={{ flex: 1, height: 10, background: '#222', borderRadius: 5, overflow: 'hidden' }}>
+                            <div style={{ width: maleRatio + '%', height: '100%', background: '#3182F6', borderRadius: 5, transition: 'width 1s ease-out' }} />
+                          </div>
+                          <span style={{ fontSize: 12, color: '#3182F6', fontWeight: 600, width: 36 }}>{maleRatio}%</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 11, color: '#999', width: 20, textAlign: 'right' }}>{'\uC5EC'}</span>
+                          <div style={{ flex: 1, height: 10, background: '#222', borderRadius: 5, overflow: 'hidden' }}>
+                            <div style={{ width: femaleRatio + '%', height: '100%', background: '#F472B6', borderRadius: 5, transition: 'width 1s ease-out' }} />
+                          </div>
+                          <span style={{ fontSize: 12, color: '#F472B6', fontWeight: 600, width: 36 }}>{femaleRatio}%</span>
+                        </div>
+                      </div>
+                    </div>
+                    {/* Age bar chart */}
+                    <div style={metricCard}>
+                      <span style={{ ...metricLabel, marginBottom: 4 }}>{'\uC5F0\uB839\uBCC4 \uBC29\uBB38'}</span>
+                      {ageBarData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height={140}>
+                          <BarChart data={ageBarData} layout="vertical" margin={{ top: 4, right: 30, left: 4, bottom: 0 }}>
+                            <XAxis type="number" hide />
+                            <YAxis type="category" dataKey="name" width={36} tick={{ fontSize: 11, fill: '#999' }} axisLine={false} tickLine={false} />
+                            <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={14} isAnimationActive={activeHighlight === 'customer'} animationDuration={1200} animationEasing="ease-out" label={{ position: 'right', fill: '#888', fontSize: 10, formatter: (v) => v + '%' }}>
+                              {ageBarData.map((entry, i) => {
+                                const maxVal = Math.max(...ageBarData.map(d => d.value));
+                                return <Cell key={i} fill={entry.value === maxVal ? '#F59E0B' : '#3182F6'} />;
+                              })}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div style={{ height: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666', fontSize: 12 }}>{'\uB370\uC774\uD130 \uC218\uC9D1 \uC911'}</div>
+                      )}
+                    </div>
+                  </div>
+                  {/* Lifestyle */}
+                  {(maleLifestyle || femaleLifestyle) && (
+                    <div style={{ display: 'flex', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
+                      {[maleLifestyle, femaleLifestyle].filter(Boolean).map((ls, i) => (
+                        <div key={i} style={{ background: '#111', borderRadius: 8, padding: '8px 12px', border: '1px solid #222', fontSize: 11, color: '#aaa' }}>
+                          <span style={{ color: '#666', marginRight: 6 }}>{i === 0 ? '\uB0A8\uC131' : '\uC5EC\uC131'} {'\uB77C\uC774\uD504\uC2A4\uD0C0\uC77C'}</span>
+                          {ls}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* == Section 3: Competition == */}
+                <div data-highlight="competition" style={sectionStyle('competition')}>
+                  <div style={{ fontSize: 13, color: '#3182F6', fontWeight: 600, marginBottom: 12, letterSpacing: '0.04em' }}>{'\uACBD\uC7C1 \uAD6C\uC870'}</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                    {/* Donut chart */}
+                    <div style={{ ...metricCard, padding: 16, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      {donutData.length > 0 ? (
+                        <>
+                          <ResponsiveContainer width="100%" height={160}>
+                            <PieChart>
+                              <Pie data={donutData} dataKey="value" cx="50%" cy="50%" innerRadius={40} outerRadius={65} paddingAngle={3} stroke="none" isAnimationActive={activeHighlight === 'competition'} animationDuration={1500} animationEasing="ease-out">
+                                {donutData.map((_, i) => <Cell key={i} fill={donutColors[i % donutColors.length]} />)}
+                              </Pie>
+                            </PieChart>
+                          </ResponsiveContainer>
+                          <div style={{ display: 'flex', gap: 16, marginTop: 4 }}>
+                            {donutData.map((d, i) => (
+                              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <div style={{ width: 8, height: 8, borderRadius: 2, background: donutColors[i % donutColors.length], flexShrink: 0 }} />
+                                <span style={{ fontSize: 12, color: '#ccc' }}>{d.name} {d.value}{'\uAC1C'}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      ) : (
+                        <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666', fontSize: 12 }}>{'\uB370\uC774\uD130 \uC218\uC9D1 \uC911'}</div>
+                      )}
+                    </div>
+                    {/* Competition metrics */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {[
+                        { label: '\uAC1C\uC778\uCE74\uD398 \uBE44\uC728', value: indieRatio > 0 ? indieRatio + '%' : '\u2014' },
+                        { label: '\uD504\uB79C\uCC28\uC774\uC988 \uBE0C\uB79C\uB4DC', value: fcBrandCount > 0 ? fcBrandCount + '\uAC1C' : '\u2014' },
+                        { label: '\uC544\uBA54\uB9AC\uCE74\uB178 \uD3C9\uADE0', value: americanoPrice ? Number(americanoPrice).toLocaleString() + '\uC6D0' : '\u2014' },
+                        { label: '\uB514\uC800\uD2B8 \uD3C9\uADE0', value: dessertPrice ? Number(dessertPrice).toLocaleString() + '\uC6D0' : '\u2014' },
+                      ].map((item, idx) => (
+                        <div key={idx} style={{ ...metricCard, padding: '10px 12px', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: 12, color: '#888' }}>{item.label}</span>
+                          <span style={{ fontSize: 14, color: '#fff', fontWeight: 600 }}>{item.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* == Section 4: Profitability == */}
+                <div data-highlight="profit" style={sectionStyle('profit')}>
+                  <div style={{ fontSize: 13, color: '#3182F6', fontWeight: 600, marginBottom: 12, letterSpacing: '0.04em' }}>{'\uC218\uC775\uC131'}</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 12 }}>
+                    <div style={metricCard}>
+                      <span style={metricLabel}>{'\uCE74\uD398 \uC6D4\uD3C9\uADE0 \uB9E4\uCD9C'}</span>
+                      <span style={metricValue}>
+                        {(activeHighlight === 'profit' && monthlySales > 0) ? <AnimatedNumber value={monthlySales} active={true} suffix={'\uB9CC\uC6D0'} /> : (monthlySales > 0 ? fmtNum(monthlySales) + '\uC6D0' : '\u2014')}
+                      </span>
+                    </div>
+                    <div style={metricCard}>
+                      <span style={metricLabel}>{'\uD3C9\uADE0 \uC784\uB300\uB8CC'}</span>
+                      <span style={metricValue}>{avgRent > 0 ? avgRent.toLocaleString() + '\uB9CC\uC6D0' : '\u2014'}</span>
+                    </div>
+                    <div style={metricCard}>
+                      <span style={metricLabel}>{'1\uB144 \uC0DD\uC874\uC728'}</span>
+                      <span style={{ ...metricValue, color: survivalRate1y && survivalRate1y >= 50 ? '#3B82F6' : survivalRate1y ? '#EF4444' : '#fff' }}>
+                        {survivalRate1y ? survivalRate1y + '%' : '\u2014'}
+                      </span>
+                    </div>
+                    <div style={metricCard}>
+                      <span style={metricLabel}>{'\uB9E4\uCD9C\uB4F1\uAE09'}</span>
+                      <span style={{ ...metricValue, color: '#F59E0B' }}>{salesGrade || '\u2014'}</span>
+                    </div>
+                  </div>
+                  {/* Sub-info: delivery + weather */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <div style={{ background: '#111', borderRadius: 8, padding: '10px 12px', border: '1px solid #222' }}>
+                      <span style={{ fontSize: 11, color: '#666', display: 'block', marginBottom: 4 }}>{'\uBC30\uB2EC'}</span>
+                      <span style={{ fontSize: 12, color: '#ccc' }}>
+                        {(() => {
+                          const _dd = collectedData?.deliveryDetail;
+                          const _cafeCat = _dd?.categories?.find(c => /카페|커피|음료/i.test(c.name));
+                          if (_cafeCat) return `카페 배달 ${_cafeCat.rank}위 (월 ${_cafeCat.count?.toLocaleString()}건)`;
+                          if (_dd?.available) return '카페 배달: 5순위 밖 (매장/테이크아웃 중심)';
+                          return '\u2014';
+                        })()}
+                      </span>
+                    </div>
+                    <div style={{ background: '#111', borderRadius: 8, padding: '10px 12px', border: '1px solid #222' }}>
+                      <span style={{ fontSize: 11, color: '#666', display: 'block', marginBottom: 4 }}>{'\uAE30\uC0C1'}</span>
+                      <span style={{ fontSize: 12, color: '#ccc' }}>
+                        {sunnyDays ? `\uB9D1\uC740 \uB0A0 ${sunnyDays}\uC77C/\uB144` : ''}
+                        {rainImpact ? `, \uBE44 \uC601\uD5A5 ${rainImpact}` : ''}
+                        {!sunnyDays && !rainImpact ? '\u2014' : ''}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* == Section 5: Direction (Beancraft pitch) == */}
+                <div data-highlight="direction" style={sectionStyle('direction')}>
+                  <div style={{ fontSize: 13, color: '#3182F6', fontWeight: 600, marginBottom: 12, letterSpacing: '0.04em' }}>{'\uCC3D\uC5C5 \uBC29\uD5A5'}</div>
+                  <div style={{ fontSize: 12, color: '#aaa', marginBottom: 14 }}>{'\uD504\uB79C\uCC28\uC774\uC988 \uB300\uC2E0 \uAC1C\uC778\uCE74\uD398\uB97C \uD574\uC57C \uD558\uB294 \uC774\uC720'}</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
+                    {[
+                      { title: '\uC800\uAC00 \uC6D0\uB450 \uB9E4\uCE6D', desc: '\uC794\uB2F9 400~500\uC6D0\uC73C\uB85C \uC544\uBA54\uB9AC\uCE74\uB178 \uAC00\uACA9 \uACBD\uC7C1 \uAC00\uB2A5' },
+                      { title: '\uC2DC\uADF8\uB2C8\uCC98 \uB9C8\uC9C4', desc: '\uAC1D\uB2E8\uAC00 6,000~9,000\uC6D0\uC73C\uB85C \uB9C8\uC9C4 \uD655\uBCF4' },
+                      { title: '\uB85C\uC5F4\uD2F0 \uC5C6\uC74C', desc: '\uC6D0\uB450/\uBA54\uB274/\uC2DC\uC98C \uAD50\uCCB4\uB97C \uBCF8\uC778\uC774 \uC9C1\uC811 \uACB0\uC815' },
+                    ].map((item, idx) => (
+                      <div key={idx} style={{
+                        background: '#111', borderRadius: 10, padding: '16px 14px',
+                        border: '1px solid #222', display: 'flex', flexDirection: 'column', gap: 8,
+                      }}>
+                        <span style={{ fontSize: 14, color: '#fff', fontWeight: 600 }}>{item.title}</span>
+                        <span style={{ fontSize: 11, color: '#888', lineHeight: 1.5 }}>{item.desc}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {/* AI Signals */}
+                  {signals.length > 0 && (
+                    <div style={{ background: '#111', borderRadius: 10, padding: '12px 14px', border: '1px solid #222' }}>
+                      <span style={{ fontSize: 11, color: '#666', fontWeight: 600, display: 'block', marginBottom: 8 }}>{'AI \uC2DC\uADF8\uB110'}</span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                        {signals.slice(0, 6).map((sig, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                            <span style={{
+                              width: 6, height: 6, borderRadius: '50%', flexShrink: 0, marginTop: 4,
+                              background: sig.type === 'positive' ? '#3B82F6' : sig.type === 'negative' ? '#EF4444' : '#F59E0B',
+                            }} />
+                            <span style={{ fontSize: 11, color: '#ccc', lineHeight: 1.4 }}>{sig.text}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* ── TTS Button ── */}
+                <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 8, paddingBottom: 16 }}>
+                  <button
+                    onClick={handleTTS}
+                    disabled={isAudioLoading}
+                    style={{
+                      background: 'transparent',
+                      color: '#FFFFFF', border: '1px solid #FFFFFF', borderRadius: 8,
+                      padding: '10px 16px', fontSize: 14, fontWeight: 600,
+                      cursor: isAudioLoading ? 'wait' : 'pointer',
+                      opacity: isAudioLoading ? 0.6 : 1,
+                      transition: 'background 0.15s',
+                      fontFamily: 'Pretendard, sans-serif',
+                    }}
+                    onMouseEnter={e => { if (!isAudioLoading) e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    {isAudioLoading ? '\uC74C\uC131 \uC0DD\uC131 \uC911...' : isPlaying ? '\uC7AC\uC0DD \uC911\uC9C0' : '\uBCF4\uACE0\uC11C \uB4E3\uAE30'}
+                  </button>
+                </div>
+
+              </div>
+              <audio ref={audioRef} style={{ display: 'none' }} />
+            </motion.div>
+          </motion.div>
+        );
+      })()}
       </AnimatePresence>
       {/* ── Background image (blurred) ── */}
       <div
@@ -2723,7 +5638,7 @@ export default function UnifiedLayout({
                   {autoCompleteSuggestions.map((item, i) => (
                     <div
                       key={`${item.type}-${i}`}
-                      onMouseDown={(e) => { e.preventDefault(); handleSuggestionClick(item.type === 'kakao' ? (item.sub || item.label) : item.label); }}
+                      onMouseDown={(e) => { e.preventDefault(); handleSuggestionClick(item.type === 'kakao' ? (item.sub || item.label) : item.label, item.label); }}
                       style={{
                         padding: '10px 14px', cursor: 'pointer', fontSize: 13,
                         color: COLORS.white,
@@ -2757,7 +5672,8 @@ export default function UnifiedLayout({
 
           {/* Map area */}
           <div style={{
-            flex: 1, position: 'relative',
+            flex: resultsReady ? '0 0 52%' : 1,
+            position: 'relative',
             overflow: 'hidden', minHeight: 200,
           }}>
             {/* Map container — hidden when load failed to prevent auth tiles from showing */}
@@ -2825,6 +5741,110 @@ export default function UnifiedLayout({
             </div>
           </div>
 
+          {/* ── Card Nav List (visible when results are ready) ── */}
+          {resultsReady && cards && cards.length > 0 && (
+            <div
+              className="unified-card-nav"
+              style={{
+                flex: '1 1 auto',
+                minHeight: 0,
+                overflowY: 'auto',
+                borderTop: '1px solid rgba(255,255,255,0.08)',
+                padding: '10px 14px 12px',
+                fontFamily: 'Pretendard, sans-serif',
+              }}
+            >
+              <div style={{
+                fontSize: 10,
+                fontWeight: 600,
+                color: 'rgba(255,255,255,0.35)',
+                letterSpacing: '0.12em',
+                padding: '4px 6px 8px',
+                textTransform: 'uppercase',
+              }}>
+                Report
+              </div>
+              <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {cards.map((c, i) => {
+                  const isActive = i === activeCardIndex;
+                  const num = i < 9 ? `0${i + 1}` : `${i + 1}`;
+                  return (
+                    <li key={`nav-${i}`}>
+                      <button
+                        onClick={() => scrollToCard(i)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          width: '100%',
+                          padding: '8px 10px',
+                          background: isActive ? 'rgba(255,255,255,0.08)' : 'transparent',
+                          border: 'none',
+                          borderRadius: 8,
+                          color: isActive ? COLORS.white : 'rgba(255,255,255,0.55)',
+                          fontSize: 12.5,
+                          fontWeight: isActive ? 600 : 400,
+                          fontFamily: 'inherit',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          transition: 'background 0.15s ease, color 0.15s ease',
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isActive) {
+                            e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+                            e.currentTarget.style.color = 'rgba(255,255,255,0.85)';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isActive) {
+                            e.currentTarget.style.background = 'transparent';
+                            e.currentTarget.style.color = 'rgba(255,255,255,0.55)';
+                          }
+                        }}
+                      >
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: 6,
+                            height: 6,
+                            borderRadius: '50%',
+                            background: isActive ? '#1E3A8A' : 'rgba(255,255,255,0.25)',
+                            flexShrink: 0,
+                            transition: 'background 0.15s ease',
+                          }}
+                        />
+                        <span
+                          style={{
+                            fontSize: 11,
+                            opacity: 0.55,
+                            width: 20,
+                            flexShrink: 0,
+                            fontFeatureSettings: '"tnum"',
+                          }}
+                        >
+                          {num}
+                        </span>
+                        <span
+                          style={{
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            flex: 1,
+                            minWidth: 0,
+                          }}
+                        >
+                          {c.title}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+
           {/* Home button at bottom */}
           <div style={{ padding: '12px 20px', borderTop: '1px solid rgba(255,255,255,0.08)', flexShrink: 0 }}>
             <button
@@ -2844,6 +5864,53 @@ export default function UnifiedLayout({
           </div>
         </motion.div>
       </motion.div>
+
+      {/* ══════ Sidebar collapse toggle (영업모드 결과 화면 전용) ══════ */}
+      {showSidebarToggle && (
+        <button
+          type="button"
+          onClick={toggleSidebar}
+          aria-label={sidebarCollapsed ? '좌측 영역 펼치기' : '좌측 영역 접기'}
+          title={sidebarCollapsed ? '좌측 영역 펼치기' : '좌측 영역 접기'}
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: sidebarCollapsed ? 16 : leftWidth,
+            transform: sidebarCollapsed ? 'translate(0, -50%)' : 'translate(-50%, -50%)',
+            width: 32,
+            height: 32,
+            borderRadius: '50%',
+            background: 'rgba(15,15,18,0.92)',
+            border: '1px solid rgba(59,130,246,0.55)',
+            color: '#3B82F6',
+            cursor: 'pointer',
+            zIndex: 30,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 0,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.45)',
+            transition: 'left 250ms ease, background 200ms ease, color 200ms ease',
+            fontFamily: "'Material Symbols Outlined', sans-serif",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(59,130,246,0.18)';
+            e.currentTarget.style.color = '#60A5FA';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'rgba(15,15,18,0.92)';
+            e.currentTarget.style.color = '#3B82F6';
+          }}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            {sidebarCollapsed ? (
+              <polyline points="9 6 15 12 9 18" />
+            ) : (
+              <polyline points="15 6 9 12 15 18" />
+            )}
+          </svg>
+        </button>
+      )}
 
       {/* ══════ RIGHT PANEL (Cards / Empty State) ══════ */}
       <motion.div
@@ -2932,6 +5999,7 @@ export default function UnifiedLayout({
             /* ── Cards area ── */
             <motion.div
               key="cards"
+              ref={cardScrollRef}
               initial={{ opacity: 0, x: 60 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
@@ -2939,8 +6007,9 @@ export default function UnifiedLayout({
                 height: '100%',
                 overflowY: 'auto',
                 overflowX: 'hidden',
-                padding: (renderResults && !mappedCards) ? '0' : '24px 24px 48px',
-                scrollSnapType: 'y proximity',
+                padding: (renderResults && !mappedCards) ? '0' : '0',
+                scrollSnapType: 'none',
+                scrollBehavior: 'smooth',
               }}
               className="unified-cards-scroll"
             >
@@ -2949,89 +6018,394 @@ export default function UnifiedLayout({
                 renderResults
               ) : (
                 <>
-                  {/* Section header */}
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5 }}
-                    style={{ marginBottom: 20, scrollSnapAlign: 'start' }}
-                  >
-                    <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: COLORS.white, letterSpacing: '-0.02em' }}>
-                      분석 결과
-                    </h2>
-                    <p style={{ margin: '4px 0 0', fontSize: 12, color: COLORS.textMuted }}>
-                      {cards.length}개 항목 -- 반경 {radius}m 기준
-                    </p>
-                  </motion.div>
+                  {/* Data source warning banner (fixed overlay at top) */}
+                  {(() => {
+                    const ds = collectedData?._dataSources;
+                    if (!ds) return null;
+                    const errorKeys = Object.keys(ds).filter(k => k !== '_partial' && ds[k] === 'error');
+                    const isPartial = ds._partial === true;
+                    if (errorKeys.length === 0 && !isPartial) return null;
+                    const msg = isPartial
+                      ? 'AI 분석이 일부 누락되어 기본 데이터로 표시된 항목이 있습니다'
+                      : `일부 API 수집 실패 (${errorKeys.join(', ')})`;
+                    return (
+                      <div style={{
+                        position: 'sticky', top: 8, zIndex: 20,
+                        margin: '8px auto 0',
+                        maxWidth: 720, padding: '8px 12px', borderRadius: 6,
+                        background: 'rgba(255, 180, 50, 0.12)',
+                        border: '1px solid rgba(255, 180, 50, 0.25)',
+                        fontSize: 11, color: 'rgba(255, 200, 100, 0.85)',
+                        fontFamily: 'Pretendard, sans-serif',
+                        lineHeight: 1.5,
+                        backdropFilter: 'blur(12px)',
+                      }}>
+                        {msg}
+                      </div>
+                    );
+                  })()}
 
-                  {/* Summary dashboard bar removed - data moved to individual cards */}
-
-                  {/* Cards list */}
+                  {/* Cards list — each card wrapped in a snap-aligned section */}
                   <div style={{
                     display: 'flex', flexDirection: 'column',
-                    gap: 24,
                   }}>
-                    {cards.map((card, i) => (
-                      <React.Fragment key={i}>
+                    {cards.map((card, i) => {
+                      // ── data-anim-id map for AI Narration Engine ──
+                      // Each card gets an explicit id so the cinematic engine
+                      // can zoom + animate against it. Additional granular
+                      // ids are attached inline where the numeric targets live.
+                      const narrationIdByMeta = {
+                        '카페 현황': `card1.count.totalCafe`,
+                        '고객': `card2.bar.age30m`,
+                        '프랜차이즈': `card3.donut.franchise`,
+                        '개인카페': `card4.info.indie`,
+                        '매출': `card5.slot.monthlyRent`,
+                        '유동인구': `card6.info.pop`,
+                        '임대': `card5.slot.deposit`,
+                        '기회리스크': `card8.info.oppRisk`,
+                        '배달': `card9.info.delivery`,
+                        'SNS': `card10.info.sns`,
+                        '경쟁': `card12.info.comp`,
+                        '상권변화': `card13.info.trend`,
+                        'AI종합': `card14.ring.score`,
+                      };
+                      const animId = narrationIdByMeta[card.metaInfo] || `card${i + 1}.section`;
+                      return (
+                      <section
+                        key={i}
+                        ref={(el) => { cardSectionRefs.current[i] = el; }}
+                        data-card-section-index={i}
+                        data-card-index={i}
+                        data-anim-id={animId}
+                        style={{
+                          // 카드별 자연 높이 + 카드 사이 간격으로 자유 스크롤
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          justifyContent: 'center',
+                          padding: 'clamp(16px, 2vh, 24px) clamp(16px, 2vw, 28px)',
+                          boxSizing: 'border-box',
+                        }}
+                        className="beancraft-card-section"
+                      >
+                        <div style={{ width: '100%', maxWidth: sidebarCollapsed ? 1400 : 1100, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        {i === 0 ? (
+                          <Card01MarketReport
+                            index={i}
+                            cardNumber={'01'}
+                            title={card.title}
+                            subtitle={card.subtitle}
+                            date={card.date}
+                            dataSourceStatus={card.dataSourceStatus || 'live'}
+                            bruSummary={card.bruSummary || null}
+                            aiSummary={card.aiSummary}
+                            chartData={card.chartData}
+                            bodyData={card.bodyData}
+                            showMapButton={true}
+                            onMapClick={() => setShowCafeMap(true)}
+                          />
+                        ) : i === 1 ? (
+                          <Card02CustomerAnalysis
+                            index={i}
+                            cardNumber={'02'}
+                            title={card.title}
+                            subtitle={card.subtitle}
+                            date={card.date}
+                            dataSourceStatus={card.dataSourceStatus || 'live'}
+                            bruSummary={card.bruSummary || null}
+                            aiSummary={card.aiSummary}
+                            chartData={card.chartData}
+                            bodyData={card.bodyData}
+                            collectedData={collectedData}
+                            showMapButton={false}
+                            onMapClick={null}
+                          />
+                        ) : i === 2 ? (
+                          <Card3FranchiseAnalysis card={card} />
+                        ) : i === 3 ? (
+                          <Card4IndieCafeAnalysis card={card} />
+                        ) : i === 4 ? (
+                          <Card5SalesAnalysis card={card} />
+                        ) : i === 5 ? (
+                          <Card6FloatingPop card={card} />
+                        ) : i === 7 ? (
+                          <Card8OpportunityRisk card={card} />
+                        ) : i === 8 ? (
+                          <Card9DeliveryAvgPrice card={card} />
+                        ) : (
                         <CardTemplate
                           index={i}
                           title={card.title}
                           subtitle={card.subtitle}
                           date={card.date}
+                          dataSourceStatus={card.dataSourceStatus || 'live'}
                           bruSummary={card.bruSummary || null}
                           aiSummary={card.aiSummary}
-                          chartContent={card.chartData !== undefined ? getChartForCard(card) : (CHART_MAP[card.chartType] || null)}
-                          bodyContent={<DataTable data={card.bodyData} />}
-                          metaInfo={card.metaInfo}
+                          chartContent={
+                            card.metaInfo === 'AI종합' ? (
+                              /* [v14] AI 종합 분석: 차트 영역을 사용하지 않음 (ChartInsightDashboard가 bodyContent로 전체 렌더) */
+                              null
+                            ) : card.metaInfo === '창업지원' ? (
+                              /* 창업 지원 프로그램: 차트 없음 (bodyContent에서 전체 렌더) */
+                              null
+                            ) : card.metaInfo === '개인카페' ? (
+                              <div>
+                                {card.chartData !== undefined ? getChartForCard(card) : (CHART_MAP[card.chartType] || null)}
+                                {/* 3개 평균가격 - collectedData.cafeAvgPrices 우선, 없으면 enrichedCafes+nicebizmap 폴백 */}
+                                {(() => {
+                                  const preCalc = collectedData?.cafeAvgPrices;
+                                  let avgA, estA, avgM, estM, avgD, estD;
+                                  if (preCalc && preCalc.americano) {
+                                    avgA = preCalc.americano; estA = !!preCalc.americanoEstimated;
+                                    avgM = preCalc.menu || 5500; estM = !!preCalc.menuEstimated;
+                                    avgD = preCalc.dessert || 6200; estD = !!preCalc.dessertEstimated;
+                                  } else {
+                                    const enriched = collectedData?.enrichedCafes;
+                                    const cafes = enriched?.cafes || [];
+                                    const nbmAvgPrice = collectedData?.nicebizmapStats?.avgPrice || 0;
+                                    // 아메리카노: enrichedCafes -> nicebizmap 결제단가 75% -> 폴백
+                                    avgA = enriched?.avgAmericano || 0;
+                                    if (!avgA && cafes.length > 0) { const ap = cafes.map(c => c.americano).filter(p => p > 0); avgA = ap.length > 0 ? Math.round(ap.reduce((a,b)=>a+b,0)/ap.length) : 0; }
+                                    if (!avgA && nbmAvgPrice > 0) avgA = Math.round(nbmAvgPrice * 0.75);
+                                    estA = !avgA; if (!avgA) avgA = 4800;
+                                    // 메뉴 평균: enrichedCafes -> nicebizmap 결제단가 -> 폴백
+                                    avgM = 0; const mp = []; cafes.forEach(c => { (c.topMenus||[]).forEach(m => { if (m.price > 0) mp.push(m.price); }); }); avgM = mp.length > 0 ? Math.round(mp.reduce((a,b)=>a+b,0)/mp.length) : 0; if (!avgM && nbmAvgPrice > 0) avgM = nbmAvgPrice; estM = !avgM; if (!avgM) avgM = 5500;
+                                    // 디저트: enrichedCafes -> nicebizmap 결제단가 115% -> 폴백
+                                    const dkw = ['케이크','쿠키','마카롱','크로플','와플','스콘','브라우니','타르트','머핀','파이','빵','크로와상','디저트','베이글']; const dp = []; cafes.forEach(c => { (c.topMenus||[]).forEach(m => { if (m.price > 0 && dkw.some(k => (m.name||'').includes(k))) dp.push(m.price); }); }); avgD = dp.length > 0 ? Math.round(dp.reduce((a,b)=>a+b,0)/dp.length) : 0; if (!avgD && nbmAvgPrice > 0) avgD = Math.round(nbmAvgPrice * 1.15); estD = !avgD; if (!avgD) avgD = 6200;
+                                  }
+                                  return (
+                                    <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                                      <div style={{ flex: 1, background: 'rgba(30,58,138,0.07)', borderRadius: 12, padding: '12px 8px', textAlign: 'center' }}>
+                                        <p style={{ fontSize: 11, color: COLORS.textMuted, marginBottom: 4, margin: 0 }}>아메리카노 평균</p>
+                                        <p style={{ fontSize: 18, fontWeight: 700, color: COLORS.white, margin: '4px 0 0' }}>{avgA.toLocaleString()}<span style={{ fontSize: 11, color: COLORS.textMuted }}>원</span></p>
+                                        {estA && <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', margin: '2px 0 0' }}>(추정)</p>}
+                                      </div>
+                                      <div style={{ flex: 1, background: 'rgba(49,130,246,0.07)', borderRadius: 12, padding: '12px 8px', textAlign: 'center' }}>
+                                        <p style={{ fontSize: 11, color: COLORS.textMuted, marginBottom: 4, margin: 0 }}>메뉴 평균</p>
+                                        <p style={{ fontSize: 18, fontWeight: 700, color: COLORS.white, margin: '4px 0 0' }}>{avgM.toLocaleString()}<span style={{ fontSize: 11, color: COLORS.textMuted }}>원</span></p>
+                                        {estM && <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', margin: '2px 0 0' }}>(추정)</p>}
+                                      </div>
+                                      <div style={{ flex: 1, background: 'rgba(245,158,11,0.07)', borderRadius: 12, padding: '12px 8px', textAlign: 'center' }}>
+                                        <p style={{ fontSize: 11, color: COLORS.textMuted, marginBottom: 4, margin: 0 }}>디저트 평균</p>
+                                        <p style={{ fontSize: 18, fontWeight: 700, color: COLORS.white, margin: '4px 0 0' }}>{avgD.toLocaleString()}<span style={{ fontSize: 11, color: COLORS.textMuted }}>원</span></p>
+                                        {estD && <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', margin: '2px 0 0' }}>(추정)</p>}
+                                      </div>
+                                    </div>
+                                  );
+                                })()}
+                              </div>
+                            ) : (
+                              card.chartData !== undefined ? getChartForCard(card) : (CHART_MAP[card.chartType] || null)
+                            )
+                          }
+                          bodyContent={
+                            card.metaInfo === 'AI종합' ? (
+                              /* [v14] AI 종합 분석: 시각 중심 Dashboard를 body 전체로 렌더 */
+                              <ChartInsightDashboard data={card.chartData} />
+                            ) : card.metaInfo === '경쟁' ? (
+                              <div>
+                                <DataTable data={card.bodyData} chartType={card.chartType} />
+                                {card.scoreDetail?.templateText && (
+                                  <div style={{
+                                    marginTop: 12,
+                                    padding: '10px 14px',
+                                    borderLeft: `3px solid ${card.scoreDetail.tierColor || '#FBBF24'}`,
+                                    background: 'rgba(255,255,255,0.03)',
+                                    borderRadius: 6,
+                                    fontSize: 13,
+                                    lineHeight: 1.6,
+                                    color: COLORS.textSecondary,
+                                  }}>
+                                    {card.scoreDetail.templateText}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (card.metaInfo === '카페 기회' || card.metaInfo === '기회/리스크') ? (
+                              /* [v17] 카드 8: 기회/리스크 + 비즈맵 동 평균 비용 구조 */
+                              <div>
+                                <DataTable data={card.bodyData} chartType={card.chartType} />
+                                {(() => {
+                                  const bd = card.bodyData || {};
+                                  const items = [
+                                    { label: '영업이익률', value: bd.bizmapOpIncomePct, color: '#1E3A8A' },
+                                    { label: '식재료비율', value: bd.bizmapMaterialPct, color: '#3182F6' },
+                                    { label: '인건비율', value: bd.bizmapLaborPct, color: '#F59E0B' },
+                                    { label: '임차료비율', value: bd.bizmapRentPct, color: '#8B5CF6' },
+                                    { label: '기타비율', value: bd.bizmapEtcPct, color: '#94A3B8' },
+                                  ].filter(it => it.value != null && it.value > 0);
+                                  if (items.length === 0) return null;
+                                  return (
+                                    <div style={{ marginTop: 16 }}>
+                                      <div style={{ fontSize: 13, fontWeight: 600, color: COLORS.white, marginBottom: 10 }}>동 평균 비용 구조</div>
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                        {items.map((it, ri) => (
+                                          <div key={ri} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                                            <span style={{ fontSize: 13, color: COLORS.textMuted }}>{it.label}</span>
+                                            <span style={{ fontSize: 14, fontWeight: 700, color: it.color }}>{it.value}%</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                      {bd.bizmapCostSummary && (
+                                        <div style={{
+                                          marginTop: 10,
+                                          padding: '8px 12px',
+                                          borderLeft: '2px solid rgba(255,255,255,0.15)',
+                                          background: 'rgba(255,255,255,0.03)',
+                                          borderRadius: 6,
+                                          fontSize: 12,
+                                          lineHeight: 1.6,
+                                          color: COLORS.textSecondary,
+                                        }}>
+                                          {bd.bizmapCostSummary}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
+                              </div>
+                            ) : card.metaInfo === '상권변화' ? (
+                              /* [v17] 카드 13: 상권 변화 + 비즈맵 점포 추이 */
+                              <div>
+                                <DataTable data={card.bodyData} chartType={card.chartType} />
+                                {(() => {
+                                  const bd = card.bodyData || {};
+                                  const chart = bd.bizmapStoreTrendChart;
+                                  const latest = bd.bizmapStoreLatest;
+                                  const first = bd.bizmapStoreFirst;
+                                  const net = bd.bizmapStoreNetChange;
+                                  const trendLabel = bd.bizmapStoreTrendLabel;
+                                  const hasChart = chart && Array.isArray(chart.values) && chart.values.length > 0;
+                                  if (!hasChart && latest == null && trendLabel == null) return null;
+                                  const netColor = (net || 0) > 0 ? '#1E3A8A' : (net || 0) < 0 ? '#F04452' : COLORS.textSecondary;
+                                  const netSign = (net || 0) > 0 ? '+' : '';
+                                  const maxVal = hasChart ? Math.max(...chart.values) : 0;
+                                  const minVal = hasChart ? Math.min(...chart.values) : 0;
+                                  const range = maxVal - minVal || 1;
+                                  return (
+                                    <div style={{ marginTop: 16 }}>
+                                      <div style={{ fontSize: 13, fontWeight: 600, color: COLORS.white, marginBottom: 10 }}>비즈맵 점포 추이</div>
+                                      {(latest != null || first != null) && (
+                                        <div style={{
+                                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                          padding: '10px 12px',
+                                          background: 'rgba(255,255,255,0.04)',
+                                          borderRadius: 10,
+                                          marginBottom: hasChart ? 10 : 0,
+                                        }}>
+                                          <span style={{ fontSize: 13, color: COLORS.textMuted }}>
+                                            {first != null && latest != null ? `${first} → ${latest}` : (latest != null ? `이번달 ${latest}개` : '')}
+                                          </span>
+                                          {net != null && (
+                                            <span style={{ fontSize: 14, fontWeight: 700, color: netColor }}>
+                                              {netSign}{net}개
+                                            </span>
+                                          )}
+                                        </div>
+                                      )}
+                                      {hasChart && (
+                                        <div style={{ marginTop: 4 }}>
+                                          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 60, padding: '4px 0' }}>
+                                            {chart.values.map((v, i) => {
+                                              const h = Math.max(4, Math.round(((v - minVal) / range) * 56) + 4);
+                                              return (
+                                                <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                                                  <div style={{ width: '100%', height: h, background: '#3182F6', borderRadius: 3, opacity: 0.8 }} />
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                          <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+                                            {chart.labels.map((l, i) => (
+                                              <div key={i} style={{ flex: 1, fontSize: 10, color: COLORS.textMuted, textAlign: 'center' }}>{l}</div>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      )}
+                                      {trendLabel && (
+                                        <div style={{
+                                          marginTop: 10,
+                                          padding: '8px 12px',
+                                          borderLeft: '2px solid rgba(255,255,255,0.15)',
+                                          background: 'rgba(255,255,255,0.03)',
+                                          borderRadius: 6,
+                                          fontSize: 12,
+                                          lineHeight: 1.6,
+                                          color: COLORS.textSecondary,
+                                        }}>
+                                          {trendLabel}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
+                              </div>
+                            ) : card.metaInfo === '창업지원' ? (
+                              /* 창업 지원 프로그램 카드: 통계(지역/전체) */
+                              <div>
+                                {/* 통계 박스 */}
+                                <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+                                  {card.bodyData?.region && (
+                                    <div style={{ flex: 1, background: 'rgba(49,130,246,0.08)', borderRadius: 12, padding: '14px 12px', textAlign: 'center' }}>
+                                      <p style={{ fontSize: 11, color: COLORS.textMuted, margin: '0 0 4px' }}>{card.bodyData.region} 지역</p>
+                                      <p style={{ fontSize: 22, fontWeight: 700, color: '#3182F6', margin: 0 }}>{card.bodyData?.regionCount || 0}<span style={{ fontSize: 12, color: COLORS.textMuted }}>건</span></p>
+                                    </div>
+                                  )}
+                                  <div style={{ flex: 1, background: 'rgba(30,58,138,0.08)', borderRadius: 12, padding: '14px 12px', textAlign: 'center' }}>
+                                    <p style={{ fontSize: 11, color: COLORS.textMuted, margin: '0 0 4px' }}>전체</p>
+                                    <p style={{ fontSize: 22, fontWeight: 700, color: '#1E3A8A', margin: 0 }}>{card.bodyData?.totalCount || 0}<span style={{ fontSize: 12, color: COLORS.textMuted }}>건</span></p>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <DataTable data={card.bodyData} chartType={card.chartType} />
+                            )
+                          }
                         />
-                        {/* "지도로 보기" button after Card 1 */}
-                        {i === 0 && collectedData?.coordinates && (
-                          (collectedData?.nearbyFranchiseList?.length > 0 || collectedData?.nearbyIndependentList?.length > 0) && (
-                            <button
-                              onClick={() => setShowCafeMap(true)}
-                              style={{
-                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                                width: '100%', fontSize: 14, fontWeight: 600, color: '#3182F6',
-                                background: 'rgba(49,130,246,0.07)', border: 'none', borderRadius: 12,
-                                padding: '12px 16px', cursor: 'pointer', whiteSpace: 'nowrap',
-                                transition: 'background 0.2s', fontFamily: 'Pretendard, sans-serif',
-                              }}
-                              onMouseEnter={e => e.currentTarget.style.background = 'rgba(49,130,246,0.14)'}
-                              onMouseLeave={e => e.currentTarget.style.background = 'rgba(49,130,246,0.07)'}
-                            >
-                              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1C5.24 1 3 3.24 3 6c0 3.75 5 9 5 9s5-5.25 5-9c0-2.76-2.24-5-5-5zm0 6.5A1.5 1.5 0 118 4.99 1.5 1.5 0 018 7.5z" fill="#3182F6"/></svg>
-                              지도로 보기
-                            </button>
-                          )
                         )}
-                      </React.Fragment>
-                    ))}
-                    {/* ── Unified Data Sources ── */}
-                    {(() => {
-                      const sourceSet = new Set();
-                      cards.forEach(card => {
-                        if (card.source) {
-                          card.source.split('/').forEach(s => {
-                            const trimmed = s.trim();
-                            if (trimmed) sourceSet.add(trimmed);
-                          });
-                        }
-                      });
-                      const sources = Array.from(sourceSet);
-                      if (sources.length === 0) return null;
-                      return (
-                        <div style={{
-                          textAlign: 'right',
-                          padding: '8px 4px 0',
-                          fontSize: 10,
-                          color: 'rgba(255,255,255,0.3)',
-                          lineHeight: 1.5,
-                          letterSpacing: '0.01em',
-                        }}>
-                          {'데이터 출처: ' + sources.join(', ')}
+                        {/* Card 1 "지도로 보기" button is rendered inside Card01MarketReport */}
+                        {/* "AI 디렉터" button after AI종합 Card */}
+                        {card.metaInfo === 'AI종합' && (
+                          <button
+                            onClick={() => { setDirectorTab('market'); setShowDirectorPopup(true); }}
+                            style={{
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                              width: '100%', fontSize: 14, fontWeight: 600, color: '#FFFFFF',
+                              background: 'transparent', border: '1px solid #FFFFFF', borderRadius: 12,
+                              padding: '12px 16px', cursor: 'pointer', whiteSpace: 'nowrap',
+                              transition: 'background 0.2s', fontFamily: 'Pretendard, sans-serif',
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                          >
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1L10 5.5L15 6.2L11.5 9.5L12.4 14.5L8 12L3.6 14.5L4.5 9.5L1 6.2L6 5.5L8 1Z" stroke="#FFFFFF" strokeWidth="1.2" strokeLinejoin="round" fill="none"/></svg>
+                            AI 디렉터
+                          </button>
+                        )}
+                        {/* "정보 보기" button after 창업지원 Card */}
+                        {card.metaInfo === '창업지원' && (card.allPrograms?.length > 0 || card.regionPrograms?.length > 0) && (
+                          <button
+                            onClick={() => {
+                              setStartupPopupTab(card.bodyData?.region ? 'region' : 'all');
+                              setShowStartupPopup(true);
+                            }}
+                            style={{
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                              width: '100%', fontSize: 14, fontWeight: 600, color: '#FFFFFF',
+                              background: 'transparent', border: '1px solid #FFFFFF', borderRadius: 12,
+                              padding: '12px 16px', cursor: 'pointer', whiteSpace: 'nowrap',
+                              transition: 'background 0.2s', fontFamily: 'Pretendard, sans-serif',
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                          >
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 2.5A1.5 1.5 0 014.5 1h7A1.5 1.5 0 0113 2.5v11a1.5 1.5 0 01-1.5 1.5h-7A1.5 1.5 0 013 13.5v-11zM5.5 4h5M5.5 6.5h5M5.5 9h3" stroke="#FFFFFF" strokeWidth="1.2" strokeLinecap="round"/></svg>
+                            정보 보기
+                          </button>
+                        )}
                         </div>
+                      </section>
                       );
-                    })()}
+                    })}
+                    {/* 데이터 출처 섹션/모달 제거 (2026-05-02 의뢰인 요청) */}
                   </div>
 
                   {/* Bottom spacer */}
@@ -3104,20 +6478,76 @@ export default function UnifiedLayout({
 
       {/* ── Responsive CSS ── */}
       <style>{`
+        /* PC large (>=1280px) — left 40%, right 60% */
+        @media (min-width: 1280px) {
+          .unified-layout-root[data-results="true"] .unified-left-panel {
+            width: 40% !important;
+            min-width: 360px !important;
+          }
+        }
+        /* Tablet (768~1279px) — left 35%, right 65% */
+        @media (min-width: 768px) and (max-width: 1279px) {
+          .unified-layout-root[data-results="true"] .unified-left-panel {
+            width: 35% !important;
+            min-width: 300px !important;
+          }
+        }
+        /* Mobile (<=767px) — stack vertically, collapsible top bar */
         @media (max-width: 767px) {
-          .unified-layout-root {
+          .unified-layout-root[data-results="true"] {
             flex-direction: column !important;
           }
-          .unified-left-panel {
+          .unified-layout-root[data-results="true"] .unified-left-panel {
             width: 100% !important;
-            height: 40vh !important;
-            min-height: 240px;
+            height: 72px !important;
+            min-width: 0 !important;
+            flex: 0 0 72px !important;
+            border-right: none !important;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
           }
-          .unified-right-panel {
-            flex: 1 !important;
+          .unified-layout-root[data-results="true"] .unified-left-panel .unified-card-nav {
+            display: none !important;
+          }
+          .unified-layout-root[data-results="true"] .unified-right-panel {
+            flex: 1 1 auto !important;
+            width: 100% !important;
             height: auto !important;
-            min-height: 60vh;
           }
+          /* Section header collapse for mobile — shrink map */
+          .unified-layout-root[data-results="true"] .unified-left-panel > div {
+            display: flex !important;
+            flex-direction: row !important;
+          }
+        }
+        /* Search-only phase (no results yet) — preserve original full-width behavior */
+        @media (max-width: 767px) {
+          .unified-layout-root:not([data-results="true"]) {
+            flex-direction: row !important;
+          }
+          .unified-layout-root:not([data-results="true"]) .unified-left-panel {
+            width: 30% !important;
+            min-width: 120px !important;
+            height: 100% !important;
+          }
+          .unified-layout-root:not([data-results="true"]) .unified-right-panel {
+            flex: 1 !important;
+            width: 70% !important;
+            height: 100% !important;
+          }
+        }
+        /* Sidebar collapsed — hide left panel only (right panel uses flex:1, no override needed) */
+        .unified-layout-root[data-sidebar-collapsed="true"][data-results="true"] .unified-left-panel {
+          width: 0 !important;
+          min-width: 0 !important;
+          flex: 0 0 0 !important;
+          opacity: 0 !important;
+          pointer-events: none !important;
+          border-right: none !important;
+          overflow: hidden !important;
+        }
+        /* 카드 섹션은 자연 높이로 (스크롤 자유로) */
+        .beancraft-card-section {
+          min-height: 0 !important;
         }
         .unified-cards-scroll::-webkit-scrollbar {
           width: 4px;
@@ -3131,6 +6561,22 @@ export default function UnifiedLayout({
         }
         .unified-cards-scroll::-webkit-scrollbar-thumb:hover {
           background: rgba(255,255,255,0.3);
+        }
+        .unified-card-nav::-webkit-scrollbar {
+          width: 4px;
+        }
+        .unified-card-nav::-webkit-scrollbar-track { background: transparent; }
+        .unified-card-nav::-webkit-scrollbar-thumb {
+          background: rgba(255,255,255,0.12);
+          border-radius: 2px;
+        }
+        /* Inner card scrolling (when body overflows 100vh) */
+        .beancraft-card::-webkit-scrollbar {
+          width: 4px;
+        }
+        .beancraft-card::-webkit-scrollbar-thumb {
+          background: rgba(255,255,255,0.12);
+          border-radius: 2px;
         }
         input[type="range"] {
           -webkit-appearance: none;

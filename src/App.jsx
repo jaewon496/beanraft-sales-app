@@ -13111,99 +13111,605 @@ JSON으로만 응답:
        '테이크아웃', '카페창업'
      ];
 
+     // [v13] 네이버 블로그 다양 카테고리 검색 (snsTrend 프롬프트 컨텍스트용)
+     // 8개 쿼리 병렬 실행 (메뉴+분위기+방문동기+후기+상권+타겟) → 합쳐서 collectedData.apis.naverBlogMenus 저장
+     try {
+       // 지역명 추출: 행정동 단축명 우선 → addressInfo.dong → query
+       const _blogRegion = (collectedData?.dongInfo?.admdstCdNm || addressInfo?.dong || query || '').trim();
+       if (_blogRegion) {
+         // [v13] 8개 다양 카테고리로 확장 (메뉴 + 분위기 + 방문동기 + 후기 + 상권인식 + 타겟)
+         const blogQueries = [
+           // 메뉴 카테고리
+           `${_blogRegion} 카페 시그니처 메뉴`,
+           // 분위기 카테고리
+           `${_blogRegion} 분위기 좋은 카페`,
+           // 방문 동기 카테고리 (2개)
+           `${_blogRegion} 데이트 카페`,
+           `${_blogRegion} 작업하기 좋은 카페`,
+           // 장단점/후기 카테고리
+           `${_blogRegion} 카페 추천`,
+           // 상권 인식 카테고리 (2개)
+           `${_blogRegion} 핫플`,
+           `${_blogRegion} 신상 카페`,
+           // 카테고리/타겟
+           `${_blogRegion} 디저트 카페`,
+         ];
+         const _stripTags = (s) => typeof s === 'string'
+           ? s.replace(/<[^>]*>/g, '').replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#39;/g, "'").trim()
+           : '';
+         const blogResults = await Promise.allSettled(blogQueries.map(async (q) => {
+           const url = `/.netlify/functions/naver-local-proxy?type=blog&query=${encodeURIComponent(q)}&display=10&sort=sim`;
+           const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+           if (!res.ok) throw new Error(`status ${res.status}`);
+           const json = await res.json();
+           const items = Array.isArray(json?.items) ? json.items : [];
+           return {
+             query: q,
+             items: items.map(it => ({
+               title: _stripTags(it.title),
+               description: _stripTags(it.description),
+               link: it.link || '',
+               bloggername: it.bloggername || '',
+               postdate: it.postdate || '',
+             })),
+           };
+         }));
+         const queriesAcc = [];
+         const seenLinks = new Set();
+         let totalItems = 0;
+         for (const r of blogResults) {
+           if (r.status !== 'fulfilled') continue;
+           const dedup = [];
+           for (const it of r.value.items) {
+             if (it.link && !seenLinks.has(it.link)) {
+               seenLinks.add(it.link);
+               dedup.push(it);
+             }
+           }
+           queriesAcc.push({ query: r.value.query, items: dedup });
+           totalItems += dedup.length;
+           if (totalItems >= 30) break; // 최대 30개 보관
+         }
+         // 30개 초과분은 잘라내기
+         if (totalItems > 30) {
+           let acc = 0;
+           for (const q of queriesAcc) {
+             if (acc + q.items.length > 30) {
+               q.items = q.items.slice(0, Math.max(0, 30 - acc));
+             }
+             acc += q.items.length;
+           }
+         }
+         if (queriesAcc.some(q => q.items.length > 0)) {
+           collectedData.apis.naverBlogMenus = {
+             description: '네이버 블로그 카페 메뉴 검색 결과',
+             data: {
+               queries: queriesAcc,
+               totalItems: queriesAcc.reduce((s, q) => s + q.items.length, 0),
+             },
+             source: '네이버 블로그 검색',
+           };
+           console.log(`[naverBlogMenus] 수집 완료: ${queriesAcc.length}개 쿼리, ${queriesAcc.reduce((s, q) => s + q.items.length, 0)}개 글`);
+         } else {
+           console.log('[naverBlogMenus] 결과 없음 - 8개 쿼리 모두 빈 응답');
+         }
+       } else {
+         console.log('[naverBlogMenus] 지역명 없음 - 스킵');
+       }
+     } catch (e) {
+       console.warn('[naverBlogMenus] 호출 실패:', e.message);
+     }
+
+     // [v12.1] 비즈맵 성/연령 1순위 타겟 추출 (snsTrend 프롬프트 주입용)
+     const _bmGenAge = collectedData?.apis?.bizMapGenderAge?.data;
+     let _topTargetLabel = '';
+     try {
+       if (Array.isArray(_bmGenAge) && _bmGenAge.length > 0) {
+         const sorted = _bmGenAge
+           .filter(r => r && (r.rate != null || r.RATE != null))
+           .map(r => ({ gender: r.gender || r.GENDER, age: r.age || r.AGE, rate: Number(r.rate || r.RATE || 0) }))
+           .sort((a, b) => b.rate - a.rate);
+         if (sorted.length > 0) {
+           const top = sorted[0];
+           const ageBand = top.age >= 60 ? '60대 이상' : `${top.age}대`;
+           const genderLabel = top.gender === 'F' ? '여성' : top.gender === 'M' ? '남성' : '';
+           _topTargetLabel = genderLabel ? `${ageBand} ${genderLabel}` : ageBand;
+         }
+       }
+     } catch (e) { /* 추출 실패 시 빈 문자열 */ }
+     const _targetGuide = _topTargetLabel
+       ? `이 동네는 ${_topTargetLabel} 매출 비중이 가장 높습니다. ${_topTargetLabel}이 좋아하는 카페 트렌드 위주로 검색하세요.`
+       : '검색 지역의 일반적인 카페 이용층 기준으로 트렌드를 분석하세요.';
+
+     // [v17] Grounding OFF 전환: 블로그 본문 30개 (제목+설명) 충분히 사용
+     const blogContext = collectedData.apis.naverBlogMenus?.data?.queries
+       ?.flatMap(q => (q.items || []))
+       .slice(0, 30)
+       .map(b => `- ${b.title} :: ${b.description || ''}`)
+       .join('\n')
+       .slice(0, 5000) || '';
+
      // SNS 트렌드 분석용 프롬프트
-     const snsTrendPrompt = `당신은 카페 창업 AI 컨설턴트예요. 트렌디하고 감각적으로 SNS와 온라인 반응을 분석하세요. "${query} 카페"에 대한 SNS 트렌드를 분석해주세요.
+     // [v20] 검색 유입 경로 우선 추출 → 그 흐름으로 키워드 정리
+     // 동네 성격 컨텍스트: 매출 1순위 업종 + 1순위 타겟 + 시군구 핫플 테마
+     const _maxBizName = collectedData.apis.maxSlsBiz?.data?.tpbizClscdNm || '';
+     const _bizonThemes = Array.isArray(collectedData.apis.bizonRnkTop10?.data)
+       ? collectedData.apis.bizonRnkTop10.data.slice(0, 5).map(b => b?.tpbizClscdNm || b?.bizonNm || '').filter(Boolean).join(', ')
+       : '';
+     const _dongCharacter = [
+       _maxBizName ? `매출 1순위 업종: ${_maxBizName}` : '',
+       _topTargetLabel ? `1순위 타겟: ${_topTargetLabel}` : '',
+       _bizonThemes ? `시군구 핫플 테마: ${_bizonThemes}` : ''
+     ].filter(Boolean).join('\n');
 
-[분석 항목]
-1. 이 지역 카페의 SNS 인기 키워드 (인스타그램, 유튜브 기준)
-2. 주요 경쟁 카페 이름과 특징 (실제로 존재하는 카페만)
-3. 고객 리뷰에서 자주 언급되는 긍정/부정 키워드
-4. 손님 1명이 평균으로 쓰는 금액 추정 (SNS 후기 기반)
-5. 인기 메뉴 유형 (음료, 디저트 등)
-6. 인스타그램 트렌드: 아래 22개 카페 키워드 중 이 지역과 관련 있는 키워드의 인스타그램 트렌드를 분석하세요.
-   키워드 목록: ${CAFE_KEYWORDS_22.join(', ')}
-   - 각 키워드의 인스타그램 게시물 수 추정 (예: #강남카페 → 약 150만 게시물)
-   - 이 지역에서 특히 인기 있는 키워드 TOP 5 선정
-   - 최근 급상승 중인 키워드가 있다면 표시
+     const snsTrendPrompt = `"${query}" 동네 카페 SNS 트렌드를 분석한다. 핵심 질문: "손님들이 무엇을 검색해서 이 동네 카페에 오는가?"
 
-[응답 형식 - 순수 JSON만]
-{
-  "snsTrend": {
-    "popularKeywords": ["오션뷰", "브런치", "디저트"],
-    "negativeKeywords": ["비싸요", "웨이팅", "주차"],
-    "sentiment": { "positive": 65, "neutral": 25, "negative": 10 },
-    "summary": "이 지역 카페 SNS 트렌드를 2~3문장으로 종합 요약해주세요.",
-    "competitors": [
-      { "name": "실제카페명", "feature": "특징", "priceRange": "1인당 평균 금액" }
-    ],
-    "avgPrice": "약 X,XXX원",
-    "popularMenuType": "시그니처 음료, 대형 디저트",
-    "instagramPosts": "약 X만 게시물 추정",
-    "instagramTopKeywords": [
-      { "keyword": "#지역카페", "posts": "약 X만", "trend": "상승" }
-    ],
-    "instagramRising": ["급상승 키워드1", "급상승 키워드2"],
-    "youtubeContent": "리뷰 영상 트렌드 요약",
-    "bruFeedback": "SNS 트렌드를 바탕으로 브랜딩 방향을 제시해요. 테이크아웃 컵 디자인 등 바이럴 포인트 중심.",
-    "bruSummary": "40자 이내 한줄 핵심"
-  }
-}
+[동네 성격]
+${_dongCharacter || '데이터 없음'}
 
-마크다운 코드블록 없이 순수 JSON만 출력하세요.`;
+[블로그 후기]
+${blogContext || '없음'}
+
+[작성 순서 - 반드시 이 순서로 사고]
+1단계. 위 동네 성격을 보고 어떤 손님들이 이 동네 카페에 오는지 파악
+2단계. 그 손님들이 네이버/인스타에서 무엇을 검색해서 오는지 검색어 5~7개 추출 → searchIntents
+3단계. 그 검색 의도에 맞는 카페 키워드만 popularKeywords에 담기
+4단계. 그 검색 의도가 깨질 때 나오는 불만만 negativeKeywords에 담기
+
+[searchIntents - 정확히 5~7개]
+손님이 카페 가기 전에 네이버/인스타에서 실제로 칠 만한 검색어.
+- 형식: "${query} OO" 또는 "OO지역 OO목적/메뉴"
+- 의도가 다양해야 함 (메뉴·목적·시간대 섞이게)
+- 메뉴 검색은 "시그니처메뉴"처럼 메타 단어 금지. 블로그 후기에 자주 보이는 구체 메뉴명 사용 (예: "${query} 크로플", "${query} 흑임자라떼")
+- 예시(강남역): "강남역 점심카페", "강남역 데이트카페", "강남역 약과맛집", "강남역 크로플", "테헤란로 직장인카페"
+- 예시(홍대): "홍대 야간카페", "홍대 흑임자라떼", "홍대 데이트카페"
+- 일반론 금지: "카페 추천", "맛있는 카페", "시그니처 메뉴" 같이 메뉴가 뭔지 모르는 표현 X
+
+[popularKeywords - 정확히 10~14개, 각 4~10자]
+★ 반드시 10개 이상 작성. A·B 카테고리에서 골고루 섞어서 풍부하게.
+
+★★ 핵심 정의: "외부인이 이 동네 카페 상권을 어떻게 인식하는가" + "왜 찾아오는가"만 ★★
+구체 메뉴와 매장명은 절대 넣지 않는다(다른 항목에서 다룸).
+
+[합격 카테고리 - 이 둘에서 골고루]
+
+A. 동네 인식 키워드 (외부인이 이 상권을 부르는 이미지)
+   - 상권 규모: 대형카페밀집, 신상카페동네, 카페골목, 카페거리
+   - 공간 특성: 루프탑많음, 통창뷰동네, 한옥카페골목, 노포카페동네, 갤러리카페동네
+   - 이미지: 핫플상권, 인스타핫플, MZ상권, 조용한카페동네, 감성카페골목, 빈티지상권
+
+B. 방문 동기 키워드 (사람들이 왜 오는가)
+   - 시간대: 출근길테이크아웃, 점심후1잔, 늦게까지영업, 24시간영업
+   - 목적: 회의실대용, 약속전대기, 작업하기좋은, 공부카페, 1인손님환영, 모임공간
+   - 동행: 데이트장소, 친구약속, 가족모임, 반려동물동반
+   - 컨셉 끌림: 인스타사진, 신메뉴체험, 이색경험, 비오는날, 주말나들이
+
+[★ 절대 금지]
+- 구체 메뉴명: 휘낭시에, 크로플, 마들렌, 흑임자라떼 X (매장 카드에서 다룸)
+- 한 카페 한정 메뉴: 헬싱키라떼, 멜팅라떼, 해온라떼 X
+- 카페 창업과 무관한 카테고리: 키즈카페, 아이동반, 유아석, 수유실 X
+- 일반론/메타: 카페, 디저트, 아메리카노, 라떼, 베이커리, 시그니처메뉴 X
+- 지역명/시설명: 강남, 역삼, 어린이회관, 파충류전시 X
+
+[negativeKeywords - 3~5개]
+검색 의도가 깨질 때 나오는 불만 (예: 점심시간만석, 데이트분위기깸, 회의너무시끄러움, 주차어려움)
+
+[summary - 80~120자]
+★ 정보 나열 금지. 손님이 "원하는 것/마음" 중심으로 표현.
+- 형식: "이 동네에 오는 손님은 OO을 원해요. OO한 카페를 찾아요." 톤
+- 손님의 욕구·필요·기대 중심으로 묘사
+- 카페 창업자가 읽었을 때 "내 카페가 무엇을 줘야 하는지" 감 잡히게
+
+[좋은 예]
+- "이 동네 손님은 일과 휴식 사이의 짧은 호흡을 원해요. 점심 후 한 잔 마실 곳, 미팅이 가능한 조용한 공간, 약속 전 잠깐 머물 자리를 찾고 있어요."
+- "젊은 직장인과 데이트 손님이 '특별한 분위기'를 원하는 동네예요. 인스타에 올릴 사진이 잘 나오고, 일상에서 벗어난 콘셉트의 공간을 선호해요."
+
+[나쁜 예 - 정보 나열형 금지]
+- "30대 남성 직장인과 데이트를 즐기는 커플들이 갤러리, 이색 경험, 작업 공간, 주차 편의성을 검색하여 방문하는 상권입니다." X (정보 나열)`;
 
      let snsTrendData = null;
      try {
-       const snsResponse = await callGeminiProxy([{ role: 'user', parts: [{ text: snsTrendPrompt }] }], { temperature: 0.7, maxOutputTokens: 2000 }, AbortSignal.timeout(20000));
-       
+       // [v18] JSON Schema 강제: responseMimeType + responseSchema로 5필드 모두 강제 작성
+       const snsResponseSchema = {
+         type: 'OBJECT',
+         properties: {
+           searchIntents: { type: 'ARRAY', items: { type: 'STRING' }, minItems: 5, maxItems: 7 },
+           summary: { type: 'STRING' },
+           popularKeywords: { type: 'ARRAY', items: { type: 'STRING' }, minItems: 10, maxItems: 14 },
+           negativeKeywords: { type: 'ARRAY', items: { type: 'STRING' }, minItems: 3, maxItems: 5 }
+         },
+         required: ['searchIntents', 'summary', 'popularKeywords', 'negativeKeywords']
+       };
+       const snsResponse = await callGeminiProxy(
+         [{ role: 'user', parts: [{ text: snsTrendPrompt }] }],
+         {
+           temperature: 0.5,
+           maxOutputTokens: 4000,
+           responseMimeType: 'application/json',
+           responseSchema: snsResponseSchema,
+           thinkingConfig: { thinkingBudget: 0 } // Gemini 2.5 thinking 비활성화 (출력 토큰 확보)
+         },
+         AbortSignal.timeout(60000)
+       );
+
        if (snsResponse.ok) {
          const snsResult = await snsResponse.json();
          const snsText = snsResult.candidates?.[0]?.content?.parts?.[0]?.text || '';
-         const cleanSnsText = snsText.replace(/```json\n?|\n?```/g, '').trim();
+
+         // [옵션 F] 구분자(@TAG) 패턴 우선 + JSON 폴백
+         const extractSnsTrendByDelimiter = (raw) => {
+           if (!raw) return null;
+           // Grounding citation [1] [2] 제거
+           const cleanText = raw.replace(/\[\d+\]/g, '');
+           const extract = (tag) => {
+             // @TAG: 부터 다음 @ 가 나오거나 문자열 끝까지
+             const regex = new RegExp(`@${tag}:\\s*([\\s\\S]*?)(?=\\n@[A-Z]+:|$)`, 'i');
+             const match = cleanText.match(regex);
+             return match ? match[1].trim() : '';
+           };
+           const popStr = extract('POPULAR');
+           const negStr = extract('NEGATIVE');
+           const splitKw = (s) => s
+             .split(/[,，、/\n]/)
+             .map(k => k.trim().replace(/^["'「『\-•*\d.)\s]+|["'」』\s]+$/g, ''))
+             .filter(k => k && k.length >= 2 && k.length <= 15);
+           const result = {
+             summary: extract('SUMMARY') || null,
+             popularKeywords: popStr ? splitKw(popStr) : [],
+             negativeKeywords: negStr ? splitKw(negStr) : [],
+             instagramPosts: extract('INSTA') || null,
+             targetMatch: extract('TARGET') || null,
+           };
+           // @ 형식으로 최소 1개 필드 찾았으면 성공
+           const hasContent = result.summary || result.popularKeywords.length > 0
+             || result.instagramPosts || result.targetMatch;
+           if (hasContent) return result;
+           return null;
+         };
+         // 기존 JSON 파서 (구분자 실패 시 폴백)
+         const extractSnsJson = (raw) => {
+           if (!raw) return null;
+           // 0차: responseMimeType=json이면 raw 자체가 유효 JSON
+           try { return JSON.parse(raw); } catch {}
+           // 1차: ```json ... ``` 코드블록
+           const cb = raw.match(/```(?:json|JSON)?\s*([\s\S]*?)\s*```/);
+           if (cb) { try { return JSON.parse(cb[1]); } catch {} }
+           // 2차: 첫 { ~ 마지막 } 추출
+           const fb = raw.indexOf('{');
+           const lb = raw.lastIndexOf('}');
+           if (fb !== -1 && lb > fb) {
+             const slice = raw.substring(fb, lb + 1);
+             try { return JSON.parse(slice); } catch {}
+             // 3차: 제어문자/trailing comma 수정
+             try {
+               const fixed = slice.replace(/[\x00-\x1f]+/g, ' ').replace(/,\s*([}\]])/g, '$1');
+               return JSON.parse(fixed);
+             } catch {}
+             // 4차: 닫는 따옴표 추가 + trailing comma 정리
+             try {
+               let fixed = slice.replace(/[\x00-\x1f]+/g, ' ').replace(/,\s*([}\]])/g, '$1');
+               // 홀수 개 따옴표면 끝에 보충
+               const quoteCount = (fixed.match(/(?<!\\)"/g) || []).length;
+               if (quoteCount % 2 === 1) fixed += '"';
+               return JSON.parse(fixed);
+             } catch {}
+           }
+           // 5차: 응답이 잘려서 닫는 괄호 부족할 때 - 첫 { 부터 자동 균형 맞추기
+           if (fb !== -1) {
+             let body = raw.substring(fb).replace(/[\x00-\x1f]+/g, ' ');
+             // trailing comma 정리
+             body = body.replace(/,\s*([}\]])/g, '$1');
+             // 끝부분 미완성 토큰 잘라내기 (예: "popularKeywords": ["a", "b)
+             // 마지막 콤마 또는 따옴표 닫힘 위치까지만 사용
+             let cnt = { '{': 0, '}': 0, '[': 0, ']': 0 };
+             let inStr = false, esc = false, lastSafe = -1;
+             for (let i = 0; i < body.length; i++) {
+               const ch = body[i];
+               if (esc) { esc = false; continue; }
+               if (ch === '\\') { esc = true; continue; }
+               if (ch === '"') { inStr = !inStr; continue; }
+               if (inStr) continue;
+               if (ch === '{' || ch === '[') cnt[ch]++;
+               else if (ch === '}' || ch === ']') {
+                 cnt[ch]++;
+                 if (cnt['{'] === cnt['}'] && cnt['['] === cnt[']']) lastSafe = i;
+               } else if (ch === ',' && cnt['{'] - cnt['}'] === 1 && cnt['['] === cnt[']']) {
+                 lastSafe = i; // 최상위 객체 안의 콤마 위치
+               }
+             }
+             // 잘린 문자열 안이면 따옴표 닫기
+             if (inStr) body += '"';
+             // 부족한 ] / } 자동 보충
+             const needBracket = cnt['['] - cnt[']'];
+             const needBrace = cnt['{'] - cnt['}'];
+             // 잘린 곳 정리: 마지막 안전한 위치 이후가 망가진 토큰일 수 있으면 자르기
+             if (lastSafe > 0 && needBrace > 0) {
+               body = body.substring(0, lastSafe + 1);
+             }
+             // 끝의 trailing comma 다시 정리
+             body = body.replace(/,\s*$/, '');
+             body += ']'.repeat(Math.max(0, cnt['['] - cnt[']']));
+             body += '}'.repeat(Math.max(0, cnt['{'] - cnt['}']));
+             try { return JSON.parse(body); } catch {}
+           }
+           // 6차: 정규식으로 개별 필드 추출 (마지막 수단 - 부분 객체 반환)
+           try {
+             const partial = {};
+             // 문자열 필드 (summary, instagramPosts, targetMatch)
+             const strFields = ['summary', 'instagramPosts', 'targetMatch'];
+             for (const f of strFields) {
+               const m = raw.match(new RegExp('"' + f + '"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"'));
+               if (m) partial[f] = m[1].replace(/\\"/g, '"').replace(/\\n/g, ' ');
+             }
+             // 단순 문자열 배열: popularKeywords, negativeKeywords
+             const arrFields = ['popularKeywords', 'negativeKeywords'];
+             for (const f of arrFields) {
+               const m = raw.match(new RegExp('"' + f + '"\\s*:\\s*\\[([^\\]]*)\\]'));
+               if (m) {
+                 partial[f] = m[1].split(',').map(s => s.trim().replace(/^"|"$/g, '').replace(/\\"/g, '"')).filter(Boolean);
+               }
+             }
+             // sentiment 객체 (legacy)
+             const sentM = raw.match(/"sentiment"\s*:\s*\{([^}]*)\}/);
+             if (sentM) {
+               try { partial.sentiment = JSON.parse('{' + sentM[1] + '}'); } catch {}
+             }
+             if (Object.keys(partial).length > 0) return partial;
+           } catch {}
+           // 7차: JSON 완전 실패 - 자유 텍스트에서 키워드/요약 추출
+           try {
+             const partial = {};
+             // summary: 첫 문단 60~100자
+             const firstPara = raw
+               .replace(/```[\s\S]*?```/g, ' ')
+               .replace(/[#*`>\-]/g, ' ')
+               .split(/\n\s*\n|\.\s+/)
+               .map(s => s.trim())
+               .find(s => s.length >= 30 && /[가-힣]/.test(s));
+             if (firstPara) partial.summary = firstPara.slice(0, 100);
+             // popularKeywords: 한글 4~10자 명사구 추출 (목록/불릿/콤마/따옴표 안)
+             const kwSet = new Set();
+             // 1) 따옴표/괄호 안 한글
+             const quoted = raw.match(/["'「『]([가-힣\s]{2,15})["'」』]/g) || [];
+             for (const q of quoted) {
+               const t = q.replace(/["'「『」』]/g, '').trim();
+               if (t.length >= 4 && t.length <= 12) kwSet.add(t);
+             }
+             // 2) 불릿/번호 목록 항목
+             const bullets = raw.match(/(?:^|\n)\s*(?:[-*•]|\d+[.)])\s*([가-힣][가-힣\s]{2,14})/g) || [];
+             for (const b of bullets) {
+               const t = b.replace(/(?:^|\n)\s*(?:[-*•]|\d+[.)])\s*/, '').trim();
+               if (t.length >= 4 && t.length <= 12) kwSet.add(t);
+             }
+             // 3) 콤마/슬래시 구분 한글 단어
+             const commaList = raw.match(/[가-힣]{2,12}(?:\s*[,/、]\s*[가-힣]{2,12}){2,}/g) || [];
+             for (const list of commaList) {
+               for (const w of list.split(/\s*[,/、]\s*/)) {
+                 const t = w.trim();
+                 if (t.length >= 4 && t.length <= 12) kwSet.add(t);
+               }
+             }
+             const kws = Array.from(kwSet).slice(0, 12);
+             if (kws.length >= 3) partial.popularKeywords = kws;
+             // 나머지 필드 null 허용
+             partial.negativeKeywords = null;
+             partial.instagramPosts = null;
+             partial.targetMatch = null;
+             return Object.keys(partial).filter(k => partial[k] != null).length > 0 ? partial : null;
+           } catch {}
+           return null;
+         };
+
          try {
-           const snsJsonMatch = cleanSnsText.match(/\{[\s\S]*\}/);
-           snsTrendData = snsJsonMatch ? JSON.parse(snsJsonMatch[0]) : JSON.parse(cleanSnsText);
-           const snsContent = snsTrendData.snsTrend || snsTrendData;
-           // 깨진 키워드 교체 + 블랙리스트 필터
+           // [디버그] 응답 원문 항상 출력 (파싱 성공해도)
+           console.log('[SNS 트렌드 응답 원문] 길이:', snsText.length);
+           console.log('[SNS 트렌드 응답 원문] 전체:', snsText);
+           // 1순위: @구분자 패턴 (옵션 F)
+           let parsed = extractSnsTrendByDelimiter(snsText);
+           // 2순위: JSON 패턴 (호환)
+           if (!parsed) parsed = extractSnsJson(snsText);
+           if (!parsed) {
+             console.log('[SNS 트렌드 디버그] 응답 길이:', snsText.length);
+             console.log('[SNS 트렌드 디버그] 응답 끝 300자:', snsText.slice(-300));
+             throw new Error('parse failed');
+           }
+           const snsContent = parsed.snsTrend || parsed;
+           // 깨진 키워드 교체 + 블랙리스트 필터 (카페 무관 키워드 차단)
            const _brokenMap = { '슠규오픈': '신규오픈' };
-           const _kwBlacklist = ['하드웨어', '소프트웨어', '전자제품', '컴퓨터'];
+           // [v14] 메타 단어 + 흔한 일반론 차단
+           const _kwBlacklist = [
+             // 메타 단어
+             '카페창업', '핫플레이스', '핫플', '인스타그램', '인스타', '배달매출', '배달',
+             '월세권', '월세', '네이버플레이스', '상권분석', '유동인구', '역세권', '주차',
+             '신규오픈', '하드웨어', '소프트웨어', '전자제품', '컴퓨터', '인테리어',
+             // 흔한 일반론
+             '브런치', '스페셜티', '프랜차이즈', '디저트', '카페', '테이크아웃',
+             '아메리카노', '라떼', '카페라떼', '분위기좋은', '분위기좋은카페',
+             '베이커리', '디카페인', '시그니처'
+           ];
            const _sanitizeKwArr = (arr) => Array.isArray(arr)
-             ? arr.map(k => { const t = typeof k === 'string' ? k : (k?.keyword || ''); return _brokenMap[t] || t; })
+             ? arr.map(k => { const t = typeof k === 'string' ? k : (k?.keyword || k?.name || ''); return _brokenMap[t] || t; })
                   .filter(k => k && !_kwBlacklist.includes(k))
              : arr;
            if (snsContent.popularKeywords) snsContent.popularKeywords = _sanitizeKwArr(snsContent.popularKeywords);
-           if (snsContent.instagramTopKeywords) snsContent.instagramTopKeywords = _sanitizeKwArr(snsContent.instagramTopKeywords);
-           if (snsContent.instagramRising) snsContent.instagramRising = _sanitizeKwArr(snsContent.instagramRising);
+           if (snsContent.negativeKeywords) snsContent.negativeKeywords = _sanitizeKwArr(snsContent.negativeKeywords);
+           // [v12.1] 메타: 어떤 타겟 주입했는지 기록 (검증용)
+           snsContent._targetSource = _topTargetLabel || null;
            collectedData.apis.snsTrend = {
-             description: 'SNS 트렌드 분석',
+             description: 'SNS 트렌드 분석 (카페 한정)',
              data: snsContent
            };
-           console.log('SNS 트렌드 분석 완료');
+           console.log('[SNS 트렌드] 파싱 성공, 타겟:', _topTargetLabel || '없음',
+             '검색의도:', (snsContent.searchIntents || []).length,
+             '인기키워드:', (snsContent.popularKeywords || []).length,
+             '주의키워드:', (snsContent.negativeKeywords || []).length);
          } catch (e) {
-           console.log('SNS 트렌드 JSON 파싱 실패, 복구 시도');
-           try {
-             const snsJsonMatch = cleanSnsText.match(/\{[\s\S]*\}/);
-             if (snsJsonMatch) {
-               let fixedSns = snsJsonMatch[0].replace(/,\s*([}\]])/g, '$1');
-               fixedSns = fixedSns.replace(/"([^"]*(?:\\.[^"]*)*)"/g, (match) => match.replace(/(?<!\\)\n/g, '\\n'));
-               snsTrendData = JSON.parse(fixedSns);
-               const snsContent = snsTrendData.snsTrend || snsTrendData;
-               const _brokenMap2 = { '슠규오픈': '신규오픈' };
-               const _kwBL2 = ['하드웨어', '소프트웨어', '전자제품', '컴퓨터'];
-               const _sanitize2 = (arr) => Array.isArray(arr)
-                 ? arr.map(k => { const t = typeof k === 'string' ? k : (k?.keyword || ''); return _brokenMap2[t] || t; })
-                      .filter(k => k && !_kwBL2.includes(k))
-                 : arr;
-               if (snsContent.popularKeywords) snsContent.popularKeywords = _sanitize2(snsContent.popularKeywords);
-               if (snsContent.instagramTopKeywords) snsContent.instagramTopKeywords = _sanitize2(snsContent.instagramTopKeywords);
-               if (snsContent.instagramRising) snsContent.instagramRising = _sanitize2(snsContent.instagramRising);
-               collectedData.apis.snsTrend = { description: 'SNS 트렌드 분석', data: snsContent };
-               console.log('SNS 트렌드 복구 파싱 성공');
-             }
-           } catch (e2) { console.log('SNS 트렌드 복구도 실패'); }
+           console.warn('[SNS 트렌드] JSON 파싱 실패:', e.message);
+           console.log('[SNS 트렌드 디버그] 응답 길이:', snsText.length);
+           console.log('[SNS 트렌드 디버그] 응답 앞 300자:', snsText.substring(0, 300));
+           console.log('[SNS 트렌드 디버그] 응답 끝 300자:', snsText.slice(-300));
          }
+       } else {
+         console.warn('[SNS 트렌드] gemini-proxy 응답 실패:', snsResponse.status);
        }
      } catch (e) {
-       console.log('SNS 트렌드 분석 실패:', e.message);
+       console.warn('[SNS 트렌드] 호출 실패:', e.message);
+     }
+
+     // ═══════════════════════════════════════════════════════════════
+     // [v22] 후기 좋은 매장 (topShops) - 별도 호출, Google Search Grounding 활용
+     // 네이버 블로그 전체 검색으로 진짜 후기 많은 매장 5곳 추출
+     // ═══════════════════════════════════════════════════════════════
+     try {
+       // [v24] 정확한 출구 매칭 X, 인근 권역으로 범위 확장
+       const _baseRegion = (query || '').replace(/\s*\d+번\s*출구.*$/, '').trim() || query;
+       const topShopsPrompt = `한국어로 답해라. Google Search로 "${_baseRegion}" 인근 카페 추천 네이버 블로그를 검색해서 자주 언급되는 인기 **개인 카페** 5곳을 알려줘.
+
+[검색 활용 - "${_baseRegion}" 권역 전체 대상]
+- "${_baseRegion} 개인 카페 추천"
+- "${_baseRegion} 작은 카페 맛집"
+- "${_baseRegion} 동네 카페 시그니처"
+- "${_baseRegion} 로컬 카페"
+
+[★ 필수 제외 - 프랜차이즈/체인/대형 브랜드 절대 금지]
+다음 브랜드는 어떤 지점이든 절대 포함 X:
+- 커피 체인: 스타벅스, 투썸플레이스, 이디야, 폴바셋, 할리스, 카페베네, 탐앤탐스, 더벤티, 메가커피, 메가MGC, 컴포즈, 빽다방, 매머드커피, 커피빈, 커피스미스, 더플레이스, 더리터, 더카페, 카페하라
+- 디저트 체인: 노티드(GFFG), 어니언, 카페노티드, 블루보틀, 라뜰리에, 파리바게뜨, 뚜레쥬르, 던킨, 크리스피크림, 설빙, 공차, 띵크커피
+- 본사가 따로 있고 매장이 5개 이상이면 모두 제외
+
+[★ 합격 기준]
+- 카페 창업자가 참고할 만한 "동네 인기 카페" 위주
+- 매장명에 "강남점/본점" 같은 단어가 있어도 OK (강남에선 작은 카페도 흔히 그렇게 씀)
+- 핵심 판단: 검색했을 때 매장이 5개 이상의 전국 체인이 아니면 합격
+- 위 프랜차이즈 리스트만 피하면 됨
+
+[★ 시그니처메뉴 합격 카테고리 - 카페 메뉴만]
+- 음료: 라떼·아메리카노·에스프레소·아인슈페너·카푸치노·드립커피·콜드브루·티·에이드·스무디
+- 디저트: 케이크·마들렌·휘낭시에·까눌레·크로플·마카롱·빙수·젤라또·푸딩·타르트
+- 베이커리: 베이글·크루아상·스콘·토스트·샌드위치·도넛
+- 브런치 가벼운 것은 OK (아보카도토스트 등)
+
+[★ 시그니처메뉴 절대 금지 - 식당 메뉴 X]
+- 파스타류: 뇨끼·스파게티·리조또·라자냐·페투치네·까르보나라
+- 식사류: 스테이크·햄버거·피자·돈까스·덮밥·샐러드(메인)·국수
+- 술류: 와인·맥주·칵테일
+
+[응답 형식 - 정확히 이 형식, 5줄]
+@SHOP1: 매장명 | 시그니처메뉴 | 한 줄 추천 이유(30자 이내)
+@SHOP2: 매장명 | 시그니처메뉴 | 한 줄 추천 이유
+@SHOP3: 매장명 | 시그니처메뉴 | 한 줄 추천 이유
+@SHOP4: 매장명 | 시그니처메뉴 | 한 줄 추천 이유
+@SHOP5: 매장명 | 시그니처메뉴 | 한 줄 추천 이유
+
+[규칙]
+- 시그니처메뉴: 구체 메뉴명 (예: "흑임자라떼", "수제 휘낭시에")
+- 매장이 식사도 같이 팔면 카페 메뉴(음료·디저트·베이커리)만 적어라
+- 추천 이유: 블로그 검색 결과에서 자주 보이는 강점 한 줄 (예: "블로그 후기 다수, 디저트 맛집", "현지 추천 多, 분위기 좋음")
+
+[★ 빈 자리 채우기 금지]
+- 매장 못 찾으면 그 줄 자체를 빼라.
+- "(정보 부족)", "(미상)", "(찾을 수 없음)", "(없음)" 같이 placeholder로 채우지 말 것.
+- 진짜 매장 1곳만 찾았으면 1줄만 작성. 0곳이면 아무 줄도 적지 마라.
+- 절대 5칸을 억지로 채우지 마라.
+
+지금 작성 (찾은 만큼만):`;
+
+       const topShopsRes = await callGeminiProxy(
+         [{ role: 'user', parts: [{ text: topShopsPrompt }] }],
+         {
+           temperature: 0.4,
+           maxOutputTokens: 4000,
+           thinkingConfig: { thinkingBudget: 0 } // Gemini 2.5 thinking 비활성화 (출력 토큰 확보)
+         },
+         AbortSignal.timeout(60000),
+         [{ google_search: {} }]
+       );
+
+       if (topShopsRes.ok) {
+         const topShopsResult = await topShopsRes.json();
+         const topShopsText = topShopsResult.candidates?.[0]?.content?.parts?.[0]?.text || '';
+         console.log('[topShops Grounded] 응답 원문 길이:', topShopsText.length);
+         console.log('[topShops Grounded] 응답 전체:', topShopsText);
+         const cleanText = topShopsText.replace(/\[\d+\]/g, '');
+         // @SHOPN: name | menu | reason 파싱
+         const shopRegex = /@SHOP\d+:\s*([^|\n]+?)\s*\|\s*([^|\n]+?)\s*\|\s*([^\n]+)/gi;
+         const topShops = [];
+         let m;
+         // [v22] 프랜차이즈/체인 블랙리스트 (이름에 포함되면 제외)
+         const FRANCHISE_BLACKLIST = [
+           // 커피 체인
+           '스타벅스', '투썸', '이디야', '폴바셋', '할리스', '카페베네', '탐앤탐스',
+           '더벤티', '메가', '메가MGC', '컴포즈', '빽다방', '매머드', '커피빈',
+           '커피스미스', '더플레이스', '더리터', '더카페', '카페하라', '엔제리너스',
+           // 디저트/베이커리 체인
+           '노티드', '어니언', '블루보틀', '라뜰리에', '파리바게뜨', '뚜레쥬르',
+           '던킨', '크리스피크림', '설빙', '공차', '띵크커피', '카페노티드',
+           // 일반 체인
+           '롯데리아', '맥도날드', '버거킹', '맘스터치'
+         ];
+         const isFranchise = (name) => {
+           const lower = name.toLowerCase();
+           return FRANCHISE_BLACKLIST.some(brand => lower.includes(brand.toLowerCase()));
+         };
+         // [v22] 카페 메뉴가 아닌 식사 메뉴 차단
+         const NON_CAFE_MENU = [
+           '뇨끼', '파스타', '스파게티', '리조또', '라자냐', '페투치네', '까르보나라',
+           '스테이크', '햄버거', '피자', '돈까스', '덮밥', '국수', '쌀국수', '비빔밥',
+           '와인', '맥주', '칵테일', '하이볼', '소주'
+         ];
+         // 메뉴 문자열에서 식사 메뉴만 골라서 제거하고 카페 메뉴만 남기기
+         const cleanMenu = (menu) => {
+           // 쉼표 기준 메뉴 분리
+           const items = menu.split(/[,，、]/).map(s => s.trim()).filter(Boolean);
+           const cafeItems = items.filter(item => {
+             return !NON_CAFE_MENU.some(bad => item.includes(bad));
+           });
+           return cafeItems.join(', ');
+         };
+         // [v24] AI placeholder 차단 (정보 부족/미상 등)
+         const isPlaceholder = (s) => {
+           if (!s) return true;
+           const lower = s.replace(/[\s()（）「」『』]/g, '').toLowerCase();
+           return /정보부족|정보없음|미상|찾을수없음|없음|unknown|n\/a|placeholder|tbd/i.test(lower);
+         };
+         while ((m = shopRegex.exec(cleanText)) !== null) {
+           const name = m[1].trim();
+           const rawMenu = m[2].trim();
+           const reason = m[3].trim();
+           if (!name || !rawMenu || name.length >= 40 || rawMenu.length >= 30) continue;
+           if (isPlaceholder(name) || isPlaceholder(rawMenu)) {
+             console.log('[topShops Grounded] placeholder 매장 제외:', name, rawMenu);
+             continue;
+           }
+           if (isFranchise(name)) {
+             console.log('[topShops Grounded] 프랜차이즈 제외:', name);
+             continue;
+           }
+           const menu = cleanMenu(rawMenu);
+           if (!menu) {
+             console.log('[topShops Grounded] 카페 메뉴 없음 (식사만)으로 제외:', name, rawMenu);
+             continue;
+           }
+           topShops.push({ name, menu, reason });
+         }
+         if (topShops.length > 0) {
+           // collectedData에 snsTrend가 없으면 만들기
+           if (!collectedData.apis.snsTrend) {
+             collectedData.apis.snsTrend = { description: 'SNS 트렌드 분석', data: {} };
+           }
+           if (!collectedData.apis.snsTrend.data) {
+             collectedData.apis.snsTrend.data = {};
+           }
+           collectedData.apis.snsTrend.data.topShops = topShops.slice(0, 5);
+           console.log('[topShops Grounded] 매장 추출:', topShops.length, '개');
+         } else {
+           console.warn('[topShops Grounded] 파싱 결과 0개. 응답 앞 300자:', topShopsText.slice(0, 300));
+         }
+       } else {
+         console.warn('[topShops Grounded] gemini-proxy 응답 실패:', topShopsRes.status);
+       }
+     } catch (e) {
+       console.warn('[topShops Grounded] 호출 실패:', e.message);
      }
 
      // ═══════════════════════════════════════════════════════════════
@@ -14545,7 +15051,6 @@ JSON으로만 응답:
          const parts = [];
          if (sns.popularKeywords?.length) parts.push(`인기키워드: ${sns.popularKeywords.slice(0,5).join(', ')}`);
          if (sns.negativeKeywords?.length) parts.push(`부정키워드: ${sns.negativeKeywords.slice(0,3).join(', ')}`);
-         if (sns.avgPrice) parts.push(`SNS 평균 1인당 금액: ${sns.avgPrice}`);
          if (sns.summary) parts.push(`요약: ${sns.summary}`);
          if (parts.length > 0) summary.push(`SNS트렌드: ${parts.join(', ')}`);
        }

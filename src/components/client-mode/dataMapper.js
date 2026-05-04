@@ -2095,56 +2095,100 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     },
   };
 
-  // ── Card 10: SNS 트렌드 ──
-  const snsData = apis.snsAnaly?.data;
-  const snsKeywords = snsData?.popularKeywords || snsData?.keywords || [];
-  const snsSentiment = snsData?.sentiment || null;
-  const snsSummary = snsData?.summary || snsData?.analysis || null;
+  // ── Card 10: SNS 트렌드 (워드클라우드 + 키워드 + 감성 + 보조 항목) ──
+  const snsTrend = apis.snsTrend?.data || {};
+  // 키워드 블랙리스트 (popularKeywords = 동네 인식 + 방문 동기만)
+  const SNS_KW_BLACKLIST = [
+    // 메타·일반론
+    '카페창업', '핫플레이스', '핫플', '인스타그램', '인스타', '배달매출', '배달',
+    '월세권', '월세', '네이버플레이스', '상권분석', '유동인구', '역세권',
+    '신규오픈', '하드웨어', '소프트웨어', '전자제품', '컴퓨터', '인테리어',
+    '브런치', '스페셜티', '프랜차이즈', '카페', '테이크아웃',
+    '아메리카노', '라떼', '카페라떼', '분위기좋은', '분위기좋은카페',
+    '베이커리', '시그니처',
+    '시그니처메뉴', '디저트맛집', '디저트', '맛집', '시그니처음료', '대표메뉴',
+    // [v23] 구체 메뉴명 차단 (popularKeywords가 아니라 매장 카드 영역)
+    '휘낭시에', '크로플', '마들렌', '까눌레', '마카롱', '쿠키', '스콘',
+    '베이글', '베이글샌드위치', '크루아상', '도넛', '치즈케이크', '티라미수',
+    '아인슈페너', '에스프레소', '드립커피', '콜드브루', '플랫화이트', '에이드',
+    '흑임자라떼', '쑥라떼', '말차라떼', '밤라떼', '인절미빙수', '딸기크레이프',
+    // [v23] 한 카페 한정 메뉴
+    '헬싱키라떼', '멜팅라떼', '해온라떼', '레몬에스프레소', '카우스앤블랙',
+    // [v23] 카페 창업과 무관한 카테고리
+    '키즈카페', '아이동반', '유아석', '수유실', '아이들놀이방', '가족카페'
+  ];
+  const _kwTextOf = (k) => (typeof k === 'string' ? k : (k?.keyword || k?.text || k?.name || ''));
+  const popularKeywords = Array.isArray(snsTrend.popularKeywords)
+    ? snsTrend.popularKeywords
+        .map(_kwTextOf)
+        .filter(t => t && !SNS_KW_BLACKLIST.includes(t))
+        .slice(0, 12)
+    : [];
+  const snsNegativeKeywords = Array.isArray(snsTrend.negativeKeywords)
+    ? snsTrend.negativeKeywords
+        .map(_kwTextOf)
+        .filter(t => t && !SNS_KW_BLACKLIST.includes(t))
+        .slice(0, 5)
+    : [];
+  // [v20] 검색 유입 경로 (searchIntents) 매핑
+  const searchIntents = Array.isArray(snsTrend.searchIntents)
+    ? snsTrend.searchIntents
+        .map(s => (typeof s === 'string' ? s : (s?.query || s?.text || '')))
+        .filter(Boolean)
+        .slice(0, 7)
+    : [];
+  // [v21] 후기 좋은 매장 (topShops) 매핑
+  const topShops = Array.isArray(snsTrend.topShops)
+    ? snsTrend.topShops
+        .map(s => ({
+          name: (s?.name || '').trim(),
+          menu: (s?.menu || '').trim(),
+          reason: (s?.reason || '').trim(),
+        }))
+        .filter(s => s.name && s.menu)
+        .slice(0, 5)
+    : [];
+  const snsSummary = snsTrend.summary || snsTrend.analysis || null;
   const blogMentions = apis.naverBlog?.total || 0;
 
-  // 나이스비즈맵 인기메뉴/뜨는메뉴
-  const nbmMenuRaw = cd.nicebizmapMenu || [];
-  const trendMenus = Array.isArray(nbmMenuRaw)
-    ? nbmMenuRaw.map(m => ({
-        name: m.MENU_NM || m.menuNm || m.name || (typeof m === 'string' ? m : ''),
-        rank: m.RANK || m.rank || 0,
-        ratio: m.RATIO || m.ratio || 0,
-      })).filter(m => m.name)
-    : [];
+  // 감성 분석 (sentiment 객체 → 긍정 % 산출)
+  const _sent = snsTrend.sentiment;
+  let sentimentPos = 72;
+  let sentimentObj = null;
+  if (_sent && typeof _sent === 'object') {
+    const p = Number(_sent.positive) || 0;
+    const n = Number(_sent.negative) || 0;
+    if (p + n > 0) sentimentPos = Math.round((p / (p + n)) * 100);
+    sentimentObj = { positive: sentimentPos, negative: 100 - sentimentPos };
+  }
+
+  // 워드클라우드용 keywords 배열 ({ text, weight } 형태)
+  const wcKeywords = popularKeywords.map((t, i) => ({
+    text: t,
+    weight: Math.max(1, popularKeywords.length - i),
+  }));
 
   const card10 = {
     title: 'SNS 트렌드',
-    subtitle: '소셜미디어 키워드 분석',
+    subtitle: '소셜미디어 카페 분위기 분석',
     date: dateStr,
-    source: trendMenus.length > 0 ? '네이버/소상공인365/나이스비즈맵' : '네이버/소상공인365',
-    bruSummary: aiData?.snsTrend?.bruSummary || null,
-    aiSummary: aiData?.snsTrend?.bruFeedback
-      || (snsKeywords.length > 0
-        ? `주요 키워드: ${(Array.isArray(snsKeywords) ? snsKeywords.slice(0, 5).join(', ') : String(snsKeywords))}.${blogMentions > 0 ? ` 블로그 언급 ${fmt(blogMentions)}건.` : ''}${trendMenus.length > 0 ? ` 인기메뉴: ${trendMenus.slice(0, 3).map(m => m.name).join(', ')}.` : ''}`
-        : trendMenus.length > 0
-          ? `인기메뉴: ${trendMenus.slice(0, 5).map(m => m.name).join(', ')}.${blogMentions > 0 ? ` 블로그 언급 ${fmt(blogMentions)}건.` : ''}`
-          : blogMentions > 0
-            ? `네이버 블로그 언급 ${fmt(blogMentions)}건.`
-            : 'SNS 트렌드 데이터를 수집 중입니다.'),
+    source: 'AI 카페 트렌드 분석',
+    // [v23] 위쪽 두 줄 요약 → 한 줄(aiSummary)만 사용. bruSummary 제거(잘림 방지)
+    bruSummary: null,
+    aiSummary: snsSummary
+      || (blogMentions > 0
+        ? `네이버 블로그 언급 ${fmt(blogMentions)}건.`
+        : '동네 카페 SNS 분위기를 정리하고 있습니다.'),
     chartType: 'wordCloud',
     metaInfo: 'SNS',
-    chartData: (() => {
-      if (Array.isArray(snsKeywords) && snsKeywords.length > 0) {
-        const kwList = snsKeywords.slice(0, 20).map((kw, i) => ({
-          text: typeof kw === 'string' ? kw : (kw.text || kw.keyword || ''),
-          weight: typeof kw === 'object' && kw.weight ? kw.weight : Math.max(100 - i * 5, 15),
-        }));
-        const posRatio = snsSentiment === '\uAE0D\uC815' ? 72 : snsSentiment === '\uBD80\uC815' ? 28 : 50;
-        return { keywords: kwList, sentimentPos: posRatio };
-      }
-      return null;
-    })(),
+    chartData: wcKeywords.length > 0 ? { keywords: wcKeywords, sentimentPos } : null,
+    // [v24] bodyData에서 summary(중복), sentiment(빈 자리), instagramPosts(의미 없음) 제거
     bodyData: {
-      keywords: snsKeywords,
-      sentiment: snsSentiment,
-      summary: snsSummary,
-      blogMentions: blogMentions,
-      trendMenus: trendMenus,
+      searchIntents,
+      keywords: popularKeywords,
+      negativeKeywords: snsNegativeKeywords,
+      topShops,
+      blogMentions: blogMentions || null,
     },
     tag: 'SNS',
   };
