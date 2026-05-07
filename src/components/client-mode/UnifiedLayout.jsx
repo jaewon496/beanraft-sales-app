@@ -9,6 +9,8 @@ import Card4IndieCafeAnalysis from './Card4IndieCafeAnalysis';
 import Card5SalesAnalysis from './Card5SalesAnalysis';
 import Card6FloatingPop from './Card6FloatingPop';
 import Card8OpportunityRisk from './Card8OpportunityRisk';
+import Card12CompetitionScore from './Card12CompetitionScore';
+import Card13TrendAnalysis from './Card13TrendAnalysis';
 import Card9DeliveryAvgPrice from './Card9DeliveryAvgPrice';
 import AINarrationEngine from './AINarrationEngine';
 import { COLORS, TIMING, BLUR, LAYOUT } from './constants';
@@ -1450,6 +1452,95 @@ const ChartWeatherImpact = ({ data }) => {
   );
 };
 
+// ─── [v25] Card 11: 월별 비·눈 캘린더 (클릭 시 일별 상세) ───
+const MonthlyCalendarGrid = ({ months }) => {
+  const [openMonth, setOpenMonth] = React.useState(null);
+  const maxRain = Math.max(...months.map(m => m.rainDays || 0), 1);
+  const maxSnow = Math.max(...months.map(m => m.snowDays || 0), 1);
+  const dayTypeIcon = { sunny: '맑', cloudy: '흐', rain: '비', snow: '눈' };
+  const dayTypeColor = {
+    sunny: 'rgba(251,191,36,0.7)',
+    cloudy: 'rgba(156,163,175,0.55)',
+    rain: 'rgba(59,130,246,0.85)',
+    snow: 'rgba(191,219,254,0.85)',
+  };
+  return (
+    <div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 6 }}>
+        {months.map((mo, mi) => {
+          const isOpen = openMonth === mi;
+          const rainStrength = (mo.rainDays || 0) / maxRain;
+          const snowStrength = (mo.snowDays || 0) / maxSnow;
+          const dominant = (mo.snowDays || 0) > 0 && snowStrength > rainStrength ? 'snow' : 'rain';
+          const bgColor = dominant === 'snow'
+            ? `rgba(191,219,254,${0.10 + snowStrength * 0.45})`
+            : `rgba(59,130,246,${0.06 + rainStrength * 0.45})`;
+          return (
+            <div
+              key={mi}
+              onClick={() => setOpenMonth(isOpen ? null : mi)}
+              style={{
+                background: bgColor,
+                border: isOpen ? '1.5px solid rgba(125,211,252,0.7)' : '1px solid rgba(255,255,255,0.05)',
+                borderRadius: 8,
+                padding: '8px 6px',
+                textAlign: 'center',
+                cursor: 'pointer',
+                transition: 'border 0.15s ease',
+              }}
+            >
+              <div style={{ fontSize: 11, color: COLORS.textMuted, marginBottom: 2 }}>{mo.month}월</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.textPrimary }}>비 {mo.rainDays}일</div>
+              {mo.snowDays > 0 && (
+                <div style={{ fontSize: 11, color: 'rgba(191,219,254,1)', marginTop: 2 }}>눈 {mo.snowDays}일</div>
+              )}
+              {mo.avgTemp != null && (
+                <div style={{ fontSize: 10, color: COLORS.textMuted, marginTop: 2 }}>{mo.avgTemp}°C</div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {openMonth != null && Array.isArray(months[openMonth]?.days) && months[openMonth].days.length > 0 && (
+        <div style={{
+          marginTop: 12,
+          padding: 12,
+          background: 'rgba(15,23,42,0.4)',
+          border: '1px solid rgba(125,211,252,0.25)',
+          borderRadius: 10,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: COLORS.textPrimary }}>{months[openMonth].month}월 일별 날씨</span>
+            <span style={{ fontSize: 12, color: COLORS.textMuted }}>
+              비 {months[openMonth].rainDays}일 · 눈 {months[openMonth].snowDays}일
+            </span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
+            {months[openMonth].days.map((d, di) => (
+              <div key={di} style={{
+                background: dayTypeColor[d.t] || 'rgba(120,120,128,0.3)',
+                borderRadius: 6,
+                padding: '6px 4px',
+                textAlign: 'center',
+                color: d.t === 'rain' || d.t === 'sunny' ? '#0f172a' : COLORS.textPrimary,
+              }}>
+                <div style={{ fontSize: 10, opacity: 0.7 }}>{d.d}일</div>
+                <div style={{ fontSize: 11, fontWeight: 700 }}>{dayTypeIcon[d.t] || '?'}</div>
+                {d.p > 0 && (
+                  <div style={{ fontSize: 9, marginTop: 2, opacity: 0.8 }}>{d.p}mm</div>
+                )}
+                {d.tmax != null && d.tmin != null && (
+                  <div style={{ fontSize: 9, marginTop: 2, opacity: 0.7 }}>{d.tmax}/{d.tmin}°</div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ─── Card 12: Gauge Meter (경쟁 분석) ───
 const ChartGaugeMeter = ({ data }) => {
   const hasData = data && data.score != null;
@@ -2158,6 +2249,8 @@ const LABEL_MAP = {
   storeChangeBars: '개폐업 이중 바',
   regionType: '상권 유형', sunnyEffect: '맑은 날 영향', cloudyEffect: '흐린 날 영향',
   rainyEffect: '비 오는 날 영향', snowEffect: '눈 오는 날 영향', description: '날씨 분석 요약',
+  yearlyDistribution: '연평균 기온·계절 극값', monthlyCalendar: '월별 비·눈 캘린더',
+  weatherSummary: '날씨 분석 요약',
   rainDays: '연 강수일', rainPct: '강수일 비율', sunnyDays: '연 맑은 날', sunnyPct: '맑은 날 비율',
   cloudyDays: '연 흐린 날', cloudyPct: '흐린 날 비율', snowDays: '연 눈 오는 날', snowPct: '눈 비율',
   heavyRainDays: '호우일(30mm+)', heatWaveDays: '폭염일(33도+)', coldWaveDays: '한파일(-12도-)',
@@ -2658,6 +2751,47 @@ const DataTable = ({ data, chartType }) => {
                   </span>
                 ))}
               </div>
+            </div>
+          );
+        }
+
+        // [v25] 연평균 기온·계절 극값 (위 차트와 중복되는 % 제거, 기온 인사이트 위주)
+        if (key === 'yearlyDistribution' && val && typeof val === 'object' && val.totalDays > 0) {
+          const yd = val;
+          const items = [
+            { label: '연평균', val: yd.avgTemp != null ? `${yd.avgTemp}°C` : '-', color: '#94a3b8' },
+            { label: '여름 최고', val: yd.summerMax != null ? `${yd.summerMax}°C` : '-', color: '#f59e0b' },
+            { label: '겨울 최저', val: yd.winterMin != null ? `${yd.winterMin}°C` : '-', color: '#60a5fa' },
+            { label: '강수 전국대비', val: yd.relativePosition || '-', color: '#a78bfa' },
+          ];
+          return (
+            <div key={key} style={{ padding: '10px 0', borderBottom: i < entries.length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none' }}>
+              <div style={{ fontSize: 14, color: COLORS.textMuted, marginBottom: 8 }}>{LABEL_MAP[key] || key} (최근 {yd.totalDays}일)</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                {items.map((it, ii) => (
+                  <div key={ii} style={{
+                    background: 'rgba(255,255,255,0.04)',
+                    border: '1px solid rgba(255,255,255,0.06)',
+                    borderRadius: 10,
+                    padding: '10px 8px',
+                    textAlign: 'center',
+                  }}>
+                    <div style={{ fontSize: 11, color: COLORS.textMuted, marginBottom: 4 }}>{it.label}</div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: it.color }}>{it.val}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        }
+
+        // [v25] 월별 비·눈 캘린더 (클릭 시 일별 상세 펼침)
+        if (key === 'monthlyCalendar' && Array.isArray(val) && val.length === 12) {
+          return (
+            <div key={key} style={{ padding: '10px 0', borderBottom: i < entries.length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none' }}>
+              <div style={{ fontSize: 14, color: COLORS.textMuted, marginBottom: 8 }}>{LABEL_MAP[key] || key}</div>
+              <div style={{ fontSize: 11, color: COLORS.textMuted, marginBottom: 8 }}>월 박스를 클릭하면 그 달의 일별 날씨가 펼쳐집니다</div>
+              <MonthlyCalendarGrid months={val} />
             </div>
           );
         }
@@ -3607,20 +3741,28 @@ export default function UnifiedLayout({
   const [mapLoadFailed, setMapLoadFailed] = useState(false);
 
   // ── Generate cards from collectedData via dataMapper (new chart types) ──
-  const mappedCards = useMemo(() => {
+  // [2026-05-05] 옛날 폴백 제거 + 에러 시 화면 배너 표시
+  const mappingResult = useMemo(() => {
     if (collectedData && resultsReady) {
       try {
         const result = mapCollectedDataToCards(collectedData, aiData || {}, radius);
-        if (result && result.length > 0) return result;
+        if (result && result.length > 0) return { cards: result, error: null };
+        return { cards: null, error: '카드 매핑 결과가 비어있음 (mapCollectedDataToCards가 빈 배열 반환)' };
       } catch (e) {
-        console.warn('[UnifiedLayout] mapCollectedDataToCards failed:', e);
+        const errMsg = e?.message || String(e);
+        const stackLine = (e?.stack || '').split('\n').slice(1, 3).join(' | ').replace(/https?:\/\/[^)]+/g, '').trim();
+        console.error('[UnifiedLayout] mapCollectedDataToCards failed:', e);
+        return { cards: null, error: `${errMsg}${stackLine ? ` (${stackLine})` : ''}` };
       }
     }
-    return null;
+    return { cards: null, error: null };
   }, [collectedData, aiData, radius, resultsReady]);
 
-  // Use mapped cards when available, otherwise fall back to prop cards
-  const cards = mappedCards || cardsProp;
+  const mappedCards = mappingResult.cards;
+  const mappingError = mappingResult.error;
+
+  // [2026-05-05] 옛날 cardsProp 폴백 경로 삭제 - 에러 발견 즉시 화면에 노출되도록 함
+  const cards = mappedCards || [];
 
   // ── Card navigation state (toss-style one-card-per-viewport) ──
   const [activeCardIndex, setActiveCardIndex] = useState(0);
@@ -4192,6 +4334,19 @@ export default function UnifiedLayout({
       data-results={resultsReady ? 'true' : 'false'}
       data-sidebar-collapsed={sidebarCollapsedAttr}
     >
+      {/* [2026-05-05] 카드 매핑 실패 시 빨간 배너 (dev 환경만) - 옛날 폴백 차단 후 에러 즉시 노출용 */}
+      {mappingError && import.meta.env.DEV && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 999999,
+          background: '#dc2626', color: '#fff',
+          padding: '12px 18px', fontSize: 13, fontWeight: 700,
+          fontFamily: 'monospace', borderBottom: '2px solid #fff',
+          boxShadow: '0 4px 16px rgba(220,38,38,0.5)',
+          whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+        }}>
+          [카드 데이터 매핑 실패] {mappingError}
+        </div>
+      )}
       {/* ── Cafe Map Modal (Stitch v2 midnight_foundry) ── */}
       <AnimatePresence>
       {showCafeMap && collectedData?.coordinates && (() => {
@@ -6120,17 +6275,21 @@ export default function UnifiedLayout({
                             onMapClick={null}
                           />
                         ) : i === 2 ? (
-                          <Card3FranchiseAnalysis card={card} />
+                          <Card13TrendAnalysis card={card} cardNumber={(i + 1) < 10 ? `0${i + 1}` : `${i + 1}`} />
                         ) : i === 3 ? (
-                          <Card4IndieCafeAnalysis card={card} />
+                          <Card3FranchiseAnalysis card={card} cardNumber={(i + 1) < 10 ? `0${i + 1}` : `${i + 1}`} />
                         ) : i === 4 ? (
-                          <Card5SalesAnalysis card={card} />
+                          <Card4IndieCafeAnalysis card={card} cardNumber={(i + 1) < 10 ? `0${i + 1}` : `${i + 1}`} />
                         ) : i === 5 ? (
-                          <Card6FloatingPop card={card} />
-                        ) : i === 7 ? (
-                          <Card8OpportunityRisk card={card} />
+                          <Card5SalesAnalysis card={card} cardNumber={(i + 1) < 10 ? `0${i + 1}` : `${i + 1}`} />
+                        ) : i === 6 ? (
+                          <Card6FloatingPop card={card} cardNumber={(i + 1) < 10 ? `0${i + 1}` : `${i + 1}`} />
                         ) : i === 8 ? (
-                          <Card9DeliveryAvgPrice card={card} />
+                          <Card8OpportunityRisk card={card} cardNumber={(i + 1) < 10 ? `0${i + 1}` : `${i + 1}`} />
+                        ) : i === 9 ? (
+                          <Card9DeliveryAvgPrice card={card} cardNumber={(i + 1) < 10 ? `0${i + 1}` : `${i + 1}`} />
+                        ) : i === 12 ? (
+                          <Card12CompetitionScore card={card} cardNumber={(i + 1) < 10 ? `0${i + 1}` : `${i + 1}`} />
                         ) : (
                         <CardTemplate
                           index={i}
@@ -6256,82 +6415,6 @@ export default function UnifiedLayout({
                                           color: COLORS.textSecondary,
                                         }}>
                                           {bd.bizmapCostSummary}
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                })()}
-                              </div>
-                            ) : card.metaInfo === '상권변화' ? (
-                              /* [v17] 카드 13: 상권 변화 + 비즈맵 점포 추이 */
-                              <div>
-                                <DataTable data={card.bodyData} chartType={card.chartType} />
-                                {(() => {
-                                  const bd = card.bodyData || {};
-                                  const chart = bd.bizmapStoreTrendChart;
-                                  const latest = bd.bizmapStoreLatest;
-                                  const first = bd.bizmapStoreFirst;
-                                  const net = bd.bizmapStoreNetChange;
-                                  const trendLabel = bd.bizmapStoreTrendLabel;
-                                  const hasChart = chart && Array.isArray(chart.values) && chart.values.length > 0;
-                                  if (!hasChart && latest == null && trendLabel == null) return null;
-                                  const netColor = (net || 0) > 0 ? '#1E3A8A' : (net || 0) < 0 ? '#F04452' : COLORS.textSecondary;
-                                  const netSign = (net || 0) > 0 ? '+' : '';
-                                  const maxVal = hasChart ? Math.max(...chart.values) : 0;
-                                  const minVal = hasChart ? Math.min(...chart.values) : 0;
-                                  const range = maxVal - minVal || 1;
-                                  return (
-                                    <div style={{ marginTop: 16 }}>
-                                      <div style={{ fontSize: 13, fontWeight: 600, color: COLORS.white, marginBottom: 10 }}>비즈맵 점포 추이</div>
-                                      {(latest != null || first != null) && (
-                                        <div style={{
-                                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                          padding: '10px 12px',
-                                          background: 'rgba(255,255,255,0.04)',
-                                          borderRadius: 10,
-                                          marginBottom: hasChart ? 10 : 0,
-                                        }}>
-                                          <span style={{ fontSize: 13, color: COLORS.textMuted }}>
-                                            {first != null && latest != null ? `${first} → ${latest}` : (latest != null ? `이번달 ${latest}개` : '')}
-                                          </span>
-                                          {net != null && (
-                                            <span style={{ fontSize: 14, fontWeight: 700, color: netColor }}>
-                                              {netSign}{net}개
-                                            </span>
-                                          )}
-                                        </div>
-                                      )}
-                                      {hasChart && (
-                                        <div style={{ marginTop: 4 }}>
-                                          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 60, padding: '4px 0' }}>
-                                            {chart.values.map((v, i) => {
-                                              const h = Math.max(4, Math.round(((v - minVal) / range) * 56) + 4);
-                                              return (
-                                                <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                                                  <div style={{ width: '100%', height: h, background: '#3182F6', borderRadius: 3, opacity: 0.8 }} />
-                                                </div>
-                                              );
-                                            })}
-                                          </div>
-                                          <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
-                                            {chart.labels.map((l, i) => (
-                                              <div key={i} style={{ flex: 1, fontSize: 10, color: COLORS.textMuted, textAlign: 'center' }}>{l}</div>
-                                            ))}
-                                          </div>
-                                        </div>
-                                      )}
-                                      {trendLabel && (
-                                        <div style={{
-                                          marginTop: 10,
-                                          padding: '8px 12px',
-                                          borderLeft: '2px solid rgba(255,255,255,0.15)',
-                                          background: 'rgba(255,255,255,0.03)',
-                                          borderRadius: 6,
-                                          fontSize: 12,
-                                          lineHeight: 1.6,
-                                          color: COLORS.textSecondary,
-                                        }}>
-                                          {trendLabel}
                                         </div>
                                       )}
                                     </div>

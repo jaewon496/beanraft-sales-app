@@ -583,6 +583,20 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
         bd.customerYrEarn = _card2CustomerYrEarn;
       }
 
+      // ── 오픈업 pop-rp (인구/거주) 데이터 → 모달 SECTION 4(가구) + SECTION 5(주거) ──
+      const popRpData = cd?.apis?.openubPopRp?.data;
+      if (popRpData) {
+        const _single = Number(popRpData.singleHouseholds) || 0;
+        const _total = Number(popRpData.totalHouseholds) || 0;
+        const _apt = Number(popRpData.aptLiveRatio) || 0;
+        if (_single > 0) bd.openubSingleHh = _single;
+        if (_total > 0) bd.openubTotalHh = _total;
+        if (_apt > 0) bd.openubAptRatio = `${_apt}%`;
+        if (Array.isArray(popRpData.hjdNames) && popRpData.hjdNames.length > 0) {
+          bd.nearbyHjd = popRpData.hjdNames.slice(0, 6);
+        }
+      }
+
       // ── 카드 2 파이프라인 보강 머지 (빈 항목만 채움, 기존 값 절대 덮어쓰지 않음) ──
       if (card2PipelineResult) {
         if (!bd.topAge && card2PipelineResult.mainAge) bd.topAge = card2PipelineResult.mainAge;
@@ -708,6 +722,9 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   // 매출 추정 from nicebizmapStats or salesEstimates
   const avgMonthlySales = cd.nicebizmapStats?.perStoreAvg || 0;
 
+  // [2026-05-06] 비즈맵 인기/급상승 메뉴는 카드 3(상권 변화 추이)으로 이관됨
+  // (개인 카페만 다루는 카드 4와 동 전체 통계인 비즈맵 메뉴의 맥락이 맞지 않아 이동)
+
   // 아메리카노 가격 범위 계산
   let franchiseMinPrice = 0;
   let franchiseMaxPrice = 0;
@@ -785,6 +802,7 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       americanoAvg: cd.cafeAvgPrices?.americano || cd.enrichedCafes?.avgAmericano || 0,
       menuAvg: cd.cafeAvgPrices?.menu || cd.enrichedCafes?.avgMenu || 0,
       dessertAvg: cd.cafeAvgPrices?.dessert || cd.enrichedCafes?.avgDessert || 0,
+      // [2026-05-06] 비즈맵 인기/급상승 메뉴는 카드 3(상권 변화 추이)으로 이관됨
       // 신규 개인 카페
       newIndieList: (cd.nearbyIndependentList || []).filter(c => c.isNewOpen).slice(0, 5).map(c => ({
         name: c.name || '',
@@ -1637,19 +1655,11 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     },
   };
 
-  // ── Card 8: 카페 기회 (LOCALDATA 동 단위 + 부동산 매물 기반 4축) ──
-  // 2026-05-01 사용자 정답지대로 재작성
-  // 2026-05-02 자리 교체 축 → 5년 전 vs 지금 축으로 교체
-  // 1) 변화: 최근 1년 신규/폐업, 평균 영업 기간
-  // 2) 생존+면적: 5년 이상 살아남은 매장, 그중 30평 이하 비중
-  // 3) 5년 전 vs 지금: 5년 전 영업 카페 수 → 지금 카페 수, 생존율
-  // 4) 임대 시세: 동/구 매물 평균 보증금/월세/면적
+  // ── Card 8: 카페 기회 [2026-05-02 원본 + 임대/개인 카페 제거 = 3축] ──
+  // 변화 / 생존+면적 / 5년 전 vs 지금
   const _findings = [];
   const _ldRows = Array.isArray(apis.firebaseLocaldata?.data?.dongRows) ? apis.firebaseLocaldata.data.dongRows : [];
-  const _ldDong = apis.firebaseLocaldata?.data?.dong || '';
-  const _articles = apis.firebaseArticles?.data || null;
 
-  // 날짜 파싱 헬퍼 (YYYY-MM-DD 또는 YYYYMMDD)
   const _parseDate = (s) => {
     if (!s) return null;
     const t = String(s).replace(/[^0-9]/g, '');
@@ -1662,256 +1672,101 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     return isNaN(dt.getTime()) ? null : dt;
   };
 
-  // 카드1 매장 목록 (선택적 매칭용)
-  const _card1Cafes = [
-    ...(collectedData?.nearbyFranchiseList || []),
-    ...(collectedData?.nearbyIndependentList || []),
-  ];
-  const _normName2 = (s) => String(s || '').replace(/\s/g, '').toLowerCase();
-  const _card1NameSet = new Set(_card1Cafes.map(c => _normName2(c.name)).filter(Boolean));
-
-  // 분류
-  const _activeRows = _ldRows.filter(r => r.status === '영업/정상' || r.status === '영업');
-  const _closedRows = _ldRows.filter(r => r.status === '폐업');
   const _now = new Date();
   const _oneYearAgo = new Date(_now.getFullYear() - 1, _now.getMonth(), _now.getDate());
   const _fiveYearAgo = new Date(_now.getFullYear() - 5, _now.getMonth(), _now.getDate());
+  const _twoYearAgo = new Date(_now.getFullYear() - 2, _now.getMonth(), _now.getDate());
 
-  // AI 한 줄 - 동네 타입 자동 분류 (비즈맵 객단가 + 개인/프랜 비중 기반)
-  const _bizmap = apis.firebaseBizmap?.data;
-  const _avgPrice = _bizmap?.avgPrice || 0;
+  const _activeRows = _ldRows.filter(r => r.status === '영업/정상' || r.status === '영업');
+  const _closedRows = _ldRows.filter(r => r.status === '폐업');
+  const _activeAll = _ldRows.filter(r => (r.status||'').includes('영업'));
+
   const FRANCHISE_KW = ['스타벅스','메가커피','이디야','투썸','컴포즈','빽다방','폴바셋','할리스','커피빈','달콤','요거프레소','카페베네','파스쿠찌','블루보틀','드롭탑','매머드','커피마야','탐앤탐스','엔젤리너스','더벤티','쥬씨','공차','테라로사','베이글뮤지엄'];
   const _isFranchise = (n) => FRANCHISE_KW.some(k => (n||'').includes(k));
-  const _activeAll = _ldRows.filter(r => (r.status||'').includes('영업'));
   const _indepActive = _activeAll.filter(r => !_isFranchise(r.name));
   const _fcActive = _activeAll.filter(r => _isFranchise(r.name));
-  const _indep5y = _indepActive.filter(r => { const d = _parseDate(r.apvDate); return d && d <= _fiveYearAgo; });
   const _indepPct = _activeAll.length > 0 ? Math.round(_indepActive.length / _activeAll.length * 100) : 0;
   const _fcPct = _activeAll.length > 0 ? Math.round(_fcActive.length / _activeAll.length * 100) : 0;
+  const _total5y = _activeAll.filter(r => { const d = _parseDate(r.apvDate); return d && d <= _fiveYearAgo; }).length;
+  const _recent2yNew = _activeAll.filter(r => { const d = _parseDate(r.apvDate); return d && d >= _twoYearAgo; }).length;
+  const _recent1yClosed = _closedRows.filter(r => { const d = _parseDate(r.closeDate); return d && d >= _oneYearAgo; }).length;
 
-  // [2026-05-02 v3] AI 한 줄 - 생존/신규/폐업 기반 5분기
-  // 추가 지표 계산 (LOCALDATA 기준)
-  const _twoYearAgo = new Date(_now.getFullYear() - 2, _now.getMonth(), _now.getDate());
-  // 전체 영업 중 5년 이상 (개인 + 프랜차이즈 합산)
-  const _total5y = _activeAll.filter(r => {
-    const d = _parseDate(r.apvDate);
-    return d && d <= _fiveYearAgo;
-  }).length;
-  // 최근 2년 내 신규 인허가 (영업 중인 것만)
-  const _recent2yNew = _activeAll.filter(r => {
-    const d = _parseDate(r.apvDate);
-    return d && d >= _twoYearAgo;
-  }).length;
-  // 최근 1년 내 폐업 (DCBYMD 기준 = closeDate)
-  const _recent1yClosed = _closedRows.filter(r => {
-    const d = _parseDate(r.closeDate);
-    return d && d >= _oneYearAgo;
-  }).length;
-
+  // AI 한 줄 (5/02 합의 문구)
   let aiSummaryLine = '';
   if (_indepPct >= 70 && _total5y > 0) {
-    aiSummaryLine = `5년 넘게 살아남은 카페 ${_total5y}곳 — 그중 ${_indepPct}%가 개인 카페`;
+    aiSummaryLine = `5년+ ${_total5y}곳 — 그중 ${_indepPct}%가 개인 카페`;
   } else if (_fcPct >= 50 && _total5y > 0) {
-    aiSummaryLine = `5년 넘게 살아남은 카페 ${_total5y}곳 — 그중 ${_fcPct}%가 프랜차이즈`;
+    aiSummaryLine = `5년+ ${_total5y}곳 — 절반이 프랜차이즈`;
   } else if (_recent2yNew > _total5y && _recent2yNew > 0) {
-    aiSummaryLine = `최근 2년 새 카페 ${_recent2yNew}곳이 새로 문 열었음`;
+    aiSummaryLine = `최근 2년 새 카페 ${_recent2yNew}곳 신규`;
   } else if (_recent1yClosed >= 10) {
-    aiSummaryLine = `최근 1년 새 ${_recent1yClosed}곳 폐업 — 5년 넘게 살아남은 곳 ${_total5y}곳`;
+    aiSummaryLine = `최근 1년 ${_recent1yClosed}곳 폐업, 5년+ ${_total5y}곳`;
   } else {
     const cafeTotal = (_indepActive?.length || 0) + (_fcActive?.length || 0);
     if (cafeTotal > 0) {
-      aiSummaryLine = `이 동네 카페 ${cafeTotal}곳 — 5년 넘게 살아남은 곳 ${_total5y || 0}곳`;
+      aiSummaryLine = `이 동네 카페 ${cafeTotal}곳 — 5년+ ${_total5y}곳`;
     }
   }
 
   // ─ 1) 변화 ─
-  let card8NewOpen = 0, card8Closed = 0, card8AvgYears = 0;
   if (_ldRows.length > 0) {
-    card8NewOpen = _activeRows.filter(r => {
+    const newOpen = _activeRows.filter(r => { const d = _parseDate(r.apvDate); return d && d >= _oneYearAgo; }).length;
+    const closed = _closedRows.filter(r => { const d = _parseDate(r.closeDate); return d && d >= _oneYearAgo; }).length;
+    const durations = _activeRows.map(r => {
       const d = _parseDate(r.apvDate);
-      return d && d >= _oneYearAgo;
-    }).length;
-    card8Closed = _closedRows.filter(r => {
-      const d = _parseDate(r.closeDate);
-      return d && d >= _oneYearAgo;
-    }).length;
-
-    // 평균 영업 기간 (폐업 매장 기준)
-    const durations = _closedRows
-      .map(r => {
-        const a = _parseDate(r.apvDate);
-        const c = _parseDate(r.closeDate);
-        if (!a || !c) return null;
-        return (c - a) / (1000 * 60 * 60 * 24 * 365);
-      })
-      .filter(v => v !== null && v > 0);
-    if (durations.length > 0) {
-      card8AvgYears = Math.round((durations.reduce((s, v) => s + v, 0) / durations.length) * 10) / 10;
-    }
-
+      return d ? (_now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24 * 365) : null;
+    }).filter(v => v != null && v > 0);
+    const avgYears = durations.length > 0 ? Math.round((durations.reduce((s, v) => s + v, 0) / durations.length) * 10) / 10 : 0;
     _findings.push({
       axis: '변화',
-      text: `최근 1년 신규 ${card8NewOpen}곳 / 폐업 ${card8Closed}곳${card8AvgYears > 0 ? ` / 평균 영업 ${card8AvgYears}년` : ''}`,
+      text: `최근 1년 신규 ${newOpen}곳 / 폐업 ${closed}곳${avgYears > 0 ? ` / 평균 영업 ${avgYears}년` : ''}`,
     });
   }
 
   // ─ 2) 생존+면적 ─
-  let card8LongTerm = 0, card8LongTermSmall = 0, card8SmallPct = 0;
-  if (_activeRows.length > 0) {
-    const longTerm = _activeRows.filter(r => {
-      const d = _parseDate(r.apvDate);
-      return d && d <= _fiveYearAgo;
-    });
-    card8LongTerm = longTerm.length;
-    const small = longTerm.filter(r => r.area > 0 && r.area <= 99); // 30평(99㎡) 이하
-    card8LongTermSmall = small.length;
-    if (card8LongTerm > 0) {
-      card8SmallPct = Math.round(card8LongTermSmall / card8LongTerm * 100);
-    }
+  if (_ldRows.length > 0) {
+    const longTerm = _activeRows.filter(r => { const d = _parseDate(r.apvDate); return d && d <= _fiveYearAgo; });
+    const small = longTerm.filter(r => (r.area || 0) > 0 && (r.area || 0) <= 99);
+    const smallPct = longTerm.length > 0 ? Math.round(small.length / longTerm.length * 100) : 0;
     _findings.push({
       axis: '생존+면적',
-      text: `5년 이상 살아남은 매장 ${card8LongTerm}곳${card8LongTerm > 0 ? ` / 30평 이하 작은 매장이 ${card8SmallPct}%` : ''}`,
+      text: `5년 이상 살아남은 매장 ${longTerm.length}곳${longTerm.length > 0 ? ` / 30평 이하 작은 매장이 ${smallPct}%` : ''}`,
     });
   }
 
   // ─ 3) 5년 전 vs 지금 ─
-  let card8PastTotal = 0, card8PastSurvivors = 0, card8CurrentTotal = 0, card8SurvivalRate = 0, card8Growth = 0;
   if (_ldRows.length > 0) {
-    const _5yAgo = new Date(_now.getFullYear() - 5, _now.getMonth(), _now.getDate());
-    // 5년 전 시점에 영업 중이던 카페: 인허가일 ≤ 5년 전 AND (폐업일 없음 OR 폐업일 ≥ 5년 전)
     const _pastActive = _ldRows.filter(r => {
       const apv = _parseDate(r.apvDate);
-      if (!apv || apv > _5yAgo) return false;
       const cls = _parseDate(r.closeDate);
-      return !cls || cls >= _5yAgo;
+      return apv && apv <= _fiveYearAgo && (!cls || cls > _fiveYearAgo);
     });
-    // 5년 전 영업 카페 중 지금도 영업 중인 곳 (status가 영업 + 폐업일 없음)
-    const _pastSurvivors = _pastActive.filter(r => {
-      const isOpen = (r.status || '').includes('영업');
-      const cls = _parseDate(r.closeDate);
-      return isOpen && !cls;
-    });
-    card8CurrentTotal = _activeAll.length;
-    card8PastTotal = _pastActive.length;
-    card8PastSurvivors = _pastSurvivors.length;
-    card8SurvivalRate = card8PastTotal > 0 ? Math.round(card8PastSurvivors / card8PastTotal * 100) : 0;
-    card8Growth = card8CurrentTotal - card8PastTotal;
-
-    let _changeText = '';
-    if (card8PastTotal > 0 && card8CurrentTotal > 0) {
-      const growthLabel = card8Growth > 0 ? `${card8Growth}곳 늘어남`
-                        : card8Growth < 0 ? `${Math.abs(card8Growth)}곳 줄어듦`
-                        : '동일';
-      _changeText = `5년 전 카페 ${card8PastTotal}곳 → 지금 ${card8CurrentTotal}곳 (${growthLabel}). 5년 전 매장 중 ${card8PastSurvivors}곳이 아직 영업 중 (생존율 ${card8SurvivalRate}%)`;
-    } else if (card8CurrentTotal > 0) {
-      _changeText = `5년 전 데이터 부족. 지금 영업 중인 카페 ${card8CurrentTotal}곳`;
-    }
-
-    if (_changeText) {
-      _findings.push({ axis: '5년 전 vs 지금', text: _changeText });
-    }
-  }
-
-  // ─ 4) 임대 시세 (Firebase articles 매물 우선 + R-ONE 폴백) ─
-  let card8RentCount = 0, card8AvgDeposit = 0, card8AvgRent = 0, card8AvgArea = 0;
-  let card8RentText = null;
-  if (_articles && Array.isArray(_articles.items) && _articles.items.length >= 5) {
-    const items = _articles.items;
-    card8RentCount = items.length;
-    const depList = items.map(a => parseFloat(a.deposit) || 0).filter(v => v > 0);
-    const rentList = items.map(a => parseFloat(a.monthlyRent) || 0).filter(v => v > 0);
-    const areaList = items.map(a => parseFloat(a.area) || 0).filter(v => v > 0);
-    if (depList.length > 0) card8AvgDeposit = Math.round(depList.reduce((s, v) => s + v, 0) / depList.length);
-    if (rentList.length > 0) card8AvgRent = Math.round(rentList.reduce((s, v) => s + v, 0) / rentList.length);
-    if (areaList.length > 0) card8AvgArea = Math.round((areaList.reduce((s, v) => s + v, 0) / areaList.length) / 3.3 * 10) / 10;
-    let text = `매물 ${card8RentCount}건`;
-    if (card8AvgDeposit > 0) text += ` / 평균 보증금 ${card8AvgDeposit.toLocaleString()}만원`;
-    if (card8AvgRent > 0) text += ` / 평균 월세 ${card8AvgRent.toLocaleString()}만원`;
-    if (card8AvgArea > 0) text += ` / 평균 ${card8AvgArea}평`;
-    card8RentText = text;
-  } else {
-    // [폴백] 매물 5건 미만 → R-ONE 한국부동산원 임대료 사용
-    const fbRent = apis.firebaseRent?.data?.summary;
-    const roneRent = Array.isArray(apis.rone?.data) ? apis.rone.data : null;
-    if (fbRent && (fbRent.avgMonthlyRent > 0 || fbRent.avgDeposit > 0)) {
-      const parts = [];
-      if (fbRent.avgMonthlyRent > 0) parts.push(`평균 월세 ${Math.round(fbRent.avgMonthlyRent).toLocaleString()}만원`);
-      if (fbRent.avgDeposit > 0) parts.push(`평균 보증금 ${Math.round(fbRent.avgDeposit).toLocaleString()}만원`);
-      if (fbRent.medianMonthly > 0 && fbRent.medianMonthly !== fbRent.avgMonthlyRent) {
-        parts.push(`중위 월세 ${Math.round(fbRent.medianMonthly).toLocaleString()}만원`);
-      }
-      card8RentText = parts.join(' / ');
-    } else if (roneRent && roneRent.length > 0) {
-      const avgRent = roneRent.reduce((s, r) => s + (parseFloat(r.RENT_FEE) || 0), 0) / roneRent.length;
-      const avgDep = roneRent.reduce((s, r) => s + (parseFloat(r.GRFE) || 0), 0) / roneRent.length;
-      const parts = [];
-      if (avgRent > 0) parts.push(`평균 임대료 ${Math.round(avgRent * 10) / 10}만원/평`);
-      if (avgDep > 0) parts.push(`평균 보증금 ${Math.round(avgDep * 10) / 10}만원/평`);
-      card8RentText = parts.join(' / ') + ` (R-ONE ${roneRent.length}건)`;
-    }
-  }
-  _findings.push({
-    axis: '임대 시세',
-    text: card8RentText || '임대 시세 데이터 수집 중',
-  });
-
-  // ─ 5) 개인 카페 (티 안 나는 한 방울) ─
-  if (_activeAll.length > 0 && _indepActive.length > 0) {
-    const parts = [];
-    parts.push(`${_indepActive.length}곳(${_indepPct}%)`);
-    if (_indep5y.length > 0) parts.push(`5년+ ${_indep5y.length}곳`);
-    if (_avgPrice > 0) {
-      const fcAvg = 4500;
-      const diff = Math.round((_avgPrice / fcAvg - 1) * 100);
-      parts.push(`평균 객단가 ${_avgPrice.toLocaleString()}원 (프랜차이즈 평균 ${fcAvg.toLocaleString()}원 대비 ${diff > 0 ? '+' : ''}${diff}%)`);
-    }
-    _findings.push({ axis: '개인 카페', text: parts.join(' / ') });
-  }
-
-  // 데이터 전체 부재 시 안내
-  if (_findings.length === 0) {
-    _findings.push({ axis: '안내', text: '이 지역 데이터 수집 중입니다.' });
-  }
-
-  // 카드1 매칭 통계 (참고용)
-  let card8Card1Matched = 0;
-  if (_card1NameSet.size > 0 && _activeRows.length > 0) {
-    for (const r of _activeRows) {
-      if (_card1NameSet.has(_normName2(r.name))) card8Card1Matched++;
+    const _pastSurvivors = _pastActive.filter(r => !_parseDate(r.closeDate));
+    const _currentTotal = _activeAll.length;
+    const _pastTotal = _pastActive.length;
+    const _survivors = _pastSurvivors.length;
+    const _survivalRate = _pastTotal > 0 ? Math.round(_survivors / _pastTotal * 100) : 0;
+    const _growth = _currentTotal - _pastTotal;
+    if (_pastTotal > 0) {
+      _findings.push({
+        axis: '5년 전 vs 지금',
+        text: `5년 전 카페 ${_pastTotal}곳 → 지금 ${_currentTotal}곳 (${_growth >= 0 ? '+' : ''}${_growth}곳${_growth >= 0 ? ' 늘어남' : ' 줄어듦'}) / 5년 전 매장 중 ${_survivors}곳 아직 영업 중 (생존율 ${_survivalRate}%)`,
+      });
     }
   }
 
   const card8 = {
     title: '카페 기회',
-    subtitle: _ldDong ? `${_ldDong} 개인 카페 살펴보기` : '이 동네 개인 카페 데이터 발견',
+    subtitle: '이 동네 카페 데이터',
     date: dateStr,
-    source: 'LOCALDATA + 부동산 매물',
+    source: '전국 지방행정인허가데이터',
     bruSummary: null,
     aiSummary: aiSummaryLine || null,
+    chartType: null,
     metaInfo: '카페 기회',
+    chartData: null,
     bodyData: {
-      findings: _findings.slice(0, 5),
-      // 원시 통계 (UI에서 차트/배지 등 활용 가능)
-      stats: {
-        ldDong: _ldDong,
-        ldTotalRows: _ldRows.length,
-        newOpen1y: card8NewOpen,
-        closed1y: card8Closed,
-        avgYears: card8AvgYears,
-        longTerm5y: card8LongTerm,
-        longTermSmall: card8LongTermSmall,
-        smallPct: card8SmallPct,
-        pastTotal5y: card8PastTotal,
-        pastSurvivors5y: card8PastSurvivors,
-        currentTotal: card8CurrentTotal,
-        survivalRate5y: card8SurvivalRate,
-        growth5y: card8Growth,
-        rentCount: card8RentCount,
-        avgDeposit: card8AvgDeposit,
-        avgRent: card8AvgRent,
-        avgAreaPyeong: card8AvgArea,
-        card1Matched: card8Card1Matched,
-      },
+      findings: _findings,
     },
     tag: '카페 기회',
   };
@@ -2228,32 +2083,69 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
         : '\uB0A0\uC528\uC5D0 \uB530\uB978 \uB9E4\uCD9C \uBCC0\uB3D9\uC5D0 \uB300\uBE44\uD55C \uC2DC\uC98C\uBCC4 \uBA54\uB274 \uC804\uB7B5\uC744 \uC138\uC6CC\uBCF4\uC138\uC694.';
       if (!bruFb) bruFb = desc;
     }
-    const _s = (v) => (v != null ? v : 0);
+    // [v25] Open-Meteo 1\uB144 \uC77C\uBCC4 \uB370\uC774\uD130 \uC6B0\uC120 \uC0AC\uC6A9 (\uC2E4\uC81C \uC77C\uC218 \uAE30\uBC18)
+    const wstats = cd?.apis?.weatherStats?.data;
+    const _round1 = (v) => Math.round(v * 10) / 10;
+    let chartItems;
+    let yearlyDistribution = null;
+    let monthlyCalendar = null;
+    if (wstats && wstats.totalDays > 0) {
+      const t = wstats.totalDays;
+      chartItems = [
+        { label: '\uB9D1\uC74C', icon: 'sun', value: wstats.sunnyDays, unit: '\uC77C' },
+        { label: '\uD750\uB9BC', icon: 'cloud', value: wstats.cloudyDays, unit: '\uC77C' },
+        { label: '\uBE44', icon: 'rain', value: wstats.rainDays, unit: '\uC77C' },
+        { label: '\uB208', icon: 'snow', value: wstats.snowDays, unit: '\uC77C' },
+      ];
+      yearlyDistribution = {
+        totalDays: t,
+        sunnyPct: _round1((wstats.sunnyDays / t) * 100),
+        cloudyPct: _round1((wstats.cloudyDays / t) * 100),
+        rainyPct: _round1((wstats.rainDays / t) * 100),
+        snowyPct: _round1((wstats.snowDays / t) * 100),
+        avgTemp: wstats.avgTemp,
+        winterMin: wstats.winterMinTemp,
+        summerMax: wstats.summerMaxTemp,
+        relativePosition: wstats.relativePosition,
+      };
+      monthlyCalendar = (wstats.monthlyRainDays || []).map((rd, i) => ({
+        month: i + 1,
+        rainDays: rd || 0,
+        snowDays: (wstats.monthlySnowDays || [])[i] || 0,
+        avgTemp: (wstats.monthlyAvgTemp || [])[i],
+        // [v25] 일별 상세 (클릭 시 펼침)
+        days: (wstats.monthlyDayDetails || [])[i] || [],
+      }));
+    } else {
+      chartItems = [
+        { label: '\uB9D1\uC74C', icon: 'sun', value: 0, unit: '\uC77C' },
+        { label: '\uD750\uB9BC', icon: 'cloud', value: 0, unit: '\uC77C' },
+        { label: '\uBE44', icon: 'rain', value: 0, unit: '\uC77C' },
+        { label: '\uB208', icon: 'snow', value: 0, unit: '\uC77C' },
+      ];
+    }
+
     const _fp = (v) => v != null ? `${v > 0 ? '+' : ''}${v}%` : null;
     return {
       title: '\uB0A0\uC528 \uC601\uD5A5 \uBD84\uC11D',
-      subtitle: '\uAE30\uC0C1 \uC870\uAC74\uBCC4 \uB9E4\uCD9C \uC601\uD5A5\uB3C4',
+      subtitle: '\uC5F0\uAC04 \uAE30\uC0C1 \uBD84\uD3EC\uC640 \uB9E4\uCD9C \uC601\uD5A5',
       date: dateStr,
       bruSummary: wi?.bruSummary || null,
       chartType: 'weatherImpact',
-      chartData: {
-        items: [
-          { label: '\uB9D1\uC74C', icon: 'sun', value: _s(sV) },
-          { label: '\uD750\uB9BC', icon: 'cloud', value: _s(cV) },
-          { label: '\uBE44', icon: 'rain', value: _s(rV) },
-          { label: '\uB208', icon: 'snow', value: _s(snV) },
-        ],
-      },
+      chartData: { items: chartItems },
       bodyData: {
-        regionType: rType,
+        // [v25] \uC0C1\uAD8C \uC720\uD615 \uC81C\uAC70 (\uC0AC\uC6A9\uC790 \uC694\uCCAD)
         sunnyEffect: _fp(sV), cloudyEffect: _fp(cV),
         rainyEffect: _fp(rV), snowEffect: _fp(snV),
-        description: desc,
-        bizmapPeakHourWeather: bmHourlyTopSlot,
-        bizmapPeakHourWeatherPct: bmHourlyTopPct,
+        yearlyDistribution,
+        monthlyCalendar,
+        // [v25] \uB0A0\uC528 \uD1B5\uACC4 \uC694\uC57D (\uB9E4\uCD9C \uBE7C\uACE0 \uB0A0\uC528\uB9CC)
+        weatherSummary: yearlyDistribution
+          ? `\uCD5C\uADFC 1\uB144 ${yearlyDistribution.totalDays}\uC77C \uC911 \uBE44 ${yearlyDistribution.rainyPct}% \u00B7 \uB208 ${yearlyDistribution.snowyPct}% \u00B7 \uC5F0\uD3C9\uADE0 \uAE30\uC628 ${yearlyDistribution.avgTemp}\u00B0C. \uAC15\uC218\uC77C \uC804\uAD6D\uB300\uBE44 ${yearlyDistribution.relativePosition}.`
+          : null,
       },
       aiSummary: bruFb || '\uB0A0\uC528 \uC601\uD5A5 \uB370\uC774\uD130\uB97C \uC218\uC9D1 \uC911\uC785\uB2C8\uB2E4.',
-      source: bmHourlyTopSlot ? '\uAE30\uC0C1\uCCAD/\uC18C\uC0C1\uACF5\uC778365/\uBE44\uC988\uB9F5' : '\uAE30\uC0C1\uCCAD/\uC18C\uC0C1\uACF5\uC778365',
+      source: wstats ? 'Open-Meteo ERA5 1\uB144 + \uC18C\uC0C1\uACF5\uC778365' : (bmHourlyTopSlot ? '\uAE30\uC0C1\uCCAD/\uC18C\uC0C1\uACF5\uC778365/\uBE44\uC988\uB9F5' : '\uAE30\uC0C1\uCCAD/\uC18C\uC0C1\uACF5\uC778365'),
       tag: '\uB0A0\uC528',
     };
   })();
@@ -2401,14 +2293,732 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   if (Array.isArray(bmUpjongStoreRaw) && bmUpjongStoreRaw.length > 0) {
     const items = bmUpjongStoreRaw.slice(0, 5).map(r => {
       const name = r?.upjongCdNm || r?.upjongNm || r?.name || r?.upjong3Nm || r?.upjong || '';
+      // salePer (동 매출 비중 %) 우선, 없으면 cnt (옛날 호환)
+      const pct = parseFloat(r?.salePer ?? 0) || 0;
       const cnt = parseInt(r?.storeCnt ?? r?.storCnt ?? r?.cnt ?? r?.storeCount ?? 0, 10) || 0;
-      return { name: String(name).trim(), cnt };
+      return { name: String(name).trim(), pct, cnt };
     }).filter(x => x.name);
     if (items.length > 0) {
       const top = items[0];
-      bmTopUpjongList = items.map(x => x.cnt > 0 ? `${x.name}(${x.cnt})` : x.name).join(', ');
-      if (top?.name) competAiParts.push(`인근 점포수 TOP 업종 ${top.name}${top.cnt > 0 ? ` ${top.cnt}개` : ''}`);
+      // salePer 있으면 매출 비중 %, 없으면 업종명만 (잘못된 storeCnt는 표시 안 함)
+      bmTopUpjongList = items.map(x => x.pct > 0 ? `${x.name} ${x.pct.toFixed(1)}%` : x.name).join(', ');
+      if (top?.name) competAiParts.push(`동 매출 TOP 업종 ${top.name}${top.pct > 0 ? ` ${top.pct.toFixed(1)}%` : ''}`);
     }
+  }
+
+  // ─────────────────────────────────────────────────
+  // [2026-05-05 v3] 빈크래프트 5축 100점 점수 시스템
+  // 시장(20) + 경쟁(20) + 변화(15) + 생존(30) + 비용(15) = 100
+  // ─────────────────────────────────────────────────
+  // [축 1] 시장 매력도 (20점)
+  // 비즈맵 데이터 추출 (카드 5와 동일 패턴 - 다중 fallback)
+  const _bmAvgSalesArr = aiData?.apis?.bizMapAverageSales?.data ?? apis.bizMapAverageSales?.data;
+  let _bizmapPerStoreAvg = nbmStatsCompet?.perStoreAvg || nbmStatsCompet?.average || 0; // 만원
+  if (!_bizmapPerStoreAvg && Array.isArray(_bmAvgSalesArr) && _bmAvgSalesArr.length > 0) {
+    const midRow = _bmAvgSalesArr[1] || _bmAvgSalesArr[0];
+    _bizmapPerStoreAvg = midRow?.amount || midRow?.value || midRow?.midValue || 0;
+  }
+
+  const _bmMarketArr = aiData?.apis?.bizMapMarketSize?.data ?? apis.bizMapMarketSize?.data;
+  let _bizmapMarketSize = nbmStatsCompet?.marketSize || 0; // 만원
+  if (!_bizmapMarketSize && Array.isArray(_bmMarketArr) && _bmMarketArr.length > 0) {
+    const last = _bmMarketArr[_bmMarketArr.length - 1];
+    _bizmapMarketSize = last?.amount || last?.value || last?.marketSize || 0;
+  }
+
+  // 결제단가: bizMapUsageAndPayment 의 avgPayment (정확한 API 키)
+  const _bmUsagePay = aiData?.apis?.bizMapUsageAndPayment?.data ?? apis.bizMapUsageAndPayment?.data;
+  let _bizmapPay = nbmStatsCompet?.avgPrice || nbmStatsCompet?.avgPayment || 0;
+  if (!_bizmapPay && Array.isArray(_bmUsagePay) && _bmUsagePay.length > 0) {
+    const sortedUP = [..._bmUsagePay].sort((a, b) => String(a?.yyyymm || a?.stdYm || '').localeCompare(String(b?.yyyymm || b?.stdYm || '')));
+    const last = sortedUP[sortedUP.length - 1];
+    _bizmapPay = last?.avgPayment || last?.avgPrice || last?.price || 0;
+  }
+
+  // 상/중/하 매출 추출 (가산점 + 동 평균 매출 폴백 강화)
+  let _bmTopSales = 0, _bmMidSales = 0, _bmBtmSales = 0;
+  if (Array.isArray(_bmAvgSalesArr) && _bmAvgSalesArr.length > 0) {
+    const sortedAS = [..._bmAvgSalesArr].sort((a, b) => String(a?.yyyymm || a?.stdYm || a?.ym || '').localeCompare(String(b?.yyyymm || b?.stdYm || b?.ym || '')));
+    const latest = sortedAS[sortedAS.length - 1] || {};
+    _bmTopSales = parseFloat(latest.top20 ?? latest.topAvgSlamt ?? latest.topSlamt ?? 0) || 0;
+    _bmMidSales = parseFloat(latest.avg ?? latest.avgSlamt ?? latest.midSlamt ?? 0) || 0;
+    _bmBtmSales = parseFloat(latest.bot20 ?? latest.btmAvgSlamt ?? latest.btmSlamt ?? 0) || 0;
+    if (!_bizmapPerStoreAvg && _bmMidSales > 0) _bizmapPerStoreAvg = _bmMidSales;
+  }
+  const _dynPplCompet = apis.dynPplCmpr?.data;
+  const _dailyPopCompet = Array.isArray(_dynPplCompet) ? Math.round((_dynPplCompet[0]?.cnt || 0) / 30) : Math.round((_dynPplCompet?.cnt || 0) / 30);
+  const _potCustPerCafe = totalCafes > 0 && _dailyPopCompet > 0 ? Math.round(_dailyPopCompet / totalCafes) : 0;
+  // 1-1. 카페당 잠재 고객 (8점)
+  let _s_pot = 0;
+  if (_potCustPerCafe >= 500) _s_pot = 8;
+  else if (_potCustPerCafe >= 300) _s_pot = 6;
+  else if (_potCustPerCafe >= 150) _s_pot = 4;
+  else if (_potCustPerCafe >= 80) _s_pot = 2;
+  else if (_potCustPerCafe > 0) _s_pot = 1;
+  // 1-2. 동 평균 매출 (6점, 만원)
+  let _s_avgSales = 0;
+  if (_bizmapPerStoreAvg >= 1500) _s_avgSales = 6;
+  else if (_bizmapPerStoreAvg >= 1000) _s_avgSales = 5;
+  else if (_bizmapPerStoreAvg >= 600) _s_avgSales = 3;
+  else if (_bizmapPerStoreAvg >= 400) _s_avgSales = 2;
+  else if (_bizmapPerStoreAvg > 0) _s_avgSales = 1;
+  // 1-3. 동 시장 규모 (3점)
+  const _marketSizeBilManwon = Math.floor(_bizmapMarketSize / 10000); // 만원→억
+  let _s_marketSize = 0;
+  if (_marketSizeBilManwon >= 50) _s_marketSize = 3;
+  else if (_marketSizeBilManwon >= 20) _s_marketSize = 2;
+  else if (_marketSizeBilManwon >= 5) _s_marketSize = 1;
+  // 1-4. 객단가 (3점, 원)
+  let _s_unitPrice = 0;
+  if (_bizmapPay >= 8000) _s_unitPrice = 3;
+  else if (_bizmapPay >= 5000) _s_unitPrice = 2;
+  else if (_bizmapPay >= 3000) _s_unitPrice = 1;
+  const _scoreMarket = _s_pot + _s_avgSales + _s_marketSize + _s_unitPrice; // 0~20
+
+  // [축 2] 경쟁 환경 (20점)
+  // 2-1. 카페 밀도 (8점, 낮을수록 좋음)
+  let _s_density = 0;
+  if (totalCafes > 0 && totalCafes < 30) _s_density = 8;
+  else if (totalCafes < 80) _s_density = 6;
+  else if (totalCafes < 120) _s_density = 4;
+  else if (totalCafes < 160) _s_density = 2;
+  // 2-2. 프랜차이즈 비율 (7점, 낮을수록 좋음)
+  let _s_fcRatio = 0;
+  if (franchRatio > 0 && franchRatio < 20) _s_fcRatio = 7;
+  else if (franchRatio < 30) _s_fcRatio = 6;
+  else if (franchRatio < 50) _s_fcRatio = 4;
+  else if (franchRatio < 70) _s_fcRatio = 2;
+  // 2-3. 점포수 TOP 업종 다양성 (5점) - 비즈맵 popularUpjong 또는 markets/trend (App.jsx에서 fallback)
+  const _topUpjongCount = Array.isArray(bmUpjongStoreRaw) ? bmUpjongStoreRaw.length : 0;
+  let _s_diversity = 0;
+  if (_topUpjongCount >= 5) _s_diversity = 5;
+  else if (_topUpjongCount >= 3) _s_diversity = 3;
+  else if (_topUpjongCount >= 1) _s_diversity = 1;
+  const _scoreCompete = _s_density + _s_fcRatio + _s_diversity; // 0~20
+
+  // [축 3] 시장 변화 (15점)
+  // 3-1. 신규/폐업 비율 (5점)
+  const _newCloseRatio = recentCloseBiz > 0 ? recentOpenBiz / recentCloseBiz : (recentOpenBiz > 0 ? 99 : 0);
+  let _s_newClose = 0;
+  if (_newCloseRatio >= 2.0) _s_newClose = 5;
+  else if (_newCloseRatio >= 1.5) _s_newClose = 4;
+  else if (_newCloseRatio >= 1.0) _s_newClose = 3;
+  else if (_newCloseRatio >= 0.5) _s_newClose = 1;
+  // 3-2. 점포수 6개월 추이 (5점, 비즈맵 storeCountTrend)
+  const _bmStoreTrendSrc = aiData?.apis?.bizMapStoreCountTrend?.data ?? apis.bizMapStoreCountTrend?.data;
+  let _storeTrendChangePct = 0;
+  if (Array.isArray(_bmStoreTrendSrc) && _bmStoreTrendSrc.length >= 2) {
+    const first = _bmStoreTrendSrc[0]?.storeCount ?? _bmStoreTrendSrc[0]?.storeCnt ?? 0;
+    const last = _bmStoreTrendSrc[_bmStoreTrendSrc.length - 1]?.storeCount ?? _bmStoreTrendSrc[_bmStoreTrendSrc.length - 1]?.storeCnt ?? 0;
+    if (first > 0) _storeTrendChangePct = Math.round(((last - first) / first) * 100);
+  }
+  let _s_storeTrend = 0;
+  if (_storeTrendChangePct >= 5) _s_storeTrend = 5;
+  else if (_storeTrendChangePct >= 0) _s_storeTrend = 3;
+  else if (_storeTrendChangePct >= -5) _s_storeTrend = 2;
+  else if (_storeTrendChangePct >= -10) _s_storeTrend = 1;
+  // 3-3. 매출 변동률 (5점) - bizMapMarketSize 6개월 추이의 첫 vs 마지막 차이
+  let _bmMarketChange = nbmStatsCompet?.marketChange || nbmStatsCompet?.marketSizeChange || 0;
+  if (!_bmMarketChange && Array.isArray(_bmMarketArr) && _bmMarketArr.length >= 2) {
+    const first = _bmMarketArr[0]?.amount || _bmMarketArr[0]?.value || 0;
+    const last = _bmMarketArr[_bmMarketArr.length - 1]?.amount || _bmMarketArr[_bmMarketArr.length - 1]?.value || 0;
+    if (first > 0) _bmMarketChange = Math.round(((last - first) / first) * 100);
+  }
+  let _s_marketChange = 0;
+  if (_bmMarketChange >= 10) _s_marketChange = 5;
+  else if (_bmMarketChange >= 0) _s_marketChange = 3;
+  else if (_bmMarketChange >= -10) _s_marketChange = 2;
+  else if (_bmMarketChange >= -20) _s_marketChange = 1;
+  const _scoreChange = _s_newClose + _s_storeTrend + _s_marketChange; // 0~15
+
+  // [축 4] 생존 기반 (30점) - LOCALDATA dongRows 분석
+  const _ldRowsCompet = Array.isArray(apis.firebaseLocaldata?.data?.dongRows) ? apis.firebaseLocaldata.data.dongRows : [];
+  const _activeAllCompet = _ldRowsCompet.filter(r => (r.status || '').includes('영업'));
+  const _closedAllCompet = _ldRowsCompet.filter(r => r.status === '폐업');
+  const _parseDateCompet = (s) => {
+    if (!s) return null;
+    const t = String(s).replace(/[^0-9]/g, '');
+    if (t.length < 8) return null;
+    const y = parseInt(t.slice(0, 4));
+    const m = parseInt(t.slice(4, 6));
+    const d = parseInt(t.slice(6, 8));
+    if (!y || !m || !d) return null;
+    const dt = new Date(y, m - 1, d);
+    return isNaN(dt.getTime()) ? null : dt;
+  };
+  const _nowCompet = new Date();
+  const _fiveYearAgoCompet = new Date(_nowCompet.getFullYear() - 5, _nowCompet.getMonth(), _nowCompet.getDate());
+  const _oneYearAgoCompet = new Date(_nowCompet.getFullYear() - 1, _nowCompet.getMonth(), _nowCompet.getDate());
+  // 4-1. 5년+ 매장 비율 (12점)
+  let _fiveYrPct = 0;
+  if (_activeAllCompet.length > 0) {
+    const _fiveYrCount = _activeAllCompet.filter(r => { const d = _parseDateCompet(r.apvDate); return d && d <= _fiveYearAgoCompet; }).length;
+    _fiveYrPct = Math.round((_fiveYrCount / _activeAllCompet.length) * 100);
+  }
+  let _s_fiveYr = 0;
+  if (_fiveYrPct >= 50) _s_fiveYr = 12;
+  else if (_fiveYrPct >= 35) _s_fiveYr = 9;
+  else if (_fiveYrPct >= 25) _s_fiveYr = 6;
+  else if (_fiveYrPct >= 15) _s_fiveYr = 3;
+  // 4-2. 평균 영업기간 (12점)
+  let _avgYearsCompet = 0;
+  if (_activeAllCompet.length > 0) {
+    const _durs = _activeAllCompet.map(r => {
+      const d = _parseDateCompet(r.apvDate);
+      if (!d) return null;
+      return (_nowCompet.getTime() - d.getTime()) / (1000 * 60 * 60 * 24 * 365);
+    }).filter(v => v != null && v > 0);
+    if (_durs.length > 0) _avgYearsCompet = Math.round((_durs.reduce((s, v) => s + v, 0) / _durs.length) * 10) / 10;
+  }
+  let _s_avgYears = 0;
+  if (_avgYearsCompet >= 5) _s_avgYears = 12;
+  else if (_avgYearsCompet >= 4) _s_avgYears = 10;
+  else if (_avgYearsCompet >= 2.5) _s_avgYears = 7;
+  else if (_avgYearsCompet >= 1.5) _s_avgYears = 3;
+  // 4-3. 동 폐업률 (6점, 낮을수록 좋음)
+  let _ldClosurePct = 0;
+  const _totalLD = _activeAllCompet.length + _closedAllCompet.length;
+  if (_totalLD > 0) {
+    const _recentClose1y = _closedAllCompet.filter(r => { const d = _parseDateCompet(r.closeDate); return d && d >= _oneYearAgoCompet; }).length;
+    _ldClosurePct = Math.round((_recentClose1y / _totalLD) * 100);
+  }
+  let _s_closure = 0;
+  if (_totalLD > 0) {
+    if (_ldClosurePct < 8) _s_closure = 6;
+    else if (_ldClosurePct < 14) _s_closure = 4;
+    else if (_ldClosurePct < 20) _s_closure = 2;
+  }
+  const _scoreSurvival = _s_fiveYr + _s_avgYears + _s_closure; // 0~30
+
+  // [축 5] 비용 부담 (15점) - 비즈맵 costAnalysisList에서 ratio 추출
+  const _costList = aiData?.apis?.bizMapCostAnalysis?.data ?? apis.bizMapCostAnalysis?.data ?? [];
+  const _findCostRatio = (kw) => {
+    const r = _costList.find(x => (x.item || '').includes(kw));
+    return r?.ratio || 0;
+  };
+  // 5-1. 임차료 부담률 (8점) - 비즈맵 임차료% + firebaseRent÷매출 교차 검증
+  const _bizmapRentPct = _findCostRatio('임차') || _findCostRatio('임대') || nbmStatsCompet?.rentPct || 0;
+  const _fbRent = apis.firebaseRent?.data?.summary?.avgMonthlyRent || 0;
+  let _myCalcRentPct = 0;
+  if (_fbRent > 0 && _bizmapPerStoreAvg > 0) {
+    _myCalcRentPct = Math.round((_fbRent / _bizmapPerStoreAvg) * 1000) / 10;
+  }
+  let _avgRentPct = 0;
+  if (_bizmapRentPct > 0 && _myCalcRentPct > 0) _avgRentPct = Math.round(((_bizmapRentPct + _myCalcRentPct) / 2) * 10) / 10;
+  else _avgRentPct = _bizmapRentPct || _myCalcRentPct || 0;
+  let _s_rent = 0;
+  if (_avgRentPct > 0 && _avgRentPct < 8) _s_rent = 8;
+  else if (_avgRentPct > 0 && _avgRentPct < 12) _s_rent = 6;
+  else if (_avgRentPct > 0 && _avgRentPct < 15) _s_rent = 4;
+  else if (_avgRentPct > 0 && _avgRentPct < 20) _s_rent = 2;
+  // 5-2. 영업이익률 (7점) - 비즈맵 costAnalysisList "영업이익"
+  const _bizmapOpIncome = _findCostRatio('영업이익') || _findCostRatio('이익') || nbmStatsCompet?.opIncomePct || 0;
+  let _s_opIncome = 0;
+  if (_bizmapOpIncome >= 25) _s_opIncome = 7;
+  else if (_bizmapOpIncome >= 20) _s_opIncome = 5;
+  else if (_bizmapOpIncome >= 15) _s_opIncome = 3;
+  else if (_bizmapOpIncome >= 10) _s_opIncome = 1;
+  // [2026-05-06 추가 #2] 비즈맵 costAnalysisList: 인건비/재료비 비중 추출 + 비용 부담 양방향 가감
+  let _bizmapLaborPct = 0;
+  let _bizmapMaterialPct = 0;
+  let _s_costExtra = 0;     // -2 ~ +2 (양방향 가감, cap에서 합산)
+  try {
+    _bizmapLaborPct = _findCostRatio('인건비') || _findCostRatio('인건') || _findCostRatio('급여') || 0;
+    _bizmapMaterialPct = _findCostRatio('재료비') || _findCostRatio('식자재') || _findCostRatio('원재료') || _findCostRatio('재료') || 0;
+    const _laborMatSum = (_bizmapLaborPct || 0) + (_bizmapMaterialPct || 0);
+    // 카페 업종 적정: 인건비 20~30%, 재료비 25~35% → 합 45~65%가 정상
+    if (_laborMatSum > 0) {
+      if (_laborMatSum >= 45 && _laborMatSum <= 65) _s_costExtra = 2;
+      else if (_laborMatSum >= 40 && _laborMatSum <= 70) _s_costExtra = 1;
+      else if (_laborMatSum >= 75) _s_costExtra = -2;
+      else if (_laborMatSum >= 70) _s_costExtra = -1;
+    }
+  } catch (e) { /* 0 유지 */ }
+  const _scoreCost = Math.max(0, Math.min(15, _s_rent + _s_opIncome + _s_costExtra)); // 0~15
+
+  // ─────────────────────────────────────────────────
+  // [2026-05-06 추가 #1] 비즈맵 집객 시설 5종 → 시장 매력도 가산 (0~2점)
+  // 데이터: apis.bizMapFacilities.data { publicCnt, eduCnt, financeCnt, busstopCnt, subwayInfo }
+  // 5종 합산 → 0~2점 (관공서/교육/금융/버스/지하철)
+  // ─────────────────────────────────────────────────
+  let _ext_infraTotal = 0;
+  let _ext_infraBonus = 0;
+  let _ext_infraBreakdown = null;
+  try {
+    const _facData = aiData?.apis?.bizMapFacilities?.data ?? apis.bizMapFacilities?.data ?? null;
+    if (_facData) {
+      const _pubCnt = parseInt(_facData.publicCnt ?? 0, 10) || 0;
+      const _eduCnt = parseInt(_facData.eduCnt ?? 0, 10) || 0;
+      const _finCnt = parseInt(_facData.financeCnt ?? 0, 10) || 0;
+      const _busCnt = parseInt(_facData.busstopCnt ?? 0, 10) || 0;
+      // subwayInfo: 객체 또는 배열 형태일 수 있음 (역 있으면 1로 카운트)
+      let _subCnt = 0;
+      const _sub = _facData.subwayInfo;
+      if (Array.isArray(_sub)) _subCnt = _sub.length;
+      else if (_sub && typeof _sub === 'object') {
+        // {stationNm, lineNm} 단일이면 1, 빈 객체면 0
+        _subCnt = (Object.keys(_sub).length > 0 && (_sub.stationNm || _sub.subway || _sub.station)) ? 1 : 0;
+      } else if (typeof _sub === 'number') _subCnt = _sub;
+      _ext_infraTotal = _pubCnt + _eduCnt + _finCnt + _busCnt + _subCnt;
+      // 0~2점 환산: 합 30+ → 2점, 15+ → 1점, 그 외 0
+      if (_ext_infraTotal >= 30) _ext_infraBonus = 2;
+      else if (_ext_infraTotal >= 15) _ext_infraBonus = 1;
+      _ext_infraBreakdown = {
+        publicCnt: _pubCnt,
+        eduCnt: _eduCnt,
+        financeCnt: _finCnt,
+        busstopCnt: _busCnt,
+        subwayCnt: _subCnt,
+        total: _ext_infraTotal,
+      };
+    }
+  } catch (e) { /* 0 유지 */ }
+
+  // ─────────────────────────────────────────────────
+  // [2026-05-06 추가 #3] LOCALDATA 10년+ 장기 영업 매장 비율 (생존 기반 보조)
+  // _activeAllCompet, _parseDateCompet, _nowCompet 재사용
+  // ─────────────────────────────────────────────────
+  let _tenYrPct = 0;
+  try {
+    if (_activeAllCompet.length > 0) {
+      const _tenYearAgoCompet = new Date(_nowCompet.getFullYear() - 10, _nowCompet.getMonth(), _nowCompet.getDate());
+      const _tenYrCnt = _activeAllCompet.filter(r => {
+        const d = _parseDateCompet(r.apvDate);
+        return d && d <= _tenYearAgoCompet;
+      }).length;
+      _tenYrPct = Math.round((_tenYrCnt / _activeAllCompet.length) * 100);
+    }
+  } catch (e) { /* 0 유지 */ }
+
+  // ─────────────────────────────────────────────────
+  // [2026-05-06 추가 #4] MaxSlsBiz: 동 1순위 매출 업종 (가산점 박스 표시)
+  // ─────────────────────────────────────────────────
+  let _ext_maxSlsBizName = '';
+  let _ext_maxSlsBizDelta = 0;
+  try {
+    const _msbData = aiData?.apis?.maxSlsBiz?.data ?? apis.maxSlsBiz?.data ?? null;
+    if (_msbData) {
+      _ext_maxSlsBizName = String(_msbData.tpbizClscdNm || _msbData.upjongNm || '').trim();
+      _ext_maxSlsBizDelta = parseFloat(_msbData.mmTotSlsAmtPercent ?? 0) || 0;
+    }
+  } catch (e) { /* 빈 문자열 유지 */ }
+
+  // ─────────────────────────────────────────────────
+  // [2026-05-06 추가 #5] 비즈맵 popularMenuList + risingMenuList → 가산점 박스
+  // popularMenuList: TOP 3 인기 메뉴
+  // risingMenuList: 급상승 메뉴 (collectedData.nicebizmapMenu에 별도 저장됨)
+  // ─────────────────────────────────────────────────
+  let _ext_popularMenuTop3 = '';
+  let _ext_risingMenuTop = '';
+  try {
+    const _popularRaw = aiData?.apis?.bizMapPopularMenu?.data ?? apis.bizMapPopularMenu?.data ?? [];
+    if (Array.isArray(_popularRaw) && _popularRaw.length > 0) {
+      const _names = _popularRaw.slice(0, 3).map(m => {
+        const nm = m?.menuNm || m?.menuName || m?.name || m?.itemNm || '';
+        return String(nm).trim();
+      }).filter(Boolean);
+      if (_names.length > 0) _ext_popularMenuTop3 = _names.join(', ');
+    }
+    const _risingRaw = cd?.nicebizmapMenu ?? aiData?.nicebizmapMenu ?? [];
+    if (Array.isArray(_risingRaw) && _risingRaw.length > 0) {
+      const _rnames = _risingRaw.slice(0, 3).map(m => {
+        const nm = m?.menuNm || m?.menuName || m?.name || m?.itemNm || '';
+        return String(nm).trim();
+      }).filter(Boolean);
+      if (_rnames.length > 0) _ext_risingMenuTop = _rnames.join(', ');
+    }
+  } catch (e) { /* 빈 문자열 유지 */ }
+
+  // ─────────────────────────────────────────────────
+  // [2026-05-06] 외부 지표 가산 (창업기상도/상권지도/매출지수)
+  // 5축 점수에 외부 지표를 더해 더 정밀한 평가
+  // 데이터가 없으면 0점 처리 → 기존 점수 유지
+  // ─────────────────────────────────────────────────
+  // 검색 위치 시도 코드 추출 (dongCd 앞 2자리, 예: 11680640 → "11" = 서울)
+  // dongCd가 없으면 전국 평균(scores 배열 평균)으로 폴백
+  const _searchSidoCd = String(dong?.dongCd || cd?.dongCd || '').padStart(2, '0').slice(0, 2);
+
+  // ─────────────────────────────────────────────────
+  // 응답 구조 적응 헬퍼 (창업기상도 area 응답 정규화)
+  // 실제 응답: { overall:{ grade:"3", score:"241", percentile:"29" }, ... }
+  //   - score: 합산점수 (각 지표마다 단위·범위 다름. overall은 100~300대) — 정규화 부적합
+  //   - percentile: 0~100 백분위 순위 (낮을수록 상위) — 정규화 기준으로 사용
+  //   - grade: 1~10 등급 (낮을수록 좋음)
+  // 우리 표시 기준: 0~100 (높을수록 좋음). percentile 역수(100-percentile) 사용.
+  // 폴백 순서: percentile → grade(11-grade)*10 → score 보정
+  // ─────────────────────────────────────────────────
+  const _normalize0to100 = (obj) => {
+    if (obj == null) return 0;
+    if (typeof obj === 'number') {
+      // 단순 숫자: 100 초과면 cap, 음수면 0
+      return Math.max(0, Math.min(100, Math.round(obj)));
+    }
+    // percentile 우선 (0~100, 낮을수록 좋음 → 100-pct 변환)
+    const _pct = parseFloat(obj?.percentile);
+    if (Number.isFinite(_pct) && _pct >= 0 && _pct <= 100) {
+      return Math.round(100 - _pct);
+    }
+    // grade (1~10, 낮을수록 좋음 → (11-g)*10)
+    const _grd = parseFloat(obj?.grade);
+    if (Number.isFinite(_grd) && _grd >= 1 && _grd <= 10) {
+      return Math.round((11 - _grd) * 10);
+    }
+    // score (단위 다양 → 0~100이 아니면 cap)
+    const _sc = parseFloat(obj?.score ?? obj?.value ?? obj?.idxScore ?? 0);
+    if (Number.isFinite(_sc) && _sc > 0) {
+      return Math.max(0, Math.min(100, Math.round(_sc)));
+    }
+    return 0;
+  };
+
+  // 외부 지표 1: 창업기상도 (weather) — sbiz-proxy 응답: { crtrYm, scores: [{areaCd, areaNm, overall, competitiveness, survival, prospect, interest}, ...] }
+  // 각 지표는 { grade, score, percentile } 객체. 정규화는 percentile 우선 사용.
+  let _ext_weatherScore = 0;
+  let _ext_weatherLabel = '';
+  let _ext_weatherBonus = 0;
+  // weather 5종 점수도 같이 추출 (외부 지표 2에서 사용) — 모두 0~100 정규화 값
+  let _ext_growth = 0, _ext_stability = 0, _ext_vitality = 0, _ext_purchase = 0, _ext_operation = 0;
+  let _ext_marketMapScores = [];
+  let _wMatchedAreaC11 = null;
+  try {
+    const _wIdxC11 = apis.weatherIndex?.data;
+    let _wScoresArrC11 = null;
+    if (_wIdxC11 && Array.isArray(_wIdxC11.scores)) _wScoresArrC11 = _wIdxC11.scores;
+    else if (Array.isArray(_wIdxC11)) _wScoresArrC11 = _wIdxC11;
+    else if (apis.weatherIndex && Array.isArray(apis.weatherIndex.scores)) _wScoresArrC11 = apis.weatherIndex.scores;
+
+    if (Array.isArray(_wScoresArrC11) && _wScoresArrC11.length > 0) {
+      // 검색 시도 매칭 (areaCd로)
+      _wMatchedAreaC11 = _searchSidoCd
+        ? _wScoresArrC11.find(s => String(s?.areaCd || '').padStart(2, '0').slice(0, 2) === _searchSidoCd)
+        : null;
+      // 매칭 실패 시 첫 번째 (보통 서울) 사용
+      if (!_wMatchedAreaC11) _wMatchedAreaC11 = _wScoresArrC11[0];
+
+      if (_wMatchedAreaC11) {
+        // 종합 점수 (0~100 정규화) → 창업기상도 라벨 (맑음/구름/흐림/비)
+        const _overallNorm = _normalize0to100(_wMatchedAreaC11.overall);
+        if (_overallNorm > 0) {
+          _ext_weatherScore = Math.min(100, _overallNorm);
+          if (_ext_weatherScore >= 75) _ext_weatherLabel = '맑음';
+          else if (_ext_weatherScore >= 60) _ext_weatherLabel = '구름조금';
+          else if (_ext_weatherScore >= 45) _ext_weatherLabel = '흐림';
+          else _ext_weatherLabel = '비';
+          _ext_weatherBonus = Math.min(5, Math.round((_ext_weatherScore / 100) * 5));
+        }
+        // 5종 점수 — 각각 다른 필드에서 정규화 추출 (구매력 ≠ 종합)
+        _ext_growth    = _normalize0to100(_wMatchedAreaC11.prospect);        // 성장성 ← 전망
+        _ext_stability = _normalize0to100(_wMatchedAreaC11.survival);        // 안정성 ← 생존
+        _ext_vitality  = _normalize0to100(_wMatchedAreaC11.interest);        // 활력 ← 관심도
+        _ext_operation = _normalize0to100(_wMatchedAreaC11.competitiveness); // 영업력 ← 경쟁력
+        // 구매력: 창업기상도 자체엔 직접 항목 없음.
+        //   1순위: 비즈맵 결제단가(_bizmapPay) 정규화
+        //   2순위: simpleAnls 평균객단가
+        //   3순위: 종합 점수 절반(보수적 폴백) — 단, _ext_weatherScore와 동일값 회피
+        let _purchaseNorm = 0;
+        const _payRaw = _bizmapPay || apis.simpleAnls?.data?.avgAmt?.totAmt || 0;
+        if (_payRaw > 0) {
+          // 카페 결제단가 기준점: 4,000원=20점, 7,000원=50점, 12,000원=80점, 20,000원+=100
+          if (_payRaw >= 20000) _purchaseNorm = 100;
+          else if (_payRaw >= 12000) _purchaseNorm = 80 + Math.round(((_payRaw - 12000) / 8000) * 20);
+          else if (_payRaw >= 7000) _purchaseNorm = 50 + Math.round(((_payRaw - 7000) / 5000) * 30);
+          else if (_payRaw >= 4000) _purchaseNorm = 20 + Math.round(((_payRaw - 4000) / 3000) * 30);
+          else _purchaseNorm = Math.max(5, Math.round((_payRaw / 4000) * 20));
+        }
+        if (_purchaseNorm <= 0) {
+          // 폴백: 종합점수 - 5 (창업기상도 점수와 같지 않게 차별화)
+          _purchaseNorm = Math.max(0, _ext_weatherScore - 5);
+        }
+        _ext_purchase = Math.min(100, _purchaseNorm);
+
+        _ext_marketMapScores = [
+          { name: '성장성', score: _ext_growth },
+          { name: '안정성', score: _ext_stability },
+          { name: '활력', score: _ext_vitality },
+          { name: '구매력', score: _ext_purchase },
+          { name: '영업력', score: _ext_operation },
+        ].filter(s => s.score > 0);
+      }
+    }
+  } catch (e) { /* 0 유지 */ }
+
+  // 0~100점 → 0~3점 환산 함수 (각 축에 가산)
+  const _toBonus3 = (sc) => {
+    if (!sc || sc <= 0) return 0;
+    return Math.min(3, Math.round((sc / 100) * 3));
+  };
+  // 시장 매력도: 활력 + 구매력 합산 → 0~3점 (평균 기준)
+  const _ext_marketBonus = (_ext_vitality > 0 || _ext_purchase > 0)
+    ? _toBonus3((_ext_vitality + _ext_purchase) / 2)
+    : 0;
+  const _ext_competeBonus = _toBonus3(_ext_operation);   // 경쟁 환경: 영업력 → 0~3
+  const _ext_changeMapBonus = _toBonus3(_ext_growth);    // 시장 변화: 성장성 → 0~3
+  const _ext_survivalBonus = _toBonus3(_ext_stability);  // 생존 기반: 안정성 → 0~3
+
+  // 외부 지표 3: 매출지수 6개월 추이 (slsIndex) — 상승/하락 → +2/-2
+  // 응답: [{ crtrYm/crtrYyqu, slsIdx/slsAmt }, ...] 시계열 배열
+  // 주의: 소상공인365 slsIdex는 자주 500 에러 → 비즈맵 trendList / Firebase 매출 추이로 폴백
+  let _ext_salesIndexMonthly = [];
+  let _ext_salesTrend = 0; // -2 ~ +2
+  let _ext_salesIndexSource = '';
+  try {
+    const _slsRawSrc = apis.slsIndex?.data;
+    let _slsRawC11 = null;
+    // 실제 응답: { resultCode:'SUCCESS', data:{ flctnInfo:{...}, flctnChart:[{yyyymm,saleIdx,slsAmt,...}] } }
+    if (Array.isArray(_slsRawSrc?.flctnChart)) _slsRawC11 = _slsRawSrc.flctnChart;
+    else if (Array.isArray(_slsRawSrc?.data?.flctnChart)) _slsRawC11 = _slsRawSrc.data.flctnChart;
+    else if (Array.isArray(_slsRawSrc?.body?.flctnChart)) _slsRawC11 = _slsRawSrc.body.flctnChart;
+    else if (Array.isArray(_slsRawSrc)) _slsRawC11 = _slsRawSrc;
+    else if (Array.isArray(_slsRawSrc?.data)) _slsRawC11 = _slsRawSrc.data;
+    else if (Array.isArray(_slsRawSrc?.body?.data)) _slsRawC11 = _slsRawSrc.body.data;
+
+    if (Array.isArray(_slsRawC11) && _slsRawC11.length > 0) {
+      _ext_salesIndexMonthly = _slsRawC11.slice(-12).map(si => ({
+        period: String(si?.yyyymm || si?.crtrYm || si?.crtrYyqu || si?.stdrYm || '').replace(/\./g, ''),
+        index: parseFloat(si?.saleIdx || si?.slsIdx || si?.slsAmt || si?.idx || si?.value || 0) || 0,
+      })).filter(s => s.period && s.index > 0);
+      if (_ext_salesIndexMonthly.length > 0) _ext_salesIndexSource = 'slsIndex';
+    }
+
+    // 폴백 1: 비즈맵 매출 추이 (nbmStats trendList) — slsIndex 빈 응답 시
+    if (_ext_salesIndexMonthly.length === 0) {
+      const _bmTrendArr = apis.nbmStats?.data?.trendList
+        || apis.nicebizmap?.data?.trendList
+        || apis.nbmStats?.data?.salesTrend
+        || null;
+      if (Array.isArray(_bmTrendArr) && _bmTrendArr.length > 0) {
+        _ext_salesIndexMonthly = _bmTrendArr.slice(-12).map((it, i) => ({
+          period: String(it?.crtrYm || it?.ym || it?.month || it?.period || `M${i + 1}`),
+          index: parseFloat(it?.salesAmt || it?.amt || it?.value || it?.salesIdx || 0) || 0,
+        })).filter(s => s.period && s.index > 0);
+        if (_ext_salesIndexMonthly.length > 0) _ext_salesIndexSource = 'nbmStats';
+      }
+    }
+
+    // 폴백 2: Firebase 카페 월별 평균 매출 (cafeSales)
+    if (_ext_salesIndexMonthly.length === 0) {
+      const _fbMonthly = apis.firebaseCafeSales?.data?.monthlyAvg
+        || apis.firebaseCafeSales?.data?.monthlyTrend
+        || apis.firebaseRent?.data?.monthlySales
+        || null;
+      if (Array.isArray(_fbMonthly) && _fbMonthly.length > 0) {
+        _ext_salesIndexMonthly = _fbMonthly.slice(-6).map((it, i) => ({
+          period: String(it?.month || it?.ym || `M${i + 1}`),
+          index: parseFloat(it?.avgSales || it?.amt || it?.value || 0) || 0,
+        })).filter(s => s.index > 0);
+        if (_ext_salesIndexMonthly.length > 0) _ext_salesIndexSource = 'firebase';
+      }
+    }
+
+    // 시간순 정렬 (period 오름차순) — 응답이 역순일 수도 있음
+    if (_ext_salesIndexMonthly.length > 0) {
+      _ext_salesIndexMonthly.sort((a, b) => String(a.period).localeCompare(String(b.period)));
+
+      if (_ext_salesIndexMonthly.length >= 2) {
+        // 최근 6개월만 비교 (앞 vs 뒤)
+        const _recent6 = _ext_salesIndexMonthly.slice(-6);
+        const _firstIdx = _recent6[0]?.index || 0;
+        const _lastIdx = _recent6[_recent6.length - 1]?.index || 0;
+        if (_firstIdx > 0 && _lastIdx > 0) {
+          const _diffPct = ((_lastIdx - _firstIdx) / _firstIdx) * 100;
+          if (_diffPct >= 5) _ext_salesTrend = 2;       // 5% 이상 상승
+          else if (_diffPct >= 0) _ext_salesTrend = 1;
+          else if (_diffPct >= -5) _ext_salesTrend = -1;
+          else _ext_salesTrend = -2;                    // 5% 이상 하락
+        }
+      }
+    }
+  } catch (e) { /* 0 유지 */ }
+
+  // ─────────────────────────────────────────────────
+  // [2026-05-06] 매출 백분위 점수 (카드 5와 동일 동 단위 매출 vs 전국 카페 평균)
+  // 카드 5의 monthly (만원) = 메인 동 카페 평균 매출
+  // 비교 대상: 비즈맵 markets/chart/national 의 전국 카페 점포당 평균 매출 (만원)
+  // 폴백: 비즈맵 bizMapAverageSales 시계열 평균
+  // 폴백2: 카드 5 시군구 평균
+  // 산출: 동 매출이 전국 평균 대비 몇 % 인지 → 백분위 0~100 변환
+  // ─────────────────────────────────────────────────
+  let _natCafeAvgManwon = 0;
+  let _natCafeSrc = '';
+  try {
+    // 1순위: markets/chart/national (App.jsx에서 collectedData.apis.bmNationalChart 저장)
+    const _natRaw = apis.bmNationalChart?.data;
+    if (_natRaw && (_natRaw.latestPerStoreManwon || _natRaw.perStoreAvgManwon)) {
+      _natCafeAvgManwon = _natRaw.latestPerStoreManwon || _natRaw.perStoreAvgManwon;
+      _natCafeSrc = 'bmNational';
+    }
+    // 2순위: bizMapAverageSales 시계열 평균
+    if (!_natCafeAvgManwon && Array.isArray(_bmAvgSalesArr) && _bmAvgSalesArr.length > 0) {
+      const _avgVals = _bmAvgSalesArr
+        .map(r => parseFloat(r?.avg ?? r?.avgSlamt ?? r?.midSlamt ?? 0) || 0)
+        .filter(v => v > 0);
+      if (_avgVals.length > 0) {
+        _natCafeAvgManwon = Math.round(_avgVals.reduce((s, v) => s + v, 0) / _avgVals.length);
+        _natCafeSrc = 'bmAverageSales';
+      }
+    }
+    // 3순위: 카드 5 시군구 평균 (구 평균이지만 전국 폴백)
+    if (!_natCafeAvgManwon && card5?.bodyData?.guAvg > 0) {
+      _natCafeAvgManwon = card5.bodyData.guAvg;
+      _natCafeSrc = 'card5GuAvg';
+    }
+  } catch (e) { /* 0 유지 */ }
+
+  // 카드 5의 메인 동 카페 매출 (만원) - card5는 이미 line ~1230 에서 생성됨
+  const _dongCafeSalesManwon = (card5?.bodyData?.monthly) || 0;
+  // 백분위 산출 (동 매출 / 전국 평균 비율 → 백분위)
+  // 비율 1.0 = 전국 평균과 동일 = 백분위 50
+  // 비율 1.5+ = 상위 10% (백분위 90+)
+  // 비율 1.25 = 상위 25% (백분위 75)
+  // 비율 0.75 = 하위 30% (백분위 30)
+  // 비율 0.5 = 하위 10% (백분위 10)
+  let _salesRatio = 0; // 동매출/전국평균
+  let _salesPercentile = 0; // 0~100 (높을수록 좋음)
+  let _salesDiffPct = 0; // 전국 대비 +/- %
+  if (_dongCafeSalesManwon > 0 && _natCafeAvgManwon > 0) {
+    _salesRatio = _dongCafeSalesManwon / _natCafeAvgManwon;
+    _salesDiffPct = Math.round((_salesRatio - 1) * 100);
+    if (_salesRatio >= 1.5) _salesPercentile = 95;
+    else if (_salesRatio >= 1.3) _salesPercentile = 88;
+    else if (_salesRatio >= 1.15) _salesPercentile = 78;
+    else if (_salesRatio >= 1.05) _salesPercentile = 65;
+    else if (_salesRatio >= 0.95) _salesPercentile = 52;
+    else if (_salesRatio >= 0.85) _salesPercentile = 40;
+    else if (_salesRatio >= 0.7) _salesPercentile = 28;
+    else if (_salesRatio >= 0.5) _salesPercentile = 15;
+    else if (_salesRatio > 0) _salesPercentile = 5;
+  }
+  // 백분위 → 시장 매력도 가산점 (0~5점, 외부 지표 가산과 동일 cap 패턴)
+  // 백분위 90+ → +5, 75+ → +4, 60+ → +3, 45+ → +2, 30+ → +1, 그 외 0
+  let _ext_salesPercentileBonus = 0;
+  if (_salesPercentile >= 90) _ext_salesPercentileBonus = 5;
+  else if (_salesPercentile >= 75) _ext_salesPercentileBonus = 4;
+  else if (_salesPercentile >= 60) _ext_salesPercentileBonus = 3;
+  else if (_salesPercentile >= 45) _ext_salesPercentileBonus = 2;
+  else if (_salesPercentile >= 30) _ext_salesPercentileBonus = 1;
+  // 백분위 라벨 (Card12 화면 표시용)
+  let _salesPercentileLabel = '데이터 부족';
+  if (_salesPercentile >= 80) _salesPercentileLabel = '매우 좋음';
+  else if (_salesPercentile >= 60) _salesPercentileLabel = '좋음';
+  else if (_salesPercentile >= 40) _salesPercentileLabel = '보통';
+  else if (_salesPercentile >= 20) _salesPercentileLabel = '주의';
+  else if (_salesPercentile > 0) _salesPercentileLabel = '매우 부족';
+
+  // ─────────────────────────────────────────────────
+  // 5축 점수에 외부 지표 가산 (cap 적용 - 각 축 최대 점수 초과 금지)
+  // ─────────────────────────────────────────────────
+  // 시장 매력도(20): + 창업기상도(0~5) + 활력+구매력(0~3) + 매출백분위(0~5) + 잠재고객인프라(0~2) → cap 20
+  const _scoreMarketRaw = _scoreMarket + _ext_weatherBonus + _ext_marketBonus + _ext_salesPercentileBonus + _ext_infraBonus;
+  const _scoreMarketFinal = Math.min(20, _scoreMarketRaw);
+  // 경쟁 환경(20): + 영업력(0~3) → 최대 23 → cap 20
+  const _scoreCompeteRaw = _scoreCompete + _ext_competeBonus;
+  const _scoreCompeteFinal = Math.min(20, _scoreCompeteRaw);
+  // 시장 변화(15): + 성장성(0~3) + 매출지수추이(-2~+2) → 최대 20 → cap 15, 최소 0
+  const _scoreChangeRaw = _scoreChange + _ext_changeMapBonus + _ext_salesTrend;
+  const _scoreChangeFinal = Math.max(0, Math.min(15, _scoreChangeRaw));
+  // 생존 기반(30): + 안정성(0~3) → 최대 33 → cap 30
+  const _scoreSurvivalRaw = _scoreSurvival + _ext_survivalBonus;
+  const _scoreSurvivalFinal = Math.min(30, _scoreSurvivalRaw);
+  // 비용 부담(15): 외부 지표 영향 없음
+  const _scoreCostFinal = _scoreCost;
+
+  // 종합 점수 (0~100) + 3년 생존 가능성
+  const _competTotalScore = _scoreMarketFinal + _scoreCompeteFinal + _scoreChangeFinal + _scoreSurvivalFinal + _scoreCostFinal;
+  const _survival3yr = Math.round((_fiveYrPct * 0.5) + (Math.min(_avgYearsCompet, 5) / 5 * 30) + ((100 - _ldClosurePct) * 0.2));
+
+  // 가산점 (별도 칸) - 카페에 직접 도움되는 정보 위주
+  const _bonusItems = [];
+
+  // 1. 이 동에서 카페가 매출 몇 위 업종인지 (카페 시장 위치)
+  const _cafeSalesRank = card5?.bodyData?.cafeSalesRank;
+  if (_cafeSalesRank) _bonusItems.push({ label: '이 동 업종 중 카페 매출 순위', value: _cafeSalesRank });
+
+  // 2. 이 동 카페 매출 vs 시군구(구) 카페 평균 (만원 단위)
+  // monthly = 이 동 카페 매출 (카드 5 큰 숫자, 9,121만원), guAvg = 구 카페 평균
+  const _card5CafeMonthly = card5?.bodyData?.monthly || 0;
+  const _card5GuAvg = card5?.bodyData?.guAvg || 0;
+  if (_card5CafeMonthly > 0 && _card5GuAvg > 0) {
+    const _ratioPct = Math.round(((_card5CafeMonthly / _card5GuAvg) - 1) * 100);
+    const _vsLabel = _ratioPct >= 0 ? `+${_ratioPct}%` : `${_ratioPct}%`;
+    _bonusItems.push({
+      label: '이 동 카페 매출 vs 구 평균',
+      value: `${_card5CafeMonthly.toLocaleString()}만원 / 구 평균 ${_card5GuAvg.toLocaleString()}만원 (${_vsLabel})`,
+    });
+  }
+
+  // 3. 인접 동 카페 매출 TOP 3 (카페 잘 되는 옆 동 비교)
+  const _topFiveDongsList = card5?.bodyData?.topFiveDongsList;
+  if (Array.isArray(_topFiveDongsList) && _topFiveDongsList.length >= 2) {
+    const _topDongStr = _topFiveDongsList.slice(0, 3)
+      .filter(d => (d.amt || 0) > 0 && d.name)
+      .map(d => `${d.name} ${d.amt.toLocaleString()}만원`)
+      .join(' · ');
+    if (_topDongStr) _bonusItems.push({ label: '구 카페 매출 TOP 3 동', value: _topDongStr });
+  }
+  // bizonRnkTop10: collectedData.apis.bizonRnkTop10.data = 직접 배열 (App.jsx 11119)
+  const _hpRnkArr = apis.bizonRnkTop10?.data;
+  if (Array.isArray(_hpRnkArr) && _hpRnkArr.length > 0) {
+    // 6테마별 분류
+    const THEME_MAP = { MZ: 'MZ세대', DINT: '외국인/관광', NWB: '신상권', DLVY: '배달', BLOCN: '블록', RE: '부동산' };
+    const _themeCounts = {};
+    _hpRnkArr.forEach(r => {
+      const t = r?.bizonThemaTpcd || r?.themaTpcd || '';
+      if (t) _themeCounts[t] = (_themeCounts[t] || 0) + 1;
+    });
+    const _themeList = Object.entries(_themeCounts).map(([t, c]) => `${THEME_MAP[t] || t}(${c})`).join(', ');
+    if (_themeList) _bonusItems.push({ label: '시군구 핫플 테마', value: _themeList });
+  }
+  // 상위/하위 매출 격차 (bizMapAverageSales의 top20/bot20, 만원 단위)
+  if (_bmTopSales > 0 && _bmBtmSales > 0) {
+    const _ratio = Math.round((_bmTopSales / _bmBtmSales) * 10) / 10;
+    if (_ratio > 1) _bonusItems.push({ label: '동 안 자리별 매출 격차', value: `상위 20% ${_bmTopSales.toLocaleString()}만원 / 하위 20% ${_bmBtmSales.toLocaleString()}만원 (${_ratio}배)` });
+  }
+  const _avgPerPyeong = apis.firebaseRent?.data?.summary?.avgRentPerPyeong;
+  if (_avgPerPyeong > 0) _bonusItems.push({ label: '평당 월세', value: `${_avgPerPyeong}만원` });
+  const _rentNearbyDongs = apis.firebaseRent?.data?.nearbyDongs;
+  if (Array.isArray(_rentNearbyDongs) && _rentNearbyDongs.length >= 2) {
+    const _cur = _rentNearbyDongs[0];
+    const _nxt = _rentNearbyDongs[1];
+    if (_cur?.avgMonthlyRent && _nxt?.avgMonthlyRent) {
+      _bonusItems.push({ label: '인접 동 임대료 비교', value: `${_cur.dong} ${_cur.avgMonthlyRent}만 / ${_nxt.dong} ${_nxt.avgMonthlyRent}만` });
+    }
+  }
+  const _primaryM = apis.firebaseRent?.data?.summary?.primaryMonthly;
+  const _medianM = apis.firebaseRent?.data?.summary?.medianMonthly;
+  if (_primaryM > 0 && _medianM > 0 && _primaryM !== _medianM) {
+    _bonusItems.push({ label: '검색 동 vs 주변 평균', value: `검색 ${_primaryM}만 / 주변 ${_medianM}만` });
+  }
+
+  // [2026-05-06 추가 #4] MaxSlsBiz: 동 1순위 매출 업종
+  if (_ext_maxSlsBizName) {
+    const _deltaStr = _ext_maxSlsBizDelta !== 0
+      ? ` (전월 대비 ${_ext_maxSlsBizDelta >= 0 ? '+' : ''}${_ext_maxSlsBizDelta}%)`
+      : '';
+    _bonusItems.push({ label: '동 1순위 매출 업종', value: `${_ext_maxSlsBizName}${_deltaStr}` });
+  }
+
+  // [2026-05-06] 비즈맵 인기/급상승 메뉴는 카드 4 평균 가격 섹션으로 이동 (중복 제거)
+
+  // [2026-05-06 추가 #3] 10년+ 장기 영업 매장 비율 (생존 기반 보조)
+  if (_tenYrPct > 0) {
+    _bonusItems.push({ label: '10년+ 장기 영업 매장', value: `${_tenYrPct}%` });
+  }
+
+  // [2026-05-06 추가 #1 보조 표시] 집객 시설 5종 합산 (점수 +N 칩과 별도, 가산점 박스 참고)
+  if (_ext_infraTotal > 0 && _ext_infraBreakdown) {
+    const _ib = _ext_infraBreakdown;
+    _bonusItems.push({
+      label: '주변 집객 시설 (관공/교육/금융/버스/지하철)',
+      value: `합 ${_ib.total}개 (관공 ${_ib.publicCnt} · 교육 ${_ib.eduCnt} · 금융 ${_ib.financeCnt} · 버스 ${_ib.busstopCnt} · 지하철 ${_ib.subwayCnt})`,
+    });
+  }
+
+  // [2026-05-06 추가 #2 보조 표시] 인건비/재료비 비중 (비용 부담 detailRows 외 가산점 표시)
+  if (_bizmapLaborPct > 0 || _bizmapMaterialPct > 0) {
+    const _laborStr = _bizmapLaborPct > 0 ? `인건비 ${_bizmapLaborPct}%` : '';
+    const _matStr = _bizmapMaterialPct > 0 ? `식자재 ${_bizmapMaterialPct}%` : '';
+    const _joined = [_laborStr, _matStr].filter(Boolean).join(' · ');
+    _bonusItems.push({ label: '비용 구조 (인건비/식자재 비중)', value: _joined });
   }
 
   const card11 = {
@@ -2431,19 +3041,111 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       cafePerKm2: cafePerKm2,
       franchiseRatio: franchRatio,
       dongDensity: densityNote || '-',
-      newEntryRate: shortTermRatio > 0 ? shortTermRatio + '%' : '-',
-      stableStoreRate: longTermRatio > 0 ? longTermRatio + '%' : '-',
-      avgLifespan: avgLifespanLabel,
-      recentOpen: recentOpenBiz > 0 ? recentOpenBiz + '개' : '-',
-      recentClose: recentCloseBiz > 0 ? recentCloseBiz + '개' : '-',
-      perStoreSales: perStoreSales,
+      // [LOCALDATA fallback] 소상공인 stcarSttus/detail 응답 없을 때 LOCALDATA로 대체
+      newEntryRate: shortTermRatio > 0 ? shortTermRatio + '%'
+        : (_activeAllCompet.length > 0 && _recent2yNew > 0 ? Math.round(_recent2yNew / _activeAllCompet.length * 100) + '%' : '-'),
+      stableStoreRate: longTermRatio > 0 ? longTermRatio + '%'
+        : (_activeAllCompet.length > 0 ? (() => {
+            const _threeYrAgo = new Date(_nowCompet.getFullYear() - 3, _nowCompet.getMonth(), _nowCompet.getDate());
+            const _3yPlus = _activeAllCompet.filter(r => { const d = _parseDateCompet(r.apvDate); return d && d <= _threeYrAgo; }).length;
+            return _3yPlus > 0 ? Math.round(_3yPlus / _activeAllCompet.length * 100) + '%' : '-';
+          })() : '-'),
+      avgLifespan: avgLifespanLabel !== '-' ? avgLifespanLabel
+        : (_avgYearsCompet > 0 ? `평균 ${_avgYearsCompet}년` : '-'),
+      recentOpen: recentOpenBiz > 0 ? recentOpenBiz + '개'
+        : (_recent2yNew > 0 ? `최근 2년 ${_recent2yNew}개` : '-'),
+      recentClose: recentCloseBiz > 0 ? recentCloseBiz + '개'
+        : (_recent1yClosed > 0 ? `최근 1년 ${_recent1yClosed}개` : '-'),
+      // 점포당 매출 (perStoreSales) 제거 - 사장님 지시: 못 가져오는 정보
       marketSize: competMarketSize,
-      // 비즈맵 보강: 점포수 TOP 업종 (경쟁 업종 분석)
+      // 비즈맵 보강: 점포수 TOP 업종 (markets/trend 통로로 자동 수집)
       bizmapTopUpjongByStore: bmTopUpjongList,
+      // [2026-05-05 v3 / 2026-05-06 외부 지표 가산] 빈크래프트 5축 100점 점수 시스템
+      score: _competTotalScore,
+      scoreMarket: _scoreMarketFinal,
+      scoreCompete: _scoreCompeteFinal,
+      scoreChange: _scoreChangeFinal,
+      scoreSurvival: _scoreSurvivalFinal,
+      scoreCost: _scoreCostFinal,
+      // 기존 (외부 지표 가산 전) 점수 - 디버그/비교용
+      scoreBase: {
+        market: _scoreMarket,
+        compete: _scoreCompete,
+        change: _scoreChange,
+        survival: _scoreSurvival,
+        cost: _scoreCost,
+      },
+      // 외부 지표 가산 점수 (각 축에 더해진 값)
+      scoreExternal: {
+        market: {
+          weather: _ext_weatherBonus,
+          marketMap: _ext_marketBonus,
+          salesPercentile: _ext_salesPercentileBonus,
+          infra: _ext_infraBonus, // [2026-05-06 추가 #1] 잠재 고객 인프라 (0~2점)
+          total: _ext_weatherBonus + _ext_marketBonus + _ext_salesPercentileBonus + _ext_infraBonus,
+        },
+        compete: { operation: _ext_competeBonus, total: _ext_competeBonus },
+        change: { growth: _ext_changeMapBonus, salesTrend: _ext_salesTrend, total: _ext_changeMapBonus + _ext_salesTrend },
+        survival: { stability: _ext_survivalBonus, total: _ext_survivalBonus },
+        cost: { laborMaterial: _s_costExtra, total: _s_costExtra }, // [2026-05-06 추가 #2] 인건비+재료비 양방향
+      },
+      // [2026-05-06] 매출 백분위 점수 (동 매출 vs 전국 카페 평균)
+      salesPercentile: {
+        dongCafeSalesManwon: _dongCafeSalesManwon,
+        nationalAvgManwon: _natCafeAvgManwon,
+        nationalSource: _natCafeSrc,
+        ratio: Math.round(_salesRatio * 100) / 100,
+        diffPct: _salesDiffPct,
+        percentile: _salesPercentile,
+        label: _salesPercentileLabel,
+        bonus: _ext_salesPercentileBonus,
+      },
+      // 외부 지표 원본 값 (카드 표시용) — 모든 점수 0~100 정규화 + cap 적용
+      externalIndicators: {
+        weatherScore: Math.min(100, _ext_weatherScore || 0),
+        weatherLabel: _ext_weatherLabel,
+        marketMapScores: (_ext_marketMapScores || []).map(s => ({
+          name: s.name,
+          score: Math.min(100, Math.max(0, Math.round(s.score || 0))),
+        })),
+        salesIndexMonthly: _ext_salesIndexMonthly,
+        salesIndexSource: _ext_salesIndexSource || 'none',  // 'slsIndex' | 'nbmStats' | 'firebase' | 'none'
+        salesTrendDirection: _ext_salesTrend,
+      },
+      scoreDetails: {
+        market: { potCust: _s_pot, avgSales: _s_avgSales, marketSize: _s_marketSize, unitPrice: _s_unitPrice },
+        compete: { density: _s_density, fcRatio: _s_fcRatio, diversity: _s_diversity },
+        change: { newClose: _s_newClose, storeTrend: _s_storeTrend, marketChange: _s_marketChange },
+        survival: { fiveYr: _s_fiveYr, avgYears: _s_avgYears, closure: _s_closure },
+        cost: { rent: _s_rent, opIncome: _s_opIncome },
+      },
+      bonusItems: _bonusItems,
+      survival3yr: _survival3yr,
+      nationalAvg: 39, // 전국 평균 카페 3년 생존율 (중기부)
+      // 디버그용 raw 값
+      _raw: {
+        potCustPerCafe: _potCustPerCafe,
+        bizmapPerStoreAvg: _bizmapPerStoreAvg,
+        marketSizeBilManwon: _marketSizeBilManwon,
+        bizmapPay: _bizmapPay,
+        fiveYrPct: _fiveYrPct,
+        avgYearsCompet: _avgYearsCompet,
+        ldClosurePct: _ldClosurePct,
+        avgRentPct: _avgRentPct,
+        bizmapOpIncome: _bizmapOpIncome,
+        storeTrendChangePct: _storeTrendChangePct,
+        bmMarketChange: _bmMarketChange,
+        // [2026-05-06 신규 5개 항목 raw]
+        infraTotal: _ext_infraTotal,
+        infraBreakdown: _ext_infraBreakdown,
+        bizmapLaborPct: _bizmapLaborPct,
+        bizmapMaterialPct: _bizmapMaterialPct,
+        tenYrPct: _tenYrPct,
+      },
     },
   };
 
-  // ── Card 12: 상권 변화 추이 ──
+  // ── Card 13 (변수명 card12): 상권 변화 추이 ──
   const stcarRaw2 = apis.stcarSttus?.data;
   const stcarData = Array.isArray(stcarRaw2) ? stcarRaw2 : (Array.isArray(stcarRaw2?.data) ? stcarRaw2.data : null);
   let survivalRate1y = 0;
@@ -2451,6 +3153,7 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   let closeCnt = 0;
   let netChg = 0;
   let trendLabel = '-';
+  let _closeCountSource = 'none';
 
   let stcarLabels = [];
   let stcarValues = [];
@@ -2467,11 +3170,94 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     survivalRate1y = survivalRate1y || parseFloat(String(aiData.marketSurvival.year1 || '0').replace(/[^0-9.]/g, ''));
     openCnt = openCnt || aiData.marketSurvival.openCount || 0;
     closeCnt = aiData.marketSurvival.closeCount || 0;
+    if (closeCnt > 0) _closeCountSource = 'bizmap';
   }
+
+  // ── 우선순위 1-1: 폐업 LOCALDATA fallback ──
+  // 비즈맵 폐업이 0이면 dongRows에서 closeDate 최근 1년 이내 카페 개수로 대체
+  // 변수 정의: _ldRows는 line 1643에서 정의됨 (apis.firebaseLocaldata.data.dongRows)
+  // _parseDate, _oneYearAgo, _closedRows, _recent1yClosed 모두 line 1645~1674에서 정의됨
+  if (!closeCnt || closeCnt === 0) {
+    const _ldClosedRecent1y = (typeof _recent1yClosed === 'number' ? _recent1yClosed : 0);
+    if (_ldClosedRecent1y > 0) {
+      closeCnt = _ldClosedRecent1y;
+      _closeCountSource = 'localdata';
+    }
+  }
+
   netChg = openCnt - closeCnt;
   if (netChg > 2) trendLabel = '성장';
   else if (netChg < -2) trendLabel = '쇠퇴';
   else trendLabel = '정체';
+
+  // ── 우선순위 1-2: 5년 전 vs 지금 카페 수 비교 ──
+  // _ldRows는 line 1643에서 정의됨, _parseDate/_now/_fiveYearAgo는 line 1645~1659에서 정의됨
+  let _cafesNow = 0;
+  let _cafes5yAgo = 0;
+  let _cafes5yChangeRate = 0;
+  try {
+    const _ldRowsForCard13 = Array.isArray(apis.firebaseLocaldata?.data?.dongRows) ? apis.firebaseLocaldata.data.dongRows : [];
+    if (_ldRowsForCard13.length > 0) {
+      // 현재 운영 중인 카페 수 (영업/정상)
+      _cafesNow = _ldRowsForCard13.filter(r => (r.status || '').includes('영업')).length;
+      // 5년 전 시점에 운영 중이던 카페 수: apvDate <= 5년전 AND (영업중 OR closeDate > 5년전)
+      _cafes5yAgo = _ldRowsForCard13.filter(r => {
+        const apv = _parseDate(r.apvDate);
+        if (!apv || apv > _fiveYearAgo) return false;
+        // 영업 중이면 5년 전에도 있었음
+        if ((r.status || '').includes('영업')) return true;
+        // 폐업이면 폐업일이 5년 전 이후일 때만 카운트
+        if ((r.status || '').includes('폐업')) {
+          const cd = _parseDate(r.closeDate);
+          return cd && cd > _fiveYearAgo;
+        }
+        return false;
+      }).length;
+      if (_cafes5yAgo > 0) {
+        _cafes5yChangeRate = Math.round(((_cafesNow - _cafes5yAgo) / _cafes5yAgo) * 100);
+      }
+    }
+  } catch (e) { /* 변수 정의 누락 방지: 모든 변수 try 안에서 안전하게 사용 */ }
+
+  // ── 우선순위 1-3: 평균 영업기간 (card11에서 계산된 _avgYearsCompet 재사용) ──
+  // _avgYearsCompet는 line 2446~2453에서 정의됨 (Card 12 영역)
+  let _avgOperatingYears = 0;
+  if (typeof _avgYearsCompet === 'number' && _avgYearsCompet > 0) {
+    _avgOperatingYears = _avgYearsCompet;
+  } else {
+    // fallback: LOCALDATA에서 직접 계산
+    try {
+      const _ldRowsForAvg = Array.isArray(apis.firebaseLocaldata?.data?.dongRows) ? apis.firebaseLocaldata.data.dongRows : [];
+      const _activeForAvg = _ldRowsForAvg.filter(r => (r.status || '').includes('영업'));
+      const _durs = _activeForAvg.map(r => {
+        const d = _parseDate(r.apvDate);
+        return d ? (_now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24 * 365) : null;
+      }).filter(v => v !== null && v >= 0);
+      if (_durs.length > 0) {
+        _avgOperatingYears = Math.round((_durs.reduce((s, v) => s + v, 0) / _durs.length) * 10) / 10;
+      }
+    } catch (e) { /* 변수 정의 누락 방지 */ }
+  }
+
+  // ── 우선순위 1-4: storeCountChangeList (월별 점포 증감) ──
+  // bizMapStoreCountChange는 App.jsx 11024에서 저장됨
+  let _monthlyChangeList = null;
+  try {
+    const _bmChange = aiData?.apis?.bizMapStoreCountChange?.data ?? apis.bizMapStoreCountChange?.data;
+    if (Array.isArray(_bmChange) && _bmChange.length > 0) {
+      const _sortedChange = [..._bmChange].sort((a, b) => String(a?.yyyymm || a?.stdYm || a?.ym || '').localeCompare(String(b?.yyyymm || b?.stdYm || b?.ym || '')));
+      _monthlyChangeList = _sortedChange.map(r => {
+        const ym = String(r?.yyyymm || r?.stdYm || r?.ym || '');
+        const m = parseInt(ym.slice(4, 6), 10);
+        return {
+          period: m ? `${m}월` : ym,
+          opened: parseInt(r?.openCount ?? r?.openCnt ?? r?.newCount ?? 0, 10) || 0,
+          closed: parseInt(r?.closeCount ?? r?.closeCnt ?? r?.extinctCount ?? 0, 10) || 0,
+          net: (parseInt(r?.openCount ?? r?.openCnt ?? r?.newCount ?? 0, 10) || 0) - (parseInt(r?.closeCount ?? r?.closeCnt ?? r?.extinctCount ?? 0, 10) || 0),
+        };
+      });
+    }
+  } catch (e) { /* null 유지 */ }
 
   // ── 비즈맵 보강: 점포수 6개월 추이 (storeCountTrendList) ──
   // 라이브 API: { yyyymm, storeCount } / DOM 폴백 동일 / 구버전: { stdYm, storeCnt }
@@ -2503,8 +3289,195 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     bmStoreLatest = parseInt(only?.storeCount ?? only?.storeCnt ?? only?.storCnt ?? only?.cnt ?? 0, 10) || null;
   }
 
+  // ── 우선순위 2-1: 시도 창업기상도 (weather) ──
+  // collectedData.apis.weatherIndex.data.scores: [{areaCd, overall:{percentile,grade,score}, ...}, ...]
+  // 정규화: percentile(낮을수록 좋음) → 100-percentile, 상한 100 cap
+  let _weatherScore = 0;
+  let _weatherLabel = '';
+  try {
+    const _wIdx = apis.weatherIndex?.data;
+    const _wRaw = apis.weather?.data;
+    let _normScore = 0;
+    let _matchedItem = null;
+    if (_wIdx && Array.isArray(_wIdx.scores) && _wIdx.scores.length > 0) {
+      // 검색 시도와 매칭 (영업모드 dongCd 앞 2자리)
+      _matchedItem = _searchSidoCd
+        ? _wIdx.scores.find(s => String(s?.areaCd || '').padStart(2, '0').slice(0, 2) === _searchSidoCd)
+        : null;
+      if (!_matchedItem) _matchedItem = _wIdx.scores[0];
+    } else if (Array.isArray(_wRaw) && _wRaw.length > 0) {
+      _matchedItem = _wRaw[0];
+    }
+    if (_matchedItem) {
+      const _ov = _matchedItem.overall;
+      if (_ov && typeof _ov === 'object') {
+        const _pct = parseFloat(_ov?.percentile);
+        if (Number.isFinite(_pct) && _pct >= 0 && _pct <= 100) _normScore = Math.round(100 - _pct);
+        else {
+          const _grd = parseFloat(_ov?.grade);
+          if (Number.isFinite(_grd) && _grd >= 1 && _grd <= 10) _normScore = Math.round((11 - _grd) * 10);
+        }
+      } else if (typeof _ov === 'number') {
+        _normScore = Math.max(0, Math.min(100, Math.round(_ov)));
+      } else {
+        // 단순 필드 시도
+        const _sc = parseFloat(_matchedItem?.score || _matchedItem?.idxScore || 0);
+        if (Number.isFinite(_sc) && _sc > 0) _normScore = Math.max(0, Math.min(100, Math.round(_sc)));
+      }
+    }
+    if (_normScore > 0) {
+      _weatherScore = Math.min(100, _normScore); // cap 100
+      if (_weatherScore >= 75) _weatherLabel = '맑음';
+      else if (_weatherScore >= 60) _weatherLabel = '구름조금';
+      else if (_weatherScore >= 45) _weatherLabel = '흐림';
+      else _weatherLabel = '비';
+    }
+  } catch (e) { /* 0 유지 */ }
+
+  // ── 우선순위 2-2: 상권지도 5종 점수 (startupPublic) ──
+  // startupPublic 응답이 실제로는 정부 창업지원 프로그램 목록일 수 있음 → 이름 우선 추출, score는 0~100 cap
+  // 폴백: weatherIndex 5종 점수 사용 (이미 _ext_marketMapScores에 정규화됨)
+  let _marketMapScores = null;
+  try {
+    const _spRaw = apis.startupPublic?.data;
+    if (_spRaw) {
+      const _spArr = Array.isArray(_spRaw) ? _spRaw : (Array.isArray(_spRaw?.data) ? _spRaw.data : null);
+      if (Array.isArray(_spArr) && _spArr.length > 0) {
+        _marketMapScores = _spArr.slice(0, 5).map(item => {
+          const _rawScore = parseFloat(item?.score || item?.idxScore || item?.value || 0) || 0;
+          return {
+            name: String(item?.prgmNm || item?.sprtNm || item?.title || item?.indsLclsNm || ''),
+            score: Math.max(0, Math.min(100, Math.round(_rawScore))), // 0~100 cap
+          };
+        }).filter(s => s.name);
+        if (_marketMapScores.length === 0) _marketMapScores = null;
+      }
+    }
+    // 폴백: weatherIndex 5종이 있으면 그것 사용
+    if ((!_marketMapScores || _marketMapScores.length === 0)
+        && Array.isArray(_ext_marketMapScores) && _ext_marketMapScores.length > 0) {
+      _marketMapScores = _ext_marketMapScores;
+    }
+  } catch (e) { /* null 유지 */ }
+
+  // ── 우선순위 2-3: 매출지수 월별 (slsIndex) ──
+  // 실제 응답: { resultCode:'SUCCESS', data:{ flctnChart:[{yyyymm,saleIdx,slsAmt,...}] } }
+  let _salesIndexMonthly = null;
+  try {
+    const _slsRaw = apis.slsIndex?.data;
+    let _slsArr = null;
+    if (Array.isArray(_slsRaw?.flctnChart)) _slsArr = _slsRaw.flctnChart;
+    else if (Array.isArray(_slsRaw?.data?.flctnChart)) _slsArr = _slsRaw.data.flctnChart;
+    else if (Array.isArray(_slsRaw?.body?.flctnChart)) _slsArr = _slsRaw.body.flctnChart;
+    else if (Array.isArray(_slsRaw)) _slsArr = _slsRaw;
+    else if (Array.isArray(_slsRaw?.data)) _slsArr = _slsRaw.data;
+
+    if (Array.isArray(_slsArr) && _slsArr.length > 0) {
+      _salesIndexMonthly = _slsArr.slice(-12).map(si => ({
+        period: String(si?.yyyymm || si?.crtrYm || si?.crtrYyqu || '').replace(/\./g, ''),
+        index: parseFloat(si?.saleIdx || si?.slsIdx || si?.slsAmt || 0) || 0,
+      })).filter(s => s.period && s.index > 0);
+      if (_salesIndexMonthly.length === 0) _salesIndexMonthly = null;
+    }
+  } catch (e) { /* null 유지 */ }
+
+  // ─────────────────────────────────────────────────
+  // [2026-05-06 카드 3 이관] 비즈맵 popularMenuList + risingMenuList → 메뉴 객체 배열
+  // 카드 4(개인 카페)에 있던 메뉴 정보를 동 전체 통계인 카드 3(상권 변화 추이)으로 이동
+  // 응답 구조: { MENU_NM/menuNm, AVG_SALE_UPRC, PCTILE_25, PCTILE_75, SALE_RATE, GROWTH_RATE, RNK }
+  // fragment 파싱 결과 + zinidata 폴백 모두 호환
+  //
+  // [2026-05-06 추가] zinidata 시도/구 단위 폴백 차단
+  // - NON_CAFE_MENU_BLACKLIST 키워드 포함 시 제외 (망고/한라봉/불고기 등)
+  // - CAFE_MENU_WHITELIST 키워드 포함 시 우선 통과 (아메리카노/라떼/에이드 등)
+  // - 둘 다 매칭 안 되면 통과 (보수적)
+  // ─────────────────────────────────────────────────
+  const NON_CAFE_MENU_BLACKLIST = [
+    '망고', '한라봉', '망고아이스크림', '한라봉젤리',
+    '불고기', '샌드위치', '라이스', '김치', '떡볶이', '피자', '버거', '치킨',
+  ];
+  const CAFE_MENU_WHITELIST = [
+    '아메리카노', '라떼', '카푸치노', '모카', '에스프레소',
+    '에이드', '스무디', '주스', '차', '티', '우유', '요거트',
+    '핫초코', '버블티', '크림', '커피', '카페',
+  ];
+  const isCafeMenu = (menuName) => {
+    const name = String(menuName || '').trim();
+    if (!name) return false;
+    // 블랙리스트 먼저 (화이트리스트 '크림'이 '망고아이스크림' 통과시키는 버그 방지)
+    if (NON_CAFE_MENU_BLACKLIST.some(kw => name.includes(kw))) return false;
+    // 화이트리스트 통과
+    if (CAFE_MENU_WHITELIST.some(kw => name.includes(kw))) return true;
+    // 둘 다 매칭 안 되면 통과 (보수적)
+    return true;
+  };
+
+  let _extra_popularMenus = [];
+  let _extra_risingMenus = [];
+  try {
+    // 비즈맵 진짜 응답 popularMenuList 필드: menu4Nm, avgPrice, pctile20, pctile80, rate
+    // 우리 코드 기존 필드: MENU_NM, AVG_SALE_UPRC, PCTILE_25, PCTILE_75, SALE_RATE
+    // bizMapPopularMenu 또는 직접 popularMenuList 모두 인식
+    const _popMenuRaw = aiData?.apis?.bizMapPopularMenu?.data
+      ?? apis.bizMapPopularMenu?.data
+      ?? cd?.popularMenuList
+      ?? aiData?.popularMenuList
+      ?? [];
+    if (Array.isArray(_popMenuRaw) && _popMenuRaw.length > 0) {
+      _extra_popularMenus = _popMenuRaw.slice(0, 3).map(m => {
+        const name = String(m?.MENU_NM || m?.menuNm || m?.menuName || m?.name || m?.itemNm || m?.menu4Nm || m?.MENU4_NM || '').trim();
+        const avgPrice = parseFloat(m?.AVG_SALE_UPRC ?? m?.avgSaleUprc ?? m?.avgPrice ?? m?.avgUprc ?? 0) || 0;
+        const minPrice = parseFloat(m?.PCTILE_25 ?? m?.pctile25 ?? m?.pctile20 ?? m?.minPrice ?? 0) || 0;
+        const maxPrice = parseFloat(m?.PCTILE_75 ?? m?.pctile75 ?? m?.pctile80 ?? m?.maxPrice ?? 0) || 0;
+        const salesRate = parseFloat(m?.SALE_RATE ?? m?.saleRate ?? m?.salesRate ?? m?.rate ?? 0) || 0;
+        return { name, avgPrice, minPrice, maxPrice, salesRate };
+      }).filter(m => m.name && isCafeMenu(m.name));
+    }
+  } catch (e) { /* 빈 배열 유지 */ }
+  try {
+    // 비즈맵 risingMenuList 필드: MENU_NM, AVG_SALE_UPRC, PCTILE_25, PCTILE_75, COM_PRE_RATE
+    const _riseMenuRaw = cd?.nicebizmapMenu
+      ?? aiData?.nicebizmapMenu
+      ?? cd?.risingMenuList
+      ?? aiData?.risingMenuList
+      ?? [];
+    if (Array.isArray(_riseMenuRaw) && _riseMenuRaw.length > 0) {
+      _extra_risingMenus = _riseMenuRaw.slice(0, 3).map(m => {
+        const name = String(m?.MENU_NM || m?.menuNm || m?.menuName || m?.name || m?.itemNm || m?.menu4Nm || m?.MENU4_NM || '').trim();
+        const avgPrice = parseFloat(m?.AVG_SALE_UPRC ?? m?.avgSaleUprc ?? m?.avgPrice ?? m?.avgUprc ?? 0) || 0;
+        const minPrice = parseFloat(m?.PCTILE_25 ?? m?.pctile25 ?? m?.pctile20 ?? m?.minPrice ?? 0) || 0;
+        const maxPrice = parseFloat(m?.PCTILE_75 ?? m?.pctile75 ?? m?.pctile80 ?? m?.maxPrice ?? 0) || 0;
+        const growthRate = parseFloat(m?.COM_PRE_RATE ?? m?.GROWTH_RATE ?? m?.growthRate ?? m?.growth ?? 0) || 0;
+        return { name, avgPrice, minPrice, maxPrice, growthRate };
+      }).filter(m => m.name && isCafeMenu(m.name));
+    }
+  } catch (e) { /* 빈 배열 유지 */ }
+
   const card12Sources = ['소상공인365'];
   if (bmStoreTrend) card12Sources.push('비즈맵');
+  if (_closeCountSource === 'localdata') card12Sources.push('LOCALDATA');
+  if (_weatherScore > 0) card12Sources.push('창업기상도');
+  if (_salesIndexMonthly) card12Sources.push('매출지수');
+  if (_extra_popularMenus.length > 0 || _extra_risingMenus.length > 0) card12Sources.push('비즈맵메뉴');
+
+  // AI 한 줄 멘트 (시계열/변화 위주, 카드 12와 차별화)
+  let _card13AiMent = '';
+  if (openCnt > 0 || closeCnt > 0) {
+    _card13AiMent = `최근 1년간 신규 ${openCnt}개 폐업 ${closeCnt}개로 ${netChg >= 0 ? '+' : ''}${netChg}개 ${netChg >= 0 ? '순증' : '순감'}`;
+    if (_cafes5yAgo > 0 && _cafes5yChangeRate !== 0) {
+      _card13AiMent += `, 5년 전 대비 ${_cafes5yChangeRate >= 0 ? '+' : ''}${_cafes5yChangeRate}% ${_cafes5yChangeRate >= 0 ? '성장' : '축소'}`;
+    } else if (_cafesNow > 0 && _cafes5yAgo > 0) {
+      _card13AiMent += `, 5년 전 ${_cafes5yAgo}개에서 현재 ${_cafesNow}개`;
+    }
+    _card13AiMent += '.';
+  } else if (_cafes5yAgo > 0) {
+    _card13AiMent = `5년 전 ${_cafes5yAgo}개 → 현재 ${_cafesNow}개 (${_cafes5yChangeRate >= 0 ? '+' : ''}${_cafes5yChangeRate}%).`;
+  } else if (bmStoreTrendLabel) {
+    _card13AiMent = `비즈맵 점포수 ${bmStoreTrendLabel}.`;
+  }
+  if (_avgOperatingYears > 0) {
+    _card13AiMent += ` 평균 영업 ${_avgOperatingYears}년.`;
+  }
 
   const card12 = {
     title: '상권 변화 추이',
@@ -2513,11 +3486,13 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     source: card12Sources.join('/'),
     bruSummary: aiData?.marketSurvival?.bruSummary || null,
     aiSummary: aiData?.marketSurvival?.bruFeedback
-      || (survivalRate1y > 0 || openCnt > 0
-      ? `${openCnt > 0 ? `신규 개업 ${openCnt}개` : ''}${closeCnt > 0 ? `, 폐업 ${closeCnt}개` : ''}. 상권 추세: ${trendLabel}.${survivalRate1y > 0 ? ` 1년 생존율 ${survivalRate1y}%.` : ''}${bmStoreTrendLabel ? ` 비즈맵 점포수 ${bmStoreTrendLabel}.` : ''}`
-      : bmStoreTrendLabel
-        ? `비즈맵 기준 점포수 ${bmStoreTrendLabel}.`
-        : '상권 변화 데이터를 수집 중입니다.'),
+      || (_card13AiMent
+        ? _card13AiMent
+        : (survivalRate1y > 0 || openCnt > 0
+          ? `${openCnt > 0 ? `신규 개업 ${openCnt}개` : ''}${closeCnt > 0 ? `, 폐업 ${closeCnt}개` : ''}. 상권 추세: ${trendLabel}.${survivalRate1y > 0 ? ` 1년 생존율 ${survivalRate1y}%.` : ''}${bmStoreTrendLabel ? ` 비즈맵 점포수 ${bmStoreTrendLabel}.` : ''}`
+          : bmStoreTrendLabel
+            ? `비즈맵 기준 점포수 ${bmStoreTrendLabel}.`
+            : '상권 변화 데이터를 수집 중입니다.')),
     chartType: 'line',
     metaInfo: '상권변화',
     chartData: stcarLabels.length > 0
@@ -2544,6 +3519,20 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       bizmapStoreNetChange: bmStoreNetChange,
       bizmapStoreTrendLabel: bmStoreTrendLabel,
       bizmapStoreTrendChart: bmStoreTrendChart,
+      // ── 신규 추가 (2026-05-06) ──
+      closeCountSource: _closeCountSource,        // 'bizmap' | 'localdata' | 'none'
+      cafesNow: _cafesNow,                         // 현재 운영 중인 카페 수
+      cafes5yAgo: _cafes5yAgo,                     // 5년 전 시점 운영 중이던 카페 수
+      cafes5yChangeRate: _cafes5yChangeRate,       // 5년 전 대비 변화율 (%)
+      avgOperatingYears: _avgOperatingYears,       // 평균 영업기간 (년)
+      monthlyChangeList: _monthlyChangeList,       // 월별 점포 증감 리스트
+      weatherScore: _weatherScore,                 // 시도 창업기상도 점수
+      weatherLabel: _weatherLabel,                 // 창업기상도 라벨
+      marketMapScores: _marketMapScores,           // 상권지도 5종 점수
+      salesIndexMonthly: _salesIndexMonthly,       // 월별 매출지수
+      // ── [2026-05-06 카드 4→3 이관] 비즈맵 메뉴 ──
+      popularMenus: _extra_popularMenus,           // [{name, avgPrice, minPrice, maxPrice, salesRate}, ...] TOP 3
+      risingMenus: _extra_risingMenus,             // [{name, avgPrice, minPrice, maxPrice, growthRate}, ...] TOP 3
     },
   };
 
@@ -2746,7 +3735,7 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   };
 
   // ── 한글 금액 표기 일괄 적용 (AI 생성 텍스트 내 "X만원" → "X억 X만원") ──
-  const allCards = [card1, card2, card3, card4, card5, card6, card7, card8, card9, card10, card11Weather, card11, card12, card13];
+  const allCards = [card1, card2, card12, card3, card4, card5, card6, card7, card8, card9, card10, card11Weather, card11, card13];
   for (const card of allCards) {
     if (card.bruSummary && typeof card.bruSummary === 'string') {
       card.bruSummary = convertAmountsInText(card.bruSummary);
