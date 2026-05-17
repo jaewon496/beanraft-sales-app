@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Cafe Intelligence - Map</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-variant": "#353535",
+                        "error": "#DC2626",
+                        "on-tertiary": "#FFFFFF",
+                        "on-secondary-fixed": "#00164E",
+                        "on-error-container": "#FFDAD6",
+                        "on-primary-fixed": "#000000",
+                        "primary-fixed-dim": "#E2E2E2",
+                        "secondary-fixed": "#DCE1FF",
+                        "on-surface": "#FFFFFF",
+                        "surface-container": "#1F1F1F",
+                        "on-primary-fixed-variant": "#454747",
+                        "surface-container-low": "#1B1B1B",
+                        "tertiary": "#3B82F6",
+                        "surface-dim": "#0E0E0E",
+                        "outline-variant": "#444651",
+                        "on-tertiary-fixed-variant": "#00458E",
+                        "tertiary-fixed": "#D1E4FF",
+                        "primary-fixed": "#FFFFFF",
+                        "inverse-primary": "#1E3A8A",
+                        "secondary-fixed-dim": "#B6C4FF",
+                        "inverse-surface": "#FFFFFF",
+                        "surface-container-lowest": "#000000",
+                        "on-primary-container": "#FFFFFF",
+                        "secondary": "#1E3A8A",
+                        "primary": "#FFFFFF",
+                        "on-background": "#FFFFFF",
+                        "on-secondary": "#FFFFFF",
+                        "inverse-on-surface": "#131313",
+                        "on-tertiary-container": "#B6C4FF",
+                        "on-secondary-fixed-variant": "#264191",
+                        "surface-tint": "#FFFFFF",
+                        "surface-container-high": "#2A2A2A",
+                        "error-container": "#93000A",
+                        "surface-container-highest": "#353535",
+                        "on-tertiary-fixed": "#001D47",
+                        "secondary-container": "#1E3A8A",
+                        "on-secondary-container": "#B6C4FF",
+                        "surface": "#131313",
+                        "surface-bright": "#393939",
+                        "tertiary-fixed-dim": "#ADC6FF",
+                        "outline": "#8F909D",
+                        "tertiary-container": "#1E3A8A",
+                        "on-primary": "#000000",
+                        "on-surface-variant": "#B8B8B8",
+                        "background": "#000000",
+                        "primary-container": "#1E3A8A",
+                        "on-error": "#FFFFFF"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Inter"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background antialiased flex flex-col h-screen overflow-hidden">
+<!-- TopAppBar -->
+<header class="bg-[#0E0E0E]/90 backdrop-blur-none docked full-width top-0 bg-[#1B1B1B] flat no shadows flex justify-between items-center w-full px-6 py-4 z-50">
+<button class="text-on-surface-variant hover:bg-[#1B1B1B] transition-colors scale-95 duration-200 p-2 rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">map</span>
+</button>
+<div class="flex flex-col items-center">
+<h1 class="font-['Inter'] text-[18px] font-medium tracking-tight text-white">Cafe Intelligence</h1>
+</div>
+<button class="text-on-surface-variant hover:bg-[#1B1B1B] transition-colors scale-95 duration-200 p-2 rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">settings</span>
+</button>
+</header>
+<!-- Main Content Canvas (Map Area) -->
+<main class="flex-1 relative w-full h-full bg-surface-container-lowest">
+<!-- Fake Dark Map Background -->
+<div class="absolute inset-0 w-full h-full bg-[#111111] opacity-90" style="background-image: radial-gradient(circle at center, #1B1B1B 0%, #000000 100%);">
+<!-- Simulated Map Grids/Textures -->
+<div class="absolute inset-0 opacity-10 bg-[linear-gradient(rgba(255,255,255,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.1)_1px,transparent_1px)] bg-[size:40px_40px]"></div>
+</div>
+<!-- 300m Radius Circle -->
+<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] rounded-full border border-secondary bg-secondary/5 pointer-events-none flex items-center justify-center">
+<div class="w-2 h-2 rounded-full bg-secondary"></div>
+</div>
+<!-- Map Markers (Simulated 12 Cafes) -->
+<div class="absolute inset-0 pointer-events-none">
+<!-- Marker 1 (Active/Purple) -->
+<div class="absolute top-[40%] left-[45%] pointer-events-auto group cursor-pointer">
+<div class="relative w-8 h-8 flex items-center justify-center">
+<div class="absolute inset-0 rounded-full bg-[#9333EA] opacity-30 animate-pulse"></div>
+<div class="absolute inset-2 rounded-full border border-[#9333EA] bg-[#0E0E0E] flex items-center justify-center">
+<span class="material-symbols-outlined text-[12px] text-[#9333EA]">local_cafe</span>
+</div>
+</div>
+</div>
+<!-- Other Markers -->
+<div class="absolute top-[35%] left-[55%] pointer-events-auto cursor-pointer">
+<div class="w-6 h-6 rounded-full border border-outline-variant bg-surface-container-low flex items-center justify-center hover:border-[#9333EA] transition-colors">
+<div class="w-1.5 h-1.5 rounded-full bg-outline-variant"></div>
+</div>
+</div>
+<div class="absolute top-[55%] left-[40%] pointer-events-auto cursor-pointer">
+<div class="w-6 h-6 rounded-full border border-outline-variant bg-surface-container-low flex items-center justify-center hover:border-[#9333EA] transition-colors">
+<div class="w-1.5 h-1.5 rounded-full bg-outline-variant"></div>
+</div>
+</div>
+<div class="absolute top-[48%] left-[60%] pointer-events-auto cursor-pointer">
+<div class="w-6 h-6 rounded-full border border-outline-variant bg-surface-container-low flex items-center justify-center hover:border-[#9333EA] transition-colors">
+<div class="w-1.5 h-1.5 rounded-full bg-outline-variant"></div>
+</div>
+</div>
+<div class="absolute top-[60%] left-[50%] pointer-events-auto cursor-pointer">
+<div class="w-6 h-6 rounded-full border border-outline-variant bg-surface-container-low flex items-center justify-center hover:border-[#9333EA] transition-colors">
+<div class="w-1.5 h-1.5 rounded-full bg-outline-variant"></div>
+</div>
+</div>
+</div>
+<!-- Filter Overlay Top -->
+<div class="absolute top-4 left-0 w-full px-4 z-40 pointer-events-auto">
+<div class="flex items-center gap-2 overflow-x-auto no-scrollbar pb-2">
+<button class="flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full border border-[#9333EA] bg-[#9333EA]/10 text-white text-sm font-medium">
+<span class="material-symbols-outlined text-[18px] text-[#9333EA]">fiber_new</span>
+                    New Open
+                </button>
+<button class="flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full border border-outline-variant bg-surface-container-low text-on-surface-variant text-sm font-medium hover:text-white hover:border-white/30 transition-colors">
+<span class="material-symbols-outlined text-[18px]">star</span>
+                    Top Rated
+                </button>
+<button class="flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full border border-outline-variant bg-surface-container-low text-on-surface-variant text-sm font-medium hover:text-white hover:border-white/30 transition-colors">
+<span class="material-symbols-outlined text-[18px]">wifi</span>
+                    Work Friendly
+                </button>
+</div>
+</div>
+<!-- Info Sheet Bottom (Bento style) -->
+<div class="absolute bottom-20 left-0 w-full px-4 z-40 pointer-events-auto">
+<div class="bg-surface-dim border border-outline-variant/20 rounded-2xl p-4 shadow-lg backdrop-blur-md relative overflow-hidden">
+<!-- Intelligence Layer Glow -->
+<div class="absolute -left-10 -top-10 w-32 h-32 bg-[#9333EA] opacity-10 rounded-full blur-2xl pointer-events-none"></div>
+<div class="flex justify-between items-start mb-4 relative z-10">
+<div>
+<div class="flex items-center gap-2 mb-1">
+<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-[#9333EA] text-white uppercase tracking-wider">New</span>
+<span class="text-xs text-on-surface-variant">300m radius</span>
+</div>
+<h2 class="text-[18px] font-bold text-white tracking-tight">12 Cafes Found</h2>
+</div>
+<button class="w-8 h-8 rounded-full bg-surface-container-low flex items-center justify-center border border-outline-variant/30 text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px]">tune</span>
+</button>
+</div>
+<!-- Bento Box Stats -->
+<div class="grid grid-cols-2 gap-3 relative z-10">
+<div class="bg-surface-container-low rounded-xl p-3 border border-outline-variant/10">
+<div class="text-[10px] text-on-surface-variant mb-1 uppercase tracking-wider">Avg Quality</div>
+<div class="text-xl font-bold text-white flex items-center gap-1">
+                            8.4 <span class="material-symbols-outlined text-[14px] text-tertiary">trending_up</span>
+</div>
+</div>
+<div class="bg-surface-container-low rounded-xl p-3 border border-outline-variant/10">
+<div class="text-[10px] text-on-surface-variant mb-1 uppercase tracking-wider">Vibe Focus</div>
+<div class="text-sm font-medium text-white pt-1">Industrial Minimal</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="bg-[#0E0E0E] fixed bottom-0 w-full z-50 border-t border-white/10 shadow-[0_-8px_30px_rgba(59,130,246,0.05)] fixed bottom-0 left-0 w-full flex justify-around items-center py-3 px-4 md:hidden">
+<a class="flex flex-col items-center justify-center text-blue-500 font-medium active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">explore</span>
+<span class="font-['Inter'] text-[12px] font-light mt-1">Explorer</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#B8B8B8] hover:text-white active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">analytics</span>
+<span class="font-['Inter'] text-[12px] font-light mt-1">Insights</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#B8B8B8] hover:text-white active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">domain</span>
+<span class="font-['Inter'] text-[12px] font-light mt-1">Portfolio</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#B8B8B8] hover:text-white active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">notifications</span>
+<span class="font-['Inter'] text-[12px] font-light mt-1">Alerts</span>
+</a>
+</nav>
+<style>
+        /* Hide scrollbar for horizontal scrolling filters */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</body></html>

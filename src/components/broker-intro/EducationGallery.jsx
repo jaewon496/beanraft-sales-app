@@ -19,7 +19,7 @@ const EducationGallery = ({ colors, sectionStyle, headingStyle, descStyle }) => 
     { name: '이론', color: k,
       items: ['우유스팀', '바세팅', '커피기초', '그라인더', '에스프레소', '장비운용'] },
     { name: '경영', color: '#6366F1',
-      items: ['인건비/고정비', '상권분석', '세무/회계', '손익분기점', '가격책정'] },
+      items: ['인건비/고정비', '상권분석', '세무/회계', '본전 뽑는 시점', '가격책정'] },
     { name: '운영', color: L,
       items: ['발주/재고', '직원근태', '배달관리', '매출정산', '원가계산', '문서체계화'] },
   ];

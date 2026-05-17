@@ -27,9 +27,6 @@
 [functions."create-account"]
   timeout = 26
 
-[functions."cafe-collect-proxy"]
-  timeout = 26
-
 [functions."openub-proxy"]
   timeout = 45
 
@@ -45,8 +42,17 @@
 [functions."nicebizmap-proxy"]
   timeout = 26
 
+[functions."kosis-proxy"]
+  timeout = 26
+
+[functions."bizinfo-proxy"]
+  timeout = 15
+
 [functions."openub-heartbeat"]
   schedule = "*/5 * * * *"
+
+[functions."biznum-verify"]
+  timeout = 26
 
 [functions."nicebizmap-heartbeat"]
   schedule = "*/5 * * * *"
@@ -462,6 +468,27 @@
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
+  status = 200
+
+# Vite dev server passthrough (netlify dev 전용)
+[[redirects]]
+  from = "/@vite/*"
+  to = "/@vite/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/@react-refresh"
+  to = "/@react-refresh"
+  status = 200
+
+[[redirects]]
+  from = "/src/*"
+  to = "/src/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/node_modules/*"
+  to = "/node_modules/:splat"
   status = 200
 
 # Catch-all: CreatorLink routes that escape /site/ prefix → redirect back to /site/

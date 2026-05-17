@@ -79,14 +79,17 @@ exports.handler = async (event) => {
     const data = await new Promise((resolve, reject) => {
       const req = https.get(targetUrl, {
         headers: {
-          'X-NCP-APIGW-API-KEY-ID': clientId,
-          'X-NCP-APIGW-API-KEY': clientSecret
+          'x-ncp-apigw-api-key-id': clientId,
+          'x-ncp-apigw-api-key': clientSecret
         },
         timeout: 10000
       }, (res) => {
-        let body = '';
-        res.on('data', chunk => body += chunk);
+        // [버그 수정] 청크를 Buffer로 모은 후 마지막에 UTF-8 디코딩
+        // 한글 멀티바이트가 청크 경계에 걸리면 fffd로 깨지는 문제 방지
+        const chunks = [];
+        res.on('data', chunk => chunks.push(chunk));
         res.on('end', () => {
+          const body = Buffer.concat(chunks).toString('utf-8');
           try {
             resolve({ status: res.statusCode, data: JSON.parse(body) });
           } catch (e) {

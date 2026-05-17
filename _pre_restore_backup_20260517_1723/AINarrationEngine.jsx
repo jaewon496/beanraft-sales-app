@@ -1,0 +1,4 @@
+// Stub - original broken by encoding accident, restored as placeholder
+import React from 'react';
+const AINarrationEngine = () => null;
+export default AINarrationEngine;

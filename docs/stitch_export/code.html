@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="ko"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>상권 분석 리포트</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link as="style" crossorigin="" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        body {
+            font-family: 'Pretendard Variable', Pretendard, sans-serif;
+            background-color: #000000;
+            color: #FFFFFF;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-tertiary-container": "#ff8b80",
+                        "on-secondary-container": "#9db2ff",
+                        "on-error": "#690005",
+                        "surface": "#131313",
+                        "secondary-container": "#264191",
+                        "primary-fixed-dim": "#c6c6c7",
+                        "on-secondary": "#05297a",
+                        "on-primary-container": "#abacac",
+                        "on-background": "#e2e2e2",
+                        "inverse-on-surface": "#303030",
+                        "surface-container-highest": "#353535",
+                        "surface-bright": "#393939",
+                        "surface-variant": "#353535",
+                        "tertiary-fixed-dim": "#ffb4ab",
+                        "surface-container-low": "#1b1b1b",
+                        "surface-container-lowest": "#0e0e0e",
+                        "tertiary": "#ffb4ab",
+                        "surface-tint": "#c6c6c7",
+                        "secondary": "#b6c4ff",
+                        "on-secondary-fixed": "#00164e",
+                        "on-secondary-fixed-variant": "#264191",
+                        "secondary-fixed-dim": "#b6c4ff",
+                        "surface-container": "#1f1f1f",
+                        "surface-dim": "#131313",
+                        "primary-fixed": "#e2e2e2",
+                        "secondary-fixed": "#dce1ff",
+                        "primary-container": "#3f4041",
+                        "tertiary-fixed": "#ffdad6",
+                        "primary": "#c6c6c7",
+                        "error": "#ffb4ab",
+                        "inverse-surface": "#e2e2e2",
+                        "error-container": "#93000a",
+                        "on-tertiary": "#690005",
+                        "outline-variant": "#444651",
+                        "outline": "#8f909d",
+                        "on-primary-fixed": "#1a1c1c",
+                        "on-error-container": "#ffdad6",
+                        "tertiary-container": "#87000a",
+                        "on-primary": "#2f3131",
+                        "on-tertiary-fixed": "#410002",
+                        "on-surface-variant": "#c5c5d3",
+                        "on-surface": "#e2e2e2",
+                        "on-tertiary-fixed-variant": "#93000b",
+                        "on-primary-fixed-variant": "#454747",
+                        "background": "#131313",
+                        "inverse-primary": "#5d5f5f",
+                        "surface-container-high": "#2a2a2a"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {},
+                    "fontFamily": {
+                        "headline": ["Pretendard Variable", "Pretendard"],
+                        "body": ["Pretendard Variable", "Pretendard"],
+                        "label": ["Pretendard Variable", "Pretendard"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-surface text-on-surface antialiased flex flex-col min-h-screen">
+<!-- TopAppBar from JSON -->
+<header class="docked full-width top-0 bg-[#0e0e0e] flex justify-between items-center px-6 py-4 w-full z-50">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-[#FFFFFF] text-2xl" data-icon="info">info</span>
+<h1 class="font-medium text-lg tracking-tight text-[#FFFFFF]">강남역 1번 출구 리포트</h1>
+</div>
+<div>
+<span class="text-[#B8B8B8] text-sm font-medium tracking-wide">2026년 4월 기준</span>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-grow flex justify-center items-start pt-12 pb-24 px-4 sm:px-6 lg:px-8">
+<!-- Main Card Container -->
+<div class="w-full max-w-4xl bg-surface-container-lowest rounded-2xl overflow-hidden relative">
+<!-- Atmospheric Glow for Depth -->
+<div class="absolute inset-0 bg-secondary-container opacity-5 blur-[80px] pointer-events-none"></div>
+<div class="p-8 sm:p-12 relative z-10 flex flex-col gap-12">
+<!-- Card Header Area -->
+<div class="flex flex-col gap-1">
+<h2 class="text-3xl font-bold tracking-tight text-[#FFFFFF]">01 상권 분석 리포트</h2>
+<span class="text-[#B8B8B8] text-sm font-normal">반경 500m 카페 현황</span>
+</div>
+<!-- Bento Grid Layout for Data -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+<!-- Left Column: Primary Metrics -->
+<div class="lg:col-span-5 flex flex-col gap-8">
+<!-- Hero Metric -->
+<div class="bg-surface-container-low p-6 rounded-xl flex flex-col gap-1">
+<span class="text-on-surface-variant text-sm font-medium uppercase tracking-wider">총 매장 수</span>
+<div class="text-6xl font-light tracking-tighter text-white">40<span class="text-2xl text-on-surface-variant ml-2">곳</span></div>
+</div>
+</div>
+<!-- Right Column: Visualization -->
+<div class="lg:col-span-7 bg-surface-container-low rounded-xl p-8 flex flex-col sm:flex-row items-center gap-8 border border-outline-variant/15">
+<!-- CSS Donut Chart Proxy -->
+<div class="relative w-48 h-48 flex-shrink-0">
+<!-- SVG for accurate donut chart -->
+<svg class="w-full h-full transform -rotate-90" viewbox="0 0 100 100"><!-- Background circle -->
+<circle cx="50" cy="50" fill="transparent" r="40" stroke="#1b1b1b" stroke-width="12"></circle>
+<!-- Private Cafe (55%) - #3B82F6 -->
+<circle cx="50" cy="50" fill="transparent" r="40" stroke="#3B82F6" stroke-dasharray="138.16 251.2" stroke-dashoffset="0" stroke-width="12"></circle>
+<!-- Franchise (25%) - #1E3A8A -->
+<circle cx="50" cy="50" fill="transparent" r="40" stroke="#1E3A8A" stroke-dasharray="62.8 251.2" stroke-dashoffset="-138.16" stroke-width="12"></circle>
+<!-- Bakery (20%) - #FFFFFF -->
+<circle cx="50" cy="50" fill="transparent" r="40" stroke="#FFFFFF" stroke-dasharray="50.24 251.2" stroke-dashoffset="-200.96" stroke-width="12"></circle></svg>
+<!-- Inner Content -->
+<div class="absolute inset-0 flex flex-col items-center justify-center">
+<span class="text-xs text-on-surface-variant font-medium tracking-widest uppercase">비율</span>
+</div>
+</div>
+<!-- Legend & Stats -->
+<div class="flex flex-col gap-6 w-full"><div class="flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="w-3 h-3 rounded-sm bg-[#3B82F6]"></div>
+<span class="text-[#B8B8B8] text-sm font-normal">개인 카페</span>
+</div>
+<span class="text-2xl font-light text-white">55%</span>
+</div>
+<div class="h-[1px] w-full bg-outline-variant/20"></div>
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="w-3 h-3 rounded-sm bg-[#1E3A8A]"></div>
+<span class="text-[#B8B8B8] text-sm font-normal">프랜차이즈</span>
+</div>
+<span class="text-2xl font-light text-white">25%</span>
+</div>
+<div class="h-[1px] w-full bg-outline-variant/20"></div>
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="w-3 h-3 rounded-sm bg-[#FFFFFF]"></div>
+<span class="text-[#B8B8B8] text-sm font-normal">베이커리</span>
+</div>
+<span class="text-2xl font-light text-white">20%</span>
+</div></div>
+</div>
+</div>
+<!-- AI Summary Box -->
+<div class="bg-surface-container relative rounded-lg p-6 border-l-[3px] border-[#1E3A8A] flex flex-col gap-3 pl-8">
+<div class="flex items-center gap-2 text-[#1E3A8A] mb-1" style="color: #1E3A8A;"><span class="material-symbols-outlined text-lg" style="font-variation-settings: 'FILL' 1">sparkles</span>
+<span class="text-sm font-bold tracking-wider">AI 요약</span></div>
+<p class="text-on-surface text-base leading-relaxed font-light">
+                        해당 반경 내 상권은 개인 매장의 비중이 압도적으로 높으며, 일평균 10만 명 이상의 풍부한 유동인구를 바탕으로 안정적인 운영이 예상됩니다. 다만 최근 신규 진입이 폐업보다 많아 경쟁 심화 가능성을 주시해야 합니다.
+                    </p>
+</div>
+<!-- Detailed Metrics List -->
+<div class="flex flex-col w-full">
+<div class="flex items-center justify-between py-4 border-b border-white/20">
+<span class="text-[#B8B8B8] text-base">카페 수</span>
+<span class="text-[#FFFFFF] text-base font-medium">40개</span>
+</div>
+<div class="flex items-center justify-between py-4 border-b border-white/20">
+<span class="text-[#B8B8B8] text-base">프랜차이즈</span>
+<span class="text-[#FFFFFF] text-base font-medium">10개</span>
+</div>
+<div class="flex items-center justify-between py-4 border-b border-white/20">
+<span class="text-[#B8B8B8] text-base">개인카페</span>
+<span class="text-[#FFFFFF] text-base font-medium">22개</span>
+</div>
+<div class="flex items-center justify-between py-4 border-b border-white/20">
+<span class="text-[#B8B8B8] text-base">베이커리 카페</span>
+<span class="text-[#FFFFFF] text-base font-medium">8개</span>
+</div>
+<div class="flex items-center justify-between py-4 border-b border-white/20">
+<span class="text-[#B8B8B8] text-base">신규 오픈</span>
+<span class="text-[#FFFFFF] text-base font-medium">3개</span>
+</div>
+<div class="flex items-center justify-between py-4 border-b border-white/20">
+<span class="text-[#B8B8B8] text-base">폐업 매장</span>
+<span class="text-[#FFFFFF] text-base font-medium">1개</span>
+</div>
+<div class="flex items-center justify-between py-4 border-b border-white/20 last:border-b-0">
+<span class="text-[#B8B8B8] text-base">서울 집객시설</span>
+<span class="text-[#FFFFFF] text-base font-medium">12개</span>
+</div>
+</div>
+<!-- Action Area -->
+<div class="flex justify-center mt-4">
+<button class="bg-transparent border border-white text-white rounded-lg px-8 py-3 font-medium transition-all duration-200 hover:bg-white/10 active:bg-white/20 flex items-center gap-2">
+<span class="material-symbols-outlined text-sm" data-icon="map">map</span>
+                        지도로 보기
+                    </button>
+</div>
+</div>
+</div>
+</main>
+</body></html>

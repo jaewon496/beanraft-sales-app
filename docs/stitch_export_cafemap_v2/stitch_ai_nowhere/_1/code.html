@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="ko"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>카페 위치 지도</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-surface-variant": "#B8B8B8",
+                        "primary": "#FFFFFF",
+                        "on-tertiary-fixed-variant": "#00458E",
+                        "on-error-container": "#FFDAD6",
+                        "on-background": "#FFFFFF",
+                        "inverse-surface": "#FFFFFF",
+                        "secondary-fixed-dim": "#B6C4FF",
+                        "secondary-fixed": "#DCE1FF",
+                        "secondary-container": "#1E3A8A",
+                        "outline-variant": "#444651",
+                        "on-primary-fixed-variant": "#454747",
+                        "tertiary-fixed-dim": "#ADC6FF",
+                        "primary-fixed": "#FFFFFF",
+                        "primary-fixed-dim": "#E2E2E2",
+                        "primary-container": "#1E3A8A",
+                        "tertiary-container": "#1E3A8A",
+                        "tertiary-fixed": "#D1E4FF",
+                        "secondary": "#1E3A8A",
+                        "background": "#000000",
+                        "surface-dim": "#0E0E0E",
+                        "surface-bright": "#393939",
+                        "surface": "#131313",
+                        "on-secondary-container": "#B6C4FF",
+                        "surface-container-high": "#2A2A2A",
+                        "on-primary-fixed": "#000000",
+                        "surface-container-highest": "#353535",
+                        "outline": "#8F909D",
+                        "error": "#DC2626",
+                        "on-tertiary": "#FFFFFF",
+                        "on-error": "#FFFFFF",
+                        "tertiary": "#3B82F6",
+                        "surface-variant": "#353535",
+                        "on-primary": "#000000",
+                        "inverse-primary": "#1E3A8A",
+                        "inverse-on-surface": "#131313",
+                        "error-container": "#93000A",
+                        "on-secondary": "#FFFFFF",
+                        "on-tertiary-fixed": "#001D47",
+                        "on-surface": "#FFFFFF",
+                        "on-primary-container": "#FFFFFF",
+                        "surface-tint": "#FFFFFF",
+                        "surface-container-low": "#1B1B1B",
+                        "on-tertiary-container": "#B6C4FF",
+                        "surface-container-lowest": "#000000",
+                        "surface-container": "#1F1F1F",
+                        "on-secondary-fixed": "#00164E",
+                        "on-secondary-fixed-variant": "#264191"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Inter", "sans-serif"],
+                        "body": ["Inter", "sans-serif"],
+                        "label": ["Inter", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-background text-on-surface flex flex-col h-screen w-full overflow-hidden">
+<!-- TopAppBar -->
+<header class="bg-[#0E0E0E]/90 backdrop-blur-none w-full top-0 z-50 flex justify-between items-center px-6 py-4 border-b-0 shadow-none">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-blue-500">map</span>
+<h1 class="font-['Inter'] text-[18px] font-medium tracking-tight text-white font-bold tracking-tighter">카페 위치 지도</h1>
+</div>
+<button class="hover:bg-[#1B1B1B] transition-colors scale-95 duration-200 p-2 rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined text-[#B8B8B8]">settings</span>
+</button>
+</header>
+<!-- Main Content: Empty Map State -->
+<main class="flex-1 relative flex flex-col items-center justify-center bg-[#050505] w-full pb-[80px]">
+<!-- Subtle atmospheric background grid/texture to imply an empty map canvas -->
+<div class="absolute inset-0 opacity-[0.03] bg-[linear-gradient(to_right,#ffffff_1px,transparent_1px),linear-gradient(to_bottom,#ffffff_1px,transparent_1px)] bg-[size:4rem_4rem] pointer-events-none"></div>
+<!-- Central Empty State Container -->
+<div class="relative z-10 flex flex-col items-center justify-center max-w-sm px-6 text-center">
+<!-- Atmospheric Glow behind the icon -->
+<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 bg-secondary-container opacity-[0.08] blur-[60px] rounded-full pointer-events-none"></div>
+<!-- Icon -->
+<div class="mb-6 relative flex items-center justify-center">
+<span class="material-symbols-outlined text-[48px] text-primary" style="font-variation-settings: 'FILL' 0, 'wght' 200;">info</span>
+</div>
+<!-- Typography Hierarchy -->
+<h2 class="text-[18px] font-medium text-primary mb-2 tracking-tight">반경 내 카페가 없습니다</h2>
+<p class="text-[14px] font-light text-on-surface-variant">반경을 늘려보세요</p>
+</div>
+</main>
+</body></html>

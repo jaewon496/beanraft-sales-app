@@ -1,4 +1,4 @@
-// 나이스비즈맵 세션 유지용 heartbeat
+﻿// 나이스비즈맵 세션 유지용 heartbeat
 const https = require('https');
 
 exports.handler = async (event) => {
@@ -19,10 +19,13 @@ exports.handler = async (event) => {
         'Accept': 'application/json'
       }
     }, res => {
-      let data = '';
-      res.on('data', c => data += c);
+      // [버그 수정] 청크를 Buffer로 모은 후 마지막에 UTF-8 디코딩
+      // 한글 멀티바이트가 청크 경계에 걸리면 fffd로 깨지는 문제 방지
+      const chunks = [];
+      res.on('data', c => chunks.push(c));
       res.on('end', () => {
         try {
+          const data = Buffer.concat(chunks).toString('utf-8');
           const j = JSON.parse(data);
           console.log('[nicebizmap-heartbeat]', j.success ? 'session alive' : 'session expired', j.data?.loginId || '');
           resolve({

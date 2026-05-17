@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="ko"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        @font-face {
+            font-family: 'Pretendard';
+            src: url('https://cdn.jsdelivr.net/gh/Project-Noonnu/noonfonts_2107@1.1/Pretendard-Regular.woff') format('woff');
+            font-weight: 400;
+            font-style: normal;
+        }
+        @font-face {
+            font-family: 'Pretendard';
+            src: url('https://cdn.jsdelivr.net/gh/Project-Noonnu/noonfonts_2107@1.1/Pretendard-Medium.woff') format('woff');
+            font-weight: 500;
+            font-style: normal;
+        }
+        @font-face {
+            font-family: 'Pretendard';
+            src: url('https://cdn.jsdelivr.net/gh/Project-Noonnu/noonfonts_2107@1.1/Pretendard-Bold.woff') format('woff');
+            font-weight: 700;
+            font-style: normal;
+        }
+        body {
+            font-family: 'Pretendard', sans-serif;
+            background-color: #000000;
+            color: #FFFFFF;
+            -webkit-font-smoothing: antialiased;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glow-blue {
+            filter: drop-shadow(0 0 15px rgba(59, 130, 246, 0.4));
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "inverse-primary": "#1E3A8A",
+                        "secondary-fixed-dim": "#B6C4FF",
+                        "primary-fixed": "#FFFFFF",
+                        "surface-container-low": "#1B1B1B",
+                        "on-secondary-container": "#B6C4FF",
+                        "surface-container-highest": "#353535",
+                        "on-secondary-fixed": "#00164E",
+                        "inverse-surface": "#FFFFFF",
+                        "tertiary-fixed": "#D1E4FF",
+                        "inverse-on-surface": "#131313",
+                        "outline-variant": "#444651",
+                        "on-error-container": "#FFDAD6",
+                        "on-error": "#FFFFFF",
+                        "on-tertiary-fixed": "#001D47",
+                        "on-surface": "#FFFFFF",
+                        "error": "#DC2626",
+                        "surface-container-lowest": "#000000",
+                        "secondary-container": "#1E3A8A",
+                        "on-tertiary": "#FFFFFF",
+                        "on-tertiary-container": "#B6C4FF",
+                        "error-container": "#93000A",
+                        "on-surface-variant": "#B8B8B8",
+                        "on-secondary": "#FFFFFF",
+                        "on-primary-fixed": "#000000",
+                        "on-primary-container": "#FFFFFF",
+                        "surface-tint": "#FFFFFF",
+                        "surface-dim": "#0E0E0E",
+                        "surface": "#131313",
+                        "secondary-fixed": "#DCE1FF",
+                        "primary-container": "#1E3A8A",
+                        "tertiary-fixed-dim": "#ADC6FF",
+                        "primary": "#FFFFFF",
+                        "on-background": "#FFFFFF",
+                        "surface-variant": "#353535",
+                        "primary-fixed-dim": "#E2E2E2",
+                        "surface-container-high": "#2A2A2A",
+                        "on-primary-fixed-variant": "#454747",
+                        "tertiary-container": "#1E3A8A",
+                        "on-secondary-fixed-variant": "#264191",
+                        "surface-bright": "#393939",
+                        "outline": "#8F909D",
+                        "tertiary": "#3B82F6",
+                        "on-tertiary-fixed-variant": "#00458E",
+                        "background": "#000000",
+                        "secondary": "#1E3A8A",
+                        "surface-container": "#1F1F1F",
+                        "on-primary": "#000000"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "2xl": "1rem",
+                        "full": "9999px"
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="min-h-[2400px]">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-black/90 backdrop-blur-md border-b border-white/10 flex justify-between items-center px-6 h-16 w-full shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
+<button class="text-[#3B82F6] active:scale-95 duration-200">
+<span class="material-symbols-outlined">arrow_back</span>
+</button>
+<h1 class="font-bold tracking-tight text-white text-lg">고객 특성 상세</h1>
+<button class="text-[#3B82F6] active:scale-95 duration-200">
+<span class="material-symbols-outlined">close</span>
+</button>
+</header>
+<main class="pt-24 pb-20 px-6 max-w-md mx-auto flex flex-col gap-[24px]">
+<!-- 섹션 1: 성별 × 연령 결제 교차표 -->
+<section class="flex flex-col">
+<div class="mb-6">
+<h2 class="text-[30px] font-bold leading-tight">성별 × 연령 결제</h2>
+<p class="text-on-surface-variant text-[16px] font-light">누가 가장 많이 쓰는지</p>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full border-separate border-spacing-1">
+<thead>
+<tr class="text-on-surface-variant text-[12px]">
+<th class="p-2"></th>
+<th class="p-2 font-medium">20대</th>
+<th class="p-2 font-medium">30대</th>
+<th class="p-2 font-medium">40대</th>
+<th class="p-2 font-medium">50대</th>
+<th class="p-2 font-medium">60대+</th>
+</tr>
+</thead>
+<tbody class="text-[13px]">
+<tr>
+<td class="p-2 text-on-surface-variant text-center font-medium">여성</td>
+<td class="p-3 text-center rounded-lg bg-[#1B1B1B]">120만</td>
+<td class="p-3 text-center rounded-lg bg-[#3B82F6] text-white font-bold">420만</td>
+<td class="p-3 text-center rounded-lg bg-[#1E3A8A]">310만</td>
+<td class="p-3 text-center rounded-lg bg-[#1B1B1B]">180만</td>
+<td class="p-3 text-center rounded-lg bg-[#0E0E0E]">85만</td>
+</tr>
+<tr>
+<td class="p-2 text-on-surface-variant text-center font-medium">남성</td>
+<td class="p-3 text-center rounded-lg bg-[#0E0E0E]">95만</td>
+<td class="p-3 text-center rounded-lg bg-[#1E3A8A]">210만</td>
+<td class="p-3 text-center rounded-lg bg-[#3B82F6]/70 text-white">340만</td>
+<td class="p-3 text-center rounded-lg bg-[#1B1B1B]">150만</td>
+<td class="p-3 text-center rounded-lg bg-[#0E0E0E]">70만</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="mt-8 border-b border-white/10"></div>
+</section>
+<!-- 섹션 2: 시간대별 결제 집중도 -->
+<section class="flex flex-col">
+<div class="mb-6">
+<h2 class="text-[30px] font-bold leading-tight">시간대별 결제</h2>
+<p class="text-on-surface-variant text-[16px] font-light">언제 지갑을 여는지</p>
+</div>
+<div class="space-y-4">
+<div class="flex items-center gap-4">
+<span class="text-[12px] text-on-surface-variant w-10">새벽</span>
+<div class="flex-1 h-3 bg-surface-container-low rounded-full overflow-hidden">
+<div class="h-full bg-surface-container-highest w-[15%]"></div>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<span class="text-[12px] text-on-surface-variant w-10">오전</span>
+<div class="flex-1 h-3 bg-surface-container-low rounded-full overflow-hidden">
+<div class="h-full bg-inverse-primary w-[45%]"></div>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<span class="text-[12px] text-white font-bold w-10">점심</span>
+<div class="flex-1 h-5 bg-surface-container-low rounded-full overflow-hidden glow-blue">
+<div class="h-full bg-tertiary w-[88%]"></div>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<span class="text-[12px] text-on-surface-variant w-10">오후</span>
+<div class="flex-1 h-3 bg-surface-container-low rounded-full overflow-hidden">
+<div class="h-full bg-inverse-primary w-[65%]"></div>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<span class="text-[12px] text-on-surface-variant w-10">밤</span>
+<div class="flex-1 h-3 bg-surface-container-low rounded-full overflow-hidden">
+<div class="h-full bg-surface-container-highest w-[30%]"></div>
+</div>
+</div>
+</div>
+<div class="mt-8 border-b border-white/10"></div>
+</section>
+<!-- 섹션 3: 요일별 결제 패턴 -->
+<section class="flex flex-col">
+<div class="mb-6">
+<h2 class="text-[30px] font-bold leading-tight">요일별 매출</h2>
+<p class="text-on-surface-variant text-[16px] font-light">주말형 vs 평일형</p>
+</div>
+<div class="flex items-end justify-between h-48 px-2">
+<div class="flex flex-col items-center gap-2">
+<div class="w-8 bg-surface-container-low rounded-t-lg h-[40%]"></div>
+<span class="text-[12px] text-on-surface-variant">월</span>
+</div>
+<div class="flex flex-col items-center gap-2">
+<div class="w-8 bg-surface-container-low rounded-t-lg h-[45%]"></div>
+<span class="text-[12px] text-on-surface-variant">화</span>
+</div>
+<div class="flex flex-col items-center gap-2">
+<div class="w-8 bg-surface-container-low rounded-t-lg h-[50%]"></div>
+<span class="text-[12px] text-on-surface-variant">수</span>
+</div>
+<div class="flex flex-col items-center gap-2">
+<div class="w-8 bg-surface-container-low rounded-t-lg h-[48%]"></div>
+<span class="text-[12px] text-on-surface-variant">목</span>
+</div>
+<div class="flex flex-col items-center gap-2">
+<div class="w-8 bg-secondary-container rounded-t-lg h-[75%]"></div>
+<span class="text-[12px] text-on-surface-variant">금</span>
+</div>
+<div class="flex flex-col items-center gap-2">
+<div class="w-8 bg-tertiary rounded-t-lg h-[95%] glow-blue"></div>
+<span class="text-[12px] text-white font-bold">토</span>
+</div>
+<div class="flex flex-col items-center gap-2">
+<div class="w-8 bg-secondary-container rounded-t-lg h-[80%]"></div>
+<span class="text-[12px] text-on-surface-variant">일</span>
+</div>
+</div>
+<div class="mt-8 border-b border-white/10"></div>
+</section>
+<!-- 섹션 4: 주변 거주 세대 -->
+<section class="flex flex-col">
+<div class="mb-6">
+<h2 class="text-[30px] font-bold leading-tight">주변 거주 세대</h2>
+<p class="text-on-surface-variant text-[16px] font-light">혼자인지 가족인지</p>
+</div>
+<div class="w-full h-12 flex rounded-xl overflow-hidden mb-6">
+<div class="h-full bg-tertiary flex items-center justify-center text-[14px] font-bold" style="width: 45%;">45%</div>
+<div class="h-full bg-inverse-primary flex items-center justify-center text-[14px] font-bold" style="width: 32%;">32%</div>
+<div class="h-full bg-white text-black flex items-center justify-center text-[14px] font-bold" style="width: 23%;">23%</div>
+</div>
+<div class="grid grid-cols-3 gap-4">
+<div class="flex flex-col">
+<span class="text-[12px] text-on-surface-variant">1인 가구</span>
+<span class="text-[18px] font-bold text-tertiary">45%</span>
+</div>
+<div class="flex flex-col">
+<span class="text-[12px] text-on-surface-variant">부부</span>
+<span class="text-[18px] font-bold text-[#1E3A8A]">32%</span>
+</div>
+<div class="flex flex-col">
+<span class="text-[12px] text-on-surface-variant">자녀동반</span>
+<span class="text-[18px] font-bold text-white">23%</span>
+</div>
+</div>
+<div class="mt-8 border-b border-white/10"></div>
+</section>
+<!-- 섹션 5: 주거 환경 -->
+<section class="flex flex-col">
+<div class="mb-2">
+<h2 class="text-[30px] font-bold leading-tight">주거 환경</h2>
+</div>
+<div class="mb-8 p-6 bg-surface-container-lowest border-l-4 border-tertiary rounded-r-2xl">
+<p class="text-on-surface-variant text-[14px] mb-1">아파트 거주 비율</p>
+<div class="flex items-baseline gap-1">
+<span class="text-[60px] font-light tracking-tighter text-tertiary leading-none">77</span>
+<span class="text-[24px] font-medium text-tertiary">%</span>
+</div>
+</div>
+<div class="flex flex-wrap gap-2 mb-8">
+<span class="px-4 py-2 bg-surface-container-low rounded-full text-[14px] text-on-surface">역삼1동</span>
+<span class="px-4 py-2 bg-surface-container-low rounded-full text-[14px] text-on-surface">논현2동</span>
+<span class="px-4 py-2 bg-surface-container-low rounded-full text-[14px] text-on-surface">청담2동</span>
+<span class="px-4 py-2 bg-surface-container-low rounded-full text-[14px] text-on-surface">압구정동</span>
+</div>
+<div class="space-y-3">
+<span class="text-[14px] text-on-surface-variant">주거 성별·연령 분포</span>
+<div class="w-full h-2 flex rounded-full overflow-hidden">
+<div class="bg-tertiary" style="width: 58%;"></div>
+<div class="bg-inverse-primary" style="width: 42%;"></div>
+</div>
+<div class="flex justify-between text-[12px]">
+<span class="text-tertiary font-medium">여성 58%</span>
+<span class="text-inverse-primary font-medium">남성 42%</span>
+</div>
+</div>
+<div class="mt-8 border-b border-white/10"></div>
+</section>
+<!-- 섹션 6: 주변 연평균 소득 -->
+<section class="flex flex-col">
+<div class="mb-6">
+<h2 class="text-[30px] font-bold leading-tight">주변 연평균 소득</h2>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="bg-surface-container-low p-6 rounded-2xl">
+<span class="text-on-surface-variant text-[14px] block mb-2">남성 평균</span>
+<div class="flex items-baseline gap-1">
+<span class="text-[30px] font-bold text-white leading-none">5,420</span>
+<span class="text-[14px] text-on-surface-variant">만원</span>
+</div>
+</div>
+<div class="bg-surface-container-low p-6 rounded-2xl">
+<span class="text-on-surface-variant text-[14px] block mb-2">여성 평균</span>
+<div class="flex items-baseline gap-1">
+<span class="text-[30px] font-bold text-white leading-none">4,850</span>
+<span class="text-[14px] text-on-surface-variant">만원</span>
+</div>
+</div>
+</div>
+<div class="mt-8 border-b border-white/10"></div>
+</section>
+<!-- 섹션 7: 1회 결제 금액 -->
+<section class="flex flex-col">
+<div class="mb-6">
+<h2 class="text-[30px] font-bold leading-tight">1회 결제 금액</h2>
+<p class="text-on-surface-variant text-[16px] font-light">한 번 오면 얼마 쓰는지</p>
+</div>
+<div class="bg-surface-container-lowest p-8 rounded-2xl flex items-center justify-between border border-white/5 shadow-[0_4px_20px_rgba(59,130,246,0.05)]">
+<div>
+<div class="flex items-baseline gap-1">
+<span class="text-[48px] font-light tracking-tighter text-white leading-none">18,420</span>
+<span class="text-[20px] font-medium text-white">원</span>
+</div>
+<span class="text-on-surface-variant text-[14px]">평균 결제 단가</span>
+</div>
+<div class="bg-inverse-primary/20 px-4 py-2 rounded-xl text-center">
+<span class="text-tertiary text-[12px] block">재방문 지수</span>
+<span class="text-white font-bold text-[18px]">월 3.4회</span>
+</div>
+</div>
+</section>
+</main>
+<!-- Content Decorative Background -->
+<div class="fixed top-0 left-0 w-full h-full pointer-events-none -z-10 overflow-hidden">
+<div class="absolute top-[20%] -right-20 w-[300px] h-[300px] bg-secondary-container opacity-5 blur-[80px]"></div>
+<div class="absolute bottom-[10%] -left-20 w-[400px] h-[400px] bg-tertiary opacity-5 blur-[100px]"></div>
+</div>
+</body></html>

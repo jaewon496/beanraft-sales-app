@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="ko"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>카페 위치 지도</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "on-surface-variant": "#B8B8B8",
+                        "primary": "#FFFFFF",
+                        "on-tertiary-fixed-variant": "#00458E",
+                        "on-error-container": "#FFDAD6",
+                        "on-background": "#FFFFFF",
+                        "inverse-surface": "#FFFFFF",
+                        "secondary-fixed-dim": "#B6C4FF",
+                        "secondary-fixed": "#DCE1FF",
+                        "secondary-container": "#1E3A8A",
+                        "outline-variant": "#444651",
+                        "on-primary-fixed-variant": "#454747",
+                        "tertiary-fixed-dim": "#ADC6FF",
+                        "primary-fixed": "#FFFFFF",
+                        "primary-fixed-dim": "#E2E2E2",
+                        "primary-container": "#1E3A8A",
+                        "tertiary-container": "#1E3A8A",
+                        "tertiary-fixed": "#D1E4FF",
+                        "secondary": "#1E3A8A",
+                        "background": "#000000",
+                        "surface-dim": "#0E0E0E",
+                        "surface-bright": "#393939",
+                        "surface": "#131313",
+                        "on-secondary-container": "#B6C4FF",
+                        "surface-container-high": "#2A2A2A",
+                        "on-primary-fixed": "#000000",
+                        "surface-container-highest": "#353535",
+                        "outline": "#8F909D",
+                        "error": "#DC2626",
+                        "on-tertiary": "#FFFFFF",
+                        "on-error": "#FFFFFF",
+                        "tertiary": "#3B82F6",
+                        "surface-variant": "#353535",
+                        "on-primary": "#000000",
+                        "inverse-primary": "#1E3A8A",
+                        "inverse-on-surface": "#131313",
+                        "error-container": "#93000A",
+                        "on-secondary": "#FFFFFF",
+                        "on-tertiary-fixed": "#001D47",
+                        "on-surface": "#FFFFFF",
+                        "on-primary-container": "#FFFFFF",
+                        "surface-tint": "#FFFFFF",
+                        "surface-container-low": "#1B1B1B",
+                        "on-tertiary-container": "#B6C4FF",
+                        "surface-container-lowest": "#000000",
+                        "surface-container": "#1F1F1F",
+                        "on-secondary-fixed": "#00164E",
+                        "on-secondary-fixed-variant": "#264191"
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    fontFamily: {
+                        headline: ["Inter", "sans-serif"],
+                        body: ["Inter", "sans-serif"],
+                        label: ["Inter", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        body { min-height: max(884px, 100dvh); }
+    </style>
+</head>
+<body class="bg-background text-on-background h-screen w-full overflow-hidden flex flex-col">
+<!-- Header -->
+<header class="bg-[#0E0E0E]/90 backdrop-blur-none docked full-width top-0 z-50">
+<div class="flex justify-between items-center w-full px-6 py-4">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-on-surface-variant text-2xl">arrow_back</span>
+<h1 class="font-['Inter'] text-[18px] font-medium tracking-tight text-white">카페 위치 지도</h1>
+</div>
+<button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-[#1B1B1B] transition-colors">
+<span class="material-symbols-outlined text-on-surface-variant">close</span>
+</button>
+</div>
+<!-- Radius Slider Section -->
+<div class="px-6 pb-4 pt-2 border-b border-surface-container-low">
+<div class="flex justify-between items-center mb-2">
+<span class="text-sm font-medium text-on-surface-variant">검색 반경</span>
+<span class="text-lg font-bold text-tertiary">300미터</span>
+</div>
+<input class="w-full h-1 bg-surface-container-highest rounded-lg appearance-none cursor-pointer accent-tertiary" max="2000" min="100" type="range" value="300"/>
+<div class="flex justify-between text-xs text-on-surface-variant mt-2 opacity-60">
+<span>100미터</span>
+<span>2킬로미터</span>
+</div>
+</div>
+</header>
+<!-- Filter Bar -->
+<div class="bg-surface-container-lowest z-40 shadow-[0_8px_30px_rgba(0,0,0,0.5)]">
+<div class="flex items-center justify-between px-6 py-3">
+<span class="text-sm font-medium text-white">총 <span class="text-tertiary font-bold">12개</span>의 결과</span>
+</div>
+<div class="flex overflow-x-auto hide-scrollbar px-6 pb-4 gap-2">
+<!-- Chips -->
+<button class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-container-low border border-transparent whitespace-nowrap">
+<div class="w-2 h-2 rounded-full bg-on-surface-variant"></div>
+<span class="text-xs font-medium text-on-surface-variant">검색 위치</span>
+</button>
+<button class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-container-low border border-transparent whitespace-nowrap">
+<div class="w-2 h-2 rounded-full bg-on-surface-variant"></div>
+<span class="text-xs font-medium text-on-surface-variant">프랜차이즈</span>
+</button>
+<button class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-container-low border border-transparent whitespace-nowrap">
+<div class="w-2 h-2 rounded-full bg-on-surface-variant"></div>
+<span class="text-xs font-medium text-on-surface-variant">개인카페</span>
+</button>
+<button class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-container-low border border-transparent whitespace-nowrap">
+<div class="w-2 h-2 rounded-full bg-on-surface-variant"></div>
+<span class="text-xs font-medium text-on-surface-variant">베이커리</span>
+</button>
+<button class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-purple-500/10 border border-purple-500/20 whitespace-nowrap">
+<div class="w-2 h-2 rounded-full bg-purple-500"></div>
+<span class="text-xs font-medium text-purple-500">신규 오픈</span>
+</button>
+</div>
+</div>
+<!-- Map Area (Simulated) -->
+<div class="flex-1 relative w-full h-full bg-surface-container-high overflow-hidden">
+<!-- Minimalistic Map Background (Simulated via CSS for Obsidian Theme) -->
+<div class="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1524661135-423995f22d0b?auto=format&amp;fit=crop&amp;q=80')] bg-cover bg-center opacity-20 grayscale sepia-[0.2] hue-rotate-[180deg]" style="filter: brightness(0.3) contrast(1.2);"></div>
+<div class="absolute inset-0 bg-background/60"></div>
+<!-- Grid overlay for tech feel -->
+<div class="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:40px_40px]"></div>
+<!-- Radius Circle -->
+<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 rounded-full border border-tertiary/40 bg-tertiary/5 flex items-center justify-center">
+<!-- Center Point -->
+<div class="relative">
+<div class="absolute -top-10 -left-16 bg-surface-container-lowest px-3 py-1.5 rounded-lg border border-surface-container-low shadow-lg whitespace-nowrap z-10 flex items-center gap-2">
+<span class="text-sm font-bold text-white">강남역 1번 출구</span>
+</div>
+<div class="w-8 h-8 bg-error rounded-full flex items-center justify-center shadow-[0_0_15px_rgba(220,38,38,0.6)] animate-pulse border-2 border-white">
+<span class="material-symbols-outlined text-white text-sm" data-weight="fill">location_on</span>
+</div>
+</div>
+</div>
+<!-- Simulated Markers -->
+<!-- Franchise -->
+<div class="absolute top-[30%] left-[40%] flex flex-col items-center opacity-30 grayscale">
+<div class="w-6 h-6 bg-tertiary rounded-full flex items-center justify-center shadow-lg border-2 border-surface-container-lowest transform hover:scale-110 transition-transform cursor-pointer">
+<span class="material-symbols-outlined text-white text-xs">local_cafe</span>
+</div>
+</div>
+<div class="absolute top-[60%] left-[65%] flex flex-col items-center opacity-30 grayscale">
+<div class="w-6 h-6 bg-tertiary rounded-full flex items-center justify-center shadow-lg border-2 border-surface-container-lowest transform hover:scale-110 transition-transform cursor-pointer">
+<span class="material-symbols-outlined text-white text-xs">local_cafe</span>
+</div>
+</div>
+<!-- Independent -->
+<div class="absolute top-[45%] left-[25%] flex flex-col items-center opacity-30 grayscale">
+<div class="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center shadow-lg border-2 border-surface-container-lowest transform hover:scale-110 transition-transform cursor-pointer">
+<span class="material-symbols-outlined text-white text-xs">local_cafe</span>
+</div>
+</div>
+<div class="absolute top-[70%] left-[45%] flex flex-col items-center opacity-30 grayscale">
+<div class="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center shadow-lg border-2 border-surface-container-lowest transform hover:scale-110 transition-transform cursor-pointer">
+<span class="material-symbols-outlined text-white text-xs">local_cafe</span>
+</div>
+</div>
+<!-- Bakery -->
+<div class="absolute top-[25%] left-[60%] flex flex-col items-center opacity-30 grayscale">
+<div class="w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center shadow-lg border-2 border-surface-container-lowest transform hover:scale-110 transition-transform cursor-pointer">
+<span class="material-symbols-outlined text-white text-xs">bakery_dining</span>
+</div>
+</div>
+<!-- New Open -->
+<div class="absolute top-[55%] left-[35%] flex flex-col items-center z-20">
+<div class="w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center shadow-[0_0_15px_rgba(168,85,247,0.8)] border-2 border-surface-container-lowest transform scale-110 hover:scale-125 transition-transform cursor-pointer animate-pulse">
+<span class="material-symbols-outlined text-white text-xs">new_releases</span>
+</div>
+</div>
+<div class="absolute top-[40%] left-[55%] flex flex-col items-center z-20">
+<div class="w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center shadow-[0_0_15px_rgba(168,85,247,0.8)] border-2 border-surface-container-lowest transform scale-110 hover:scale-125 transition-transform cursor-pointer animate-pulse">
+<span class="material-symbols-outlined text-white text-xs">new_releases</span>
+</div>
+</div>
+</div>
+</body></html>

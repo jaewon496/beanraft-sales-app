@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="ko"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>카페 위치 지도 - 로딩중</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-surface-variant": "#B8B8B8",
+                      "primary": "#FFFFFF",
+                      "on-tertiary-fixed-variant": "#00458E",
+                      "on-error-container": "#FFDAD6",
+                      "on-background": "#FFFFFF",
+                      "inverse-surface": "#FFFFFF",
+                      "secondary-fixed-dim": "#B6C4FF",
+                      "secondary-fixed": "#DCE1FF",
+                      "secondary-container": "#1E3A8A",
+                      "outline-variant": "#444651",
+                      "on-primary-fixed-variant": "#454747",
+                      "tertiary-fixed-dim": "#ADC6FF",
+                      "primary-fixed": "#FFFFFF",
+                      "primary-fixed-dim": "#E2E2E2",
+                      "primary-container": "#1E3A8A",
+                      "tertiary-container": "#1E3A8A",
+                      "tertiary-fixed": "#D1E4FF",
+                      "secondary": "#1E3A8A",
+                      "background": "#000000",
+                      "surface-dim": "#0E0E0E",
+                      "surface-bright": "#393939",
+                      "surface": "#131313",
+                      "on-secondary-container": "#B6C4FF",
+                      "surface-container-high": "#2A2A2A",
+                      "on-primary-fixed": "#000000",
+                      "surface-container-highest": "#353535",
+                      "outline": "#8F909D",
+                      "error": "#DC2626",
+                      "on-tertiary": "#FFFFFF",
+                      "on-error": "#FFFFFF",
+                      "tertiary": "#3B82F6",
+                      "surface-variant": "#353535",
+                      "on-primary": "#000000",
+                      "inverse-primary": "#1E3A8A",
+                      "inverse-on-surface": "#131313",
+                      "error-container": "#93000A",
+                      "on-secondary": "#FFFFFF",
+                      "on-tertiary-fixed": "#001D47",
+                      "on-surface": "#FFFFFF",
+                      "on-primary-container": "#FFFFFF",
+                      "surface-tint": "#FFFFFF",
+                      "surface-container-low": "#1B1B1B",
+                      "on-tertiary-container": "#B6C4FF",
+                      "surface-container-lowest": "#000000",
+                      "surface-container": "#1F1F1F",
+                      "on-secondary-fixed": "#00164E",
+                      "on-secondary-fixed-variant": "#264191"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {},
+              "fontFamily": {
+                      "headline": [
+                              "Inter"
+                      ],
+                      "body": [
+                              "Inter"
+                      ],
+                      "label": [
+                              "Inter"
+                      ]
+              }
+      },
+          },
+        }
+      </script>
+<style>
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .animate-spin-slow {
+            animation: spin 3s linear infinite;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-surface font-body h-screen flex flex-col overflow-hidden">
+<!-- Dimmed Header & Filters Area -->
+<div class="opacity-40 pointer-events-none z-10 flex flex-col">
+<!-- TopAppBar (from JSON) -->
+<header class="bg-[#000000] shadow-none flex items-center justify-between px-6 py-4 w-full">
+<div class="flex items-center gap-4 text-white">
+<button class="hover:bg-[#1B1B1B] transition-colors active:scale-95 duration-200 p-2 rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">close</span>
+</button>
+<h1 class="font-['Inter'] font-bold text-[1.875rem] tracking-tight">카페 위치 지도</h1>
+</div>
+<div class="text-lg font-medium text-white">
+<!-- Empty for alignment or brand logo slot -->
+</div>
+</header>
+<!-- Mock Filter Bar (Dimmed) -->
+<div class="bg-[#0E0E0E] px-6 py-3 flex gap-3 overflow-x-auto border-b border-surface-container-low border-opacity-20 hidden-scrollbar">
+<div class="bg-surface-container-low text-on-surface-variant px-4 py-2 rounded-full text-sm flex items-center gap-2 whitespace-nowrap">
+<span>현재 위치 근처</span>
+<span class="material-symbols-outlined text-[18px]">expand_more</span>
+</div>
+<div class="bg-surface-container-low text-on-surface-variant px-4 py-2 rounded-full text-sm flex items-center gap-2 whitespace-nowrap">
+<span>영업중</span>
+</div>
+<div class="bg-surface-container-low text-on-surface-variant px-4 py-2 rounded-full text-sm flex items-center gap-2 whitespace-nowrap">
+<span>주차 가능</span>
+</div>
+</div>
+</div>
+<!-- Map Area (Loading State) -->
+<main class="flex-1 relative bg-surface-dim">
+<!-- Abstract dark map background representation -->
+<div class="absolute inset-0 opacity-20 pointer-events-none" style="background-image: radial-gradient(circle at 50% 50%, #1B1B1B 2px, transparent 2px); background-size: 30px 30px;"></div>
+<!-- Loading Overlay -->
+<div class="absolute inset-0 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm z-20">
+<!-- Spinner / Radar animation -->
+<div class="relative flex items-center justify-center mb-6">
+<!-- Outer glow -->
+<div class="absolute w-24 h-24 bg-tertiary opacity-10 rounded-full blur-xl"></div>
+<!-- Radar rings -->
+<div class="absolute w-16 h-16 border border-tertiary/20 rounded-full animate-ping" style="animation-duration: 2s;"></div>
+<div class="absolute w-12 h-12 border border-tertiary/40 rounded-full"></div>
+<!-- Center Icon -->
+<div class="w-16 h-16 bg-surface-container-lowest rounded-full flex items-center justify-center relative z-10 shadow-[0_0_15px_rgba(59,130,246,0.3)]">
+<span class="material-symbols-outlined text-tertiary text-3xl animate-spin-slow">autorenew</span>
+</div>
+</div>
+<h2 class="text-xl font-headline font-medium text-primary tracking-wide">카페 정보를 불러오는 중...</h2>
+<p class="text-on-surface-variant text-sm mt-2 font-light">주변 데이터를 동기화하고 있습니다</p>
+</div>
+</main>
+</body></html>

@@ -29,13 +29,18 @@ function httpGet(url, timeout = 25000) {
       } else if (encoding === 'deflate') {
         stream = res.pipe(zlib.createInflate());
       }
-      let data = '';
-      stream.on('data', chunk => data += chunk);
+      // [버그 수정] 청크를 Buffer로 모은 후 마지막에 UTF-8 디코딩
+      // 기존 `data += chunk`는 청크 경계에 한글 멀티바이트가 걸리면 깨짐
+      // (한글 1글자=3바이트가 두 청크에 나뉘면 각각 invalid UTF-8로 fffd 변환됨)
+      const chunks = [];
+      stream.on('data', chunk => chunks.push(chunk));
       stream.on('end', () => {
         try {
+          const data = Buffer.concat(chunks).toString('utf-8');
           resolve(JSON.parse(data));
         } catch (e) {
-          reject(new Error(`JSON 파싱 실패: ${data.substring(0, 200)}`));
+          const preview = Buffer.concat(chunks).toString('utf-8').substring(0, 200);
+          reject(new Error(`JSON 파싱 실패: ${preview}`));
         }
       });
       stream.on('error', reject);

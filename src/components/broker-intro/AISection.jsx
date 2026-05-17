@@ -18,8 +18,8 @@ const AISection = ({ colors, sectionStyle, headingStyle, descStyle, PhoneMockupC
       items: [
         { label: '유동인구', desc: '시간대·요일별 실측 데이터' },
         { label: '매출 추정', desc: '매장별 90% 정확도 추정' },
-        { label: '업종 밀집도', desc: '경쟁 강도·포화도 분석' },
-        { label: '개폐업 현황', desc: '개업·폐업 추이·생존율' },
+        { label: '업종 밀집 정도', desc: '주변 카페 경쟁 수준 분석' },
+        { label: '개폐업 현황', desc: '개업·폐업 추이·계속 운영 확률' },
         { label: '연령별 소비', desc: '연령대별 소비 금액·빈도' },
         { label: '임대 시세', desc: '평균 임대료·보증금·평당 단가' },
       ],

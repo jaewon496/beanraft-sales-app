@@ -14,7 +14,25 @@ import Card13TrendAnalysis from './Card13TrendAnalysis';
 import Card9DeliveryAvgPrice from './Card9DeliveryAvgPrice';
 import AINarrationEngine from './AINarrationEngine';
 import { COLORS, TIMING, BLUR, LAYOUT } from './constants';
-import { mapCollectedDataToCards } from './dataMapper';
+import {
+  mapCollectedDataToCards,
+  mapToCommercialDistrict,
+  extractMarketRent,
+  extractVacancy,
+  extractPriceChange,
+  extractConversionRate,
+  extractYieldRate,
+  extractNetIncome,
+  extractCafeClosure,
+  extractRegionClosure,
+  extractConsumerSentiment,
+  extractMarketRentSeries,
+  extractVacancySeries,
+  extractPriceIndexSeries,
+  extractCafeClosureSeries,
+  extractConsumerSentimentSeries,
+  buildIntegratedRent,
+} from './dataMapper';
 
 // ─── Naver Map SDK Loader (uses global script from index.html, never loads a second script) ───
 let naverSDKLoadPromise = null;
@@ -3761,6 +3779,60 @@ export default function UnifiedLayout({
   const mappedCards = mappingResult.cards;
   const mappingError = mappingResult.error;
 
+  // ── KOSIS 보조 박스 데이터 (5개 카드 공통 prop) ──
+  // App.jsx의 KOSIS 추출 로직과 동일한 구조로 묶어 카드들에 전달
+  const kosisBoxData = useMemo(() => {
+    if (!collectedData?.apis) return null;
+    try {
+      const apis = collectedData.apis;
+      const addrFull = String(
+        collectedData?.addressInfo?.address ||
+        collectedData?.address ||
+        collectedData?.region ||
+        searchAddress ||
+        ''
+      ).trim();
+      // 시도/시군구 추출 (addressInfo 우선, 없으면 주소 텍스트에서 토큰 추출)
+      let sido = String(collectedData?.addressInfo?.sido || '').trim();
+      let sigungu = String(collectedData?.addressInfo?.sigungu || '').trim();
+      if (!sido && addrFull) {
+        const m = addrFull.match(/(서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주)/);
+        if (m) sido = m[1];
+      }
+      if (!sigungu && addrFull) {
+        const m2 = addrFull.match(/([가-힣]+[시군구])\s/);
+        if (m2) sigungu = m2[1];
+      }
+      const sidoForExt = sido.replace(/(특별시|광역시|특별자치시|특별자치도|도)$/g, '').trim();
+      const sangkwonCode = mapToCommercialDistrict(addrFull);
+
+      return {
+        sido: sidoForExt,
+        sigungu,
+        sangkwonCode,
+        marketRent: extractMarketRent(apis, sangkwonCode),
+        vacancy: extractVacancy(apis, sangkwonCode),
+        priceChange: extractPriceChange(apis, sangkwonCode),
+        conversionRate: extractConversionRate(apis, sangkwonCode),
+        yieldRate: extractYieldRate(apis, sangkwonCode),
+        netIncome: extractNetIncome(apis, sangkwonCode),
+        cafeClosure: extractCafeClosure(apis, sidoForExt),
+        cafeClosureNation: extractCafeClosure(apis, ''),
+        regionClosure: extractRegionClosure(apis, sigungu),
+        consumerSentiment: extractConsumerSentiment(apis, sidoForExt),
+        marketRentSeries: extractMarketRentSeries(apis, sangkwonCode, 8) || extractMarketRentSeries(apis, null, 8),
+        vacancySeries: extractVacancySeries(apis, sangkwonCode, 8) || extractVacancySeries(apis, null, 8),
+        priceIndexSeries: extractPriceIndexSeries(apis, sangkwonCode, 12) || extractPriceIndexSeries(apis, null, 12),
+        cafeClosureSeries: extractCafeClosureSeries(apis, sidoForExt, 11) || extractCafeClosureSeries(apis, '', 11),
+        consumerSentimentSeries: extractConsumerSentimentSeries(apis, sidoForExt, 12) || extractConsumerSentimentSeries(apis, '', 12),
+        integratedRent: buildIntegratedRent(apis, sangkwonCode),
+      };
+    } catch (e) {
+      console.warn('[UnifiedLayout] kosisBoxData build failed:', e?.message || e);
+      return null;
+    }
+  }, [collectedData, searchAddress]);
+
   // [2026-05-05] 옛날 cardsProp 폴백 경로 삭제 - 에러 발견 즉시 화면에 노출되도록 함
   const cards = mappedCards || [];
 
@@ -6275,21 +6347,21 @@ export default function UnifiedLayout({
                             onMapClick={null}
                           />
                         ) : i === 2 ? (
-                          <Card13TrendAnalysis card={card} cardNumber={(i + 1) < 10 ? `0${i + 1}` : `${i + 1}`} />
+                          <Card13TrendAnalysis card={card} cardNumber={(i + 1) < 10 ? `0${i + 1}` : `${i + 1}`} kosisBoxData={kosisBoxData} />
                         ) : i === 3 ? (
-                          <Card3FranchiseAnalysis card={card} cardNumber={(i + 1) < 10 ? `0${i + 1}` : `${i + 1}`} />
+                          <Card3FranchiseAnalysis card={card} cardNumber={(i + 1) < 10 ? `0${i + 1}` : `${i + 1}`} kosisBoxData={kosisBoxData} />
                         ) : i === 4 ? (
-                          <Card4IndieCafeAnalysis card={card} cardNumber={(i + 1) < 10 ? `0${i + 1}` : `${i + 1}`} />
+                          <Card4IndieCafeAnalysis card={card} cardNumber={(i + 1) < 10 ? `0${i + 1}` : `${i + 1}`} kosisBoxData={kosisBoxData} />
                         ) : i === 5 ? (
                           <Card5SalesAnalysis card={card} cardNumber={(i + 1) < 10 ? `0${i + 1}` : `${i + 1}`} />
                         ) : i === 6 ? (
                           <Card6FloatingPop card={card} cardNumber={(i + 1) < 10 ? `0${i + 1}` : `${i + 1}`} />
                         ) : i === 8 ? (
-                          <Card8OpportunityRisk card={card} cardNumber={(i + 1) < 10 ? `0${i + 1}` : `${i + 1}`} />
+                          <Card8OpportunityRisk card={card} cardNumber={(i + 1) < 10 ? `0${i + 1}` : `${i + 1}`} kosisBoxData={kosisBoxData} />
                         ) : i === 9 ? (
                           <Card9DeliveryAvgPrice card={card} cardNumber={(i + 1) < 10 ? `0${i + 1}` : `${i + 1}`} />
                         ) : i === 12 ? (
-                          <Card12CompetitionScore card={card} cardNumber={(i + 1) < 10 ? `0${i + 1}` : `${i + 1}`} />
+                          <Card12CompetitionScore card={card} cardNumber={(i + 1) < 10 ? `0${i + 1}` : `${i + 1}`} kosisBoxData={kosisBoxData} />
                         ) : (
                         <CardTemplate
                           index={i}

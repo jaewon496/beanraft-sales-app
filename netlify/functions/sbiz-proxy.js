@@ -120,9 +120,14 @@ function fetchJsonSimple(url) {
       } else if (encoding === 'deflate') {
         stream = res.pipe(zlib.createInflate());
       }
-      let body = '';
-      stream.on('data', chunk => body += chunk);
-      stream.on('end', () => { try { resolve(JSON.parse(body)); } catch(e) { resolve(null); } });
+      // [버그 수정] 청크를 Buffer로 모은 후 마지막에 UTF-8 디코딩
+      // 한글 멀티바이트가 청크 경계에 걸리면 fffd로 깨지는 문제 방지
+      const chunks = [];
+      stream.on('data', chunk => chunks.push(chunk));
+      stream.on('end', () => {
+        const body = Buffer.concat(chunks).toString('utf-8');
+        try { resolve(JSON.parse(body)); } catch(e) { resolve(null); }
+      });
       stream.on('error', () => resolve(null));
     });
     req.on('error', () => resolve(null));
@@ -158,9 +163,14 @@ function fetchJsonPost(url, formData) {
       let stream = res;
       if (encoding === 'gzip') { stream = res.pipe(zlib.createGunzip()); }
       else if (encoding === 'deflate') { stream = res.pipe(zlib.createInflate()); }
-      let body = '';
-      stream.on('data', chunk => body += chunk);
-      stream.on('end', () => { try { resolve(JSON.parse(body)); } catch(e) { resolve(null); } });
+      // [버그 수정] 청크를 Buffer로 모은 후 마지막에 UTF-8 디코딩
+      // 한글 멀티바이트가 청크 경계에 걸리면 fffd로 깨지는 문제 방지
+      const chunks = [];
+      stream.on('data', chunk => chunks.push(chunk));
+      stream.on('end', () => {
+        const body = Buffer.concat(chunks).toString('utf-8');
+        try { resolve(JSON.parse(body)); } catch(e) { resolve(null); }
+      });
       stream.on('error', () => resolve(null));
     });
     req.on('error', () => resolve(null));
@@ -428,9 +438,14 @@ exports.handler = async (event, context) => {
               },
               timeout: 15000
             }, (res) => {
-              let body = '';
-              res.on('data', chunk => body += chunk);
-              res.on('end', () => { try { resolve({ status: res.statusCode, data: JSON.parse(body), usedYm: ym }); } catch(e) { resolve({ status: res.statusCode, data: body, usedYm: ym }); } });
+              // [버그 수정] 청크를 Buffer로 모은 후 마지막에 UTF-8 디코딩
+              // 한글 멀티바이트가 청크 경계에 걸리면 fffd로 깨지는 문제 방지
+              const chunks = [];
+              res.on('data', chunk => chunks.push(chunk));
+              res.on('end', () => {
+                const body = Buffer.concat(chunks).toString('utf-8');
+                try { resolve({ status: res.statusCode, data: JSON.parse(body), usedYm: ym }); } catch(e) { resolve({ status: res.statusCode, data: body, usedYm: ym }); }
+              });
             });
             req.on('error', () => resolve({ status: 500, data: null, usedYm: ym }));
             req.on('timeout', () => { req.destroy(); resolve({ status: 504, data: null, usedYm: ym }); });
@@ -675,9 +690,14 @@ exports.handler = async (event, context) => {
         const coordUrl = `https://bigdata.sbiz.or.kr/gis/api/getCoordToAdmPoint.json?minXAxis=${range.minXAxis}&maxXAxis=${range.maxXAxis}&minYAxis=${range.minYAxis}&maxYAxis=${range.maxYAxis}&mapLevel=14`;
         const coordData = await new Promise((resolve, reject) => {
           const req = https.get(coordUrl, { rejectUnauthorized: false, headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://bigdata.sbiz.or.kr/' }, timeout: 15000 }, (res) => {
-            let body = '';
-            res.on('data', chunk => body += chunk);
-            res.on('end', () => { try { resolve(JSON.parse(body)); } catch(e) { resolve([]); } });
+            // [버그 수정] 청크를 Buffer로 모은 후 마지막에 UTF-8 디코딩
+            // 한글 멀티바이트가 청크 경계에 걸리면 fffd로 깨지는 문제 방지
+            const chunks = [];
+            res.on('data', chunk => chunks.push(chunk));
+            res.on('end', () => {
+              const body = Buffer.concat(chunks).toString('utf-8');
+              try { resolve(JSON.parse(body)); } catch(e) { resolve([]); }
+            });
           });
           req.on('error', () => resolve([]));
           req.on('timeout', () => { req.destroy(); resolve([]); });
@@ -756,9 +776,13 @@ exports.handler = async (event, context) => {
         const fetchBatch = (si, ei) => new Promise((resolve) => {
           const batchUrl = `http://openapi.seoul.go.kr:8088/${seoulApiKey}/json/${svc}/${si}/${ei}/${quarterCode}`;
           const req = http.get(batchUrl, { timeout: 12000 }, (res) => {
-            let body = '';
-            res.on('data', chunk => body += chunk);
-            res.on('end', () => { try { resolve(JSON.parse(body)); } catch(e) { resolve(null); } });
+            // [버그 수정] 청크를 Buffer로 모은 후 마지막에 UTF-8 디코딩
+            const chunks = [];
+            res.on('data', chunk => chunks.push(chunk));
+            res.on('end', () => {
+              const body = Buffer.concat(chunks).toString('utf-8');
+              try { resolve(JSON.parse(body)); } catch(e) { resolve(null); }
+            });
           });
           req.on('error', () => resolve(null));
           req.on('timeout', () => { req.destroy(); resolve(null); });
@@ -834,9 +858,13 @@ exports.handler = async (event, context) => {
         const fetchBatch = (si, ei) => new Promise((resolve) => {
           const batchUrl = `http://openapi.seoul.go.kr:8088/${seoulApiKey}/json/${svc}/${si}/${ei}${quarter}`;
           const req = http.get(batchUrl, { timeout: 10000 }, (res) => {
-            let body = '';
-            res.on('data', chunk => body += chunk);
-            res.on('end', () => { try { resolve(JSON.parse(body)); } catch(e) { resolve(null); } });
+            // [버그 수정] 청크를 Buffer로 모은 후 마지막에 UTF-8 디코딩
+            const chunks = [];
+            res.on('data', chunk => chunks.push(chunk));
+            res.on('end', () => {
+              const body = Buffer.concat(chunks).toString('utf-8');
+              try { resolve(JSON.parse(body)); } catch(e) { resolve(null); }
+            });
           });
           req.on('error', () => resolve(null));
           req.on('timeout', () => { req.destroy(); resolve(null); });
@@ -918,9 +946,13 @@ exports.handler = async (event, context) => {
         const fetchBatchLocal = (batchSi, batchEi) => new Promise((resolve) => {
           const batchUrl = `http://openapi.seoul.go.kr:8088/${seoulApiKey}/json/${svc}/${batchSi}/${batchEi}/${quarterCode}`;
           const req = http.get(batchUrl, { timeout: 12000 }, (res) => {
-            let body = '';
-            res.on('data', chunk => body += chunk);
-            res.on('end', () => { try { resolve(JSON.parse(body)); } catch(e) { resolve(null); } });
+            // [버그 수정] 청크를 Buffer로 모은 후 마지막에 UTF-8 디코딩
+            const chunks = [];
+            res.on('data', chunk => chunks.push(chunk));
+            res.on('end', () => {
+              const body = Buffer.concat(chunks).toString('utf-8');
+              try { resolve(JSON.parse(body)); } catch(e) { resolve(null); }
+            });
           });
           req.on('error', () => resolve(null));
           req.on('timeout', () => { req.destroy(); resolve(null); });
@@ -1012,9 +1044,13 @@ exports.handler = async (event, context) => {
       // fftc 전용 타임아웃 (10초)
       const fftcData = await new Promise((resolve, reject) => {
         const req = http.get(targetUrl, { timeout: 10000 }, (res) => {
-          let body = '';
-          res.on('data', chunk => body += chunk);
-          res.on('end', () => { try { resolve({ status: res.statusCode, data: JSON.parse(body) }); } catch(e) { resolve({ status: res.statusCode, data: body }); } });
+          // [버그 수정] 청크를 Buffer로 모은 후 마지막에 UTF-8 디코딩
+          const chunks = [];
+          res.on('data', chunk => chunks.push(chunk));
+          res.on('end', () => {
+            const body = Buffer.concat(chunks).toString('utf-8');
+            try { resolve({ status: res.statusCode, data: JSON.parse(body) }); } catch(e) { resolve({ status: res.statusCode, data: body }); }
+          });
         });
         req.on('error', () => resolve({ status: 500, data: { items: [] } }));
         req.on('timeout', () => { req.destroy(); resolve({ status: 504, data: { items: [] } }); });
@@ -1035,9 +1071,13 @@ exports.handler = async (event, context) => {
     const data = await new Promise((resolve, reject) => {
       const protocol = useHttp ? http : https;
       const req = protocol.get(targetUrl, { rejectUnauthorized: false, headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://bigdata.sbiz.or.kr/' }, timeout: 30000 }, (res) => {
-        let body = '';
-        res.on('data', chunk => body += chunk);
-        res.on('end', () => { try { resolve({ status: res.statusCode, data: JSON.parse(body) }); } catch(e) { resolve({ status: res.statusCode, data: body }); } });
+        // [버그 수정] 청크를 Buffer로 모은 후 마지막에 UTF-8 디코딩
+        const chunks = [];
+        res.on('data', chunk => chunks.push(chunk));
+        res.on('end', () => {
+          const body = Buffer.concat(chunks).toString('utf-8');
+          try { resolve({ status: res.statusCode, data: JSON.parse(body) }); } catch(e) { resolve({ status: res.statusCode, data: body }); }
+        });
       });
       req.on('error', reject);
       req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });

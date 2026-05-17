@@ -11,15 +11,19 @@
   "workspace": {
     "packageJson": {
       "dependencies": [
+        "npm:@turf/boolean-point-in-polygon@^7.3.5",
+        "npm:@turf/helpers@^7.3.5",
         "npm:@types/react-dom@^18.2.17",
         "npm:@types/react@^18.2.43",
         "npm:@vitejs/plugin-react@^4.2.1",
+        "npm:adm-zip@~0.5.17",
         "npm:apexcharts@^5.10.4",
         "npm:autoprefixer@^10.4.16",
         "npm:exceljs@^4.4.0",
         "npm:firebase-admin@^13.7.0",
         "npm:firebase@^10.7.1",
         "npm:framer-motion@^12.38.0",
+        "npm:iconv-lite@~0.7.2",
         "npm:jszip@^3.10.1",
         "npm:postcss@^8.4.32",
         "npm:puppeteer@^24.38.0",

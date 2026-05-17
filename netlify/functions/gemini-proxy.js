@@ -13,12 +13,12 @@ export async function handler(event) {
 
   // GET 요청 - 키 상태 + API 작동 확인
   if (event.httpMethod === 'GET') {
-    const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+    const GEMINI_API_KEY = process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
     if (!GEMINI_API_KEY) {
       return {
         statusCode: 200, headers,
-        body: JSON.stringify({ 
-          status: 'error', 
+        body: JSON.stringify({
+          status: 'error',
           message: 'GEMINI_API_KEY 환경변수 없음',
           hint: 'Netlify 환경변수에 GEMINI_API_KEY 또는 VITE_GEMINI_API_KEY 설정 필요'
         })
@@ -58,7 +58,7 @@ export async function handler(event) {
 
   // POST 요청 - 실제 프록시
   if (event.httpMethod === 'POST') {
-    const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+    const GEMINI_API_KEY = process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
     if (!GEMINI_API_KEY) {
       return { statusCode: 500, headers, body: JSON.stringify({ error: 'API key not configured' }) };
     }
@@ -75,25 +75,31 @@ export async function handler(event) {
 
         const callAgent = async (agent) => {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 15000); // 15초 개별 타임아웃
+          // Pro 모델은 응답이 느릴 수 있어 타임아웃 확장
+          const agentTimeout = agent.model === 'pro' ? 22000 : 15000;
+          const timeoutId = setTimeout(() => controller.abort(), agentTimeout);
           try {
+            // 에이전트별 모델 선택 (기본 flash, pro 지정 가능)
+            const modelName = agent.model === 'pro' ? 'gemini-2.5-pro' : 'gemini-2.5-flash';
+            const agentTemp = agent.temperature || 0.7;
+            // Pro 모델은 thinkingBudget 최소 128 필수 (0이면 에러)
+            let agentThinking = agent.thinkingBudget != null ? agent.thinkingBudget : (agent.grounding ? 1024 : 0);
+            if (agent.model === 'pro' && agentThinking < 128) agentThinking = 8192;
             const reqBody = {
               contents: [{ parts: [{ text: agent.prompt }] }],
               generationConfig: {
-                temperature: 0.7,
+                temperature: agentTemp,
                 maxOutputTokens: agent.maxOutputTokens || 1000,
                 ...(agent.grounding ? {} : { responseMimeType: 'application/json' }),
-                thinkingConfig: { thinkingBudget: 0 }
+                thinkingConfig: { thinkingBudget: agentThinking },
               }
             };
             // grounding: Google Search 활성화 (Gemini 2.5+ 새 API)
             if (agent.grounding) {
               reqBody.tools = [{ google_search: {} }];
-              // grounding 사용 시 thinkingBudget 제거 (호환성)
-              delete reqBody.generationConfig.thinkingConfig;
             }
             const res = await fetch(
-              `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+              `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`,
               {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -108,7 +114,7 @@ export async function handler(event) {
               const retryController = new AbortController();
               const retryTimeout = setTimeout(() => retryController.abort(), 12000);
               const retryRes = await fetch(
-                `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+                `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`,
                 {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
@@ -121,7 +127,8 @@ export async function handler(event) {
                 return { id: agent.id, success: false, error: `HTTP ${retryRes.status} (retry after 429)` };
               }
               const retryData = await retryRes.json();
-              const retryText = retryData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+              const retryParts = retryData.candidates?.[0]?.content?.parts || [];
+              const retryText = retryParts.map(p => p.text || '').join('');
               const retryGroundingMeta = retryData.candidates?.[0]?.groundingMetadata || null;
               return { id: agent.id, success: true, text: retryText, groundingMeta: retryGroundingMeta || undefined };
             }
@@ -129,7 +136,9 @@ export async function handler(event) {
               return { id: agent.id, success: false, error: `HTTP ${res.status}` };
             }
             const data = await res.json();
-            const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            // 모든 parts의 텍스트를 합침 (Gemini 2.5가 여러 파트로 분할 응답하는 경우 대비)
+            const parts = data.candidates?.[0]?.content?.parts || [];
+            const text = parts.map(p => p.text || '').join('');
             // grounding 메타데이터 포함
             const groundingMeta = data.candidates?.[0]?.groundingMetadata || null;
             return { id: agent.id, success: true, text, groundingMeta: groundingMeta || undefined };

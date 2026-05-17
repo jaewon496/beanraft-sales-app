@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="ko"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Cafe Intelligence - Map</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-variant": "#353535",
+                        "error": "#DC2626",
+                        "on-tertiary": "#FFFFFF",
+                        "on-secondary-fixed": "#00164E",
+                        "on-error-container": "#FFDAD6",
+                        "on-primary-fixed": "#000000",
+                        "primary-fixed-dim": "#E2E2E2",
+                        "secondary-fixed": "#DCE1FF",
+                        "on-surface": "#FFFFFF",
+                        "surface-container": "#1F1F1F",
+                        "on-primary-fixed-variant": "#454747",
+                        "surface-container-low": "#1B1B1B",
+                        "tertiary": "#3B82F6",
+                        "surface-dim": "#0E0E0E",
+                        "outline-variant": "#444651",
+                        "on-tertiary-fixed-variant": "#00458E",
+                        "tertiary-fixed": "#D1E4FF",
+                        "primary-fixed": "#FFFFFF",
+                        "inverse-primary": "#1E3A8A",
+                        "secondary-fixed-dim": "#B6C4FF",
+                        "inverse-surface": "#FFFFFF",
+                        "surface-container-lowest": "#000000",
+                        "on-primary-container": "#FFFFFF",
+                        "secondary": "#1E3A8A",
+                        "primary": "#FFFFFF",
+                        "on-background": "#FFFFFF",
+                        "on-secondary": "#FFFFFF",
+                        "inverse-on-surface": "#131313",
+                        "on-tertiary-container": "#B6C4FF",
+                        "on-secondary-fixed-variant": "#264191",
+                        "surface-tint": "#FFFFFF",
+                        "surface-container-high": "#2A2A2A",
+                        "error-container": "#93000A",
+                        "surface-container-highest": "#353535",
+                        "on-tertiary-fixed": "#001D47",
+                        "secondary-container": "#1E3A8A",
+                        "on-secondary-container": "#B6C4FF",
+                        "surface": "#131313",
+                        "surface-bright": "#393939",
+                        "tertiary-fixed-dim": "#ADC6FF",
+                        "outline": "#8F909D",
+                        "tertiary-container": "#1E3A8A",
+                        "on-primary": "#000000",
+                        "on-surface-variant": "#B8B8B8",
+                        "background": "#000000",
+                        "primary-container": "#1E3A8A",
+                        "on-error": "#FFFFFF"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Inter"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background h-screen flex flex-col overflow-hidden selection:bg-tertiary selection:text-white">
+<!-- TopAppBar -->
+<header class="bg-[#0E0E0E]/90 backdrop-blur-none flex justify-between items-center w-full px-6 py-4 docked full-width top-0 bg-[#1B1B1B] z-50">
+<button class="hover:bg-[#1B1B1B] transition-colors p-2 rounded scale-95 duration-200">
+<span class="material-symbols-outlined text-[#B8B8B8] text-[24px]" style="font-variation-settings: 'FILL' 0;">map</span>
+</button>
+<h1 class="font-['Inter'] text-[18px] font-medium tracking-tight text-white text-lg font-bold tracking-tighter">Cafe Intelligence</h1>
+<button class="hover:bg-[#1B1B1B] transition-colors p-2 rounded scale-95 duration-200">
+<span class="material-symbols-outlined text-[#B8B8B8] text-[24px]" style="font-variation-settings: 'FILL' 0;">settings</span>
+</button>
+</header>
+<!-- Main Content Canvas (Map Area) -->
+<main class="flex-1 relative w-full h-full bg-surface-container-low">
+<!-- Map Background Placeholder -->
+<div class="absolute inset-0 z-0">
+<img alt="Dark mode stylized street map" class="w-full h-full object-cover opacity-60 mix-blend-luminosity" data-alt="stylized dark mode city street map with glowing blue network lines, abstract representation of urban area, high contrast obsidian aesthetic" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBhXovTZ3K1N4jvumuSVnOtIgGrC5Qqt9f5sjLPafg2mLln9Z1UWm6TwHnKLCRjCJeVOX-AxcCTDMtrKN6JpWMLNvmzWWuh__dIhX1YC29ojuXntQ_iL4vDU5MqCoAx-Xc0cG13KN-QUlvcKZ1_IRZPq521x2YgAKiPuQL-Cl30gjddvVWwn1f57CK0SSEhAj0V4JNlKdBr--IxNqqS3fiOotbO7in09FSZTNNTUDQtCz8Vn8bEAr4F8uTfxsTYCPQMhjTRnJHGzdA"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent z-10 pointer-events-none"></div>
+</div>
+<!-- Selected Marker & InfoWindow (The Modal) -->
+<div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center">
+<!-- InfoWindow Popup -->
+<div class="bg-surface-dim rounded-xl p-4 mb-4 flex flex-col gap-2 min-w-[240px] shadow-[0_8px_32px_rgba(0,0,0,0.8)] border border-outline-variant/20 relative before:content-[''] before:absolute before:bottom-[-8px] before:left-1/2 before:-translate-x-1/2 before:w-0 before:h-0 before:border-l-[8px] before:border-l-transparent before:border-r-[8px] before:border-r-transparent before:border-t-[8px] before:border-t-surface-dim before:border-t-outline-variant/20">
+<div class="flex justify-between items-start w-full">
+<h2 class="font-headline text-[18px] font-bold text-primary leading-tight">스타벅스 강남R점</h2>
+<span class="material-symbols-outlined text-tertiary text-[20px]" style="font-variation-settings: 'FILL' 1;">star</span>
+</div>
+<p class="font-body text-[14px] text-on-surface-variant leading-snug">서울 강남구 역삼동 814</p>
+<div class="flex items-center gap-1 mt-1">
+<span class="material-symbols-outlined text-tertiary text-[14px]" style="font-variation-settings: 'FILL' 1;">near_me</span>
+<span class="font-label text-[12px] text-tertiary font-medium">중심에서 120m</span>
+</div>
+</div>
+<!-- Glowing Marker -->
+<div class="relative flex items-center justify-center w-12 h-12">
+<!-- Outer Glow -->
+<div class="absolute inset-0 bg-tertiary rounded-full opacity-30 blur-md animate-pulse"></div>
+<!-- Inner Ring -->
+<div class="absolute inset-1 border-2 border-tertiary rounded-full opacity-80"></div>
+<!-- Center Dot/Icon -->
+<div class="w-6 h-6 bg-tertiary rounded-full shadow-[0_0_15px_rgba(59,130,246,0.6)] flex items-center justify-center z-10">
+<span class="material-symbols-outlined text-white text-[14px]" style="font-variation-settings: 'FILL' 1;">local_cafe</span>
+</div>
+</div>
+</div>
+<!-- Map Controls (Optional Context) -->
+<div class="absolute right-4 top-4 z-20 flex flex-col gap-2">
+<button class="w-10 h-10 bg-surface-container-low rounded-lg border border-outline-variant/20 flex items-center justify-center text-on-surface hover:bg-surface-container transition-colors shadow-lg">
+<span class="material-symbols-outlined text-[20px]">my_location</span>
+</button>
+<div class="flex flex-col bg-surface-container-low rounded-lg border border-outline-variant/20 shadow-lg overflow-hidden mt-2">
+<button class="w-10 h-10 flex items-center justify-center text-on-surface hover:bg-surface-container transition-colors border-b border-outline-variant/20">
+<span class="material-symbols-outlined text-[20px]">add</span>
+</button>
+<button class="w-10 h-10 flex items-center justify-center text-on-surface hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined text-[20px]">remove</span>
+</button>
+</div>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="bg-[#0E0E0E] fixed bottom-0 left-0 w-full flex justify-around items-center py-3 px-4 border-t border-white/10 shadow-[0_-8px_30px_rgba(59,130,246,0.05)] z-50 md:hidden">
+<button class="flex flex-col items-center justify-center text-blue-500 font-medium active:scale-90 transition-transform w-1/4">
+<span class="material-symbols-outlined text-[24px]" style="font-variation-settings: 'FILL' 1;">explore</span>
+<span class="font-['Inter'] text-[12px] font-medium mt-1">Explorer</span>
+</button>
+<button class="flex flex-col items-center justify-center text-[#B8B8B8] hover:text-white active:scale-90 transition-transform w-1/4">
+<span class="material-symbols-outlined text-[24px]" style="font-variation-settings: 'FILL' 0;">analytics</span>
+<span class="font-['Inter'] text-[12px] font-light mt-1">Insights</span>
+</button>
+<button class="flex flex-col items-center justify-center text-[#B8B8B8] hover:text-white active:scale-90 transition-transform w-1/4">
+<span class="material-symbols-outlined text-[24px]" style="font-variation-settings: 'FILL' 0;">domain</span>
+<span class="font-['Inter'] text-[12px] font-light mt-1">Portfolio</span>
+</button>
+<button class="flex flex-col items-center justify-center text-[#B8B8B8] hover:text-white active:scale-90 transition-transform w-1/4 relative">
+<span class="material-symbols-outlined text-[24px]" style="font-variation-settings: 'FILL' 0;">notifications</span>
+<span class="font-['Inter'] text-[12px] font-light mt-1">Alerts</span>
+</button>
+</nav>
+</body></html>

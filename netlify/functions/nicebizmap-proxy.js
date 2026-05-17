@@ -24,9 +24,12 @@ function fetchJsonGet(url, headers = {}) {
       let stream = res;
       if (encoding === 'gzip') { stream = res.pipe(zlib.createGunzip()); }
       else if (encoding === 'deflate') { stream = res.pipe(zlib.createInflate()); }
-      let body = '';
-      stream.on('data', chunk => body += chunk);
+      // [버그 수정] 청크를 Buffer로 모은 후 마지막에 UTF-8 디코딩
+      // 한글 멀티바이트가 청크 경계에 걸리면 fffd로 깨지는 문제 방지
+      const chunks = [];
+      stream.on('data', chunk => chunks.push(chunk));
       stream.on('end', () => {
+        const body = Buffer.concat(chunks).toString('utf-8');
         try { resolve(JSON.parse(body)); }
         catch(e) { resolve(null); }
       });
@@ -67,9 +70,14 @@ function fetchHtmlGet(url, headers = {}) {
       let stream = res;
       if (encoding === 'gzip') { stream = res.pipe(zlib.createGunzip()); }
       else if (encoding === 'deflate') { stream = res.pipe(zlib.createInflate()); }
-      let body = '';
-      stream.on('data', chunk => body += chunk);
-      stream.on('end', () => resolve(body || ''));
+      // [버그 수정] 청크를 Buffer로 모은 후 마지막에 UTF-8 디코딩
+      // 한글 멀티바이트가 청크 경계에 걸리면 fffd로 깨지는 문제 방지
+      const chunks = [];
+      stream.on('data', chunk => chunks.push(chunk));
+      stream.on('end', () => {
+        const body = Buffer.concat(chunks).toString('utf-8');
+        resolve(body || '');
+      });
       stream.on('error', () => resolve(''));
     });
     req.on('error', () => resolve(''));
@@ -110,9 +118,14 @@ function fetchHtmlPost(url, jsonBody) {
       let stream = res;
       if (encoding === 'gzip') { stream = res.pipe(zlib.createGunzip()); }
       else if (encoding === 'deflate') { stream = res.pipe(zlib.createInflate()); }
-      let body = '';
-      stream.on('data', chunk => body += chunk);
-      stream.on('end', () => resolve(body || ''));
+      // [버그 수정] 청크를 Buffer로 모은 후 마지막에 UTF-8 디코딩
+      // 한글 멀티바이트가 청크 경계에 걸리면 fffd로 깨지는 문제 방지
+      const chunks = [];
+      stream.on('data', chunk => chunks.push(chunk));
+      stream.on('end', () => {
+        const body = Buffer.concat(chunks).toString('utf-8');
+        resolve(body || '');
+      });
       stream.on('error', () => resolve(''));
     });
     req.on('error', () => resolve(''));
@@ -223,9 +236,12 @@ function fetchJsonPost(url, jsonBody) {
       let stream = res;
       if (encoding === 'gzip') { stream = res.pipe(zlib.createGunzip()); }
       else if (encoding === 'deflate') { stream = res.pipe(zlib.createInflate()); }
-      let body = '';
-      stream.on('data', chunk => body += chunk);
+      // [버그 수정] 청크를 Buffer로 모은 후 마지막에 UTF-8 디코딩
+      // 한글 멀티바이트가 청크 경계에 걸리면 fffd로 깨지는 문제 방지
+      const chunks = [];
+      stream.on('data', chunk => chunks.push(chunk));
       stream.on('end', () => {
+        const body = Buffer.concat(chunks).toString('utf-8');
         try { resolve(JSON.parse(body)); }
         catch(e) { resolve({ rawBody: body.substring(0, 500), parseError: true }); }
       });

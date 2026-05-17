@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="ko"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Cafe Intelligence - Map Loading</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-variant": "#353535",
+                        "error": "#DC2626",
+                        "on-tertiary": "#FFFFFF",
+                        "on-secondary-fixed": "#00164E",
+                        "on-error-container": "#FFDAD6",
+                        "on-primary-fixed": "#000000",
+                        "primary-fixed-dim": "#E2E2E2",
+                        "secondary-fixed": "#DCE1FF",
+                        "on-surface": "#FFFFFF",
+                        "surface-container": "#1F1F1F",
+                        "on-primary-fixed-variant": "#454747",
+                        "surface-container-low": "#1B1B1B",
+                        "tertiary": "#3B82F6",
+                        "surface-dim": "#0E0E0E",
+                        "outline-variant": "#444651",
+                        "on-tertiary-fixed-variant": "#00458E",
+                        "tertiary-fixed": "#D1E4FF",
+                        "primary-fixed": "#FFFFFF",
+                        "inverse-primary": "#1E3A8A",
+                        "secondary-fixed-dim": "#B6C4FF",
+                        "inverse-surface": "#FFFFFF",
+                        "surface-container-lowest": "#000000",
+                        "on-primary-container": "#FFFFFF",
+                        "secondary": "#1E3A8A",
+                        "primary": "#FFFFFF",
+                        "on-background": "#FFFFFF",
+                        "on-secondary": "#FFFFFF",
+                        "inverse-on-surface": "#131313",
+                        "on-tertiary-container": "#B6C4FF",
+                        "on-secondary-fixed-variant": "#264191",
+                        "surface-tint": "#FFFFFF",
+                        "surface-container-high": "#2A2A2A",
+                        "error-container": "#93000A",
+                        "surface-container-highest": "#353535",
+                        "on-tertiary-fixed": "#001D47",
+                        "secondary-container": "#1E3A8A",
+                        "on-secondary-container": "#B6C4FF",
+                        "surface": "#131313",
+                        "surface-bright": "#393939",
+                        "tertiary-fixed-dim": "#ADC6FF",
+                        "outline": "#8F909D",
+                        "tertiary-container": "#1E3A8A",
+                        "on-primary": "#000000",
+                        "on-surface-variant": "#B8B8B8",
+                        "background": "#000000",
+                        "primary-container": "#1E3A8A",
+                        "on-error": "#FFFFFF"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Inter"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background h-screen w-full overflow-hidden flex flex-col">
+<!-- TopAppBar -->
+<header class="bg-[#0E0E0E]/90 backdrop-blur-none docked full-width top-0 z-50">
+<div class="flex justify-between items-center w-full px-6 py-4 bg-[#1B1B1B]">
+<button class="text-white hover:bg-[#1B1B1B] transition-colors scale-95 duration-200 p-2 rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined" data-icon="map">map</span>
+</button>
+<h1 class="font-['Inter'] text-[18px] font-medium tracking-tight text-white">Cafe Intelligence</h1>
+<button class="text-white hover:bg-[#1B1B1B] transition-colors scale-95 duration-200 p-2 rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+</div>
+</header>
+<!-- Main Content Area - Map & Loading Overlay -->
+<main class="flex-1 relative w-full h-full bg-surface-container-lowest">
+<!-- Map Background -->
+<div class="absolute inset-0 w-full h-full opacity-30 grayscale blur-sm bg-cover bg-center" data-alt="Dark, moody top-down view of a city map with subtle illuminated street networks and muted architectural blocks" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDf2t8JpT2Pgr3IyWgTcnXuPgF7eGDs5V2952ofZlOH_jflfU4mCiw3DUwhlWBLR78iVM0stnD5B_p8FQ2pGPHbv-q0ny2E03wtGXQihozxtiv6XwigNkeJX55nHGextPtI9m7uRFGwvB0Vz95qYlBbWEyqQlS8iPYBbpuRctYsjh836VEzygSNUeVVaK2jjV7wrMttVnFQ49Rhif509Dlo1axRpaLWzkaJ2PUMspFzejcsxZAepG1wVaqDwdNteypVo0JVljcL-pM');">
+</div>
+<!-- Dimmed Filter Bar -->
+<div class="absolute top-4 left-4 right-4 z-10 flex gap-2 overflow-x-auto pb-2 scrollbar-hide opacity-40 pointer-events-none">
+<div class="bg-surface-container-low px-4 py-2 rounded-full border border-outline-variant/20 whitespace-nowrap flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px] text-on-surface-variant">tune</span>
+<span class="text-sm font-label text-on-surface-variant">Filter</span>
+</div>
+<div class="bg-surface-container-low px-4 py-2 rounded-full border border-outline-variant/20 whitespace-nowrap">
+<span class="text-sm font-label text-on-surface-variant">Open Now</span>
+</div>
+<div class="bg-surface-container-low px-4 py-2 rounded-full border border-outline-variant/20 whitespace-nowrap">
+<span class="text-sm font-label text-on-surface-variant">High Speed Wi-Fi</span>
+</div>
+<div class="bg-surface-container-low px-4 py-2 rounded-full border border-outline-variant/20 whitespace-nowrap">
+<span class="text-sm font-label text-on-surface-variant">Quiet Zone</span>
+</div>
+</div>
+<!-- Results Count Indicator (Dimmed) -->
+<div class="absolute bottom-24 left-1/2 transform -translate-x-1/2 z-10 opacity-40">
+<div class="bg-surface-container-low/90 backdrop-blur-md px-6 py-3 rounded-full border border-outline-variant/20 shadow-lg flex items-center gap-2">
+<span class="material-symbols-outlined text-tertiary text-sm">local_cafe</span>
+<span class="text-sm font-medium tracking-wide">··· 카페 발견</span>
+</div>
+</div>
+<!-- Central Loading Overlay -->
+<div class="absolute inset-0 z-20 flex flex-col items-center justify-center bg-background/60 backdrop-blur-sm">
+<div class="relative flex items-center justify-center w-24 h-24 mb-6">
+<!-- Outer Glow -->
+<div class="absolute inset-0 bg-tertiary/20 rounded-full blur-xl"></div>
+<!-- Spinner Ring -->
+<svg class="w-16 h-16 text-outline-variant/30" fill="none" viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"></circle>
+</svg>
+<!-- Animated Spinner Segment (CSS fallback for static design) -->
+<svg class="absolute w-16 h-16 text-tertiary" fill="none" style="stroke-dasharray: 40; stroke-dashoffset: 20; transform: rotate(45deg);" viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-linecap="round" stroke-width="2.5"></circle>
+</svg>
+<span class="material-symbols-outlined absolute text-tertiary text-2xl">radar</span>
+</div>
+<h2 class="text-xl font-headline font-semibold tracking-tight text-primary mb-2">카페 정보를 불러오는 중...</h2>
+<p class="text-sm font-body text-on-surface-variant text-center max-w-[250px]">실시간 데이터를 동기화하고 있습니다. 잠시만 기다려주세요.</p>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="bg-[#0E0E0E] fixed bottom-0 w-full z-50 border-t border-white/10 shadow-[0_-8px_30px_rgba(59,130,246,0.05)] md:hidden">
+<div class="fixed bottom-0 left-0 w-full flex justify-around items-center py-3 px-4">
+<a class="flex flex-col items-center justify-center text-blue-500 font-medium active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined mb-1 text-[24px]" data-icon="explore">explore</span>
+<span class="font-['Inter'] text-[12px] font-light">Explorer</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#B8B8B8] hover:text-white active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined mb-1 text-[24px]" data-icon="analytics">analytics</span>
+<span class="font-['Inter'] text-[12px] font-light">Insights</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#B8B8B8] hover:text-white active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined mb-1 text-[24px]" data-icon="domain">domain</span>
+<span class="font-['Inter'] text-[12px] font-light">Portfolio</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#B8B8B8] hover:text-white active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined mb-1 text-[24px]" data-icon="notifications">notifications</span>
+<span class="font-['Inter'] text-[12px] font-light">Alerts</span>
+</a>
+</div>
+</nav>
+</body></html>

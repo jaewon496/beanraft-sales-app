@@ -1,0 +1,76 @@
+{
+  "version": "1.7",
+  "audit_date": "2026-04-11",
+  "status": "COMPLETE",
+  "search_query": "강남역 1번 출구",
+  "radius": "500m",
+  "resolved_issues": [
+    {
+      "id": 1,
+      "issue": "dataMapper.js recentCloseBiz TDZ",
+      "resolution": "이미 수정 완료 확인 (let 선언 + 기본값 0, 모든 참조가 선언 이후)",
+      "status": "RESOLVED"
+    },
+    {
+      "id": 2,
+      "issue": "Card 2 유동인구 렌더링",
+      "resolution": "정상 확인 (6시간대 전부 숫자 출력, 피크 12-15시 7.1천)",
+      "status": "RESOLVED"
+    },
+    {
+      "id": 3,
+      "issue": "Card 4 filterByRadius 미적용",
+      "resolution": "independentList/independentCount로 변경하여 SSOT 일관성 확보",
+      "status": "RESOLVED"
+    },
+    {
+      "id": 4,
+      "issue": "openApi_delivery 중복 호출",
+      "resolution": "openApiCalls에서 delivery 항목 제거 (baeminTpbiz로 대체 완료)",
+      "status": "RESOLVED"
+    }
+  ],
+  "ssot_verification": {
+    "total": 348,
+    "franchise": 139,
+    "independent": 209,
+    "bakery": 24,
+    "card1": 348,
+    "card4_indie": 209,
+    "card4_franchise": 139,
+    "card12": 348,
+    "consistency": "PASS"
+  },
+  "card_rendering": {
+    "total_cards": 14,
+    "rendered": 14,
+    "card1_market_report": "PASS - 348개, 프랜차이즈37%/개인56%/베이커리6%",
+    "card2_customer": "PASS - 남48%/여52%, 30대 35% 최다",
+    "card3_franchise": "PASS - 스타벅스13/커피빈13/바나프레소11",
+    "card4_indie_cafe": "PASS - 개인209/프랜차이즈139, 메뉴3927원",
+    "card5_sales": "PASS - 1억940만원",
+    "card6_floating_pop": "PASS - 피크12-15시 7.1천, 6시간대 전체 출력",
+    "card7_rent": "PASS - 보증금2380만/월세238만/총2618만",
+    "card8_opportunity_risk": "PASS - 기회4건/리스크3건",
+    "card9_delivery": "PASS - 치킨28%/한식22%/분식18%/중식14%/카페8%",
+    "card10_sns": "PASS - 워드클라우드+긍정72%/부정28%",
+    "card11_weather": "PASS - 맑음+15%/흐림-6%/비-20%/눈+8%",
+    "card12_competition": "PASS - 경쟁강도90, 카페348개",
+    "card13_market_trend": "PASS - SVG차트, Y축0-100, X축25.11-26.04, 현재64",
+    "card14_ai_analysis": "PASS - 종합72(양호), 레이더5축"
+  },
+  "dsm_status": {
+    "plan_a_success": "16/16",
+    "plan_c_fallback": "0건 (delivery 제거로 불필요한 400에러 해소)",
+    "timeout": "20초"
+  },
+  "console_errors": 0,
+  "phase4_prep": {
+    "status": "READY",
+    "tasks": [
+      "글로벌 UX 표준화",
+      "CSS Grid 3:7 레이아웃 통합",
+      "formatters.js 통합"
+    ]
+  }
+}

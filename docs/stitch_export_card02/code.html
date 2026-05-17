@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="ko"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-tertiary-fixed-variant": "#00458E",
+                        "surface-container-lowest": "#000000",
+                        "on-tertiary-fixed": "#001D47",
+                        "on-error-container": "#FFDAD6",
+                        "surface-container-highest": "#353535",
+                        "surface": "#131313",
+                        "on-primary": "#000000",
+                        "inverse-on-surface": "#131313",
+                        "primary-container": "#1E3A8A",
+                        "error-container": "#93000A",
+                        "on-secondary": "#FFFFFF",
+                        "on-secondary-fixed": "#00164E",
+                        "on-background": "#FFFFFF",
+                        "surface-variant": "#353535",
+                        "tertiary-fixed-dim": "#ADC6FF",
+                        "primary-fixed-dim": "#E2E2E2",
+                        "on-tertiary-container": "#B6C4FF",
+                        "on-primary-fixed-variant": "#454747",
+                        "surface-dim": "#0E0E0E",
+                        "secondary-fixed": "#DCE1FF",
+                        "on-secondary-fixed-variant": "#264191",
+                        "on-surface-variant": "#B8B8B8",
+                        "primary": "#FFFFFF",
+                        "on-tertiary": "#FFFFFF",
+                        "background": "#000000",
+                        "tertiary-fixed": "#D1E4FF",
+                        "surface-container-low": "#1B1B1B",
+                        "on-surface": "#FFFFFF",
+                        "inverse-surface": "#FFFFFF",
+                        "on-primary-container": "#FFFFFF",
+                        "tertiary-container": "#1E3A8A",
+                        "surface-tint": "#FFFFFF",
+                        "surface-bright": "#393939",
+                        "inverse-primary": "#1E3A8A",
+                        "outline-variant": "#444651",
+                        "on-error": "#FFFFFF",
+                        "tertiary": "#3B82F6",
+                        "secondary-fixed-dim": "#B6C4FF",
+                        "error": "#DC2626",
+                        "secondary": "#1E3A8A",
+                        "surface-container-high": "#2A2A2A",
+                        "secondary-container": "#1E3A8A",
+                        "on-primary-fixed": "#000000",
+                        "primary-fixed": "#FFFFFF",
+                        "on-secondary-container": "#B6C4FF",
+                        "surface-container": "#1F1F1F",
+                        "outline": "#8F909D"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "2xl": "1rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Inter"],
+                        "display": ["Inter"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; background-color: #000000; color: #FFFFFF; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .atmospheric-glow {
+            background: radial-gradient(circle at 50% -20%, rgba(59, 130, 246, 0.15) 0%, rgba(0, 0, 0, 0) 70%);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="flex justify-center items-start min-h-screen bg-surface-container-lowest">
+<!-- Mobile Frame (iPhone 15 Pro concept) -->
+<main class="relative w-full max-w-[430px] min-h-screen bg-background overflow-hidden shadow-2xl flex flex-col">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 flex justify-between items-center px-6 py-6 bg-surface-dim backdrop-blur-none max-w-[430px]">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-tertiary" style="font-size: 20px;">analytics</span>
+<h1 class="text-[18px] font-medium text-white tracking-tight">강남역 1번 출구 리포트</h1>
+<span class="material-symbols-outlined text-on-surface-variant" style="font-size: 16px;">info</span>
+</div>
+<div class="text-[14px] font-light text-on-surface-variant">2026년 4월 기준</div>
+</header>
+<!-- Content Canvas -->
+<div class="mt-20 px-4 pb-12 space-y-4">
+<!-- Report Card Main Container -->
+<section class="bg-surface-dim rounded-2xl atmospheric-glow overflow-hidden">
+<div class="p-6">
+<!-- Card Header -->
+<div class="mb-8">
+<h2 class="text-[30px] font-bold text-white leading-tight">02 고객 분석</h2>
+<p class="text-[14px] font-light text-on-surface-variant mt-1">방문 고객 특성</p>
+</div>
+<!-- Bento Grid -->
+<div class="grid grid-cols-12 gap-3 mb-4">
+<!-- Hero Metric (Left 5/12) -->
+<div class="col-span-5 bg-surface-container-low rounded-xl p-4 flex flex-col justify-between">
+<span class="text-[14px] text-on-surface-variant">주요 연령대</span>
+<div class="mt-4 flex items-baseline">
+<span class="text-[60px] font-light tracking-tighter leading-none">30</span>
+<span class="text-[18px] ml-1">대</span>
+</div>
+<div class="w-full h-1 bg-surface-container-highest mt-2 overflow-hidden rounded-full">
+<div class="bg-tertiary h-full w-3/4"></div>
+</div>
+</div>
+<!-- Gender Ratio Gauge (Right 7/12) -->
+<div class="col-span-7 bg-surface-container-low rounded-xl p-4 flex items-center justify-between">
+<div class="relative w-20 h-20">
+<!-- Donut Chart SVG -->
+<svg class="w-full h-full transform -rotate-90" viewbox="0 0 36 36">
+<circle cx="18" cy="18" fill="transparent" r="15.915" stroke="#1E3A8A" stroke-width="4"></circle>
+<circle cx="18" cy="18" fill="transparent" r="15.915" stroke="#3B82F6" stroke-dasharray="57 43" stroke-dashoffset="0" stroke-width="4"></circle>
+</svg>
+</div>
+<div class="flex flex-col gap-2">
+<div class="flex flex-col">
+<span class="text-[12px] text-tertiary font-medium">여성 57%</span>
+<span class="text-[12px] text-secondary-fixed font-medium">남성 43%</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Age Distribution -->
+<div class="bg-surface-container-low rounded-xl p-5 mb-4 space-y-4">
+<div class="space-y-3">
+<!-- 20s -->
+<div class="flex items-center gap-4">
+<span class="w-8 text-[14px] text-on-surface-variant">20대</span>
+<div class="flex-1 h-3 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="bg-outline-variant h-full" style="width: 22%"></div>
+</div>
+<span class="w-10 text-right text-[14px] text-on-surface-variant">22%</span>
+</div>
+<!-- 30s (Emphasized) -->
+<div class="flex items-center gap-4">
+<span class="w-8 text-[14px] text-white font-medium">30대</span>
+<div class="flex-1 h-3 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="bg-tertiary h-full shadow-[0_0_12px_rgba(59,130,246,0.5)]" style="width: 34%"></div>
+</div>
+<span class="w-10 text-right text-[14px] text-white font-bold">34%</span>
+</div>
+<!-- 40s -->
+<div class="flex items-center gap-4">
+<span class="w-8 text-[14px] text-on-surface-variant">40대</span>
+<div class="flex-1 h-3 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="bg-outline-variant h-full" style="width: 24%"></div>
+</div>
+<span class="w-10 text-right text-[14px] text-on-surface-variant">24%</span>
+</div>
+<!-- 50s+ -->
+<div class="flex items-center gap-4">
+<span class="w-8 text-[14px] text-on-surface-variant">50+</span>
+<div class="flex-1 h-3 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="bg-outline-variant h-full" style="width: 20%"></div>
+</div>
+<span class="w-10 text-right text-[14px] text-on-surface-variant">20%</span>
+</div>
+</div>
+</div>
+<!-- AI Summary Box -->
+<div class="bg-surface-container rounded-xl p-5 border-l-[3px] border-secondary mb-8">
+<div class="flex items-center gap-2 mb-2">
+<span class="material-symbols-outlined text-tertiary" style="font-size: 18px;">auto_awesome</span>
+<h4 class="text-[16px] font-medium text-white">AI 요약</h4>
+</div>
+<p class="text-[14px] font-light text-on-surface-variant leading-relaxed">
+                            30대 고객 비중이 가장 높으며, 특히 여성 고객의 방문 빈도가 타 지역 대비 12% 높게 나타납니다. 퇴근 시간대 직장인 유동 인구가 주된 매출 동력으로 분석됩니다.
+                        </p>
+</div>
+<!-- Metric List -->
+<div class="space-y-0 mb-8">
+<div class="flex justify-between py-4 border-b border-white/10">
+<span class="text-[14px] text-on-surface-variant font-light">주요 연령대</span>
+<span class="text-[14px] text-white font-medium">30대 (34%)</span>
+</div>
+<div class="flex justify-between py-4 border-b border-white/10">
+<span class="text-[14px] text-on-surface-variant font-light">2순위 연령대</span>
+<span class="text-[14px] text-white font-medium">40대 (24%)</span>
+</div>
+<div class="flex justify-between py-4 border-b border-white/10">
+<span class="text-[14px] text-on-surface-variant font-light">성별 비율</span>
+<span class="text-[14px] text-white font-medium">여 57% / 남 43%</span>
+</div>
+<div class="flex justify-between py-4 border-b border-white/10">
+<span class="text-[14px] text-on-surface-variant font-light">피크 시간</span>
+<span class="text-[14px] text-white font-medium">18:00 - 20:00</span>
+</div>
+<div class="flex justify-between py-4 border-b border-white/10">
+<span class="text-[14px] text-on-surface-variant font-light">일평균 방문객</span>
+<span class="text-[14px] text-white font-medium">2,482명</span>
+</div>
+<div class="flex justify-between py-4 border-b border-white/10">
+<span class="text-[14px] text-on-surface-variant font-light">배달 주문</span>
+<span class="text-[14px] text-white font-medium">15.4% 증가</span>
+</div>
+<div class="flex justify-between py-4 border-b border-white/10">
+<span class="text-[14px] text-on-surface-variant font-light">재방문율</span>
+<span class="text-[14px] text-white font-medium">42.8%</span>
+</div>
+</div>
+<!-- CTA Button -->
+<button class="w-full py-4 border border-white text-white rounded-xl flex items-center justify-center gap-2 hover:bg-surface-container-low transition-colors active:scale-[0.98] duration-150">
+<span class="material-symbols-outlined text-white" style="font-size: 20px;">group</span>
+<span class="text-[16px] font-medium">연령대별 상세 보기</span>
+</button>
+</div>
+</section>
+<!-- Supplementary Content - Map Area -->
+<div class="bg-surface-container-low rounded-2xl overflow-hidden h-40 relative group">
+<img class="w-full h-full object-cover opacity-50 transition-transform duration-700 group-hover:scale-105" data-alt="stylized dark mode topographic map of Gangnam Seoul with neon blue route highlights and data points" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCweJ8jhzkXape-CkLeZRY_d1Aff3JkRUxZR3tfmglvcIzyybtrUJFWj7rSbo0XQPEOrwhhNd3q7XXRFoqKFWtppY2E3Q2MrHIufOBkQSVatGsv7cLub5PqcrrXa_2CR5sbb1-ZvCZkFrpI0DCZ5xkLlGzda7JnaaUo_ibUK2bYvgBkQT7gjuDnhpAdIBESwxIMepzVn9HcUdzHHP_V4XSiUPwuIPqtbX5F6aM-_4x8ylvkFUM862UdUDU8F6F4iLH1cQJyVr4wukA"/>
+<div class="absolute inset-0 bg-gradient-to-t from-surface-container-low to-transparent"></div>
+<div class="absolute bottom-4 left-4">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-tertiary" style="font-size: 14px; font-variation-settings: 'FILL' 1;">location_on</span>
+<span class="text-[12px] text-white font-medium">상권 밀집도 분석 영역</span>
+</div>
+</div>
+</div>
+</div>
+<!-- System Home Indicator (iPhone style) -->
+<div class="mt-auto pb-2 flex justify-center w-full">
+<div class="w-32 h-1.5 bg-white/20 rounded-full"></div>
+</div>
+</main>
+</body></html>

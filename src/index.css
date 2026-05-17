@@ -1,7 +1,26 @@
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ========================================
+   Stitch Card 5 디자인 전용 클래스
+   ======================================== */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  vertical-align: middle;
+  font-family: 'Material Symbols Outlined';
+}
+.ai-border-gradient {
+  background: linear-gradient(#1A1F2C, #1A1F2C) padding-box,
+              linear-gradient(to right, #3B82F6, #10B981) border-box;
+  border: 1px solid transparent;
+}
+.chart-gradient {
+  background: linear-gradient(180deg, rgba(59, 130, 246, 0.2) 0%, rgba(59, 130, 246, 0) 100%);
+}
 
 /* ========================================
    Toss-inspired Design System
@@ -27,8 +46,8 @@
   --blue-400: #4DC4FF;
   --red-500: #F04452;
   --red-600: #E42939;
-  --green-500: #03B26C;
-  --green-600: #02A262;
+  --green-500: #1E3A8A;
+  --green-600: #1B3378;
   --orange-500: #FE9800;
   --yellow-500: #FFC342;
 
@@ -646,7 +665,7 @@ textarea::placeholder {
 }
 
 .bg-blob-green {
-  background: radial-gradient(circle, #03B26C, transparent 70%);
+  background: radial-gradient(circle, #1E3A8A, transparent 70%);
   animation: blob-move-1 16s ease-in-out infinite reverse;
 }
 
@@ -1016,32 +1035,32 @@ textarea::placeholder {
 
 /* ═══ 모바일 반응형: UnifiedLayout 패널 레이아웃 ═══ */
 @media (max-width: 768px) {
-  /* 모바일: 좌측 패널(지도) 숨김, 우측 패널(카드) 100% */
+  /* 모바일: 3:7 비율 유지 (좌측 지도 30%, 우측 카드 70%) */
   .unified-layout-root {
-    flex-direction: column !important;
+    flex-direction: row !important;
   }
   .unified-left-panel {
-    width: 100% !important;
-    height: 35vh !important;
-    min-height: 240px !important;
-    max-height: 300px !important;
-    border-right: none !important;
-    border-bottom: 1px solid rgba(255,255,255,0.1) !important;
+    width: 30% !important;
+    min-width: 120px !important;
+    height: 100% !important;
+    max-height: none !important;
+    border-right: 1px solid rgba(255,255,255,0.1) !important;
+    border-bottom: none !important;
     flex-shrink: 0 !important;
   }
   .unified-right-panel {
     flex: 1 !important;
-    width: 100% !important;
-    height: auto !important;
+    width: 70% !important;
+    height: 100% !important;
     min-height: 0 !important;
   }
   .unified-cards-scroll {
-    padding: 16px 16px 48px !important;
+    padding: 12px 10px 48px !important;
   }
-  /* TossStyleResults 오버레이: 모바일에서 100% 너비 */
+  /* TossStyleResults 오버레이: 모바일에서 우측 패널 기준 */
   .toss-results-overlay {
-    width: 100% !important;
-    left: 0 !important;
+    width: 70% !important;
+    left: 30% !important;
     right: 0 !important;
   }
   /* 히어로 미니맵 높이 조정 */

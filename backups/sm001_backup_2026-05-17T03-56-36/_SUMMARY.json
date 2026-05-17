@@ -1,0 +1,24 @@
+{
+  "target": {
+    "id": 1,
+    "username": "sm001"
+  },
+  "timestamp": "2026-05-17T03-56-36",
+  "collections": {
+    "managers": 1,
+    "companies": 292,
+    "customer_archive": 1,
+    "customers": 1,
+    "realtors": 0,
+    "routes": 38,
+    "sales_activities": 27,
+    "deleted_sales_activities": 4,
+    "calendarEvents": 501,
+    "userStatus": 1,
+    "teamFeedbacks": 3,
+    "requests": 1,
+    "manager_info": 1,
+    "userMents": 0,
+    "notifications": 0
+  }
+}

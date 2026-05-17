@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="ko"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Cafe Intelligence - Empty State</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-variant": "#353535",
+                        "error": "#DC2626",
+                        "on-tertiary": "#FFFFFF",
+                        "on-secondary-fixed": "#00164E",
+                        "on-error-container": "#FFDAD6",
+                        "on-primary-fixed": "#000000",
+                        "primary-fixed-dim": "#E2E2E2",
+                        "secondary-fixed": "#DCE1FF",
+                        "on-surface": "#FFFFFF",
+                        "surface-container": "#1F1F1F",
+                        "on-primary-fixed-variant": "#454747",
+                        "surface-container-low": "#1B1B1B",
+                        "tertiary": "#3B82F6",
+                        "surface-dim": "#0E0E0E",
+                        "outline-variant": "#444651",
+                        "on-tertiary-fixed-variant": "#00458E",
+                        "tertiary-fixed": "#D1E4FF",
+                        "primary-fixed": "#FFFFFF",
+                        "inverse-primary": "#1E3A8A",
+                        "secondary-fixed-dim": "#B6C4FF",
+                        "inverse-surface": "#FFFFFF",
+                        "surface-container-lowest": "#000000",
+                        "on-primary-container": "#FFFFFF",
+                        "secondary": "#1E3A8A",
+                        "primary": "#FFFFFF",
+                        "on-background": "#FFFFFF",
+                        "on-secondary": "#FFFFFF",
+                        "inverse-on-surface": "#131313",
+                        "on-tertiary-container": "#B6C4FF",
+                        "on-secondary-fixed-variant": "#264191",
+                        "surface-tint": "#FFFFFF",
+                        "surface-container-high": "#2A2A2A",
+                        "error-container": "#93000A",
+                        "surface-container-highest": "#353535",
+                        "on-tertiary-fixed": "#001D47",
+                        "secondary-container": "#1E3A8A",
+                        "on-secondary-container": "#B6C4FF",
+                        "surface": "#131313",
+                        "surface-bright": "#393939",
+                        "tertiary-fixed-dim": "#ADC6FF",
+                        "outline": "#8F909D",
+                        "tertiary-container": "#1E3A8A",
+                        "on-primary": "#000000",
+                        "on-surface-variant": "#B8B8B8",
+                        "background": "#000000",
+                        "primary-container": "#1E3A8A",
+                        "on-error": "#FFFFFF"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Inter"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background min-h-screen flex flex-col items-center justify-center py-8">
+<!-- Mobile Device Container -->
+<div class="relative w-full max-w-[393px] h-[852px] bg-background rounded-[3rem] overflow-hidden shadow-2xl border-[8px] border-surface-container-low flex flex-col">
+<!-- TopAppBar -->
+<header class="bg-[#0E0E0E]/90 backdrop-blur-none text-blue-500 font-['Inter'] text-[18px] font-medium tracking-tight text-white docked full-width top-0 bg-[#1B1B1B] flat no shadows flex justify-between items-center w-full px-6 py-4 z-40">
+<button class="text-white hover:bg-[#1B1B1B] transition-colors scale-95 duration-200 p-2 rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined" data-icon="close">close</span>
+</button>
+<div class="text-lg font-bold text-white tracking-tighter">Cafe Intelligence</div>
+<button class="text-[#B8B8B8] hover:bg-[#1B1B1B] transition-colors scale-95 duration-200 p-2 rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+</header>
+<!-- Main Content Area (Map Placeholder) -->
+<main class="flex-1 relative flex flex-col">
+<!-- Simulated Dark Map Background -->
+<div class="absolute inset-0 bg-surface-container-lowest overflow-hidden flex items-center justify-center">
+<div class="absolute inset-0 opacity-20 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-surface-variant via-background to-background"></div>
+<!-- Abstract Grid Lines for Map Feel -->
+<div class="absolute inset-0" style="background-image: linear-gradient(to right, #1B1B1B 1px, transparent 1px), linear-gradient(to bottom, #1B1B1B 1px, transparent 1px); background-size: 40px 40px; opacity: 0.5;"></div>
+<!-- Central Empty State UI -->
+<div class="relative z-10 flex flex-col items-center justify-center text-center p-8 bg-surface-container-low/80 backdrop-blur-md rounded-2xl border border-outline-variant/20 shadow-lg w-[85%] max-w-[320px]">
+<div class="w-16 h-16 rounded-full bg-surface-container-highest flex items-center justify-center mb-6 shadow-inner">
+<span class="material-symbols-outlined text-on-surface-variant text-3xl" data-icon="info">info</span>
+</div>
+<h2 class="font-headline text-lg font-bold text-on-surface mb-2 tracking-tight">반경 내 카페가 없습니다</h2>
+<p class="font-body text-sm text-on-surface-variant mb-8 font-light">반경을 늘려보세요</p>
+<div class="w-full flex items-center gap-4 bg-surface-container-lowest p-4 rounded-xl border border-outline-variant/10">
+<span class="font-label text-xs text-on-surface-variant whitespace-nowrap">100m</span>
+<div class="flex-1 h-1 bg-surface-variant rounded-full relative">
+<div class="absolute left-0 top-0 h-full w-1/4 bg-tertiary rounded-full"></div>
+<div class="absolute left-1/4 top-1/2 -translate-y-1/2 w-4 h-4 bg-primary rounded-full shadow border-2 border-surface-container-lowest"></div>
+</div>
+<span class="font-label text-xs text-on-surface-variant whitespace-nowrap">1km</span>
+</div>
+<button class="mt-6 w-full py-3 px-4 bg-tertiary hover:bg-tertiary/90 text-on-tertiary font-body font-medium rounded-lg transition-colors flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-sm" data-icon="radar">radar</span>
+                        재검색
+                    </button>
+</div>
+<!-- Radar Sweep Effect Element (Visual detail) -->
+<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full border border-tertiary/20 opacity-50"></div>
+<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 rounded-full border border-tertiary/10 opacity-30"></div>
+</div>
+<!-- Bottom Action Sheet / Details Panel (Minimized) -->
+<div class="absolute bottom-0 w-full bg-surface-container-lowest border-t border-outline-variant/20 rounded-t-3xl pt-2 pb-8 px-6 flex flex-col items-center">
+<div class="w-12 h-1 bg-outline-variant/30 rounded-full mb-6"></div>
+<div class="w-full flex items-center justify-between mb-2">
+<h3 class="font-headline text-sm font-bold text-on-surface">현재 위치 설정</h3>
+<button class="text-tertiary font-label text-xs flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]" data-icon="my_location">my_location</span>
+                        내 위치
+                    </button>
+</div>
+<p class="font-body text-xs text-on-surface-variant w-full text-left truncate">서울특별시 강남구 테헤란로 152</p>
+</div>
+</main>
+<!-- BottomNavBar (Hidden per instructions for modal/task flows, but structure included if needed globally) -->
+<!-- Suppressed globally due to linear task nature -->
+</div>
+</body></html>

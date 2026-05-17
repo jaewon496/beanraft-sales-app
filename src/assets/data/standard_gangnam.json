@@ -1,0 +1,38 @@
+{
+  "meta": {
+    "description": "Plan C 폴백용 표준 스켈레톤 데이터 (강남역 1번 출구 기준)",
+    "generatedAt": "2026-04-10",
+    "source": "fallback"
+  },
+  "location": {
+    "lat": 37.4979,
+    "lng": 127.0276,
+    "address": "서울특별시 강남구 강남대로 396",
+    "dongName": "역삼동",
+    "guName": "강남구"
+  },
+  "cafes": [],
+  "simpleAnls": {
+    "avgAmt": {
+      "mthSalAmt": 0,
+      "guNm": "강남구",
+      "dongNm": "역삼동",
+      "analyNo": null
+    },
+    "population": {
+      "ftPplCnt": 0,
+      "rsdPplCnt": 0
+    }
+  },
+  "nicebizmap": {},
+  "nicebizmapStats": {
+    "average": 0,
+    "avgPrice": 0
+  },
+  "storeRadius": {
+    "items": [],
+    "totalCount": 0
+  },
+  "weather": null,
+  "openub": null
+}
