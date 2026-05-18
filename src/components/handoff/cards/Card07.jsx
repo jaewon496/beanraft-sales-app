@@ -73,11 +73,11 @@ export default function Card07({ body = {} }) {
             {(weekdayPct > 0 || weekendPct > 0) ? (
               <div style={{display:"flex", alignItems:"center", gap:16, justifyContent:"center"}}>
                 <Donut id="c7.donut" size={180} segments={[
-                  {value: weekdayPct, color:"#5478C9", label:"주중"},
+                  {value: weekdayPct, color:"#4C7BE4", label:"주중"},
                   {value: weekendPct, color:"#FFFFFF", label:"주말"},
                 ]} centerLabel={`${weekdayPct.toFixed(0)}%`} centerSub="주중 비중"/>
                 <DonutLegend segments={[
-                  {value: weekdayPct, color:"#5478C9", label:"주중", text:`${weekdayPct.toFixed(0)}%`},
+                  {value: weekdayPct, color:"#4C7BE4", label:"주중", text:`${weekdayPct.toFixed(0)}%`},
                   {value: weekendPct, color:"#FFFFFF", label:"주말", text:`${weekendPct.toFixed(0)}%`},
                 ]}/>
               </div>

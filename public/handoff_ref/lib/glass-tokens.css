@@ -1,0 +1,425 @@
+/* glass-tokens.css — Liquid Glass aesthetic system
+   Light-on-dark glass panel composition.
+   - Stage: very dark backdrop with ambient color blooms
+   - Glass: white-translucent with inner rim highlight
+   - Type: SF-style display via -apple-system fallback chain
+   ============================================================ */
+
+:root {
+  /* Stage */
+  --gl-stage:        #0a0a0c;
+  --gl-stage-2:      #131316;
+
+  /* Glass panel — light frosted (matches figma 24% white + inner rim) */
+  --gl-panel-bg:     rgba(255, 255, 255, 0.16);
+  --gl-panel-bg-2:   rgba(255, 255, 255, 0.10);
+  --gl-rim:          0 0 0 1px rgba(255,255,255,0.42) inset,
+                     0 0 80px 2px rgba(255,255,255,0.18) inset,
+                     0 0 0 1px rgba(255,255,255,0.04);
+  --gl-rim-soft:     0 0 0 1px rgba(255,255,255,0.32) inset,
+                     0 0 40px 1px rgba(255,255,255,0.10) inset,
+                     0 0 0 1px rgba(255,255,255,0.04);
+  --gl-shadow:       0 22px 60px rgba(0,0,0,0.55),
+                     0 4px 18px rgba(0,0,0,0.35);
+
+  /* Type on glass — figma uses dark text on white panel */
+  --gl-fg:           #0b0b0d;
+  --gl-fg-2:         #2a2a2e;
+  --gl-fg-3:         rgba(11,11,13,0.62);
+  --gl-fg-4:         rgba(11,11,13,0.42);
+  --gl-fg-5:         rgba(11,11,13,0.20);
+
+  /* Type on stage (between glass panels) */
+  --gl-stage-fg:     rgba(255,255,255,0.96);
+  --gl-stage-fg-2:   rgba(255,255,255,0.62);
+  --gl-stage-fg-3:   rgba(255,255,255,0.36);
+  --gl-stage-line:   rgba(255,255,255,0.10);
+
+  /* Multi-hue accents — Health/Activity ring inspiration */
+  --gl-rose:         oklch(0.70 0.18 18);     /* coral red */
+  --gl-amber:        oklch(0.78 0.16 75);     /* warm gold */
+  --gl-mint:         oklch(0.78 0.16 165);    /* mint */
+  --gl-azure:        oklch(0.72 0.16 250);    /* sky blue */
+  --gl-violet:       oklch(0.68 0.18 295);    /* violet */
+  --gl-pink:         oklch(0.76 0.18 345);    /* hot pink */
+  --gl-accent:       var(--gl-azure);
+
+  /* Radii */
+  --gl-r-xl:         32px;
+  --gl-r-lg:         24px;
+  --gl-r-md:         18px;
+  --gl-r-sm:         12px;
+  --gl-r-pill:       999px;
+
+  /* Type stack — SF on Apple, system-ui elsewhere */
+  --gl-font:         -apple-system, BlinkMacSystemFont, "SF Pro Display",
+                     "SF Pro Text", "Helvetica Neue", "Inter", system-ui, sans-serif;
+  --gl-mono:         "SF Mono", "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+
+html, body { margin: 0; padding: 0; background: var(--gl-stage); color: var(--gl-stage-fg); font-family: var(--gl-font); }
+body { min-height: 100vh; }
+
+/* ── Stage backdrop: ambient color blooms ────────────────────── */
+.gl-stage {
+  position: relative;
+  min-height: 100vh;
+  background: var(--gl-stage);
+  overflow-x: hidden;
+  isolation: isolate;
+}
+.gl-stage::before, .gl-stage::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+.gl-stage::before {
+  background:
+    radial-gradient(900px 700px at 8% 14%,  rgba(255,255,255,0.06), transparent 65%),
+    radial-gradient(900px 700px at 92% 22%, rgba(255,255,255,0.04), transparent 65%),
+    radial-gradient(900px 700px at 78% 82%, rgba(255,255,255,0.06), transparent 65%),
+    radial-gradient(900px 700px at 14% 92%, rgba(255,255,255,0.04), transparent 65%);
+}
+.gl-stage::after {
+  /* subtle grain over the whole stage */
+  background-image: radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px);
+  background-size: 4px 4px;
+  mix-blend-mode: overlay;
+  opacity: 0.5;
+}
+
+/* Local card bloom — per card a tinted glow behind the glass */
+.gl-card { position: relative; }
+.gl-card__bloom {
+  position: absolute;
+  inset: -40px -40px -60px -40px;
+  pointer-events: none;
+  z-index: 0;
+  filter: blur(48px);
+  opacity: 0.85;
+  border-radius: 80px;
+}
+
+/* ── Glass panel base ────────────────────────────────────────── */
+.gl-panel {
+  position: relative;
+  background: var(--gl-panel-bg);
+  backdrop-filter: blur(40px) saturate(160%);
+  -webkit-backdrop-filter: blur(40px) saturate(160%);
+  border-radius: var(--gl-r-xl);
+  box-shadow: var(--gl-rim), var(--gl-shadow);
+  overflow: hidden;
+  color: var(--gl-fg);
+}
+.gl-panel--soft {
+  background: var(--gl-panel-bg-2);
+  box-shadow: var(--gl-rim-soft);
+}
+
+/* Inset glass tile (nested on a panel) */
+.gl-tile {
+  position: relative;
+  background: linear-gradient(180deg, rgba(255,255,255,0.55), rgba(255,255,255,0.32));
+  border-radius: var(--gl-r-lg);
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.65) inset,
+    0 12px 28px rgba(0,0,0,0.10),
+    0 1px 0 rgba(255,255,255,0.85) inset;
+  padding: 24px 26px;
+  color: var(--gl-fg);
+  overflow: hidden;
+}
+.gl-tile--dark {
+  background: linear-gradient(180deg, rgba(20,20,24,0.42), rgba(20,20,24,0.30));
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.20) inset,
+    0 12px 28px rgba(0,0,0,0.28),
+    0 1px 0 rgba(255,255,255,0.30) inset;
+  color: var(--gl-stage-fg);
+}
+
+/* ── Pill controls (iOS-flavored segmented + buttons) ────────── */
+.gl-segment {
+  display: inline-flex;
+  padding: 4px;
+  background: rgba(255,255,255,0.22);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.45) inset;
+  border-radius: var(--gl-r-pill);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  gap: 2px;
+}
+.gl-segment__btn {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--gl-fg-2);
+  font: 600 14px/1 var(--gl-font);
+  padding: 9px 18px;
+  border-radius: var(--gl-r-pill);
+  cursor: pointer;
+  letter-spacing: -0.01em;
+  transition: background 160ms, color 160ms;
+}
+.gl-segment__btn.is-on {
+  background: rgba(255,255,255,0.92);
+  color: var(--gl-fg);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.9) inset, 0 6px 14px rgba(0,0,0,0.12);
+}
+
+.gl-pill {
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 36px; padding: 0 16px;
+  background: rgba(255,255,255,0.92);
+  color: var(--gl-fg);
+  border-radius: var(--gl-r-pill);
+  box-shadow: 0 1px 0 rgba(255,255,255,1) inset, 0 0 0 1px rgba(255,255,255,0.6) inset, 0 8px 18px rgba(0,0,0,0.18);
+  font: 600 14px/1 var(--gl-font);
+  letter-spacing: -0.01em;
+  cursor: pointer; border: 0;
+}
+.gl-pill--ghost {
+  background: rgba(255,255,255,0.18);
+  color: var(--gl-stage-fg);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.30) inset;
+}
+.gl-pill--ghost-dark {
+  background: rgba(20,20,24,0.40);
+  color: var(--gl-stage-fg);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.16) inset;
+}
+.gl-pill i { font-size: 16px; }
+
+/* Numeric display style */
+.gl-num {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.025em;
+  line-height: 0.95;
+  font-weight: 600;
+}
+
+/* Delta chip */
+.gl-delta {
+  display: inline-flex; align-items: center; gap: 4px;
+  height: 24px; padding: 0 10px;
+  border-radius: var(--gl-r-pill);
+  font: 600 12px/1 var(--gl-font);
+  background: rgba(255,255,255,0.55);
+  color: var(--gl-fg-2);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.6) inset;
+}
+.gl-delta--up { color: oklch(0.55 0.16 145); }
+.gl-delta--down { color: oklch(0.55 0.18 18); }
+
+/* ── Sidebar (rail) ─────────────────────────────────────────── */
+.gl-rail {
+  position: sticky; top: 22px;
+  width: 72px; height: calc(100vh - 44px);
+  padding: 14px 11px;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  background: rgba(20,20,24,0.35);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border-radius: var(--gl-r-xl);
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.10) inset,
+    0 0 60px 2px rgba(255,255,255,0.04) inset,
+    0 22px 60px rgba(0,0,0,0.55);
+  z-index: 10;
+}
+.gl-rail__logo {
+  width: 50px; height: 50px;
+  display: grid; place-items: center;
+  background: rgba(255,255,255,0.92);
+  border-radius: 14px;
+  margin-bottom: 12px;
+  box-shadow: 0 6px 14px rgba(0,0,0,0.20);
+}
+.gl-rail__logo img { width: 30px; height: 30px; object-fit: contain; }
+.gl-rail__btn {
+  appearance: none; border: 0; background: transparent;
+  width: 50px; height: 46px; border-radius: 14px;
+  display: grid; place-items: center;
+  color: rgba(255,255,255,0.62);
+  cursor: pointer; transition: all 160ms;
+  flex-shrink: 0;
+}
+.gl-rail__btn i { font-size: 22px; }
+.gl-rail__btn:hover { background: rgba(255,255,255,0.08); color: var(--gl-stage-fg); }
+.gl-rail__btn.is-on {
+  background: rgba(255,255,255,0.92);
+  color: var(--gl-fg);
+  box-shadow: 0 6px 14px rgba(0,0,0,0.25), 0 0 0 1px rgba(255,255,255,0.9) inset;
+}
+.gl-rail__spacer { flex: 1; }
+
+/* ── Top bar — Dynamic-Island-flavored breadcrumb pill ──────── */
+.gl-topbar {
+  position: sticky; top: 22px; z-index: 9;
+  height: 52px;
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 6px 0 20px;
+  background: rgba(20,20,24,0.55);
+  backdrop-filter: blur(30px) saturate(170%);
+  -webkit-backdrop-filter: blur(30px) saturate(170%);
+  border-radius: var(--gl-r-pill);
+  color: var(--gl-stage-fg);
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.10) inset,
+    0 18px 40px rgba(0,0,0,0.45);
+}
+.gl-topbar__crumb { font: 600 13px/1 var(--gl-font); letter-spacing: -0.01em; color: rgba(255,255,255,0.62); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.gl-topbar__crumb .cur { color: var(--gl-stage-fg); }
+.gl-topbar__spacer { flex: 1; min-width: 8px; }
+.gl-topbar__chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 32px; padding: 0 12px;
+  border-radius: var(--gl-r-pill);
+  background: rgba(255,255,255,0.10);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.16) inset;
+  font: 600 12px/1 var(--gl-font);
+  color: var(--gl-stage-fg);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.gl-topbar__icon-btn {
+  appearance: none; border: 0;
+  width: 36px; height: 36px; border-radius: 50%;
+  background: rgba(255,255,255,0.10);
+  color: var(--gl-stage-fg);
+  display: grid; place-items: center;
+  cursor: pointer;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.14) inset;
+  flex-shrink: 0;
+}
+.gl-topbar__icon-btn i { font-size: 18px; }
+.gl-topbar__icon-btn:hover { background: rgba(255,255,255,0.18); }
+
+/* ── Section header (between cards on the stage) ─────────────── */
+.gl-section {
+  display: flex; align-items: center; gap: 14px;
+  margin: 36px 4px 14px;
+  color: var(--gl-stage-fg);
+  min-width: 0;
+}
+.gl-section__kicker {
+  font: 500 11px/1 var(--gl-font);
+  text-transform: uppercase; letter-spacing: 0.18em;
+  color: var(--gl-stage-fg-3);
+}
+.gl-section__title {
+  font: 600 30px/1.1 var(--gl-font);
+  letter-spacing: -0.025em;
+  margin: 0;
+  text-wrap: balance;
+  text-shadow: 0 2px 18px rgba(0,0,0,0.45);
+}
+
+/* ── Layout shell ───────────────────────────────────────────── */
+.gl-shell {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 18px;
+  max-width: 1480px;
+  margin: 0 auto;
+  padding: 22px 22px 80px;
+  position: relative;
+  z-index: 1;
+}
+.gl-main { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.gl-section > * { min-width: 0; }
+.gl-stack { display: flex; flex-direction: column; gap: 28px; }
+
+/* Card */
+.gl-card { position: relative; }
+.gl-card__head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 16px; margin-bottom: 28px;
+}
+.gl-card__title { font: 600 26px/1.1 var(--gl-font); letter-spacing: -0.025em; color: var(--gl-fg); margin: 0; }
+.gl-card__sub   { font: 500 14px/1.3 var(--gl-font); color: var(--gl-fg-3); margin: 6px 0 0; }
+.gl-card__badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 28px; min-width: 28px; padding: 0 10px;
+  border-radius: var(--gl-r-pill);
+  background: rgba(0,0,0,0.08);
+  font: 700 12px/1 var(--gl-font); letter-spacing: 0.06em;
+  color: var(--gl-fg-2);
+  margin-bottom: 14px;
+}
+.gl-card__body { padding: 30px 32px 28px; position: relative; z-index: 1; min-width: 0; }
+.gl-card__footer {
+  margin: 0 32px;
+  padding: 14px 0 20px;
+  border-top: 1px solid rgba(11,11,13,0.10);
+  font: 500 12px/1.4 var(--gl-font);
+  color: var(--gl-fg-4);
+  display: flex; gap: 16px; flex-wrap: wrap;
+}
+.gl-card__footer span { display: inline-flex; align-items: center; gap: 6px; }
+.gl-card__footer span::before {
+  content: ""; width: 4px; height: 4px; border-radius: 50%;
+  background: var(--gl-fg-5);
+}
+.gl-card__footer span:first-child::before { display: none; }
+
+/* Grids */
+.gl-row { display: flex; gap: 16px; }
+.gl-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.gl-grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.gl-grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+
+/* Narrower widths — preserve readability */
+@media (max-width: 1100px) {
+  .gl-grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .gl-grid-3, .gl-grid-4 { grid-template-columns: 1fr; }
+  .gl-grid-2 { grid-template-columns: 1fr; }
+}
+
+/* Stat tile inside card */
+.gl-stat { display: flex; flex-direction: column; gap: 10px; min-height: 124px; }
+.gl-stat__label { font: 500 14px/1 var(--gl-font); color: var(--gl-fg-3); }
+.gl-stat__value { font: 700 42px/0.95 var(--gl-font); letter-spacing: -0.03em; color: var(--gl-fg); display: inline-flex; align-items: baseline; gap: 6px; }
+.gl-stat__value .unit { font: 500 16px/1 var(--gl-font); color: var(--gl-fg-3); }
+.gl-stat__row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.gl-stat--hero .gl-stat__value { font-size: 72px; letter-spacing: -0.04em; }
+.gl-stat--hero .gl-stat__value .unit { font-size: 22px; }
+.gl-stat__value, .gl-num { min-width: 0; }
+
+/* Bars — thick rounded */
+.gl-bar {
+  height: 12px; border-radius: var(--gl-r-pill);
+  background: rgba(11,11,13,0.10);
+  overflow: hidden;
+  position: relative;
+}
+.gl-bar > i {
+  display: block; height: 100%;
+  border-radius: var(--gl-r-pill);
+  background: linear-gradient(180deg, currentColor, color-mix(in oklch, currentColor 80%, black));
+  box-shadow: 0 1px 0 rgba(255,255,255,0.55) inset;
+}
+
+/* Sparkline container */
+.gl-spark { width: 100%; height: 64px; }
+
+/* Section divider chip */
+.gl-chip-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.gl-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--gl-r-pill);
+  background: rgba(255,255,255,0.55);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.6) inset;
+  font: 600 12px/1 var(--gl-font); letter-spacing: -0.005em;
+  color: var(--gl-fg-2);
+}
+.gl-chip .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+/* Utility */
+.gl-spread { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.gl-tighten { letter-spacing: -0.01em; }

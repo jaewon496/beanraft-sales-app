@@ -420,7 +420,7 @@ function describeArc(cx, cy, r, startA, endA) {
 /* ============================================================
    DrRadar
    ============================================================ */
-export function DrRadar({ id, data, size = 240, color = "#5478C9", label }) {
+export function DrRadar({ id, data, size = 240, color = "#4C7BE4", label }) {
   const fx = useFx(id);
   const speed = useSpeed();
   const [progress, setProgress] = useState(fx.n > 0 ? 0 : 1);
@@ -493,7 +493,7 @@ export function DrRadar({ id, data, size = 240, color = "#5478C9", label }) {
 /* ============================================================
    DrPulse
    ============================================================ */
-export function DrPulse({ id, color = "#5478C9", children, className = "" }) {
+export function DrPulse({ id, color = "#4C7BE4", children, className = "" }) {
   const fx = useFx(id);
   const [on, setOn] = useState(false);
   useEffect(() => {

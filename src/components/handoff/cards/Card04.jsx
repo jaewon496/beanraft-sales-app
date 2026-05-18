@@ -73,13 +73,13 @@ export default function Card04({ body = {} }) {
                 <div className="bc-bar" style={{height:18, background:"rgba(255,255,255,0.05)", marginBottom:12}}>
                   <div style={{display:"flex", height:"100%"}}>
                     {franchiseShare > 0 && <div style={{width:`${franchiseShare}%`, background:"#FFFFFF"}}></div>}
-                    {independentShare > 0 && <div style={{width:`${independentShare}%`, background:"#5478C9"}}></div>}
+                    {independentShare > 0 && <div style={{width:`${independentShare}%`, background:"#4C7BE4"}}></div>}
                     {bakeryShare > 0 && <div style={{width:`${bakeryShare}%`, background:"#7a7a7a"}}></div>}
                   </div>
                 </div>
                 <div style={{display:"flex", justifyContent:"space-between", fontSize:14, color:"var(--matte-fg-2)", gap:24, flexWrap:"wrap"}}>
                   {franchiseShare > 0 && <span><span style={{display:"inline-block", width:10, height:10, borderRadius:9999, background:"#FFFFFF", marginRight:8, verticalAlign:"middle"}}></span>프랜차이즈 <strong style={{color:"#fff", marginLeft:4}}>{franchiseShare}%</strong></span>}
-                  {independentShare > 0 && <span><span style={{display:"inline-block", width:10, height:10, borderRadius:9999, background:"#5478C9", marginRight:8, verticalAlign:"middle"}}></span><strong style={{color:"#5478C9"}}>개인 {independentShare}%</strong></span>}
+                  {independentShare > 0 && <span><span style={{display:"inline-block", width:10, height:10, borderRadius:9999, background:"#4C7BE4", marginRight:8, verticalAlign:"middle"}}></span><strong style={{color:"#4C7BE4"}}>개인 {independentShare}%</strong></span>}
                   {bakeryShare > 0 && <span><span style={{display:"inline-block", width:10, height:10, borderRadius:9999, background:"#7a7a7a", marginRight:8, verticalAlign:"middle"}}></span>베이커리 <strong style={{color:"#fff", marginLeft:4}}>{bakeryShare}%</strong></span>}
                 </div>
               </>
@@ -105,9 +105,9 @@ export default function Card04({ body = {} }) {
                     <div style={{fontSize:13, color:"var(--matte-fg-3)", marginTop:2}}>{acc ? '최다 구간' : sub}</div>
                   </div>
                   <div className="bc-bar" style={{height:14, background:"rgba(255,255,255,0.05)"}}>
-                    <div style={{width:`${(v/distMax)*100}%`, background: acc ? "#5478C9" : "#FFFFFF", height:"100%", borderRadius:"inherit"}}></div>
+                    <div style={{width:`${(v/distMax)*100}%`, background: acc ? "#4C7BE4" : "#FFFFFF", height:"100%", borderRadius:"inherit"}}></div>
                   </div>
-                  <span style={{textAlign:"right", fontSize:17, fontWeight:700, color: acc ? "#5478C9" : "var(--matte-fg)", fontVariantNumeric:"tabular-nums"}}>{v}<span style={{fontSize:13, color:"var(--matte-fg-3)", fontWeight:500, marginLeft:2}}>개</span></span>
+                  <span style={{textAlign:"right", fontSize:17, fontWeight:700, color: acc ? "#4C7BE4" : "var(--matte-fg)", fontVariantNumeric:"tabular-nums"}}>{v}<span style={{fontSize:13, color:"var(--matte-fg-3)", fontWeight:500, marginLeft:2}}>개</span></span>
                 </div>
               );
             })}
@@ -124,7 +124,7 @@ export default function Card04({ body = {} }) {
                 </div>
                 <div style={{padding:"16px 18px", background:"rgba(84,120,201,0.08)", borderRadius:10, border:"1px solid rgba(84,120,201,0.45)"}}>
                   <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:6, fontWeight:500}}>해외 브랜드</div>
-                  <div style={{fontSize:22, fontWeight:700, color:"#5478C9", fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{foreignCnt}<span style={{fontSize:13, color:"var(--matte-fg-3)", marginLeft:3, fontWeight:500}}>개</span></div>
+                  <div style={{fontSize:22, fontWeight:700, color:"#4C7BE4", fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{foreignCnt}<span style={{fontSize:13, color:"var(--matte-fg-3)", marginLeft:3, fontWeight:500}}>개</span></div>
                   <div style={{fontSize:13, color:"var(--matte-fg-3)", marginTop:4}}>비중 {foreignPct}%</div>
                 </div>
               </div>

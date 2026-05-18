@@ -17,6 +17,8 @@ export default function Card13({ body = {} }) {
   const avgRent = Number(body.avgRent) || 0;
   const premiumCost = body.premiumCost ? Math.round(Number(body.premiumCost) / 10000) : 0; // 만원 단위
   const risingMenu = body.risingMenu || null;
+  const popularMenuTop = body.popularMenuTop || null;
+  const popularMenuCount = Number(body.popularMenuCount) || 0;
   const weatherLabel = body.weatherLabel || '';
   const weatherScore = Number(body.weatherScore) || 0;
   const externalIndicators = body.externalIndicators || null;
@@ -48,9 +50,24 @@ export default function Card13({ body = {} }) {
       label: "시장 변화",
       max: 15,
       score: Number(body.scoreChange) || 0,
-      headline: risingMenu?.name && risingMenu?.growthRate
-        ? `급상승 메뉴 ${risingMenu.name} +${Number(risingMenu.growthRate).toFixed(0)}%`
-        : '메뉴 트렌드 데이터 수집 중',
+      headline: (() => {
+        // 1순위: 급상승 메뉴
+        if (risingMenu?.name && risingMenu?.growthRate) {
+          return `급상승 메뉴 ${risingMenu.name} +${Number(risingMenu.growthRate).toFixed(0)}%`;
+        }
+        // 2순위: 인기 메뉴 TOP 1 + 메뉴 다양성 라벨
+        if (popularMenuTop?.name) {
+          const rate = Number(popularMenuTop.salesRate ?? popularMenuTop.rate);
+          const rateTxt = isFinite(rate) && rate > 0 ? ` ${rate.toFixed(1)}%` : '';
+          const diversity = popularMenuCount >= 5
+            ? '메뉴 다양성 높음'
+            : popularMenuCount >= 3
+              ? '메뉴 다양성 보통'
+              : '메뉴 다양성 낮음';
+          return `인기 메뉴 ${popularMenuTop.name}${rateTxt} — ${diversity}`;
+        }
+        return '메뉴 트렌드 데이터 수집 중';
+      })(),
     },
     {
       key: "survival",
@@ -122,18 +139,18 @@ export default function Card13({ body = {} }) {
           <div style={{fontSize:13, color:"var(--matte-fg-3)", fontWeight:600, letterSpacing:"0.10em", textTransform:"uppercase", marginBottom:14}}>한 줄 요약</div>
           <div style={{fontSize:30, fontWeight:700, lineHeight:1.35, color:"#fff", letterSpacing:"-0.015em", marginBottom:28}}>
             {headline}<br/>
-            종합 등급은 <span style={{color:"#5478C9"}}>{grade}</span>입니다.
+            종합 등급은 <span style={{color:"#4C7BE4"}}>{grade}</span>입니다.
           </div>
           <div style={{display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:14}}>
             {[
-              ["3년 생존", survival3y > 0 ? String(survival3y) : '-', "%", survival3y > 0 ? `${survival3y > 39 ? '+' : ''}${survival3y - 39}%p (전국)` : '', survival3y >= 60],
-              ["월매출", cafeSales > 0 ? cafeSales.toLocaleString() : '-', "만", cafeSales > 0 && guAvg > 0 ? `${sigungu || '시군구'} 평균 대비 ${cafeSales > guAvg ? '+' : ''}${Math.round((cafeSales/guAvg-1)*100)}%` : '', false],
+              ["3년 생존", survival3y > 0 ? String(survival3y) : '-', survival3y > 0 ? "%" : "", survival3y > 0 ? `${survival3y > 39 ? '+' : ''}${(survival3y - 39).toFixed(1)}%p (전국)` : '', survival3y >= 60],
+              ["월매출", cafeSales > 0 ? cafeSales.toLocaleString() : '-', cafeSales > 0 ? "만" : "", cafeSales > 0 && guAvg > 0 ? `${sigungu || '시군구'} 평균 대비 ${cafeSales > guAvg ? '+' : ''}${Math.round((cafeSales/guAvg-1)*100)}%` : '', false],
               ["창업 기상도", weatherLabel || (weatherScore > 0 ? String(weatherScore) : '-'), "", weatherScore > 0 ? `${weatherScore}/100` : '', weatherScore >= 60],
             ].map(([l, v, u, sub, acc]) => (
               <div key={l} style={{padding:"20px 22px", background:"rgba(255,255,255,0.03)", borderRadius:12, border:"1px solid var(--matte-line)"}}>
                 <div style={{fontSize:14, color:"var(--matte-fg-3)", marginBottom:10, fontWeight:500}}>{l}</div>
-                <div style={{fontSize:32, fontWeight:700, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.02em", lineHeight:1}}>{v}<span style={{fontSize:14, color:"var(--matte-fg-3)", marginLeft:4, fontWeight:500}}>{u}</span></div>
-                {sub && <div style={{fontSize:13, color: acc ? "#5478C9" : "var(--matte-fg-3)", marginTop:8, fontWeight:600}}>{sub}</div>}
+                <div style={{fontSize:32, fontWeight:700, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.02em", lineHeight:1}}>{v}{u && <span style={{fontSize:14, color:"var(--matte-fg-3)", marginLeft:4, fontWeight:500}}>{u}</span>}</div>
+                {sub && <div style={{fontSize:13, color: acc ? "#4C7BE4" : "var(--matte-fg-3)", marginTop:8, fontWeight:600}}>{sub}</div>}
               </div>
             ))}
           </div>
@@ -150,12 +167,12 @@ export default function Card13({ body = {} }) {
         {axes.map((a, idx) => {
           const pct = a.max > 0 ? a.score / a.max : 0;
           const isMax = a.max > 0 && pct === maxRatio && maxRatio > 0;
-          const barColor = isMax ? "#5478C9" : "#FFFFFF";
+          const barColor = isMax ? "#4C7BE4" : "#FFFFFF";
           return (
             <div key={a.key} style={{padding:"20px 0", borderTop: idx > 0 ? "1px solid var(--matte-line)" : "none"}}>
               <div style={{display:"grid", gridTemplateColumns:"180px 1fr 130px", gap:20, alignItems:"center"}}>
                 <div>
-                  <div style={{fontSize:17, fontWeight:700, color: isMax ? "#5478C9" : "#fff", letterSpacing:"-0.01em", marginBottom:4}}>{a.label}</div>
+                  <div style={{fontSize:17, fontWeight:700, color: isMax ? "#4C7BE4" : "#fff", letterSpacing:"-0.01em", marginBottom:4}}>{a.label}</div>
                   <div style={{fontSize:13, color:"var(--matte-fg-3)", fontVariantNumeric:"tabular-nums"}}>만점 {a.max}점</div>
                 </div>
                 <div>
@@ -165,7 +182,7 @@ export default function Card13({ body = {} }) {
                   <div style={{fontSize:14, color:"var(--matte-fg-2)", lineHeight:1.5}}>{a.headline}</div>
                 </div>
                 <div style={{textAlign:"right"}}>
-                  <div style={{fontSize:36, fontWeight:700, color: isMax ? "#5478C9" : "var(--matte-fg)", fontVariantNumeric:"tabular-nums", letterSpacing:"-0.02em", lineHeight:1}}>{a.score}</div>
+                  <div style={{fontSize:36, fontWeight:700, color: isMax ? "#4C7BE4" : "var(--matte-fg)", fontVariantNumeric:"tabular-nums", letterSpacing:"-0.02em", lineHeight:1}}>{a.score}</div>
                   <div style={{fontSize:13, color:"var(--matte-fg-3)", marginTop:8}}>비율 <strong style={{color:"var(--matte-fg-2)", fontWeight:700}}>{Math.round(pct*100)}%</strong></div>
                 </div>
               </div>
@@ -178,7 +195,7 @@ export default function Card13({ body = {} }) {
       <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginTop:16}}>
         <div className="bc-box" style={{padding:28, border:"1px solid rgba(84,120,201,0.35)", background:"linear-gradient(180deg, rgba(84,120,201,0.06), transparent 70%)"}}>
           <div style={{display:"flex", alignItems:"baseline", justifyContent:"space-between", marginBottom:18}}>
-            <div style={{fontSize:18, fontWeight:700, color:"#5478C9", letterSpacing:"-0.01em"}}>강점</div>
+            <div style={{fontSize:18, fontWeight:700, color:"#4C7BE4", letterSpacing:"-0.01em"}}>강점</div>
             <div style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:600}}>{strengths.length}개 축</div>
           </div>
           {strengths.length > 0 ? (
@@ -187,7 +204,7 @@ export default function Card13({ body = {} }) {
                 <div key={a.key} style={{padding:"16px 20px", background:"rgba(255,255,255,0.03)", borderRadius:10, border:"1px solid var(--matte-line)"}}>
                   <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:8}}>
                     <span style={{fontSize:16, fontWeight:700, color:"#fff", letterSpacing:"-0.005em"}}>{a.label}</span>
-                    <span style={{fontSize:18, fontWeight:700, fontVariantNumeric:"tabular-nums", color:"#5478C9", letterSpacing:"-0.01em"}}>{a.score}<span style={{fontSize:13, color:"var(--matte-fg-3)", marginLeft:3, fontWeight:500}}>/{a.max}</span></span>
+                    <span style={{fontSize:18, fontWeight:700, fontVariantNumeric:"tabular-nums", color:"#4C7BE4", letterSpacing:"-0.01em"}}>{a.score}<span style={{fontSize:13, color:"var(--matte-fg-3)", marginLeft:3, fontWeight:500}}>/{a.max}</span></span>
                   </div>
                   <div style={{fontSize:14, color:"var(--matte-fg-2)", lineHeight:1.5}}>{a.headline}</div>
                 </div>

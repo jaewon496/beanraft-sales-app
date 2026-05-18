@@ -41,7 +41,7 @@ export default function Card10({ body = {} }) {
     const agencyAvg = Number(kd.agency?.avgManwon) || 0;
     if (appAvg > 0) items.push(['배민/쿠팡이츠', `${appAvg.toLocaleString()}만원`, '#FFFFFF']);
     if (agencyAvg > 0) items.push(['바로고/부릉', `${agencyAvg.toLocaleString()}만원`, '#7a7a7a']);
-    if (appAvg > 0 && agencyAvg > 0) items.push(['둘 다 운영', `${(appAvg + agencyAvg).toLocaleString()}만원`, '#5478C9']);
+    if (appAvg > 0 && agencyAvg > 0) items.push(['둘 다 운영', `${(appAvg + agencyAvg).toLocaleString()}만원`, '#4C7BE4']);
     return items;
   })();
 
@@ -61,11 +61,11 @@ export default function Card10({ body = {} }) {
         <div className="bc-box" style={{padding:18, display:"flex", flexDirection:"column"}}>
           <div style={{display:"flex", justifyContent:"space-between", marginBottom:12}}>
             <div style={{fontSize:15, fontWeight:600}}>월별 배달 주문건수 ({monthlyValues.length}개월)</div>
-            {yoyPct !== 0 && <span style={{fontSize:15, color: yoyPct >= 0 ? "#5478C9" : "var(--st-bad)", fontWeight:700}}>{yoyPct > 0 ? '+' : ''}{yoyPct}% (추세)</span>}
+            {yoyPct !== 0 && <span style={{fontSize:15, color: yoyPct >= 0 ? "#4C7BE4" : "var(--st-bad)", fontWeight:700}}>{yoyPct > 0 ? '+' : ''}{yoyPct}% (추세)</span>}
           </div>
           <div style={{flex:1, display:"flex", alignItems:"center", minHeight:180}}>
             {monthlyValues.length >= 2 ? (
-              <LineChart id="c10.line" width={520} height={240} data={monthlyValues} color="#5478C9"/>
+              <LineChart id="c10.line" width={520} height={240} data={monthlyValues} color="#4C7BE4"/>
             ) : (
               <div style={{width:"100%", textAlign:"center", color:"var(--matte-fg-4)", fontSize:13}}>월별 추이 데이터 수집 중</div>
             )}
@@ -89,9 +89,9 @@ export default function Card10({ body = {} }) {
                   <div key={i} style={{display:"flex", justifyContent:"space-between", alignItems:"center", padding:"16px 0", borderBottom: i < kdMonthlyCost.length - 1 ? "1px solid var(--matte-line)" : "none"}}>
                     <div style={{display:"flex", alignItems:"center", gap:12}}>
                       <span style={{width:12, height:12, borderRadius:9999, background:c, flexShrink:0}}></span>
-                      <span style={{fontSize:16, fontWeight: i===kdMonthlyCost.length-1 ? 700 : 600, color: i===kdMonthlyCost.length-1 ? "#5478C9" : "var(--matte-fg)", letterSpacing:"-0.005em"}}>{l}</span>
+                      <span style={{fontSize:16, fontWeight: i===kdMonthlyCost.length-1 ? 700 : 600, color: i===kdMonthlyCost.length-1 ? "#4C7BE4" : "var(--matte-fg)", letterSpacing:"-0.005em"}}>{l}</span>
                     </div>
-                    <span style={{fontSize:20, fontWeight:700, fontVariantNumeric:"tabular-nums", color: i===kdMonthlyCost.length-1 ? "#5478C9" : "var(--matte-fg)", letterSpacing:"-0.01em"}}>{v}</span>
+                    <span style={{fontSize:20, fontWeight:700, fontVariantNumeric:"tabular-nums", color: i===kdMonthlyCost.length-1 ? "#4C7BE4" : "var(--matte-fg)", letterSpacing:"-0.01em"}}>{v}</span>
                   </div>
                 ))}
               </div>
@@ -105,11 +105,11 @@ export default function Card10({ body = {} }) {
             {kdActiveRatio != null ? (
               <div style={{display:"flex", alignItems:"center", gap:16}}>
                 <Donut id="c10.donut" size={180} thickness={20} segments={[
-                  {value: kdActiveRatio, color:"#5478C9", label:"운영"},
+                  {value: kdActiveRatio, color:"#4C7BE4", label:"운영"},
                   {value: kdInactiveRatio, color:"#FFFFFF", label:"미운영"},
                 ]} centerLabel={`${kdActiveRatio}%`} centerSub="배달 운영"/>
                 <DonutLegend segments={[
-                  {value: kdActiveRatio, color:"#5478C9", label:"운영", text:`${kdActiveRatio}%`},
+                  {value: kdActiveRatio, color:"#4C7BE4", label:"운영", text:`${kdActiveRatio}%`},
                   {value: kdInactiveRatio, color:"#FFFFFF", label:"미운영", text:`${kdInactiveRatio}%`},
                 ]}/>
               </div>

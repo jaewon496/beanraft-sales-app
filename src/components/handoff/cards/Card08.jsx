@@ -20,15 +20,17 @@ export default function Card08({ body = {} }) {
   const conversionRate = kosis?.conversionRate?.value || 0;
   const yieldRate = kosis?.yieldRate?.value || 0;
   const netIncome = kosis?.netIncome?.value || 0;
+  const netIncomeUnit = kosis?.netIncome?.unit || '원/평/년';
+  const netIncomePct = kosis?.netIncome?.noiPct || 0;
   const kosisPeriod = kosis?.marketRent?.period || kosis?.yieldRate?.period || '';
   const kosisRegion = kosis?.marketRent?.region || '';
 
   // KOSIS 외식업 카페 평균 (chartData.kosisCafe)
   const kc = chartData.kosisCafe || null;
 
-  // 권리금 (chartData.premium)
-  const premium = chartData.premium || null;
-  const premiumValue = Number(premium?.value) || 0;          // 원 단위
+  // 권리금 (chartData.premium 우선 → bodyData.premium 폴백)
+  const premium = chartData.premium || bodyData.premium || null;
+  const premiumValue = Number(premium?.value) || Number(bodyData.premiumCost) || 0;          // 원 단위
   const premiumManwon = premiumValue > 0 ? Math.round(premiumValue / 10000) : 0;
   const premiumOk = premium?.region || '';
 
@@ -58,7 +60,23 @@ export default function Card08({ body = {} }) {
             <Box label="평당 월세" value={marketRent > 0 ? String(marketRent) : '-'} unit={marketRent > 0 ? '만' : ''} sub={kosisRegion || ''} src={kosisPeriod}/>
             <Box label="전환율"   value={conversionRate > 0 ? conversionRate.toFixed(1) : '-'} unit={conversionRate > 0 ? '%' : ''} src={kosisPeriod}/>
             <Box label="수익률"   value={yieldRate > 0 ? yieldRate.toFixed(1) : '-'} unit={yieldRate > 0 ? '%' : ''} sub="순영업소득 기준" src={kosisPeriod}/>
-            <Box label="순영업소득" value={netIncome > 0 ? Math.round(netIncome / 10000).toLocaleString() : '-'} unit={netIncome > 0 ? '만/년' : ''} src={kosisPeriod}/>
+            <Box label="순영업소득"
+                 value={
+                   netIncomeUnit === '%' && netIncomePct > 0
+                     ? netIncomePct.toFixed(1)
+                     : (netIncome > 0
+                         ? (netIncome >= 10000
+                             ? Math.round(netIncome / 10000).toLocaleString()
+                             : Math.round(netIncome).toLocaleString())
+                         : '-')
+                 }
+                 unit={
+                   netIncomeUnit === '%' && netIncomePct > 0
+                     ? '%'
+                     : (netIncome > 0 ? (netIncome >= 10000 ? '만/년' : '원/평/년') : '')
+                 }
+                 sub={netIncomeUnit === '%' ? '임대수입 대비' : ''}
+                 src={kosisPeriod}/>
           </div>
         </div>
 
@@ -102,9 +120,9 @@ export default function Card08({ body = {} }) {
               const pct = Math.round((v / tMax) * 100);
               return (
                 <div key={l} style={{display:"grid", gridTemplateColumns:"110px 1fr 90px", gap:12, alignItems:"center"}}>
-                  <span style={{fontSize:14, color: acc ? "#5478C9" : "var(--matte-fg-2)", fontWeight: acc ? 700 : 500}}>{l}</span>
-                  <div className="bc-bar" style={{height:12, background:"rgba(255,255,255,0.05)"}}><div style={{width:`${pct}%`, background: acc ? "#5478C9" : "#FFFFFF", height:"100%", borderRadius:"inherit"}}></div></div>
-                  <span style={{fontSize:14, textAlign:"right", fontVariantNumeric:"tabular-nums", color: acc ? "#5478C9" : "var(--matte-fg)", fontWeight:700}}>{valStr}</span>
+                  <span style={{fontSize:14, color: acc ? "#4C7BE4" : "var(--matte-fg-2)", fontWeight: acc ? 700 : 500}}>{l}</span>
+                  <div className="bc-bar" style={{height:12, background:"rgba(255,255,255,0.05)"}}><div style={{width:`${pct}%`, background: acc ? "#4C7BE4" : "#FFFFFF", height:"100%", borderRadius:"inherit"}}></div></div>
+                  <span style={{fontSize:14, textAlign:"right", fontVariantNumeric:"tabular-nums", color: acc ? "#4C7BE4" : "var(--matte-fg)", fontWeight:700}}>{valStr}</span>
                 </div>
               );
             });
@@ -115,10 +133,10 @@ export default function Card08({ body = {} }) {
 
         <div className="bc-box" style={{padding:24, background:"linear-gradient(135deg, rgba(84,120,201,0.10), transparent 60%)", border:"1px solid rgba(84,120,201,0.45)"}}>
           <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:14}}>
-            <div style={{fontSize:16, fontWeight:700, color:"#5478C9"}}>내 카페 시뮬레이터</div>
+            <div style={{fontSize:16, fontWeight:700, color:"#4C7BE4"}}>내 카페 시뮬레이터</div>
             <div style={{fontSize:14, color:"var(--matte-fg-2)", fontWeight:600}}><strong style={{fontSize:18, color:"#fff"}}>{pyeong}</strong> 평</div>
           </div>
-          <input type="range" min="5" max="60" value={pyeong} onChange={e=>setPyeong(+e.target.value)} style={{width:"100%", accentColor:"#5478C9"}}/>
+          <input type="range" min="5" max="60" value={pyeong} onChange={e=>setPyeong(+e.target.value)} style={{width:"100%", accentColor:"#4C7BE4"}}/>
           <div style={{display:"flex", justifyContent:"space-between", fontSize:13, color:"var(--matte-fg-4)", marginTop:6}}>
             <span>5평</span><span>15</span><span>30</span><span>45</span><span>60평</span>
           </div>
@@ -133,7 +151,7 @@ export default function Card08({ body = {} }) {
             </div>
             <div style={{padding:"16px 18px", background:"rgba(84,120,201,0.10)", borderRadius:10, border:"1px solid rgba(84,120,201,0.45)"}}>
               <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:6, fontWeight:500}}>총 창업비</div>
-              <div style={{fontSize:22, fontWeight:700, color:"#5478C9", fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{simTotal > 0 ? `${(simTotal/10000).toFixed(2)}` : '-'}<span style={{fontSize:13, color:"var(--matte-fg-3)", marginLeft:3, fontWeight:500}}>{simTotal > 0 ? '억' : ''}</span></div>
+              <div style={{fontSize:22, fontWeight:700, color:"#4C7BE4", fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{simTotal > 0 ? `${(simTotal/10000).toFixed(2)}` : '-'}<span style={{fontSize:13, color:"var(--matte-fg-3)", marginLeft:3, fontWeight:500}}>{simTotal > 0 ? '억' : ''}</span></div>
             </div>
           </div>
           {premiumManwon > 0 && premiumOk && (

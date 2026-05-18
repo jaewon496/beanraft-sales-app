@@ -93,10 +93,10 @@ export default function Card12({ body = {} }) {
                 {months.map((m, i) => {
                   const tH = Math.max(8, ((temps[i] - tempMin) / tempRange) * 180);
                   const isHotMax = temps[i] === tempMax && tempMax > 0;
-                  const color = isHotMax ? "#5478C9" : "#FFFFFF";
+                  const color = isHotMax ? "#4C7BE4" : "#FFFFFF";
                   return (
                     <div key={m} style={{display:"flex", flexDirection:"column", alignItems:"center", gap:6, height:"100%", justifyContent:"flex-end"}}>
-                      <div style={{fontSize:13, fontWeight:600, color: isHotMax ? "#5478C9" : "var(--matte-fg-2)", fontVariantNumeric:"tabular-nums"}}>{days[i]}</div>
+                      <div style={{fontSize:13, fontWeight:600, color: isHotMax ? "#4C7BE4" : "var(--matte-fg-2)", fontVariantNumeric:"tabular-nums"}}>{days[i]}</div>
                       <div style={{width:"100%", height: tH, background: color, borderRadius:"4px 4px 0 0", opacity: isHotMax ? 1 : 0.85}}></div>
                     </div>
                   );
@@ -116,7 +116,7 @@ export default function Card12({ body = {} }) {
               {seasonSales.map(s => (
                 <div key={s.name} style={{padding:"16px 16px", background:"rgba(255,255,255,0.03)", borderRadius:10, border:"1px solid var(--matte-line)"}}>
                   <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:8, fontWeight:500}}>{s.name}</div>
-                  <div style={{fontSize:24, fontWeight:700, fontVariantNumeric:"tabular-nums", color: s.acc ? "#5478C9" : "var(--matte-fg)", letterSpacing:"-0.01em"}}>{s.value}</div>
+                  <div style={{fontSize:24, fontWeight:700, fontVariantNumeric:"tabular-nums", color: s.acc ? "#4C7BE4" : "var(--matte-fg)", letterSpacing:"-0.01em"}}>{s.value}</div>
                   <div style={{fontSize:13, color:"var(--matte-fg-3)", marginTop:6}}>{s.tag}</div>
                 </div>
               ))}
@@ -132,7 +132,7 @@ export default function Card12({ body = {} }) {
             <div style={{display:"flex", flexDirection:"column", gap:12}}>
               {[
                 ['맑음', sunnyEffect, '#FFFFFF'],
-                ['비', rainyEffect, '#5478C9'],
+                ['비', rainyEffect, '#4C7BE4'],
                 ['눈', snowEffect, '#FFFFFF'],
                 ['흐림', cloudyEffect, '#FFFFFF'],
               ].map(([k, v, color]) => {
@@ -143,9 +143,9 @@ export default function Card12({ body = {} }) {
                   <div key={k} style={{display:"grid", gridTemplateColumns:"60px 1fr 80px", gap:12, alignItems:"center"}}>
                     <span style={{fontSize:15, color:"var(--matte-fg-2)", fontWeight:500}}>{k}</span>
                     <div className="bc-bar" style={{height:12, background:"rgba(255,255,255,0.05)"}}>
-                      <div style={{width:`${w}%`, background: acc ? "#5478C9" : color, height:"100%", borderRadius:"inherit"}}></div>
+                      <div style={{width:`${w}%`, background: acc ? "#4C7BE4" : color, height:"100%", borderRadius:"inherit"}}></div>
                     </div>
-                    <span style={{textAlign:"right", fontSize:14, fontWeight:700, color: acc ? "#5478C9" : "var(--matte-fg)", fontVariantNumeric:"tabular-nums"}}>{valStr}</span>
+                    <span style={{textAlign:"right", fontSize:14, fontWeight:700, color: acc ? "#4C7BE4" : "var(--matte-fg)", fontVariantNumeric:"tabular-nums"}}>{valStr}</span>
                   </div>
                 );
               })}

@@ -6,18 +6,30 @@ import { Donut, DonutLegend, Sparkline } from '../Charts.jsx';
 import { MapTriggerButton } from '../MapModal.jsx';
 
 export default function Card01({ body = {} }) {
+  const kbd = body.kosisBoxData || {};
   const cafeCount = Number(body.cafeCount) || 0;
   const franchise = Number(body.franchise) || 0;
   const individual = Number(body.individual) || 0;
   const bakery = Number(body.bakery) || 0;
   const newOpen = Number(body.newOpen) || 0;
   const closed = Number(body.closed) || 0;
-  const rentPerPyeong = Number(body.rentPerPyeong) || 0;     // 만원/평 (KOSIS 408 통합 임대료)
-  const vacancyRate = Number(body.vacancyRate) || 0;          // % (공실률)
-  const priceChange = Number(body.priceChange) || 0;          // % (임대가격지수 전년대비)
-  const rentSeries = Array.isArray(body.rentSeries) ? body.rentSeries : null;
-  const vacancySeries = Array.isArray(body.vacancySeries) ? body.vacancySeries : null;
-  const priceSeries = Array.isArray(body.priceSeries) ? body.priceSeries : null;
+  // 평당 월세: body.rentPerPyeong 우선 → kosisBoxData fallback (integratedRent → marketRent)
+  // [unit-safe] integratedRent.unit이 '만원/평'이면 그대로, '원/평'이면 /10000. marketRent는 항상 '원/평'.
+  const _ir = kbd.integratedRent;
+  const _irManwon = _ir?.value
+    ? (typeof _ir.unit === 'string' && _ir.unit.indexOf('만원') >= 0
+        ? Math.round(_ir.value)
+        : Math.round(_ir.value / 10000))
+    : 0;
+  const rentRaw = Number(body.rentPerPyeong) || _irManwon || (kbd.marketRent?.value ? Math.round(kbd.marketRent.value / 10000) : 0);
+  const rentPerPyeong = rentRaw;
+  // 공실률: body.vacancyRate 우선 → kosisBoxData.vacancy.value fallback
+  const vacancyRate = Number(body.vacancyRate) || Number(kbd.vacancy?.value) || 0;
+  // 임대가격지수 전년대비
+  const priceChange = Number(body.priceChange) || Number(kbd.priceChange?.value) || 0;
+  const rentSeries = Array.isArray(body.rentSeries) ? body.rentSeries : (kbd.marketRentSeries?.series || null);
+  const vacancySeries = Array.isArray(body.vacancySeries) ? body.vacancySeries : (kbd.vacancySeries?.series || null);
+  const priceSeries = Array.isArray(body.priceSeries) ? body.priceSeries : (kbd.priceIndexSeries?.series || null);
   const onMapClick = body.onMapClick;
 
   // 도넛 비율 (개인/프랜차이즈/베이커리)
@@ -25,7 +37,7 @@ export default function Card01({ body = {} }) {
     const segs = [];
     const total = individual + franchise + bakery;
     if (total === 0) return [];
-    if (individual > 0) segs.push({ value: Math.round(individual / total * 100), color: '#5478C9', label: '개인 카페' });
+    if (individual > 0) segs.push({ value: Math.round(individual / total * 100), color: '#4C7BE4', label: '개인 카페' });
     if (franchise > 0) segs.push({ value: Math.round(franchise / total * 100), color: '#FFFFFF', label: '프랜차이즈' });
     if (bakery > 0) segs.push({ value: Math.round(bakery / total * 100), color: '#7a7a7a', label: '베이커리' });
     return segs;
@@ -48,8 +60,9 @@ export default function Card01({ body = {} }) {
     : (newOpen > 0 ? '+신규' : '0');
 
   // mini 차트 (있으면 KOSIS 시계열, 없으면 균등)
+  // [unit-safe] marketRentSeries.series는 이미 '만원/평' 단위(dataMapper extractMarketRentSeries)
   const rentSpark = rentSeries
-    ? rentSeries.map(s => Math.round((s.value || 0) / 10000)).filter(v => v > 0)
+    ? rentSeries.map(s => Math.round(s.value || 0)).filter(v => v > 0)
     : (rentPerPyeong > 0 ? [rentPerPyeong] : []);
   const vacancySpark = vacancySeries
     ? vacancySeries.map(s => s.value || 0).filter(v => v > 0)
@@ -97,7 +110,7 @@ export default function Card01({ body = {} }) {
             <div style={{display:"flex", alignItems:"center", gap:18, justifyContent:"center"}}>
               <Donut id="c1.donut" size={200} segments={donutSegments} centerLabel={String(cafeCount)} centerSub="카페 매장"/>
               <DonutLegend segments={[
-                ...(indiePct > 0 ? [{value:indiePct, color:"#5478C9", label:"개인", text:`${indiePct}%`}] : []),
+                ...(indiePct > 0 ? [{value:indiePct, color:"#4C7BE4", label:"개인", text:`${indiePct}%`}] : []),
                 ...(fcPct > 0 ? [{value:fcPct, color:"#FFFFFF", label:"프랜차이즈", text:`${fcPct}%`}] : []),
                 ...(bkPct > 0 ? [{value:bkPct, color:"#7a7a7a", label:"베이커리", text:`${bkPct}%`}] : []),
               ]}/>
@@ -112,19 +125,19 @@ export default function Card01({ body = {} }) {
         {[
           { l:"평당 월세", v: rentPerPyeong > 0 ? `${rentPerPyeong}만원` : '-', d: rentDelta + '%', color:"#FFFFFF", data: rentSpark },
           { l:"공실률",   v: vacancyRate > 0 ? `${vacancyRate.toFixed(1)}%` : '-', d: vacancyDelta + '%p', color:"#FFFFFF", data: vacancySpark },
-          { l:"신규 개업", v: `${newOpen}개`, d: newOpenDelta + '%', color:"#5478C9", data: priceSpark.length > 0 ? priceSpark : [Math.max(0, newOpen - closed), newOpen] },
+          { l:"신규 개업", v: `${newOpen}개`, d: newOpenDelta + '%', color:"#4C7BE4", data: priceSpark.length > 0 ? priceSpark : [Math.max(0, newOpen - closed), newOpen] },
         ].map((t, i) => (
           <div key={i} className="bc-box" style={{padding:18}}>
             <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:10}}>
               <span style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:500}}>{t.l}</span>
-              <span style={{fontSize:14, color: t.color === "#5478C9" ? "#5478C9" : "var(--matte-fg-2)", fontWeight:600, fontVariantNumeric:"tabular-nums"}}>{t.d}</span>
+              <span style={{fontSize:14, color: t.color === "#4C7BE4" ? "#4C7BE4" : "var(--matte-fg-2)", fontWeight:600, fontVariantNumeric:"tabular-nums"}}>{t.d}</span>
             </div>
             <div style={{fontSize:24, fontWeight:700, marginBottom:14, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{t.v}</div>
             {t.data.length > 1 ? (
               <Sparkline data={t.data} height={56} color={t.color}/>
             ) : (
               <div style={{height:56, display:"flex", alignItems:"center", color:"var(--matte-fg-4)", fontSize:13}}>
-                {t.data.length === 1 ? '추이 데이터 부족' : '데이터 수집 중'}
+                {t.data.length === 1 ? '추이 데이터 부족' : '전기 대비 변동 없음'}
               </div>
             )}
           </div>

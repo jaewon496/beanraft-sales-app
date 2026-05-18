@@ -40,7 +40,7 @@ export default function Card06({ body = {} }) {
   const priceMax = Math.max(...priceItems.map(([, v]) => Number(v) || 0), 5000);
 
   return (
-    <CardShell n="06" id="06"
+    <CardShell n="05" id="05"
       title="개인 카페 분석"
       sub="주변 개인 카페 현황 및 가격대"
       sources={["오픈업/카카오", "국세청 (KOSIS 133)"]}>
@@ -72,7 +72,7 @@ export default function Card06({ body = {} }) {
                     </div>
                     <div style={{display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:12, paddingLeft:23}}>
                       <span style={{fontSize:13, color:"var(--matte-fg-3)", minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{(c.addr || '').slice(0, 18)}</span>
-                      <span style={{fontSize:20, fontWeight:700, fontVariantNumeric:"tabular-nums", color: isAcc ? "#5478C9" : "var(--matte-fg)", letterSpacing:"-0.01em", flexShrink:0}}>{c.dist || 0}<span style={{fontSize:13, color:"var(--matte-fg-3)", marginLeft:2, fontWeight:500}}>m</span></span>
+                      <span style={{fontSize:20, fontWeight:700, fontVariantNumeric:"tabular-nums", color: isAcc ? "#4C7BE4" : "var(--matte-fg)", letterSpacing:"-0.01em", flexShrink:0}}>{c.dist || 0}<span style={{fontSize:13, color:"var(--matte-fg-3)", marginLeft:2, fontWeight:500}}>m</span></span>
                     </div>
                   </div>
                 );
@@ -90,9 +90,9 @@ export default function Card06({ body = {} }) {
               <div key={who} style={{display:"grid", gridTemplateColumns:"110px 1fr 80px", gap:12, alignItems:"center"}}>
                 <span style={{fontSize:14, color:"var(--matte-fg-2)", fontWeight:500}}>{who}</span>
                 <div className="bc-bar" style={{height:14, background:"rgba(255,255,255,0.05)"}}>
-                  <div style={{width:`${(Number(v)/priceMax)*100}%`, background: acc ? "#5478C9" : "#FFFFFF", height:"100%", borderRadius:"inherit"}}></div>
+                  <div style={{width:`${(Number(v)/priceMax)*100}%`, background: acc ? "#4C7BE4" : "#FFFFFF", height:"100%", borderRadius:"inherit"}}></div>
                 </div>
-                <span style={{textAlign:"right", fontSize:15, fontWeight:700, color: acc ? "#5478C9" : "var(--matte-fg)", fontVariantNumeric:"tabular-nums"}}>{Number(v).toLocaleString()}<span style={{fontSize:13, color:"var(--matte-fg-3)", marginLeft:2, fontWeight:500}}>원</span></span>
+                <span style={{textAlign:"right", fontSize:15, fontWeight:700, color: acc ? "#4C7BE4" : "var(--matte-fg)", fontVariantNumeric:"tabular-nums"}}>{Number(v).toLocaleString()}<span style={{fontSize:13, color:"var(--matte-fg-3)", marginLeft:2, fontWeight:500}}>원</span></span>
               </div>
             ))}
           </div>
@@ -108,11 +108,11 @@ export default function Card06({ body = {} }) {
                   </div>
                   <div style={{padding:"18px 20px", background:"rgba(84,120,201,0.08)", borderRadius:10, border:"1px solid rgba(84,120,201,0.45)"}}>
                     <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:8, fontWeight:500}}>{sigungu || '시군구'}</div>
-                    <div style={{fontSize:24, fontWeight:700, color:"#5478C9", fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{regionClose > 0 ? regionClose.toLocaleString() : '-'}<span style={{fontSize:13, color:"var(--matte-fg-3)", marginLeft:3, fontWeight:500}}>곳/년</span></div>
+                    <div style={{fontSize:24, fontWeight:700, color:"#4C7BE4", fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{regionClose > 0 ? regionClose.toLocaleString() : '-'}<span style={{fontSize:13, color:"var(--matte-fg-3)", marginLeft:3, fontWeight:500}}>곳/년</span></div>
                   </div>
                 </div>
                 {(sidoClose > 0 && regionClose > 0) && (
-                  <div style={{fontSize:13, color:"var(--matte-fg-3)", marginTop:12, lineHeight:1.6}}>{sigungu || '이 시군구'}는 시도 평균 대비 <strong style={{color:"#5478C9"}}>{regionClose > sidoClose ? '+' : ''}{Math.round(((regionClose - sidoClose) / sidoClose) * 100)}%</strong> 수준</div>
+                  <div style={{fontSize:13, color:"var(--matte-fg-3)", marginTop:12, lineHeight:1.6}}>{sigungu || '이 시군구'}는 시도 평균 대비 <strong style={{color:"#4C7BE4"}}>{regionClose > sidoClose ? '+' : ''}{Math.round(((regionClose - sidoClose) / sidoClose) * 100)}%</strong> 수준</div>
                 )}
               </>
             ) : (

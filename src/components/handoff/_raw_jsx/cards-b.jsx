@@ -52,21 +52,21 @@ function Card08({ body = {} }) {
           <div style={{display:"flex", flexDirection:"column", gap:10}}>
           {[["셀프","1,500만",30,false],["최소 시공","3,500만",55,false],["평균 시공","5,250만",75,true],["고급 시공","7,800만",92,false],["프리미엄","1.2억",100,false]].map(([l,v,p,acc],i)=>(
             <div key={l} style={{display:"grid", gridTemplateColumns:"110px 1fr 80px", gap:12, alignItems:"center"}}>
-              <span style={{fontSize:14, color: acc ? "#5478C9" : "var(--matte-fg-2)", fontWeight: acc ? 700 : 500}}>{l}</span>
-              <div className="bc-bar" style={{height:12, background:"rgba(255,255,255,0.05)"}}><div style={{width:`${p}%`, background: acc ? "#5478C9" : "#FFFFFF", height:"100%", borderRadius:"inherit"}}></div></div>
-              <span style={{fontSize:14, textAlign:"right", fontVariantNumeric:"tabular-nums", color: acc ? "#5478C9" : "var(--matte-fg)", fontWeight:700}}>{v}</span>
+              <span style={{fontSize:14, color: acc ? "#4C7BE4" : "var(--matte-fg-2)", fontWeight: acc ? 700 : 500}}>{l}</span>
+              <div className="bc-bar" style={{height:12, background:"rgba(255,255,255,0.05)"}}><div style={{width:`${p}%`, background: acc ? "#4C7BE4" : "#FFFFFF", height:"100%", borderRadius:"inherit"}}></div></div>
+              <span style={{fontSize:14, textAlign:"right", fontVariantNumeric:"tabular-nums", color: acc ? "#4C7BE4" : "var(--matte-fg)", fontWeight:700}}>{v}</span>
             </div>
           ))}
           </div>
           <div style={{fontSize:13, color:"var(--matte-fg-3)", marginTop:16, paddingTop:14, borderTop:"1px solid var(--matte-line)"}}>평균 시공 (5,250만)을 권장 — 회수 28개월 시나리오 적용</div>
         </div>
 
-        <div className="bc-box" style={{padding:24, background:"linear-gradient(135deg, rgba(84,120,201,0.10), transparent 60%)", border:"1px solid rgba(84,120,201,0.45)"}}>
+        <div className="bc-box" style={{padding:24, background:"linear-gradient(135deg, rgba(76, 123, 228,0.10), transparent 60%)", border:"1px solid rgba(76, 123, 228,0.45)"}}>
           <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:14}}>
-            <div style={{fontSize:16, fontWeight:700, color:"#5478C9"}}>내 카페 시뮬레이터</div>
+            <div style={{fontSize:16, fontWeight:700, color:"#4C7BE4"}}>내 카페 시뮬레이터</div>
             <div style={{fontSize:14, color:"var(--matte-fg-2)", fontWeight:600}}><strong style={{fontSize:18, color:"#fff"}}>{pyeong}</strong> 평</div>
           </div>
-          <input type="range" min="5" max="60" value={pyeong} onChange={e=>setPyeong(+e.target.value)} style={{width:"100%", accentColor:"#5478C9"}}/>
+          <input type="range" min="5" max="60" value={pyeong} onChange={e=>setPyeong(+e.target.value)} style={{width:"100%", accentColor:"#4C7BE4"}}/>
           <div style={{display:"flex", justifyContent:"space-between", fontSize:13, color:"var(--matte-fg-4)", marginTop:6}}>
             <span>5평</span><span>15</span><span>30</span><span>45</span><span>60평</span>
           </div>
@@ -79,9 +79,21 @@ function Card08({ body = {} }) {
               <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:6, fontWeight:500}}>보증금</div>
               <div style={{fontSize:22, fontWeight:700, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{(deposit/10000).toFixed(2)}<span style={{fontSize:13, color:"var(--matte-fg-3)", marginLeft:3, fontWeight:500}}>억</span></div>
             </div>
-            <div style={{padding:"16px 18px", background:"rgba(84,120,201,0.10)", borderRadius:10, border:"1px solid rgba(84,120,201,0.45)"}}>
+            <div style={{padding:"16px 18px", background:"rgba(76, 123, 228,0.10)", borderRadius:10, border:"1px solid rgba(76, 123, 228,0.45)"}}>
               <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:6, fontWeight:500}}>총 창업비</div>
-              <div style={{fontSize:22, fontWeight:700, color:"#5478C9", fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{(total/10000).toFixed(2)}<span style={{fontSize:13, color:"var(--matte-fg-3)", marginLeft:3, fontWeight:500}}>억</span></div>
+              <div style={{fontSize:22, fontWeight:700, color:"#4C7BE4", fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{(total/10000).toFixed(2)}<span style={{fontSize:13, color:"var(--matte-fg-3)", marginLeft:3, fontWeight:500}}>억</span></div>
+            </div>
+          </div>
+
+          <div style={{marginTop:14, paddingTop:12, borderTop:"1px dashed rgba(76, 123, 228,0.30)", display:"flex", justifyContent:"space-between", alignItems:"baseline", gap:12, fontSize:13}}>
+            <div>
+              <span style={{color:"var(--matte-fg-3)", fontWeight:500, marginRight:8}}>예상 월 순수익</span>
+              <span style={{color:"var(--matte-fg)", fontWeight:700, fontVariantNumeric:"tabular-nums", fontSize:15}}>{Math.round(pyeong * 50).toLocaleString()}<span style={{fontSize:12, color:"var(--matte-fg-3)", marginLeft:2, fontWeight:500}}>만/월</span></span>
+            </div>
+            <div>
+              <span style={{color:"var(--matte-fg-3)", fontWeight:500, marginRight:8}}>회수 기간</span>
+              <span style={{color:"#4C7BE4", fontWeight:700, fontVariantNumeric:"tabular-nums", fontSize:15}}>{Math.max(12, Math.round(total / (pyeong * 50)))}<span style={{fontSize:12, color:"var(--matte-fg-3)", marginLeft:2, fontWeight:500}}>개월</span></span>
+              <span style={{color:"var(--matte-fg-4)", marginLeft:8, fontSize:12}}>업계 평균 36</span>
             </div>
           </div>
         </div>
@@ -117,7 +129,7 @@ function Card09({ body = {} }) {
           <div style={{flex:1, display:"flex", alignItems:"center", minHeight:200}}>
             <LineChart id="c9.line" width={460} height={260}
               data={[6.4,6.0,5.5,5.8,6.2,6.5,6.7,6.6,6.8,6.9,6.8,6.9]}
-              yLabels={[5, 6, 7]} color="#5478C9"/>
+              yLabels={[5, 6, 7]} color="#4C7BE4"/>
           </div>
           <div style={{marginTop:20, paddingTop:18, borderTop:"1px solid var(--matte-line)", display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:14}}>
             {[
@@ -146,12 +158,12 @@ function Card09({ body = {} }) {
           ].map(([axis, t, ratio, acc], i) => (
             <div key={i} style={{padding:"16px 18px", background:"rgba(255,255,255,0.03)", borderRadius:10, border:"1px solid var(--matte-line)"}}>
               <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:8}}>
-                <span style={{fontSize:15, fontWeight:700, color: acc ? "#5478C9" : "var(--matte-fg)"}}>{axis}</span>
+                <span style={{fontSize:15, fontWeight:700, color: acc ? "#4C7BE4" : "var(--matte-fg)"}}>{axis}</span>
                 <span style={{fontSize:13, color: ratio >= 0.6 ? "var(--matte-fg-2)" : "var(--matte-fg-3)", fontWeight:600, fontVariantNumeric:"tabular-nums"}}>{ratio >= 0.7 ? "강점" : ratio >= 0.4 ? "보통" : "주의"}</span>
               </div>
               <div style={{fontSize:14, color:"var(--matte-fg-2)", marginBottom:10, lineHeight:1.5}}>{t}</div>
               <div className="bc-bar" style={{height:8, background:"rgba(255,255,255,0.04)"}}>
-                <div style={{width:`${ratio*100}%`, background: acc ? "#5478C9" : "#FFFFFF", height:"100%", borderRadius:"inherit"}}></div>
+                <div style={{width:`${ratio*100}%`, background: acc ? "#4C7BE4" : "#FFFFFF", height:"100%", borderRadius:"inherit"}}></div>
               </div>
             </div>
           ))}
@@ -182,10 +194,10 @@ function Card10({ body = {} }) {
         <div className="bc-box" style={{padding:18, display:"flex", flexDirection:"column"}}>
           <div style={{display:"flex", justifyContent:"space-between", marginBottom:12}}>
             <div style={{fontSize:15, fontWeight:600}}>월별 배달 주문건수 (12개월)</div>
-            <span style={{fontSize:15, color:"#5478C9", fontWeight:700}}>+62% (yoy)</span>
+            <span style={{fontSize:15, color:"#4C7BE4", fontWeight:700}}>+62% (yoy)</span>
           </div>
           <div style={{flex:1, display:"flex", alignItems:"center", minHeight:180}}>
-            <LineChart id="c10.line" width={520} height={240} data={[420,440,460,490,510,540,580,610,640,650,670,681]} color="#5478C9"/>
+            <LineChart id="c10.line" width={520} height={240} data={[420,440,460,490,510,540,580,610,640,650,670,681]} color="#4C7BE4"/>
           </div>
           <div style={{marginTop:18, paddingTop:14, borderTop:"1px solid var(--line)"}}>
             <div style={{fontSize:15, fontWeight:600, marginBottom:12}}>요일별 배달 주문</div>
@@ -203,14 +215,14 @@ function Card10({ body = {} }) {
             {[
               ["배민/쿠팡이츠", "21만원", "#FFFFFF"],
               ["바로고/부릉",   "96만원", "#7a7a7a"],
-              ["둘 다 운영",    "117만원", "#5478C9"],
+              ["둘 다 운영",    "117만원", "#4C7BE4"],
             ].map(([l, v, c], i) => (
               <div key={i} style={{display:"flex", justifyContent:"space-between", alignItems:"center", padding:"16px 0", borderBottom: i<2 ? "1px solid var(--matte-line)" : "none"}}>
                 <div style={{display:"flex", alignItems:"center", gap:12}}>
                   <span style={{width:12, height:12, borderRadius:9999, background:c, flexShrink:0}}></span>
-                  <span style={{fontSize:16, fontWeight: i===2 ? 700 : 600, color: i===2 ? "#5478C9" : "var(--matte-fg)", letterSpacing:"-0.005em"}}>{l}</span>
+                  <span style={{fontSize:16, fontWeight: i===2 ? 700 : 600, color: i===2 ? "#4C7BE4" : "var(--matte-fg)", letterSpacing:"-0.005em"}}>{l}</span>
                 </div>
-                <span style={{fontSize:20, fontWeight:700, fontVariantNumeric:"tabular-nums", color: i===2 ? "#5478C9" : "var(--matte-fg)", letterSpacing:"-0.01em"}}>{v}</span>
+                <span style={{fontSize:20, fontWeight:700, fontVariantNumeric:"tabular-nums", color: i===2 ? "#4C7BE4" : "var(--matte-fg)", letterSpacing:"-0.01em"}}>{v}</span>
               </div>
             ))}
             </div>
@@ -220,11 +232,11 @@ function Card10({ body = {} }) {
             <div style={{fontSize:15, fontWeight:600, marginBottom:10}}>전국 카페 배달 운영</div>
             <div style={{display:"flex", alignItems:"center", gap:16}}>
               <Donut id="c10.donut" size={180} thickness={20} segments={[
-                {value:62, color:"#5478C9", label:"운영"},
+                {value:62, color:"#4C7BE4", label:"운영"},
                 {value:38, color:"#FFFFFF", label:"미운영"},
               ]} centerLabel="62%" centerSub="배달 운영"/>
               <DonutLegend segments={[
-                {value:62, color:"#5478C9", label:"운영", text:"62%"},
+                {value:62, color:"#4C7BE4", label:"운영", text:"62%"},
                 {value:38, color:"#FFFFFF", label:"미운영", text:"38%"},
               ]}/>
             </div>
@@ -251,8 +263,8 @@ function Card11({ body = {} }) {
         <StatTile id="c11.tile4" tone="cream" label="총 리뷰"       value="4,820" unit="건"/>
       </div>
 
-      <div style={{display:"grid", gridTemplateColumns:"1.3fr 1fr", gap:16}}>
-        <div className="bc-box" style={{padding:18}}>
+      <div style={{display:"grid", gridTemplateColumns:"1.3fr 1fr", gap:16, alignItems:"stretch"}}>
+        <div className="bc-box" style={{padding:18, display:"flex", flexDirection:"column"}}>
           <div style={{fontSize:15, fontWeight:600, marginBottom:12}}>SNS 키워드 클라우드</div>
           <window.DrStagger id="c11.cloud" delay={60} style={{display:"flex", flexWrap:"wrap", gap:10, alignItems:"baseline", padding:"8px 0"}}>
             {[
@@ -272,9 +284,50 @@ function Card11({ body = {} }) {
               <span key={i} style={{fontSize:s, color: s>=20 ? "#FFFFFF" : s>=14 ? "#C9C9C9" : "#A3A3A3", fontWeight: s>18 ? 700 : 600, lineHeight:1.1}}>#{k}</span>
             ))}
           </window.DrStagger>
+
+          <div style={{marginTop:16, paddingTop:14, borderTop:"1px solid var(--line)"}}>
+            <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:12}}>
+              <span style={{fontSize:15, color:"var(--fg-3)", fontWeight:600}}>주간 언급량 추이</span>
+              <span style={{fontSize:13, color:"var(--fg-4)", fontVariantNumeric:"tabular-nums"}}>총 4,820건 · <span style={{color:"#4C7BE4", fontWeight:700}}>+12.4%</span></span>
+            </div>
+            <window.DrStagger id="c11.trend" delay={70} style={{display:"flex", alignItems:"flex-end", gap:8, height:80, paddingTop:4}}>
+              {[
+                ["W-7",  720],
+                ["W-6",  860],
+                ["W-5",  790],
+                ["W-4",  980],
+                ["W-3", 1010],
+                ["W-2", 1120],
+                ["W-1", 1290],
+                ["이번주", 1430],
+              ].map(([w, v], i, arr) => {
+                const max = 1500;
+                const h = (v/max)*100;
+                const isAcc = i === arr.length - 1;
+                return (
+                  <div key={i} style={{flex:1, display:"flex", flexDirection:"column", alignItems:"center", height:"100%", justifyContent:"flex-end"}}>
+                    <div style={{
+                      width:"100%",
+                      maxWidth:32,
+                      height:`${h}%`,
+                      background: isAcc ? "#4C7BE4" : "rgba(255,255,255,0.55)",
+                      borderRadius:"6px 6px 0 0",
+                      boxShadow: isAcc ? "0 -2px 12px rgba(76, 123, 228,0.35)" : "none",
+                    }}></div>
+                  </div>
+                );
+              })}
+            </window.DrStagger>
+            <div style={{display:"flex", gap:8, marginTop:8}}>
+              {["W-7","W-6","W-5","W-4","W-3","W-2","W-1","이번주"].map((w, i, arr) => (
+                <div key={i} style={{flex:1, textAlign:"center", fontSize:11, color: i===arr.length-1 ? "#4C7BE4" : "var(--fg-4)", fontWeight: i===arr.length-1 ? 700 : 500, fontVariantNumeric:"tabular-nums"}}>{w}</div>
+              ))}
+            </div>
+          </div>
+
           <div style={{marginTop:14, paddingTop:14, borderTop:"1px solid var(--line)"}}>
             <div style={{fontSize:15, color:"var(--fg-3)", marginBottom:8, fontWeight:600}}>검색 유입 경로</div>
-            <div style={{display:"flex", flexWrap:"wrap", gap:6, marginBottom:12}}>
+            <div style={{display:"flex", flexWrap:"wrap", gap:6, marginBottom:14}}>
               {["강남역 카페","근처 카페","미팅 카페","조용한 카페","공부 카페","주차 카페","2층 카페"].map(k => <span key={k} className="bc-pill">{k}</span>)}
             </div>
             <div style={{fontSize:15, color:"var(--fg-3)", marginBottom:8, fontWeight:600}}>주의 키워드</div>
@@ -298,16 +351,16 @@ function Card11({ body = {} }) {
             return (
               <div key={i} style={{
                 padding:"14px 18px",
-                background: isAcc ? "rgba(84,120,201,0.10)" : "rgba(255,255,255,0.03)",
-                border: isAcc ? "1px solid rgba(84,120,201,0.45)" : "1px solid var(--matte-line)",
+                background: isAcc ? "rgba(76, 123, 228,0.10)" : "rgba(255,255,255,0.03)",
+                border: isAcc ? "1px solid rgba(76, 123, 228,0.45)" : "1px solid var(--matte-line)",
                 borderRadius:10,
               }}>
                 <div style={{display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:12, marginBottom:6}}>
                   <div style={{display:"flex", alignItems:"baseline", gap:10, minWidth:0}}>
                     <span style={{fontSize:13, color:"var(--matte-fg-4)", fontVariantNumeric:"tabular-nums", fontWeight:700, flexShrink:0}}>{String(i+1).padStart(2,"0")}</span>
-                    <span style={{fontSize:17, fontWeight:700, letterSpacing:"-0.01em", color: isAcc ? "#5478C9" : "var(--matte-fg)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{n}</span>
+                    <span style={{fontSize:17, fontWeight:700, letterSpacing:"-0.01em", color: isAcc ? "#4C7BE4" : "var(--matte-fg)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{n}</span>
                   </div>
-                  <span style={{fontSize:14, color: isAcc ? "#5478C9" : "var(--matte-fg-2)", fontWeight:700, flexShrink:0}}>{m}</span>
+                  <span style={{fontSize:14, color: isAcc ? "#4C7BE4" : "var(--matte-fg-2)", fontWeight:700, flexShrink:0}}>{m}</span>
                 </div>
                 <div style={{fontSize:13, color:"var(--matte-fg-3)", paddingLeft:30}}>{d}</div>
               </div>
@@ -340,7 +393,7 @@ function Card12({ body = {} }) {
         <StatTile id="c12.tile4" tone="mint"  label="눈"   value="10"  unit="일/년"/>
       </div>
 
-      <div style={{display:"grid", gridTemplateColumns:"1.4fr 1fr", gap:16, alignItems:"start"}}>
+      <div style={{display:"grid", gridTemplateColumns:"1.4fr 1fr", gap:16, alignItems:"stretch"}}>
         <div className="bc-box" style={{padding:24}}>
           <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:18}}>
             <span style={{fontSize:16, fontWeight:600}}>월별 비/눈 일수 + 평균 기온</span>
@@ -350,10 +403,10 @@ function Card12({ body = {} }) {
             {months.map((m, i) => {
               const tH = ((temps[i] + 5) / 35) * 180;
               const isHotMax = temps[i] === Math.max(...temps);
-              const color = isHotMax ? "#5478C9" : "#FFFFFF";
+              const color = isHotMax ? "#4C7BE4" : "#FFFFFF";
               return (
                 <div key={m} style={{display:"flex", flexDirection:"column", alignItems:"center", gap:6, height:"100%", justifyContent:"flex-end"}}>
-                  <div style={{fontSize:13, fontWeight:600, color: isHotMax ? "#5478C9" : "var(--matte-fg-2)", fontVariantNumeric:"tabular-nums"}}>{days[i]}</div>
+                  <div style={{fontSize:13, fontWeight:600, color: isHotMax ? "#4C7BE4" : "var(--matte-fg-2)", fontVariantNumeric:"tabular-nums"}}>{days[i]}</div>
                   <div style={{width:"100%", height: tH, background: color, borderRadius:"4px 4px 0 0", opacity: isHotMax ? 1 : 0.85}}></div>
                 </div>
               );
@@ -378,7 +431,7 @@ function Card12({ body = {} }) {
                 return (
                   <div key={k} style={{padding:"16px 16px", background:"rgba(255,255,255,0.03)", borderRadius:10, border:"1px solid var(--matte-line)"}}>
                     <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:8, fontWeight:500}}>{k}</div>
-                    <div style={{fontSize:24, fontWeight:700, fontVariantNumeric:"tabular-nums", color: accent ? "#5478C9" : "var(--matte-fg)", letterSpacing:"-0.01em"}}>{v}<span style={{fontSize:13, color:"var(--matte-fg-3)", marginLeft:2, fontWeight:500}}>%</span></div>
+                    <div style={{fontSize:24, fontWeight:700, fontVariantNumeric:"tabular-nums", color: accent ? "#4C7BE4" : "var(--matte-fg)", letterSpacing:"-0.01em"}}>{v}<span style={{fontSize:13, color:"var(--matte-fg-3)", marginLeft:2, fontWeight:500}}>%</span></div>
                     <div style={{fontSize:13, color:"var(--matte-fg-3)", marginTop:6}}>{t}</div>
                   </div>
                 );
@@ -386,13 +439,31 @@ function Card12({ body = {} }) {
             </div>
           </div>
 
+          <div style={{marginTop:16, paddingTop:14, borderTop:"1px solid var(--matte-line)", display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, fontSize:13}}>
+            <div>
+              <span style={{color:"var(--matte-fg-3)", fontWeight:500, marginRight:8}}>비 매출 상관</span>
+              <span style={{color:"#4C7BE4", fontWeight:700, fontVariantNumeric:"tabular-nums", fontSize:15}}>+0.62</span>
+              <span style={{color:"var(--matte-fg-4)", marginLeft:6, fontSize:12}}>강한 양</span>
+            </div>
+            <div>
+              <span style={{color:"var(--matte-fg-3)", fontWeight:500, marginRight:8}}>기온 상관</span>
+              <span style={{color:"var(--matte-fg)", fontWeight:700, fontVariantNumeric:"tabular-nums", fontSize:15}}>+0.41</span>
+              <span style={{color:"var(--matte-fg-4)", marginLeft:6, fontSize:12}}>중간 양</span>
+            </div>
+            <div>
+              <span style={{color:"var(--matte-fg-3)", fontWeight:500, marginRight:8}}>폭염 매출</span>
+              <span style={{color:"var(--matte-fg-3)", fontWeight:700, fontVariantNumeric:"tabular-nums", fontSize:15}}>-0.55</span>
+              <span style={{color:"var(--matte-fg-4)", marginLeft:6, fontSize:12}}>강한 음</span>
+            </div>
+          </div>
+
           <div style={{fontSize:13, color:"var(--matte-fg-4)", marginTop:14}}>막대 높이 = 평균 기온 · 상단 숫자 = 비/눈 일수</div>
         </div>
 
-        <div>
-          <div className="bc-box" style={{padding:22, marginBottom:12}}>
+        <div style={{display:"flex", flexDirection:"column", gap:12}}>
+          <div className="bc-box" style={{padding:22, flex:1, display:"flex", flexDirection:"column"}}>
             <div style={{fontSize:16, fontWeight:600, marginBottom:16}}>날씨별 매출 영향</div>
-            <div style={{display:"flex", flexDirection:"column", gap:12}}>
+            <div style={{display:"flex", flexDirection:"column", gap:12, flex:1, justifyContent:"center"}}>
               {[
                 ["맑음", 100, "기준값", false],
                 ["비", 114, "+14%", true],
@@ -402,17 +473,17 @@ function Card12({ body = {} }) {
                 <div key={k} style={{display:"grid", gridTemplateColumns:"60px 1fr 80px", gap:12, alignItems:"center"}}>
                   <span style={{fontSize:15, color:"var(--matte-fg-2)", fontWeight:500}}>{k}</span>
                   <div className="bc-bar" style={{height:12, background:"rgba(255,255,255,0.05)"}}>
-                    <div style={{width:`${(v/120)*100}%`, background: acc ? "#5478C9" : "#FFFFFF", height:"100%", borderRadius:"inherit"}}></div>
+                    <div style={{width:`${(v/120)*100}%`, background: acc ? "#4C7BE4" : "#FFFFFF", height:"100%", borderRadius:"inherit"}}></div>
                   </div>
-                  <span style={{textAlign:"right", fontSize:14, fontWeight:700, color: acc ? "#5478C9" : "var(--matte-fg)", fontVariantNumeric:"tabular-nums"}}>{sub}</span>
+                  <span style={{textAlign:"right", fontSize:14, fontWeight:700, color: acc ? "#4C7BE4" : "var(--matte-fg)", fontVariantNumeric:"tabular-nums"}}>{sub}</span>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="bc-box" style={{padding:20, marginBottom:12}}>
+          <div className="bc-box" style={{padding:20}}>
             <div style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:500, marginBottom:10}}>운영 인사이트</div>
-            <div style={{fontSize:15, lineHeight:1.65, color:"var(--matte-fg-2)"}}>비 오는 날 매출 <strong style={{color:"#5478C9"}}>+14%</strong> 상승. 미팅 체류 수요. 폭염·폭설 시 -22%까지 빠짐 — 배달 채널이 완충.</div>
+            <div style={{fontSize:15, lineHeight:1.65, color:"var(--matte-fg-2)"}}>비 오는 날 매출 <strong style={{color:"#4C7BE4"}}>+14%</strong> 상승. 미팅 체류 수요. 폭염·폭설 시 -22%까지 빠짐 — 배달 채널이 완충.</div>
           </div>
 
           <div className="bc-grid-2" style={{gap:10}}>

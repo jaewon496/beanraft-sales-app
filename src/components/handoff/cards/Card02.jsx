@@ -119,7 +119,7 @@ export default function Card02({ body = {} }) {
               </div>
               <div>
                 <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:6, fontWeight:500}}>피크 시간대</div>
-                <div style={{fontSize:18, fontWeight:700, fontVariantNumeric:"tabular-nums", color:"#5478C9"}}>{peakHour !== '-' ? peakHour : '-'}</div>
+                <div style={{fontSize:18, fontWeight:700, fontVariantNumeric:"tabular-nums", color:"#4C7BE4"}}>{peakHour !== '-' ? peakHour : '-'}</div>
               </div>
             </div>
           </div>

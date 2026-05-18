@@ -64,7 +64,7 @@ export default function Card03({ body = {} }) {
             </div>
             <div>
               <div style={{fontSize:13, color:"var(--matte-fg-3)", fontWeight:500, marginBottom:6}}>현재</div>
-              <div style={{fontSize:24, fontWeight:700, color:"#5478C9", fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{cafesNow > 0 ? cafesNow : '-'}{cafesNow > 0 && <span style={{fontSize:13, color:"var(--matte-fg-3)", marginLeft:3, fontWeight:500}}>개</span>}</div>
+              <div style={{fontSize:24, fontWeight:700, color:"#4C7BE4", fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{cafesNow > 0 ? cafesNow : '-'}{cafesNow > 0 && <span style={{fontSize:13, color:"var(--matte-fg-3)", marginLeft:3, fontWeight:500}}>개</span>}</div>
             </div>
             <div>
               <div style={{fontSize:13, color:"var(--matte-fg-3)", fontWeight:500, marginBottom:6}}>증감</div>
@@ -87,10 +87,10 @@ export default function Card03({ body = {} }) {
                     <div>
                       <div style={{fontSize:14, color:"var(--matte-fg-2)", fontWeight:600, marginBottom:4}}>{m.name}</div>
                       <div className="bc-bar" style={{height:6, background:"rgba(255,255,255,0.04)"}}>
-                        <div style={{width:`${w}%`, background: i === 0 ? "#5478C9" : "#FFFFFF", height:"100%", borderRadius:"inherit"}}></div>
+                        <div style={{width:`${w}%`, background: i === 0 ? "#4C7BE4" : "#FFFFFF", height:"100%", borderRadius:"inherit"}}></div>
                       </div>
                     </div>
-                    <span style={{textAlign:"right", fontSize:13, fontWeight:700, fontVariantNumeric:"tabular-nums", color: i === 0 ? "#5478C9" : "var(--matte-fg)"}}>{m.avgPrice > 0 ? `${m.avgPrice.toLocaleString()}원` : (rate > 0 ? `${rate.toFixed(1)}%` : '-')}</span>
+                    <span style={{textAlign:"right", fontSize:13, fontWeight:700, fontVariantNumeric:"tabular-nums", color: i === 0 ? "#4C7BE4" : "var(--matte-fg)"}}>{m.avgPrice > 0 ? `${m.avgPrice.toLocaleString()}원` : (rate > 0 ? `${rate.toFixed(1)}%` : '-')}</span>
                   </div>
                 );
               })}
@@ -110,10 +110,10 @@ export default function Card03({ body = {} }) {
                     <div>
                       <div style={{fontSize:14, color:"var(--matte-fg-2)", fontWeight:600, marginBottom:4}}>{m.name}</div>
                       <div className="bc-bar" style={{height:6, background:"rgba(255,255,255,0.04)"}}>
-                        <div style={{width:`${w}%`, background: i === 0 ? "#5478C9" : "#FFFFFF", height:"100%", borderRadius:"inherit"}}></div>
+                        <div style={{width:`${w}%`, background: i === 0 ? "#4C7BE4" : "#FFFFFF", height:"100%", borderRadius:"inherit"}}></div>
                       </div>
                     </div>
-                    <span style={{textAlign:"right", fontSize:14, fontWeight:700, fontVariantNumeric:"tabular-nums", color: i === 0 ? "#5478C9" : "var(--matte-fg)"}}>{rate > 0 ? `+${rate.toFixed(0)}%` : '-'}</span>
+                    <span style={{textAlign:"right", fontSize:14, fontWeight:700, fontVariantNumeric:"tabular-nums", color: i === 0 ? "#4C7BE4" : "var(--matte-fg)"}}>{rate > 0 ? `+${rate.toFixed(0)}%` : '-'}</span>
                   </div>
                 );
               })}
@@ -138,10 +138,10 @@ export default function Card03({ body = {} }) {
         <div className="bc-box" style={{padding:20}}>
           <div style={{fontSize:14, color:"var(--matte-fg-3)", marginBottom:8, fontWeight:500}}>3년 생존율</div>
           <div style={{display:"flex", alignItems:"baseline", gap:8}}>
-            <span style={{fontSize:32, fontWeight:700, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em", color:"#5478C9"}}>{surv3y > 0 ? surv3y : '-'}</span>
+            <span style={{fontSize:32, fontWeight:700, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em", color:"#4C7BE4"}}>{surv3y > 0 ? surv3y : '-'}</span>
             {surv3y > 0 && <span style={{fontSize:15, color:"var(--matte-fg-3)"}}>%</span>}
           </div>
-          <div style={{fontSize:13, color:"var(--matte-fg-3)", marginTop:6, fontVariantNumeric:"tabular-nums"}}>전국 평균 39%{surv3y > 0 ? ` 대비 ${surv3y > 39 ? '+' : ''}${surv3y - 39}%p` : ''}</div>
+          <div style={{fontSize:13, color:"var(--matte-fg-3)", marginTop:6, fontVariantNumeric:"tabular-nums"}}>전국 평균 39%{surv3y > 0 ? ` 대비 ${surv3y > 39 ? '+' : ''}${(surv3y - 39).toFixed(1)}%p` : ''}</div>
         </div>
         <div className="bc-box" style={{padding:20}}>
           <div style={{fontSize:14, color:"var(--matte-fg-3)", marginBottom:8, fontWeight:500}}>5년 생존율</div>
@@ -149,7 +149,7 @@ export default function Card03({ body = {} }) {
             <span style={{fontSize:32, fontWeight:700, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{surv5y > 0 ? surv5y : '-'}</span>
             {surv5y > 0 && <span style={{fontSize:15, color:"var(--matte-fg-3)"}}>%</span>}
           </div>
-          <div style={{fontSize:13, color:"var(--matte-fg-3)", marginTop:6, fontVariantNumeric:"tabular-nums"}}>전국 평균 28%{surv5y > 0 ? ` 대비 ${surv5y > 28 ? '+' : ''}${surv5y - 28}%p` : ''}</div>
+          <div style={{fontSize:13, color:"var(--matte-fg-3)", marginTop:6, fontVariantNumeric:"tabular-nums"}}>전국 평균 28%{surv5y > 0 ? ` 대비 ${surv5y > 28 ? '+' : ''}${(surv5y - 28).toFixed(1)}%p` : ''}</div>
         </div>
       </div>
     </CardShell>

@@ -12,6 +12,26 @@ import Card8OpportunityRisk from './Card8OpportunityRisk';
 import Card12CompetitionScore from './Card12CompetitionScore';
 import Card13TrendAnalysis from './Card13TrendAnalysis';
 import Card9DeliveryAvgPrice from './Card9DeliveryAvgPrice';
+// ── Handoff 시안 카드 14종 (design-handoff-v1) ──
+import HfCard01 from '../handoff/cards/Card01.jsx';
+import HfCard02 from '../handoff/cards/Card02.jsx';
+import HfCard03 from '../handoff/cards/Card03.jsx';
+import HfCard04 from '../handoff/cards/Card04.jsx';
+import HfCard05 from '../handoff/cards/Card05.jsx';   // 매출 분석 (시안 Card06 함수)
+import HfCard06 from '../handoff/cards/Card06.jsx';   // 개인 카페 (시안 Card05 함수)
+import HfCard07 from '../handoff/cards/Card07.jsx';
+import HfCard08 from '../handoff/cards/Card08.jsx';
+import HfCard09 from '../handoff/cards/Card09.jsx';
+import HfCard10 from '../handoff/cards/Card10.jsx';
+import HfCard11 from '../handoff/cards/Card11.jsx';
+import HfCard12 from '../handoff/cards/Card12.jsx';
+import HfCard13 from '../handoff/cards/Card13.jsx';
+import HfCard14 from '../handoff/cards/Card14.jsx';
+import { Sidebar as HfSidebar, TopBar as HfTopBar, GROUPS as HF_GROUPS, CARDS as HF_CARDS } from '../handoff/Shared.jsx';
+import '../../styles/handoff/colors_and_type.css';
+import '../../styles/handoff/sales.css';
+// matte.css: 시안의 정식 매트 다크 톤 (사용자가 OK한 색감). 파스텔 알록달록 차단.
+import '../../styles/handoff/matte.css';
 import AINarrationEngine from './AINarrationEngine';
 import { COLORS, TIMING, BLUR, LAYOUT } from './constants';
 import {
@@ -3744,6 +3764,13 @@ export default function UnifiedLayout({
       return next;
     });
   }, []);
+  // ── [핸드오프 시안] 카테고리 필터 (5개 그룹 중 1개만 보기) ──
+  const [filterCategory, setFilterCategory] = useState(null);
+  const handleCategoryClick = useCallback((gid) => {
+    setFilterCategory((prev) => (prev === gid ? null : gid));
+  }, []);
+  const clearFilter = useCallback(() => setFilterCategory(null), []);
+  const currentFilterGroup = filterCategory ? HF_GROUPS.find((g) => g.id === filterCategory) : null;
   const [bgLoaded, setBgLoaded] = useState(false);
   const [showHomepage, setShowHomepage] = useState(initialHomepageOpen);
   const [homepageUrl, setHomepageUrl] = useState('/site/');
@@ -3835,6 +3862,311 @@ export default function UnifiedLayout({
 
   // [2026-05-05] 옛날 cardsProp 폴백 경로 삭제 - 에러 발견 즉시 화면에 노출되도록 함
   const cards = mappedCards || [];
+
+  // ──────────────────────────────────────────────────────────
+  // [2026-05-18] 시안 iframe 통합: 14개 카드 body 데이터를 시안용으로 변환
+  // 기존 cards.map 안의 hfBody 빌드 로직을 그대로 외부 useMemo로 추출.
+  // 빌드된 BC_DATA를 iframe(public/handoff_ref/index.html)에 __BC_DATA__로 푸시.
+  // ──────────────────────────────────────────────────────────
+  const bcCardsBodies = useMemo(() => {
+    if (!Array.isArray(cards) || cards.length === 0) return [];
+    return cards.slice(0, 14).map((card, i) => {
+      const hfBody = {
+        ...(card.bodyData || {}),
+        bodyData: card.bodyData || {},
+        chartData: card.chartData || {},
+        kosisBoxData,
+        sigungu: card.sigungu || kosisBoxData?.sigungu || '',
+      };
+      if (i === 13) {
+        hfBody.totalScore = card.bodyData?.overallScore || 0;
+        hfBody.opportunities = card.bodyData?.opportunities || 0;
+        hfBody.risks = card.bodyData?.risks || 0;
+        hfBody.recommendation = card.bodyData?.recommendation || '';
+        const c13bd = cards[12]?.bodyData || {};
+        hfBody.axes = [
+          { label: '시장 매력도', max: 20, score: Number(c13bd.scoreMarket) || 0 },
+          { label: '경쟁 환경', max: 20, score: Number(c13bd.scoreCompete) || 0 },
+          { label: '시장 변화', max: 15, score: Number(c13bd.scoreChange) || 0 },
+          { label: '생존 기반', max: 30, score: Number(c13bd.scoreSurvival) || 0 },
+          { label: '비용 부담', max: 15, score: Number(c13bd.scoreCost) || 0 },
+        ];
+        const sig = card.chartData?.signals || [];
+        if (Array.isArray(sig) && sig.length > 0) {
+          hfBody.signals = sig;
+        } else {
+          const opps = card.chartData?.opportunities || [];
+          const risks = card.chartData?.risks || [];
+          hfBody.signals = [
+            ...opps.map(o => ({ type: 'positive', text: o.title ? `${o.title} — ${o.detail || ''}` : (o.detail || '') })),
+            ...risks.map(r => ({ type: 'negative', text: r.title ? `${r.title} — ${r.detail || ''}` : (r.detail || '') })),
+          ];
+        }
+        hfBody.tags = card.chartData?.tags || [];
+      }
+      if (i === 12) {
+        const bd = card.bodyData || {};
+        const c1bd = cards[0]?.bodyData || {};
+        const c5bd = cards[5]?.bodyData || {};
+        const c2bd = cards[2]?.bodyData || {};
+        hfBody.totalScore = bd.score || 0;
+        hfBody.scoreMarket = bd.scoreMarket || 0;
+        hfBody.scoreCompete = bd.scoreCompete || 0;
+        hfBody.scoreChange = bd.scoreChange || 0;
+        hfBody.scoreSurvival = bd.scoreSurvival || 0;
+        hfBody.scoreCost = bd.scoreCost || 0;
+        // [2026-05-18] 카드 13 "3년 생존" KPI는 카드 03(card12) survivalRate3y와 동일하게 표시
+        // 카드 03이 폴백(전국평균 39%)까지 포함해 항상 값을 보장하므로 c2bd 우선
+        hfBody.survival3y = c2bd.survivalRate3y || bd.survival3yr || 0;
+        hfBody.cafeSales = bd.cafeSales || c5bd.monthly || 0;
+        hfBody.guAvg = bd.guAvg || c5bd.guAvg || 0;
+        hfBody.cafeCount = bd.cafeCount || bd.totalCafes || c1bd.cafes || 0;
+        hfBody.franchiseCount = bd.franchiseCount || c1bd.franchise || 0;
+        hfBody.individualCount = bd.indieCount || bd.independentCount || c1bd.individual || 0;
+        hfBody.avgRent = bd.avgRent || (kosisBoxData?.integratedRent?.value || 0);
+        hfBody.premiumCost = bd.premiumCost || 0;
+        hfBody.weatherLabel = bd.externalIndicators?.weatherLabel || '';
+        hfBody.weatherScore = bd.externalIndicators?.weatherScore || 0;
+        hfBody.externalIndicators = bd.externalIndicators || null;
+        const c12bdRising = cards[2]?.bodyData || {};
+        if (bd.risingMenu) hfBody.risingMenu = bd.risingMenu;
+        else if (Array.isArray(bd.risingMenus) && bd.risingMenus.length > 0) hfBody.risingMenu = bd.risingMenus[0];
+        else if (Array.isArray(c12bdRising.risingMenus) && c12bdRising.risingMenus.length > 0) hfBody.risingMenu = c12bdRising.risingMenus[0];
+        else hfBody.risingMenu = null;
+        const _popList = Array.isArray(bd.popularMenus) && bd.popularMenus.length > 0
+          ? bd.popularMenus
+          : (Array.isArray(c12bdRising.popularMenus) ? c12bdRising.popularMenus : []);
+        if (_popList.length > 0) {
+          hfBody.popularMenuTop = _popList[0];
+          hfBody.popularMenuCount = _popList.length;
+        }
+      }
+      if (i === 8) {
+        const bd = card.bodyData || {};
+        const c12bd = cards[2]?.bodyData || {};
+        const c1bd = cards[0]?.bodyData || {};
+        const c11bd = cards[12]?.bodyData || {};
+        hfBody.vacancy = kosisBoxData?.vacancy?.value || 0;
+        hfBody.newOpen = Number(bd.recentOpen) || Number(bd.openCount)
+          || Number(c12bd.openCount) || Number(c11bd.recentOpen)
+          || Number(c1bd.newOpen) || 0;
+        hfBody.closed = Number(bd.recentClose) || Number(bd.closeCount)
+          || Number(c12bd.closeCount) || Number(c11bd.recentClose)
+          || Number(c1bd['폐업 매장']) || 0;
+        hfBody.cafeMonthly = (cards[5]?.bodyData?.monthly) || 0;
+        hfBody.guAvg = (cards[5]?.bodyData?.guAvg) || 0;
+        hfBody.individualPct = (() => {
+          if (bd.totalCafes > 0) return Math.round(((bd.independentCount || 0) / bd.totalCafes) * 100);
+          const _c1Total = Number(c1bd.cafes) || 0;
+          const _c1Indi = Number(c1bd.individual) || 0;
+          if (_c1Total > 0 && _c1Indi >= 0) return Math.round((_c1Indi / _c1Total) * 100);
+          return 0;
+        })();
+        hfBody.survival3y = (cards[2]?.bodyData?.survivalRate3y) || 0;
+      }
+      if (i === 5) {
+        const c1 = cards[0]?.bodyData || {};
+        hfBody.bodyData = { ...(card.bodyData || {}), totalCafes: c1.cafes || 0 };
+        const bd = card.bodyData || {};
+        if (!hfBody.bodyData.bizmapAvgUnitPrice && bd.bizmapAvgPayment) {
+          hfBody.bodyData.bizmapAvgUnitPrice = `${Number(bd.bizmapAvgPayment).toLocaleString()}원`;
+        }
+      }
+      if (i === 0) {
+        const bd = card.bodyData || {};
+        hfBody.cafeCount = bd.cafes || 0;
+        hfBody.franchise = bd.franchise || 0;
+        hfBody.individual = bd.individual || 0;
+        hfBody.bakery = bd.bakery || 0;
+        hfBody.newOpen = bd.newOpen || 0;
+        hfBody.closed = bd['폐업 매장'] || 0;
+        // [unit-safe] integratedRent는 unit이 '만원/평' (이미 만원)인 경우 그대로,
+        // '원/평' 단위라면 /10000. marketRent는 항상 '원/평'이므로 /10000.
+        {
+          const _ir = kosisBoxData?.integratedRent;
+          hfBody.rentPerPyeong = _ir?.value
+            ? (typeof _ir.unit === 'string' && _ir.unit.indexOf('만원') >= 0
+                ? Math.round(_ir.value)
+                : Math.round(_ir.value / 10000))
+            : (kosisBoxData?.marketRent?.value ? Math.round(kosisBoxData.marketRent.value / 10000) : 0);
+        }
+        hfBody.vacancyRate = kosisBoxData?.vacancy?.value || 0;
+        hfBody.priceChange = kosisBoxData?.priceChange?.value || 0;
+        hfBody.rentSeries = kosisBoxData?.marketRentSeries?.series || null;
+        hfBody.vacancySeries = kosisBoxData?.vacancySeries?.series || null;
+        hfBody.priceSeries = kosisBoxData?.priceIndexSeries?.series || null;
+      }
+      if (i === 1) {
+        const cd = card.chartData || {};
+        const bd = card.bodyData || {};
+        const c6bd = cards[6]?.bodyData || {};
+        hfBody.topAge = cd.topAge || bd.topAge || '';
+        hfBody.maleRatio = bd.male ?? cd.male ?? 0;
+        hfBody.femaleRatio = bd.female ?? cd.female ?? 0;
+        hfBody.weekdayPct = bd.weekdayPct ?? cd.weekdayPct ?? c6bd.weekdayPct ?? 0;
+        hfBody.weekendPct = bd.weekendPct ?? cd.weekendPct ?? c6bd.weekendPct ?? 0;
+        const _pickPeak = (...vals) => {
+          for (const v of vals) {
+            if (v == null) continue;
+            const s = String(v).trim();
+            if (!s || s === '-' || s === '–') continue;
+            return s;
+          }
+          return '-';
+        };
+        hfBody.peakHour = _pickPeak(bd.peakTime, bd.peakHour, cd.peakHour, c6bd.peakHour, c6bd.popPeakHour, c6bd.bizmapPeakHour);
+      }
+      if (i === 6) {
+        const bd = card.bodyData || {};
+        if (!hfBody.bodyData) hfBody.bodyData = { ...bd };
+        if (!hfBody.bodyData.peakHour || hfBody.bodyData.peakHour === '-') {
+          hfBody.bodyData.peakHour = bd.popPeakHour || bd.bizmapPeakHour || '-';
+        }
+        if (!hfBody.bodyData.popPeakHour && bd.bizmapPeakHour) {
+          hfBody.bodyData.popPeakHour = bd.bizmapPeakHour;
+          hfBody.bodyData.popPeakHourPct = bd.bizmapPeakHourPct || 0;
+        }
+      }
+      if (i === 7) {
+        const bd = card.bodyData || {};
+        const cd2 = card.chartData || {};
+        const c8bd = cards[8]?.bodyData || {};
+        const _bizmapProfit = Number(c8bd.bizmapOpIncomePct) || 0;
+        const _kosisCafe = cd2.kosisCafe || null;
+        if (_kosisCafe && (!_kosisCafe.profitMargin || _kosisCafe.profitMargin === 0) && _bizmapProfit > 0) {
+          hfBody.chartData = { ...(hfBody.chartData || {}), kosisCafe: { ..._kosisCafe, profitMargin: _bizmapProfit } };
+        } else if (!_kosisCafe && _bizmapProfit > 0) {
+          hfBody.chartData = { ...(hfBody.chartData || {}), kosisCafe: { profitMargin: _bizmapProfit } };
+        }
+        if (cd2.premium) {
+          const _pAvgManwon = Number(cd2.premium.sidoAvg) || Number(cd2.premium.nationalAvg) || 0;
+          const _pRegion = cd2.premium.sidoKey || (cd2.premium.sidoAvg ? '' : '전국');
+          if (_pAvgManwon > 0) {
+            hfBody.chartData = { ...(hfBody.chartData || {}), premium: { ...cd2.premium, value: _pAvgManwon * 10000, region: _pRegion } };
+          }
+        }
+        if (hfBody.chartData?.premium?.value && (!hfBody.kosisBoxData || !hfBody.kosisBoxData.premium)) {
+          hfBody.kosisBoxData = { ...(hfBody.kosisBoxData || {}), premium: hfBody.chartData.premium };
+        }
+        if (!hfBody.chartData?.premium?.value && bd.premiumCost) {
+          const _pc = Number(bd.premiumCost) || 0;
+          if (_pc > 0) {
+            hfBody.chartData = { ...(hfBody.chartData || {}), premium: { value: _pc * 10000, region: '' } };
+          }
+        }
+        // [2026-05-18] Card08 단위 정규화 (만원/평 기준 통일)
+        // 시안 Card08 라인 10이 integratedRent.value/10000 하므로,
+        // 여기서 bodyData에 'rentPerPyeongManwon' 만원 단위 값을 미리 넣어
+        // 시안이 그 값을 직접 표시하도록 한다.
+        const _ir = kosisBoxData?.integratedRent;
+        const _rentManwon = _ir?.value
+          ? (typeof _ir.unit === 'string' && _ir.unit.indexOf('만원') >= 0
+              ? Math.round(_ir.value)
+              : Math.round(_ir.value / 10000))
+          : (kosisBoxData?.marketRent?.value ? Math.round(kosisBoxData.marketRent.value / 10000) : 0);
+        if (!hfBody.bodyData) hfBody.bodyData = { ...bd };
+        if (_rentManwon > 0) hfBody.bodyData.rentPerPyeongManwon = _rentManwon;
+        // [2026-05-18] bd.totalStartupCost 단위 정규화
+        // Gemini 응답이 원 단위로 큰 값(예: 40,000,000)으로 올 때가 있어 만원 단위로 환산.
+        // 만원 단위로 들어온 경우(예: 4,100)는 그대로 둔다.
+        // 1,000,000 이상이면 원 단위로 보고 /10000.
+        // 100,000 이상이면 천원 단위로 보고 /10.
+        const _tsRaw = Number(bd.totalStartupCost) || 0;
+        if (_tsRaw > 0) {
+          let _tsManwon = _tsRaw;
+          if (_tsRaw >= 1000000) _tsManwon = Math.round(_tsRaw / 10000);          // 원 단위
+          else if (_tsRaw >= 100000) _tsManwon = Math.round(_tsRaw / 10);          // 천원 단위
+          hfBody.bodyData.totalStartupCostManwon = _tsManwon;
+        }
+        // [2026-05-18] bd.deposit 단위 정규화 (만원 단위 기준)
+        const _depRaw = Number(bd.deposit) || 0;
+        if (_depRaw > 0) {
+          let _depManwon = _depRaw;
+          if (_depRaw >= 100000000) _depManwon = Math.round(_depRaw / 10000);       // 원 단위 (1억 이상)
+          hfBody.bodyData.depositManwon = _depManwon;
+        }
+      }
+      if (i === 9) {
+        // [2026-05-18] Card10 배달 매출/객단가 단위 정규화
+        // delivery API의 mmavgSlsAmt 단위가 만원이 아닌 큰 값으로 들어올 때 환산.
+        // 정답지 카드10: searchSales는 만원 단위로 표시.
+        const bd = card.bodyData || {};
+        if (!hfBody.bodyData) hfBody.bodyData = { ...bd };
+        const _sRaw = Number(bd.searchSales) || 0;
+        if (_sRaw > 0) {
+          let _sManwon = _sRaw;
+          // 1,000,000,000 (10억) 이상이면 원 단위 → /10000
+          if (_sRaw >= 1000000000) _sManwon = Math.round(_sRaw / 10000);
+          // 1,000,000 (백만) 이상이면 천원 단위 → /100  (만원으로 환산: x1000/10000)
+          else if (_sRaw >= 1000000) _sManwon = Math.round(_sRaw / 100);
+          hfBody.bodyData.searchSales = _sManwon;
+        }
+        // cafeDeliveryAmount도 같은 보정 (만원 단위로 정규화)
+        const _cRaw = Number(bd.cafeDeliveryAmount) || 0;
+        if (_cRaw > 0) {
+          let _cManwon = _cRaw;
+          if (_cRaw >= 1000000000) _cManwon = Math.round(_cRaw / 10000);
+          else if (_cRaw >= 1000000) _cManwon = Math.round(_cRaw / 100);
+          hfBody.bodyData.cafeDeliveryAmount = _cManwon;
+        }
+      }
+      if (i === 10) {
+        const bd = card.bodyData || {};
+        if (!hfBody.bodyData) hfBody.bodyData = { ...bd };
+        // [2026-05-18] blogMentions: 더 큰 값 우선 (naverBlog 단순 검색 < naverBlogMenus 후기 카운트)
+        const _bdBlog = Number(bd.blogMentions) || 0;
+        const _apiBlog = Number(collectedData?.apis?.naverBlog?.total) || 0;
+        const _menuBlog = Number(collectedData?.apis?.naverBlogMenus?.data?.totalItems) || 0;
+        const blogCount = Math.max(_bdBlog, _apiBlog, _menuBlog);
+        if (blogCount > 0) {
+          hfBody.bodyData.blogMentions = blogCount;
+        }
+      }
+      return { n: String(i + 1).padStart(2, '0'), body: hfBody };
+    });
+  }, [cards, kosisBoxData, collectedData]);
+
+  // [2026-05-18] 시안 cards-a.jsx 끝에서 window.Card05/Card06이 스왑되어 있음
+  //   Object.assign(window, { Card05: Card06, Card06: Card05 })
+  // → renderCard("05") = 매출 분석 컴포넌트, renderCard("06") = 개인 카페 컴포넌트
+  // 우리 데이터 인덱스: cards[4] = 개인 카페, cards[5] = 매출 분석
+  // 따라서 시안에 push할 때 인덱스 4와 5를 스왑해야 화면-데이터 정합성이 맞음
+  const bcCardsBodiesSwapped = useMemo(() => {
+    if (!Array.isArray(bcCardsBodies) || bcCardsBodies.length < 6) return bcCardsBodies;
+    const out = bcCardsBodies.slice();
+    const t = out[4]; out[4] = out[5]; out[5] = t;
+    // n(자리 번호)은 그대로 둠 — 시안 카드 자리는 5/6 그대로
+    if (out[4]) out[4] = { ...out[4], n: '05' };
+    if (out[5]) out[5] = { ...out[5], n: '06' };
+    return out;
+  }, [bcCardsBodies]);
+
+  // iframe → 시안 데이터 푸시
+  const handoffIframeRef = useRef(null);
+  useEffect(() => {
+    if (!resultsReady) return;
+    const win = handoffIframeRef.current?.contentWindow;
+    if (!win) return;
+    try {
+      win.__BC_DATA__ = { cards: bcCardsBodiesSwapped };
+      if (typeof win.__bcRender === 'function') win.__bcRender();
+    } catch (e) {
+      // iframe cross-origin/not ready
+    }
+  }, [bcCardsBodiesSwapped, resultsReady]);
+
+  // iframe 안에서 '다시 검색하기' 클릭 시 부모로 전달
+  useEffect(() => {
+    if (!resultsReady) return;
+    const handler = (ev) => {
+      if (ev?.data && ev.data.type === 'bc:research') {
+        // 영업관리 검색 화면으로 복귀 시그널
+        try { window.dispatchEvent(new CustomEvent('bc:research')); } catch (_) {}
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, [resultsReady]);
 
   // ── Card navigation state (toss-style one-card-per-viewport) ──
   const [activeCardIndex, setActiveCardIndex] = useState(0);
@@ -4383,15 +4715,17 @@ export default function UnifiedLayout({
     }
   }, [handleSubmit]);
 
+  // [2026-05-18] 결과 화면(resultsReady)에서는 시안 iframe이 화면 100% 점유.
+  // 우리 영업관리 사이드바(좌측 패널)와 토글 버튼 전부 숨김.
   const leftWidth = resultsReady
-    ? (sidebarCollapsed ? '0%' : LAYOUT.mapPanelWidthResult)
+    ? '0px'
     : salesModeLoading
       ? LAYOUT.mapPanelWidth
       : '100vw';
-  // 토글 버튼은 영업모드 결과 화면(resultsReady)에서만 노출
-  const showSidebarToggle = resultsReady;
-  // 사이드바 접힘 CSS는 결과 화면(resultsReady)에서만 적용 — 검색/로딩 단계 슬라이드 진입 차단 방지
-  const sidebarCollapsedAttr = (resultsReady && sidebarCollapsed) ? 'true' : 'false';
+  // 토글 버튼 제거 (결과 화면에서 우리 UI 0건)
+  const showSidebarToggle = false;
+  // 결과 화면에서는 항상 collapsed 처리 — CSS로 left panel 완전 차단
+  const sidebarCollapsedAttr = resultsReady ? 'true' : 'false';
 
   return (
     <div
@@ -4402,7 +4736,7 @@ export default function UnifiedLayout({
         overflow: 'hidden',
         display: 'flex',
       }}
-      className="unified-layout-root"
+      className={'unified-layout-root' + (resultsReady ? ' bc-app theme-dark bc-shell ' + (sidebarCollapsed ? 'sb-closed' : 'sb-open') : '')}
       data-results={resultsReady ? 'true' : 'false'}
       data-sidebar-collapsed={sidebarCollapsedAttr}
     >
@@ -5778,17 +6112,33 @@ export default function UnifiedLayout({
           position: 'relative',
           zIndex: 1,
           height: '100%',
-          background: 'rgba(0,0,0,0.5)',
-          backdropFilter: `blur(${BLUR.cardBackdrop}px)`,
-          WebkitBackdropFilter: `blur(${BLUR.cardBackdrop}px)`,
+          background: resultsReady ? 'transparent' : 'rgba(0,0,0,0.5)',
+          backdropFilter: resultsReady ? 'none' : `blur(${BLUR.cardBackdrop}px)`,
+          WebkitBackdropFilter: resultsReady ? 'none' : `blur(${BLUR.cardBackdrop}px)`,
           flexShrink: 0,
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
           borderRight: resultsReady ? `1px solid rgba(255,255,255,0.1)` : 'none',
         }}
-        className="unified-left-panel"
+        className={'unified-left-panel' + (resultsReady ? ' bc-sidebar-wrap' : '')}
       >
+        {resultsReady ? (
+          /* ── [핸드오프 시안 100%] 원본 Sidebar 그대로 사용 ── */
+          <HfSidebar
+            active={String(activeCardIndex + 1).padStart(2, '0')}
+            onNav={(n) => {
+              const idx = parseInt(n, 10) - 1;
+              if (!isNaN(idx)) scrollToCard(idx);
+            }}
+            onStartTour={() => { setDirectorTab('market'); setShowDirectorPopup(true); }}
+            onCategoryClick={handleCategoryClick}
+            onShowAll={clearFilter}
+            isAll={!filterCategory}
+            filterCategory={filterCategory}
+          />
+        ) : (
+        <>
         {/* Map area with radial wipe */}
         <motion.div
           initial={{ clipPath: (!resultsReady && !salesModeLoading) ? 'circle(150% at 50% 50%)' : 'circle(0% at 50% 50%)' }}
@@ -5968,110 +6318,6 @@ export default function UnifiedLayout({
             </div>
           </div>
 
-          {/* ── Card Nav List (visible when results are ready) ── */}
-          {resultsReady && cards && cards.length > 0 && (
-            <div
-              className="unified-card-nav"
-              style={{
-                flex: '1 1 auto',
-                minHeight: 0,
-                overflowY: 'auto',
-                borderTop: '1px solid rgba(255,255,255,0.08)',
-                padding: '10px 14px 12px',
-                fontFamily: 'Pretendard, sans-serif',
-              }}
-            >
-              <div style={{
-                fontSize: 10,
-                fontWeight: 600,
-                color: 'rgba(255,255,255,0.35)',
-                letterSpacing: '0.12em',
-                padding: '4px 6px 8px',
-                textTransform: 'uppercase',
-              }}>
-                Report
-              </div>
-              <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {cards.map((c, i) => {
-                  const isActive = i === activeCardIndex;
-                  const num = i < 9 ? `0${i + 1}` : `${i + 1}`;
-                  return (
-                    <li key={`nav-${i}`}>
-                      <button
-                        onClick={() => scrollToCard(i)}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 10,
-                          width: '100%',
-                          padding: '8px 10px',
-                          background: isActive ? 'rgba(255,255,255,0.08)' : 'transparent',
-                          border: 'none',
-                          borderRadius: 8,
-                          color: isActive ? COLORS.white : 'rgba(255,255,255,0.55)',
-                          fontSize: 12.5,
-                          fontWeight: isActive ? 600 : 400,
-                          fontFamily: 'inherit',
-                          cursor: 'pointer',
-                          textAlign: 'left',
-                          transition: 'background 0.15s ease, color 0.15s ease',
-                        }}
-                        onMouseEnter={(e) => {
-                          if (!isActive) {
-                            e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
-                            e.currentTarget.style.color = 'rgba(255,255,255,0.85)';
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          if (!isActive) {
-                            e.currentTarget.style.background = 'transparent';
-                            e.currentTarget.style.color = 'rgba(255,255,255,0.55)';
-                          }
-                        }}
-                      >
-                        <span
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            width: 6,
-                            height: 6,
-                            borderRadius: '50%',
-                            background: isActive ? '#1E3A8A' : 'rgba(255,255,255,0.25)',
-                            flexShrink: 0,
-                            transition: 'background 0.15s ease',
-                          }}
-                        />
-                        <span
-                          style={{
-                            fontSize: 11,
-                            opacity: 0.55,
-                            width: 20,
-                            flexShrink: 0,
-                            fontFeatureSettings: '"tnum"',
-                          }}
-                        >
-                          {num}
-                        </span>
-                        <span
-                          style={{
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                            flex: 1,
-                            minWidth: 0,
-                          }}
-                        >
-                          {c.title}
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          )}
-
           {/* Home button at bottom */}
           <div style={{ padding: '12px 20px', borderTop: '1px solid rgba(255,255,255,0.08)', flexShrink: 0 }}>
             <button
@@ -6090,6 +6336,8 @@ export default function UnifiedLayout({
             </button>
           </div>
         </motion.div>
+        </>
+        )}
       </motion.div>
 
       {/* ══════ Sidebar collapse toggle (영업모드 결과 화면 전용) ══════ */}
@@ -6140,12 +6388,13 @@ export default function UnifiedLayout({
       )}
 
       {/* ══════ RIGHT PANEL (Cards / Empty State) ══════ */}
-      <motion.div
+      <motion.main
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.6, delay: 0.4 }}
         style={{
           flex: 1,
+          minWidth: 0,
           height: '100%',
           overflow: 'hidden',
           position: 'relative',
@@ -6153,7 +6402,7 @@ export default function UnifiedLayout({
           display: (resultsReady || salesModeLoading) ? 'flex' : 'none',
           flexDirection: 'column',
         }}
-        className="unified-right-panel"
+        className={'unified-right-panel' + (resultsReady ? ' bc-canvas' : '')}
       >
         <AnimatePresence mode="wait">
           {!resultsReady ? (
@@ -6238,13 +6487,43 @@ export default function UnifiedLayout({
                 scrollSnapType: 'none',
                 scrollBehavior: 'smooth',
               }}
-              className="unified-cards-scroll"
+              className={'unified-cards-scroll bc-scroll bc-canvas-scroll' + (currentFilterGroup ? ' bc-app filtered' : '')}
             >
               {(renderResults && !mappedCards) ? (
                 /* ── TossStyleResults from App.jsx (passed via renderResults prop) ── */
                 renderResults
               ) : (
+                /* ── [2026-05-18] 시안 통째로 iframe 임베드 ──
+                   public/handoff_ref/index.html을 iframe으로 띄움.
+                   bcCardsBodies(useMemo)가 시안 14개 카드 body를 만들고
+                   useEffect가 iframe.contentWindow.__BC_DATA__에 푸시 + __bcRender 호출.
+                   시안 내 우리 카드(window.Card01~14)는 bc-cards-override.jsx에서 덮어쓰기됨. */
+                <iframe
+                  ref={handoffIframeRef}
+                  src="/handoff_ref/index.html"
+                  title="빈크래프트 결과 리포트"
+                  style={{ width: '100%', height: '100%', border: 'none', display: 'block', background: '#0a0a0a' }}
+                  onLoad={() => {
+                    const win = handoffIframeRef.current?.contentWindow;
+                    if (!win) return;
+                    try {
+                      win.__BC_DATA__ = { cards: bcCardsBodiesSwapped };
+                      if (typeof win.__bcRender === 'function') win.__bcRender();
+                    } catch (_) {}
+                  }}
+                />
+              )}
+              {false && (
                 <>
+                  {/* ── [핸드오프 시안] TopBar (대시보드 > 의뢰인 영업모드 > 결과 리포트 + 주소 + 우측 아이콘) ── */}
+                  <HfTopBar
+                    address={searchAddress || '강남역 1번 출구'}
+                    crumbCur="결과 리포트"
+                    onToggleSidebar={toggleSidebar}
+                    sidebarOpen={!sidebarCollapsed}
+                    filterLabel={currentFilterGroup ? currentFilterGroup.label : null}
+                    onClearFilter={clearFilter}
+                  />
                   {/* Data source warning banner (fixed overlay at top) */}
                   {(() => {
                     const ds = collectedData?._dataSources;
@@ -6297,6 +6576,9 @@ export default function UnifiedLayout({
                         'AI종합': `card14.ring.score`,
                       };
                       const animId = narrationIdByMeta[card.metaInfo] || `card${i + 1}.section`;
+                      // ── [핸드오프 시안] 카테고리 필터: 선택된 그룹의 카드만 표시 ──
+                      const cardN = String(i + 1).padStart(2, '0');
+                      const hiddenByFilter = filterCategory && currentFilterGroup && !currentFilterGroup.cards.includes(cardN);
                       return (
                       <section
                         key={i}
@@ -6306,7 +6588,7 @@ export default function UnifiedLayout({
                         data-anim-id={animId}
                         style={{
                           // 카드별 자연 높이 + 카드 사이 간격으로 자유 스크롤
-                          display: 'flex',
+                          display: hiddenByFilter ? 'none' : 'flex',
                           alignItems: 'flex-start',
                           justifyContent: 'center',
                           padding: 'clamp(16px, 2vh, 24px) clamp(16px, 2vw, 28px)',
@@ -6315,54 +6597,282 @@ export default function UnifiedLayout({
                         className="beancraft-card-section"
                       >
                         <div style={{ width: '100%', maxWidth: sidebarCollapsed ? 1400 : 1100, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                        {i === 0 ? (
-                          <Card01MarketReport
-                            index={i}
-                            cardNumber={'01'}
-                            title={card.title}
-                            subtitle={card.subtitle}
-                            date={card.date}
-                            dataSourceStatus={card.dataSourceStatus || 'live'}
-                            bruSummary={card.bruSummary || null}
-                            aiSummary={card.aiSummary}
-                            chartData={card.chartData}
-                            bodyData={card.bodyData}
-                            showMapButton={true}
-                            onMapClick={() => setShowCafeMap(true)}
-                          />
-                        ) : i === 1 ? (
-                          <Card02CustomerAnalysis
-                            index={i}
-                            cardNumber={'02'}
-                            title={card.title}
-                            subtitle={card.subtitle}
-                            date={card.date}
-                            dataSourceStatus={card.dataSourceStatus || 'live'}
-                            bruSummary={card.bruSummary || null}
-                            aiSummary={card.aiSummary}
-                            chartData={card.chartData}
-                            bodyData={card.bodyData}
-                            collectedData={collectedData}
-                            showMapButton={false}
-                            onMapClick={null}
-                          />
-                        ) : i === 2 ? (
-                          <Card13TrendAnalysis card={card} cardNumber={(i + 1) < 10 ? `0${i + 1}` : `${i + 1}`} kosisBoxData={kosisBoxData} />
-                        ) : i === 3 ? (
-                          <Card3FranchiseAnalysis card={card} cardNumber={(i + 1) < 10 ? `0${i + 1}` : `${i + 1}`} kosisBoxData={kosisBoxData} />
-                        ) : i === 4 ? (
-                          <Card4IndieCafeAnalysis card={card} cardNumber={(i + 1) < 10 ? `0${i + 1}` : `${i + 1}`} kosisBoxData={kosisBoxData} />
-                        ) : i === 5 ? (
-                          <Card5SalesAnalysis card={card} cardNumber={(i + 1) < 10 ? `0${i + 1}` : `${i + 1}`} />
-                        ) : i === 6 ? (
-                          <Card6FloatingPop card={card} cardNumber={(i + 1) < 10 ? `0${i + 1}` : `${i + 1}`} />
-                        ) : i === 8 ? (
-                          <Card8OpportunityRisk card={card} cardNumber={(i + 1) < 10 ? `0${i + 1}` : `${i + 1}`} kosisBoxData={kosisBoxData} />
-                        ) : i === 9 ? (
-                          <Card9DeliveryAvgPrice card={card} cardNumber={(i + 1) < 10 ? `0${i + 1}` : `${i + 1}`} />
-                        ) : i === 12 ? (
-                          <Card12CompetitionScore card={card} cardNumber={(i + 1) < 10 ? `0${i + 1}` : `${i + 1}`} kosisBoxData={kosisBoxData} />
-                        ) : (
+                        {(() => {
+                          // ── Handoff body 객체: 시안 카드들이 받는 통일된 prop ──
+                          const hfBody = {
+                            ...(card.bodyData || {}),
+                            bodyData: card.bodyData || {},
+                            chartData: card.chartData || {},
+                            kosisBoxData,
+                            sigungu: card.sigungu || kosisBoxData?.sigungu || '',
+                            onMapClick: () => setShowCafeMap(true),
+                          };
+                          // Card14는 totalScore/axes/signals/tags를 따로 전달
+                          if (i === 13) {
+                            hfBody.totalScore = card.bodyData?.overallScore || 0;
+                            hfBody.opportunities = card.bodyData?.opportunities || 0;
+                            hfBody.risks = card.bodyData?.risks || 0;
+                            hfBody.recommendation = card.bodyData?.recommendation || '';
+                            // 5축 점수 - Card13(상권경쟁)의 axes 점수에서 가져옴
+                            const c13bd = cards[12]?.bodyData || {};
+                            hfBody.axes = [
+                              { label: '시장 매력도', max: 20, score: Number(c13bd.scoreMarket) || 0 },
+                              { label: '경쟁 환경', max: 20, score: Number(c13bd.scoreCompete) || 0 },
+                              { label: '시장 변화', max: 15, score: Number(c13bd.scoreChange) || 0 },
+                              { label: '생존 기반', max: 30, score: Number(c13bd.scoreSurvival) || 0 },
+                              { label: '비용 부담', max: 15, score: Number(c13bd.scoreCost) || 0 },
+                            ];
+                            // 시그널 = collectedData.aiData에서, 폴백으로 c14의 Opps/Risks
+                            const sig = card.chartData?.signals || [];
+                            if (Array.isArray(sig) && sig.length > 0) {
+                              hfBody.signals = sig;
+                            } else {
+                              const opps = card.chartData?.opportunities || [];
+                              const risks = card.chartData?.risks || [];
+                              hfBody.signals = [
+                                ...opps.map(o => ({ type: 'positive', text: o.title ? `${o.title} — ${o.detail || ''}` : (o.detail || '') })),
+                                ...risks.map(r => ({ type: 'negative', text: r.title ? `${r.title} — ${r.detail || ''}` : (r.detail || '') })),
+                              ];
+                            }
+                            // 태그
+                            hfBody.tags = card.chartData?.tags || [];
+                          }
+                          // Card13(상권경쟁)도 별도 키 추가
+                          if (i === 12) {
+                            const bd = card.bodyData || {};
+                            // 다른 카드에서 데이터 보강 (경쟁 카드 자체에는 cafeSales/cafeCount 없음)
+                            const c1bd = cards[0]?.bodyData || {};   // 상권 분석
+                            const c5bd = cards[5]?.bodyData || {};   // 매출 분석
+                            const c2bd = cards[2]?.bodyData || {};   // 상권 변화
+                            hfBody.totalScore = bd.score || 0;
+                            hfBody.scoreMarket = bd.scoreMarket || 0;
+                            hfBody.scoreCompete = bd.scoreCompete || 0;
+                            hfBody.scoreChange = bd.scoreChange || 0;
+                            hfBody.scoreSurvival = bd.scoreSurvival || 0;
+                            hfBody.scoreCost = bd.scoreCost || 0;
+                            // [2026-05-18] 정답지: 나머지 카드의 3년 생존율 = 카드 03 survivalRate3y와 동일해야 함
+                            // 카드 13 자체값(bd.survival3yr)이 다르게 들어오는 경우 카드 03 값을 우선
+                            hfBody.survival3y = c2bd.survivalRate3y || bd.survival3yr || 0;
+                            hfBody.cafeSales = bd.cafeSales || c5bd.monthly || 0;
+                            hfBody.guAvg = bd.guAvg || c5bd.guAvg || 0;
+                            hfBody.cafeCount = bd.cafeCount || bd.totalCafes || c1bd.cafes || 0;
+                            hfBody.franchiseCount = bd.franchiseCount || c1bd.franchise || 0;
+                            hfBody.individualCount = bd.indieCount || bd.independentCount || c1bd.individual || 0;
+                            hfBody.avgRent = bd.avgRent || (kosisBoxData?.integratedRent?.value || 0);
+                            hfBody.premiumCost = bd.premiumCost || 0;
+                            hfBody.weatherLabel = bd.externalIndicators?.weatherLabel || '';
+                            hfBody.weatherScore = bd.externalIndicators?.weatherScore || 0;
+                            hfBody.externalIndicators = bd.externalIndicators || null;
+                            // [정답지] 카드 12 dataMapper에는 risingMenus 배열로 들어옴.
+                            // 카드 13 시안은 단일 risingMenu 객체 기대 → TOP 1 사용
+                            // [2026-05-18] cards[2]=card12 '상권 변화 추이'에 popularMenus/risingMenus 있음
+                            const c12bdRising = cards[2]?.bodyData || {};
+                            if (bd.risingMenu) {
+                              hfBody.risingMenu = bd.risingMenu;
+                            } else if (Array.isArray(bd.risingMenus) && bd.risingMenus.length > 0) {
+                              hfBody.risingMenu = bd.risingMenus[0];
+                            } else if (Array.isArray(c12bdRising.risingMenus) && c12bdRising.risingMenus.length > 0) {
+                              hfBody.risingMenu = c12bdRising.risingMenus[0];
+                            } else {
+                              hfBody.risingMenu = null;
+                            }
+                            // [정답지] popularMenuList → TOP 1 (시장 변화 축 폴백 텍스트용)
+                            // 형태: [{name, salesRate, avgPrice, ...}]
+                            const _popList = Array.isArray(bd.popularMenus) && bd.popularMenus.length > 0
+                              ? bd.popularMenus
+                              : (Array.isArray(c12bdRising.popularMenus) ? c12bdRising.popularMenus : []);
+                            if (_popList.length > 0) {
+                              hfBody.popularMenuTop = _popList[0];
+                              hfBody.popularMenuCount = _popList.length;
+                            }
+                          }
+                          // Card09(카페 기회)도 별도 키
+                          if (i === 8) {
+                            const bd = card.bodyData || {};
+                            // [2026-05-18] 신규/폐업 폴백: cards[2]=card12 '상권 변화 추이'에 openCount/closeCount 있음
+                            const c12bd = cards[2]?.bodyData || {};
+                            const c1bd = cards[0]?.bodyData || {};
+                            const c11bd = cards[12]?.bodyData || {};   // 상권 경쟁 (recentOpen/recentClose)
+                            hfBody.vacancy = kosisBoxData?.vacancy?.value || 0;
+                            hfBody.newOpen = Number(bd.recentOpen) || Number(bd.openCount)
+                              || Number(c12bd.openCount) || Number(c11bd.recentOpen)
+                              || Number(c1bd.newOpen) || 0;
+                            hfBody.closed = Number(bd.recentClose) || Number(bd.closeCount)
+                              || Number(c12bd.closeCount) || Number(c11bd.recentClose)
+                              || Number(c1bd['폐업 매장']) || 0;
+                            hfBody.cafeMonthly = (cards[5]?.bodyData?.monthly) || 0;
+                            hfBody.guAvg = (cards[5]?.bodyData?.guAvg) || 0;
+                            // [2026-05-18] individualPct 폴백: card8.bodyData에 없으면 card1(cafes/individual)에서 계산
+                            hfBody.individualPct = (() => {
+                              if (bd.totalCafes > 0) return Math.round(((bd.independentCount || 0) / bd.totalCafes) * 100);
+                              const _c1Total = Number(c1bd.cafes) || 0;
+                              const _c1Indi = Number(c1bd.individual) || 0;
+                              if (_c1Total > 0 && _c1Indi >= 0) return Math.round((_c1Indi / _c1Total) * 100);
+                              return 0;
+                            })();
+                            hfBody.survival3y = (cards[2]?.bodyData?.survivalRate3y) || 0;
+                          }
+                          // Card05(매출)에 권역 sigungu 전달용
+                          if (i === 5) {
+                            const c1 = cards[0]?.bodyData || {};
+                            hfBody.bodyData = { ...(card.bodyData || {}), totalCafes: c1.cafes || 0 };
+                          }
+
+                          if (i === 0) {
+                            const bd = card.bodyData || {};
+                            hfBody.cafeCount = bd.cafes || 0;
+                            hfBody.franchise = bd.franchise || 0;
+                            hfBody.individual = bd.individual || 0;
+                            hfBody.bakery = bd.bakery || 0;
+                            hfBody.newOpen = bd.newOpen || 0;
+                            hfBody.closed = bd['폐업 매장'] || 0;
+                            // [unit-safe] integratedRent unit이 '만원/평'이면 그대로, '원/평'이면 /10000
+                            {
+                              const _ir = kosisBoxData?.integratedRent;
+                              hfBody.rentPerPyeong = _ir?.value
+                                ? (typeof _ir.unit === 'string' && _ir.unit.indexOf('만원') >= 0
+                                    ? Math.round(_ir.value)
+                                    : Math.round(_ir.value / 10000))
+                                : (kosisBoxData?.marketRent?.value ? Math.round(kosisBoxData.marketRent.value / 10000) : 0);
+                            }
+                            hfBody.vacancyRate = kosisBoxData?.vacancy?.value || 0;
+                            hfBody.priceChange = kosisBoxData?.priceChange?.value || 0;
+                            hfBody.rentSeries = kosisBoxData?.marketRentSeries?.series || null;
+                            hfBody.vacancySeries = kosisBoxData?.vacancySeries?.series || null;
+                            hfBody.priceSeries = kosisBoxData?.priceIndexSeries?.series || null;
+                          }
+
+                          // Card02 (고객 분석)에 chartData에서 ageGroups, gender 폴백
+                          // weekdayPct/weekendPct/peakHour는 card6(유동인구) bodyData에 있음 - 그쪽에서 폴백
+                          if (i === 1) {
+                            const cd = card.chartData || {};
+                            const bd = card.bodyData || {};
+                            const c6bd = cards[6]?.bodyData || {};   // 유동인구
+                            hfBody.topAge = cd.topAge || bd.topAge || '';
+                            hfBody.maleRatio = bd.male ?? cd.male ?? 0;
+                            hfBody.femaleRatio = bd.female ?? cd.female ?? 0;
+                            hfBody.weekdayPct = bd.weekdayPct ?? cd.weekdayPct ?? c6bd.weekdayPct ?? 0;
+                            hfBody.weekendPct = bd.weekendPct ?? cd.weekendPct ?? c6bd.weekendPct ?? 0;
+                            // [정답지 보강] 비즈맵 hourlySalesConcentration → bizmapPeakHour 폴백까지 포함
+                            // [2026-05-18] '-' 문자열은 빈 값으로 처리하여 다음 폴백으로 넘어가도록 함
+                            const _pickPeak = (...vals) => {
+                              for (const v of vals) {
+                                if (v == null) continue;
+                                const s = String(v).trim();
+                                if (!s || s === '-' || s === '–') continue;
+                                return s;
+                              }
+                              return '-';
+                            };
+                            hfBody.peakHour = _pickPeak(
+                              bd.peakTime,
+                              bd.peakHour,
+                              cd.peakHour,
+                              c6bd.peakHour,
+                              c6bd.popPeakHour,
+                              c6bd.bizmapPeakHour
+                            );
+                          }
+
+                          // Card05 (매출 분석, i=5): 객단가(bizmapAvgUnitPrice/bizmapAvgPayment) 명시 보강
+                          if (i === 5) {
+                            const bd = card.bodyData || {};
+                            // 정답지: 비즈맵 usageAndPaymentTrendList → bizmapAvgPayment (원)
+                            // dataMapper에서 bizmapAvgUnitPrice 또는 bizmapAvgPayment로 들어옴
+                            if (!hfBody.bodyData) hfBody.bodyData = { ...bd };
+                            if (!hfBody.bodyData.bizmapAvgUnitPrice && bd.bizmapAvgPayment) {
+                              hfBody.bodyData.bizmapAvgUnitPrice = `${Number(bd.bizmapAvgPayment).toLocaleString()}원`;
+                            }
+                            // 객단가 누락 시 dataMapper의 bizmapUsageCount/매출에서 역산은 의미 다르므로 안 함
+                          }
+
+                          // Card07 (유동인구, i=6): peakHour에 비즈맵 hourlySalesConcentration 폴백
+                          if (i === 6) {
+                            const bd = card.bodyData || {};
+                            // 정답지: dataMapper에 bizmapPeakHour/bizmapPeakHourPct 이미 있음
+                            if (!hfBody.bodyData) hfBody.bodyData = { ...bd };
+                            if (!hfBody.bodyData.peakHour || hfBody.bodyData.peakHour === '-') {
+                              hfBody.bodyData.peakHour = bd.popPeakHour || bd.bizmapPeakHour || '-';
+                            }
+                            if (!hfBody.bodyData.popPeakHour && bd.bizmapPeakHour) {
+                              hfBody.bodyData.popPeakHour = bd.bizmapPeakHour;
+                              hfBody.bodyData.popPeakHourPct = bd.bizmapPeakHourPct || 0;
+                            }
+                          }
+
+                          // Card08 (임대/창업, i=7): kosisBoxData에 premium/yieldRate/netIncome 보강
+                          if (i === 7) {
+                            const bd = card.bodyData || {};
+                            const cd2 = card.chartData || {};
+                            // [2026-05-18] 이익률 폴백: KOSIS 외식업체경영실태조사 없으면
+                            // 비즈맵 costAnalysisList.profitRt (cards[8]=card8 '카페 기회' bodyData에 보관됨)
+                            const c8bd = cards[8]?.bodyData || {};
+                            const _bizmapProfit = Number(c8bd.bizmapOpIncomePct) || 0;
+                            const _kosisCafe = cd2.kosisCafe || null;
+                            if (_kosisCafe && (!_kosisCafe.profitMargin || _kosisCafe.profitMargin === 0) && _bizmapProfit > 0) {
+                              hfBody.chartData = {
+                                ...(hfBody.chartData || {}),
+                                kosisCafe: { ..._kosisCafe, profitMargin: _bizmapProfit },
+                              };
+                            } else if (!_kosisCafe && _bizmapProfit > 0) {
+                              // KOSIS 자체가 없을 때도 최소 profitMargin은 노출
+                              hfBody.chartData = {
+                                ...(hfBody.chartData || {}),
+                                kosisCafe: { profitMargin: _bizmapProfit },
+                              };
+                            }
+
+                            // [2026-05-18] Card08 권리금 매핑 정상화
+                            // dataMapper card7.chartData.premium = {sidoAvg(만원), sidoKey, nationalAvg, ...}
+                            // Card08 component expects {value(원), region}
+                            // → 시도 평균 우선, 없으면 전국 평균 폴백
+                            if (cd2.premium) {
+                              const _pAvgManwon = Number(cd2.premium.sidoAvg) || Number(cd2.premium.nationalAvg) || 0;
+                              const _pRegion = cd2.premium.sidoKey || (cd2.premium.sidoAvg ? '' : '전국');
+                              if (_pAvgManwon > 0) {
+                                hfBody.chartData = {
+                                  ...(hfBody.chartData || {}),
+                                  premium: { ...cd2.premium, value: _pAvgManwon * 10000, region: _pRegion },
+                                };
+                              }
+                            }
+                            // 폴백: 한국부동산원 KOSIS 박스 데이터에도 같은 premium 객체 노출 (모달 등 다른 곳용)
+                            if (hfBody.chartData?.premium?.value && (!hfBody.kosisBoxData || !hfBody.kosisBoxData.premium)) {
+                              hfBody.kosisBoxData = { ...(hfBody.kosisBoxData || {}), premium: hfBody.chartData.premium };
+                            }
+                            // bodyData.premiumCost (만원 단위로 가정) → 폴백
+                            if (!hfBody.chartData?.premium?.value && bd.premiumCost) {
+                              const _pc = Number(bd.premiumCost) || 0;
+                              if (_pc > 0) {
+                                hfBody.chartData = {
+                                  ...(hfBody.chartData || {}),
+                                  premium: { value: _pc * 10000, region: '' },
+                                };
+                              }
+                            }
+                          }
+
+                          // Card11 (SNS, i=10): blogMentions 보강 - naverBlog.total + naverBlogMenus 폴백
+                          if (i === 10) {
+                            const bd = card.bodyData || {};
+                            if (!hfBody.bodyData) hfBody.bodyData = { ...bd };
+                            const blogCount = bd.blogMentions
+                              || collectedData?.apis?.naverBlog?.total
+                              || collectedData?.apis?.naverBlogMenus?.data?.totalItems
+                              || 0;
+                            if (!hfBody.bodyData.blogMentions && blogCount > 0) {
+                              hfBody.bodyData.blogMentions = blogCount;
+                            }
+                          }
+
+                          const HFC = [HfCard01, HfCard02, HfCard03, HfCard04, HfCard06, HfCard05, HfCard07, HfCard08, HfCard09, HfCard10, HfCard11, HfCard12, HfCard13, HfCard14][i];
+                          return (
+                            <div className="bc-app theme-dark" style={{ background: 'transparent' }}>
+                              <HFC body={hfBody} onOpenDirector={() => { setDirectorTab('market'); setShowDirectorPopup(true); }} />
+                            </div>
+                          );
+                        })()}
+                        {false && (
                         <CardTemplate
                           index={i}
                           title={card.title}
@@ -6570,7 +7080,7 @@ export default function UnifiedLayout({
             </motion.div>
           )}
         </AnimatePresence>
-      </motion.div>
+      </motion.main>
 
       {/* ══════ Homepage Sliding Panel (full-screen overlay) ══════ */}
       <div style={{
@@ -6633,45 +7143,52 @@ export default function UnifiedLayout({
 
       {/* ── Responsive CSS ── */}
       <style>{`
-        /* PC large (>=1280px) — left 40%, right 60% */
+        /* [2026-05-18] 결과 화면은 시안 iframe이 사이드바/탑바 통째로 그리므로 영업관리 좌측 패널/토글 화살표 완전 제거 */
+        .unified-layout-root[data-results="true"] .unified-left-panel {
+          display: none !important;
+          width: 0 !important;
+          min-width: 0 !important;
+          flex: 0 0 0 !important;
+          border-right: none !important;
+          overflow: hidden !important;
+          opacity: 0 !important;
+          pointer-events: none !important;
+          visibility: hidden !important;
+        }
+        /* PC large (>=1280px) — 결과 화면에서는 위 0px 룰을 따른다 (override 제거) */
         @media (min-width: 1280px) {
           .unified-layout-root[data-results="true"] .unified-left-panel {
-            width: 40% !important;
-            min-width: 360px !important;
+            width: 0 !important;
+            min-width: 0 !important;
+            flex: 0 0 0 !important;
           }
         }
-        /* Tablet (768~1279px) — left 35%, right 65% */
         @media (min-width: 768px) and (max-width: 1279px) {
           .unified-layout-root[data-results="true"] .unified-left-panel {
-            width: 35% !important;
-            min-width: 300px !important;
+            width: 0 !important;
+            min-width: 0 !important;
+            flex: 0 0 0 !important;
           }
         }
-        /* Mobile (<=767px) — stack vertically, collapsible top bar */
+        /* [2026-05-18] Mobile (<=767px) 결과 화면 — 좌측 영업관리 사이드바 완전 숨김
+           시안 iframe만 화면 100% 차지 */
         @media (max-width: 767px) {
           .unified-layout-root[data-results="true"] {
-            flex-direction: column !important;
+            flex-direction: row !important;
           }
           .unified-layout-root[data-results="true"] .unified-left-panel {
-            width: 100% !important;
-            height: 72px !important;
-            min-width: 0 !important;
-            flex: 0 0 72px !important;
-            border-right: none !important;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-          }
-          .unified-layout-root[data-results="true"] .unified-left-panel .unified-card-nav {
             display: none !important;
+            width: 0 !important;
+            height: 0 !important;
+            min-width: 0 !important;
+            flex: 0 0 0 !important;
+            border: none !important;
+            visibility: hidden !important;
           }
           .unified-layout-root[data-results="true"] .unified-right-panel {
-            flex: 1 1 auto !important;
+            flex: 1 1 100% !important;
             width: 100% !important;
-            height: auto !important;
-          }
-          /* Section header collapse for mobile — shrink map */
-          .unified-layout-root[data-results="true"] .unified-left-panel > div {
-            display: flex !important;
-            flex-direction: row !important;
+            height: 100% !important;
           }
         }
         /* Search-only phase (no results yet) — preserve original full-width behavior */
@@ -6690,8 +7207,10 @@ export default function UnifiedLayout({
             height: 100% !important;
           }
         }
-        /* Sidebar collapsed — hide left panel only (right panel uses flex:1, no override needed) */
-        .unified-layout-root[data-sidebar-collapsed="true"][data-results="true"] .unified-left-panel {
+        /* [2026-05-18] 결과 화면(resultsReady) — 좌측 영업관리 사이드바 완전 제거,
+           시안 iframe wrapper가 viewport 100% 차지 */
+        .unified-layout-root[data-results="true"] .unified-left-panel {
+          display: none !important;
           width: 0 !important;
           min-width: 0 !important;
           flex: 0 0 0 !important;
@@ -6699,6 +7218,32 @@ export default function UnifiedLayout({
           pointer-events: none !important;
           border-right: none !important;
           overflow: hidden !important;
+          visibility: hidden !important;
+        }
+        .unified-layout-root[data-results="true"] .unified-right-panel {
+          flex: 1 1 100% !important;
+          width: 100% !important;
+          min-width: 100% !important;
+          height: 100% !important;
+          border-left: none !important;
+        }
+        .unified-layout-root[data-results="true"] .unified-right-panel iframe {
+          width: 100% !important;
+          height: 100% !important;
+          border: 0 !important;
+          display: block !important;
+        }
+        /* 호환성 유지: 옛 sidebar-collapsed 속성도 동일 처리 */
+        .unified-layout-root[data-sidebar-collapsed="true"][data-results="true"] .unified-left-panel {
+          display: none !important;
+          width: 0 !important;
+          min-width: 0 !important;
+          flex: 0 0 0 !important;
+          opacity: 0 !important;
+          pointer-events: none !important;
+          border-right: none !important;
+          overflow: hidden !important;
+          visibility: hidden !important;
         }
         /* 카드 섹션은 자연 높이로 (스크롤 자유로) */
         .beancraft-card-section {

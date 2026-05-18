@@ -598,6 +598,7 @@ function DrStagger({ id, children, delay = 80, anim = "pop", className = "", sty
   return (
     <div
       key={`stag-${fx.n}`}
+      data-fx-id={id}
       className={`dr-stagger dr-stagger--${anim} ${className}`}
       style={{ ...style, "--dr-delay": `${delay}ms` }}
     >

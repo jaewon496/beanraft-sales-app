@@ -18,7 +18,7 @@ function makeRng(seed) {
 function buildMarkers() {
   const list = [];
   const types = [
-    { kind: "프랜차이즈", color: "#5478C9", count: 12, seed: 11 },
+    { kind: "프랜차이즈", color: "#4C7BE4", count: 12, seed: 11 },
     { kind: "개인 카페",  color: "#FFFFFF", count: 14, seed: 22 },
     { kind: "베이커리",   color: "#9a9a9a", count: 4,  seed: 33 },
   ];
@@ -132,7 +132,7 @@ function RadiusPanel({ radius, setRadius }) {
 
 function Legend({ counts }) {
   const rows = [
-    { color:"#5478C9", label:"프랜차이즈", count: counts.프랜차이즈 },
+    { color:"#4C7BE4", label:"프랜차이즈", count: counts.프랜차이즈 },
     { color:"#FFFFFF", label:"개인 카페",  count: counts["개인 카페"] },
     { color:"#9a9a9a", label:"베이커리",   count: counts.베이커리 },
   ];

@@ -9,9 +9,9 @@ export default function Card09({ body = {} }) {
   const bodyData = body.bodyData || {};
   const kosis = body.kosisBoxData || {};
 
-  const vacancy = Number(body.vacancy) || 0;
-  const newOpen = Number(body.newOpen) || 0;
-  const closed = Number(body.closed) || 0;
+  const vacancy = Number(body.vacancy) || Number(kosis?.vacancy?.value) || 0;
+  const newOpen = Number(body.newOpen) || Number(bodyData.recentOpen) || Number(bodyData.openCount) || 0;
+  const closed = Number(body.closed) || Number(bodyData.recentClose) || Number(bodyData.closeCount) || 0;
   const cafeMonthly = Number(body.cafeMonthly) || 0;
   const guAvg = Number(body.guAvg) || 0;
   const sigungu = body.sigungu || '';
@@ -94,7 +94,7 @@ export default function Card09({ body = {} }) {
             {vacValues.length >= 2 ? (
               <LineChart id="c9.line" width={460} height={260}
                 data={vacValues}
-                color="#5478C9"/>
+                color="#4C7BE4"/>
             ) : (
               <div style={{width:"100%", textAlign:"center", color:"var(--matte-fg-4)", fontSize:13}}>공실률 추이 데이터 수집 중</div>
             )}
@@ -119,12 +119,12 @@ export default function Card09({ body = {} }) {
           {findings.map((f, i) => (
             <div key={i} style={{padding:"16px 18px", background:"rgba(255,255,255,0.03)", borderRadius:10, border:"1px solid var(--matte-line)"}}>
               <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:8}}>
-                <span style={{fontSize:15, fontWeight:700, color: f.acc ? "#5478C9" : "var(--matte-fg)"}}>{f.axis}</span>
+                <span style={{fontSize:15, fontWeight:700, color: f.acc ? "#4C7BE4" : "var(--matte-fg)"}}>{f.axis}</span>
                 <span style={{fontSize:13, color: f.ratio >= 0.6 ? "var(--matte-fg-2)" : "var(--matte-fg-3)", fontWeight:600, fontVariantNumeric:"tabular-nums"}}>{f.ratio >= 0.7 ? "강점" : f.ratio >= 0.4 ? "보통" : "주의"}</span>
               </div>
               <div style={{fontSize:14, color:"var(--matte-fg-2)", marginBottom:10, lineHeight:1.5}}>{f.text}</div>
               <div className="bc-bar" style={{height:8, background:"rgba(255,255,255,0.04)"}}>
-                <div style={{width:`${f.ratio*100}%`, background: f.acc ? "#5478C9" : "#FFFFFF", height:"100%", borderRadius:"inherit"}}></div>
+                <div style={{width:`${f.ratio*100}%`, background: f.acc ? "#4C7BE4" : "#FFFFFF", height:"100%", borderRadius:"inherit"}}></div>
               </div>
             </div>
           ))}

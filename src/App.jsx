@@ -6038,7 +6038,7 @@ const SBIZ365_BASE_URL = 'https://bigdata.sbiz.or.kr';
 // ═══════════════════════════════════════════════════════════════
 // Netlify Functions 프록시 URL (CORS 우회)
 // ═══════════════════════════════════════════════════════════════
-const SBIZ_PROXY_URL = '/api/sbiz-proxy';
+const SBIZ_PROXY_URL = '/.netlify/functions/sbiz-proxy';
 
 // 프록시를 통한 GIS API 호출 (CORS 우회)
 const callGisAPIViaProxy = async (apiPath, params = {}, maxRetry = 3) => {
@@ -13530,15 +13530,22 @@ JSON으로만 응답:
            }
          }
          if (queriesAcc.some(q => q.items.length > 0)) {
+           const _totalBlog = queriesAcc.reduce((s, q) => s + q.items.length, 0);
            collectedData.apis.naverBlogMenus = {
              description: '네이버 블로그 카페 메뉴 검색 결과',
              data: {
                queries: queriesAcc,
-               totalItems: queriesAcc.reduce((s, q) => s + q.items.length, 0),
+               totalItems: _totalBlog,
              },
              source: '네이버 블로그 검색',
            };
-           console.log(`[naverBlogMenus] 수집 완료: ${queriesAcc.length}개 쿼리, ${queriesAcc.reduce((s, q) => s + q.items.length, 0)}개 글`);
+           // [정답지] Card 11(SNS)이 apis.naverBlog.total을 봄. 8개 쿼리 총합으로 채움.
+           collectedData.apis.naverBlog = {
+             description: '네이버 블로그 카페 언급 수 (8개 쿼리 합산)',
+             total: _totalBlog,
+             source: '네이버 블로그 검색',
+           };
+           console.log(`[naverBlogMenus] 수집 완료: ${queriesAcc.length}개 쿼리, ${_totalBlog}개 글 (naverBlog.total=${_totalBlog})`);
          } else {
            console.log('[naverBlogMenus] 결과 없음 - 8개 쿼리 모두 빈 응답');
          }
@@ -19062,6 +19069,23 @@ ${crossData.tourStr && crossData.tourStr !== '미수집' ? `관광축제: ${cros
 
        // _dataSources 자동 집계: dsmFetch 트래커 우선, 없으면 데이터 존재 여부로 판단
        if (collectedData._dataSources) {
+         // [2026-05-18] 일부 API는 .data 키 없이 total/items/queries/value 등을 직접 갖는 형태.
+         // .data가 없어도 의미 있는 페이로드가 있으면 'live'로 본다.
+         const _META_KEYS = new Set(['description', 'source', 'cacheKey', 'timestamp', 'status']);
+         const _hasMeaningfulPayload = (apiEntry) => {
+           if (!apiEntry) return false;
+           if (typeof apiEntry !== 'object') return apiEntry != null;
+           // data 키가 있으면 그걸 우선 검사
+           if ('data' in apiEntry) {
+             const d = apiEntry.data;
+             if (d == null) return false;
+             if (typeof d !== 'object') return true;
+             if (Array.isArray(d)) return d.length > 0;
+             return Object.keys(d).length > 0;
+           }
+           // data 키가 없으면 메타키 제외하고 다른 키가 하나라도 있는지 확인
+           return Object.keys(apiEntry).some((kk) => !_META_KEYS.has(kk));
+         };
          Object.keys(collectedData.apis || {}).forEach(k => {
            if (!collectedData._dataSources[k]) {
              // dsmFetch 트래커에서 source 가져오기 (cacheKey 패턴 매칭)
@@ -19069,8 +19093,7 @@ ${crossData.tourStr && crossData.tourStr !== '미수집' ? `관광축제: ${cros
              if (trackerKey && _dsmSourceTracker[trackerKey]) {
                collectedData._dataSources[k] = _dsmSourceTracker[trackerKey];
              } else {
-               const apiData = collectedData.apis[k]?.data;
-               collectedData._dataSources[k] = (apiData && (typeof apiData !== 'object' || Object.keys(apiData).length > 0)) ? 'live' : 'error';
+               collectedData._dataSources[k] = _hasMeaningfulPayload(collectedData.apis[k]) ? 'live' : 'error';
              }
            }
          });

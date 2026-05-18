@@ -3,15 +3,15 @@
    ------------------------------------------------------------
    원칙
    1) 배경/카드/박스 단일 다크 톤 (#0a0a0a / #161616 / #1d1d1d)
-   2) 모든 색 무채색. 포인트 네이비 #5478C9 는 .accent 가 붙은
+   2) 모든 색 무채색. 포인트 네이비 #4C7BE4 는 .accent 가 붙은
       05/06/13/14 메인 KPI 와 게이지/레이더 채움 영역에만.
    3) 카테고리 필터 시 카드 풀폭 + 글자/차트 비례 확대 (filter-N)
    4) 글자 사이즈 가독성 강화 (KPI 최소 36, 메인 56)
    ============================================================ */
 
 :root {
-  --bc-accent: #5478C9;          /* 무광 네이비 — 유일한 포인트 */
-  --bc-accent-soft: rgba(84,120,201,0.16);
+  --bc-accent: #4C7BE4;          /* 무광 네이비 — 유일한 포인트 */
+  --bc-accent-soft: rgba(76, 123, 228,0.16);
   --matte-bg:     #0a0a0a;
   --matte-card:   #161616;
   --matte-elev:   #1d1d1d;
@@ -205,8 +205,8 @@ html, body { background: var(--matte-bg) !important; }
   color: var(--bc-accent);
 }
 .bc-app .bc-tile.accent {
-  border-color: rgba(84,120,201,0.45);
-  background: linear-gradient(180deg, rgba(84,120,201,0.06), transparent 70%), var(--matte-elev) !important;
+  border-color: rgba(76, 123, 228,0.45);
+  background: linear-gradient(180deg, rgba(76, 123, 228,0.06), transparent 70%), var(--matte-elev) !important;
 }
 .bc-app .accent-bar > div { background: var(--bc-accent) !important; }
 .bc-app .accent-stroke { stroke: var(--bc-accent) !important; }
@@ -252,7 +252,7 @@ html, body { background: var(--matte-bg) !important; }
 .bc-app .bc-cat-sub__item:hover { color: var(--matte-fg); background: rgba(255,255,255,0.04); }
 .bc-app .bc-cat-sub__item.active {
   color: var(--matte-fg);
-  background: rgba(84,120,201,0.10);
+  background: rgba(76, 123, 228,0.10);
 }
 .bc-app .bc-cat-sub__item.active::before { background: var(--bc-accent) !important; }
 .bc-app .bc-cat-sub__num { font-size: 11px; color: var(--matte-fg-4); }
@@ -274,7 +274,7 @@ html, body { background: var(--matte-bg) !important; }
   transition: background 180ms var(--ease);
 }
 .bc-app .bc-sb__tour-cta:hover {
-  background: rgba(84,120,201,0.12) !important;
+  background: rgba(76, 123, 228,0.12) !important;
   transform: none;
 }
 .bc-app .bc-sb__tour-cta i { color: var(--bc-accent) !important; font-size: 18px; }
@@ -290,7 +290,7 @@ html, body { background: var(--matte-bg) !important; }
 .bc-app .bc-tb__icon-btn { background: var(--matte-elev); border: 1px solid var(--matte-line); color: var(--matte-fg-2); }
 .bc-app .bc-tb__icon-btn:hover { background: var(--matte-line); color: var(--matte-fg); }
 .bc-app .bc-tb__filter {
-  background: rgba(84,120,201,0.14);
+  background: rgba(76, 123, 228,0.14);
   border: 1px solid var(--bc-accent);
   color: var(--matte-fg);
   font-size: 13px;
@@ -316,7 +316,7 @@ html, body { background: var(--matte-bg) !important; }
   height: 52px; padding: 0 24px; font-size: 15px;
 }
 .bc-app .bc-btn--lg i { color: var(--bc-accent) !important; }
-.bc-app .bc-btn--lg:hover { background: rgba(84,120,201,0.10) !important; }
+.bc-app .bc-btn--lg:hover { background: rgba(76, 123, 228,0.10) !important; }
 
 /* ────────────────────────────────────────────────────
    ★★★ 필터 모드 — 카드 풀폭 + 글자/차트 비례 확대 ★★★
@@ -536,27 +536,44 @@ html, body { background: var(--matte-bg) !important; }
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 /* ────────────────────────────────────────────────────
-   single-card 모드 — 카드 1장이 화면을 꽉 채우고
-   안의 모든 콘텐츠가 비율 그대로 함께 확대.
-   zoom 값은 JS 가 viewport 높이/카드 자연높이를 비교해 주입.
+   single-card 모드 — 카드 1장을 viewport 안에 비례 그대로 fit.
+   zoom 값은 JS 가 viewport 가로·세로 둘 다 고려해서 주입 (min).
+   비율이 안 맞으면 남는 축은 살짝 비우고 중앙 정렬 — 무식하게
+   늘리지 않는다.
    ──────────────────────────────────────────────────── */
 .bc-app.single-card .bc-scroll {
-  padding: 0;
+  padding: 24px;
   overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .bc-app.single-card .bc-card {
   margin: 0;
-  border-radius: 0;
-  border: 0;
-  width: 100%;
-  zoom: var(--sc-zoom, 1.5);
+  width: 1280px;          /* 카드의 디자인 기준 폭 — 여기서부터 비례 zoom */
+  max-width: none;
+  flex: 0 0 auto;
+  zoom: var(--sc-zoom, 1);
 }
+/* single-card 일 때는 filter-1 의 풀폭 확대 룰을 무력화 — 원래 디자인 비율 그대로 */
+.bc-app.single-card.filtered.filter-1 .bc-card { padding: 32px 36px; }
+.bc-app.single-card.filtered.filter-1 .bc-card__title { font-size: 22px; }
+.bc-app.single-card.filtered.filter-1 .bc-card__sub { font-size: 14px; }
+.bc-app.single-card.filtered.filter-1 .bc-card__num { width: 32px; height: 32px; font-size: 13px; border-radius: 9px; }
+.bc-app.single-card.filtered.filter-1 .bc-tile { padding: 18px 20px; min-height: 110px; }
+.bc-app.single-card.filtered.filter-1 .bc-tile .value { font-size: 28px; }
+.bc-app.single-card.filtered.filter-1 .bc-tile .value-hero { font-size: 40px; }
+.bc-app.single-card.filtered.filter-1 .bc-tile .label { font-size: 13px; }
+.bc-app.single-card.filtered.filter-1 .bc-tile .unit { font-size: 14px; }
+.bc-app.single-card.filtered.filter-1 .bc-box { padding: 18px 20px; }
+.bc-app.single-card.filtered.filter-1 .bc-box .value { font-size: 24px; }
+.bc-app.single-card.filtered.filter-1 .bc-box .label { font-size: 13px; }
 
 /* ────────────────────────────────────────────────────
    카드 body 내부 grid 자동 align-start (stretch 빈공간 차단)
    ──────────────────────────────────────────────────── */
 .bc-app .bc-card__body > div[style*="grid-template-columns"] {
-  align-items: start;
+  align-items: stretch;
 }
 .bc-app .bc-grid-4 > .bc-tile { min-height: 140px; }
 .bc-app .bc-box { padding: 22px 24px; }

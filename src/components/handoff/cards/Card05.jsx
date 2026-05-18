@@ -46,11 +46,13 @@ export default function Card05({ body = {} }) {
   const csChange = csLatest != null && csPrev != null ? Math.round((csLatest - csPrev) * 10) / 10 : null;
   const csRegion = kosis?.consumerSentiment?.region || kosis?.consumerSentimentSeries?.region || '전국 평균';
 
-  // 객단가 (bizmapAvgUnitPrice 또는 dongSaleCnt × monthly로 역산)
+  // 객단가 (bizmapAvgUnitPrice만 사용 - 역산은 "방문당 매출"이라 객단가 의미와 다름)
+  // 보조: bodyData.unitPrice, bodyData.avgUnitPrice 같은 명시적 객단가 키도 허용
   const unitPrice = (() => {
     if (bizmapAvgPrice) return bizmapAvgPrice;
-    if (monthly > 0 && dongSaleCnt > 0) {
-      return `${Math.round((monthly * 10000) / dongSaleCnt).toLocaleString()}원`;
+    const explicit = Number(bodyData.unitPrice) || Number(bodyData.avgUnitPrice) || 0;
+    if (explicit > 0 && explicit < 100000) {
+      return `${Math.round(explicit).toLocaleString()}원`;
     }
     return '-';
   })();
@@ -63,7 +65,7 @@ export default function Card05({ body = {} }) {
   };
 
   return (
-    <CardShell n="05" id="05"
+    <CardShell n="06" id="06"
       title="매출 분석"
       sub="월평균 예상 매출"
       sources={["소상공인진흥공단", "비즈맵", "한국은행 (KOSIS 301)"]}>
@@ -84,7 +86,7 @@ export default function Card05({ body = {} }) {
             <>
               <LineChart id="c5.line" width={680} height={240}
                 data={lineData}
-                color="#5478C9"
+                color="#4C7BE4"
               />
               <div style={{display:"grid", gridTemplateColumns:`repeat(${lineLabels.length}, 1fr)`, marginTop:10, gap:4}}>
                 {lineLabels.map((m, i) => (
@@ -105,7 +107,7 @@ export default function Card05({ body = {} }) {
             ].map(([l, v, acc]) => (
               <div key={l} style={{padding:"14px 16px", background:"rgba(255,255,255,0.03)", borderRadius:10, border:"1px solid var(--matte-line)"}}>
                 <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:6, fontWeight:500}}>{l}</div>
-                <div style={{fontSize:20, fontWeight:700, fontVariantNumeric:"tabular-nums", color: acc ? "#5478C9" : "var(--matte-fg)", letterSpacing:"-0.01em"}}>{v}</div>
+                <div style={{fontSize:20, fontWeight:700, fontVariantNumeric:"tabular-nums", color: acc ? "#4C7BE4" : "var(--matte-fg)", letterSpacing:"-0.01em"}}>{v}</div>
               </div>
             ))}
           </div>
@@ -121,10 +123,10 @@ export default function Card05({ body = {} }) {
                   <div>
                     <div style={{fontSize:16, color:"var(--matte-fg)", fontWeight:700, marginBottom:8, letterSpacing:"-0.005em"}} title={d.warning || ''}>{d.name}{d.warning ? ' ⚠' : ''}</div>
                     <div className="bc-bar" style={{height:8, background:"rgba(255,255,255,0.04)"}}>
-                      <div style={{width:`${(d.amt / top5Max)*100}%`, background: i === 0 ? "#5478C9" : "#FFFFFF", height:"100%", borderRadius:"inherit"}}></div>
+                      <div style={{width:`${(d.amt / top5Max)*100}%`, background: i === 0 ? "#4C7BE4" : "#FFFFFF", height:"100%", borderRadius:"inherit"}}></div>
                     </div>
                   </div>
-                  <span style={{fontSize:18, fontWeight:700, fontVariantNumeric:"tabular-nums", color: i === 0 ? "#5478C9" : "var(--matte-fg)", letterSpacing:"-0.01em"}}>{fmtWon(d.amt)}</span>
+                  <span style={{fontSize:18, fontWeight:700, fontVariantNumeric:"tabular-nums", color: i === 0 ? "#4C7BE4" : "var(--matte-fg)", letterSpacing:"-0.01em"}}>{fmtWon(d.amt)}</span>
                 </div>
               ))}
             </div>
@@ -139,7 +141,7 @@ export default function Card05({ body = {} }) {
                 <div style={{display:"flex", alignItems:"baseline", gap:10}}>
                   <span style={{fontSize:32, fontWeight:700, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{Number(csLatest).toFixed(1)}</span>
                   {csChange != null && (
-                    <span style={{fontSize:14, color: csChange >= 0 ? "#5478C9" : "var(--st-bad)", fontWeight:700, fontVariantNumeric:"tabular-nums"}}>{csChange > 0 ? '+' : ''}{csChange} {csChange >= 0 ? '↗' : '↘'}</span>
+                    <span style={{fontSize:14, color: csChange >= 0 ? "#4C7BE4" : "var(--st-bad)", fontWeight:700, fontVariantNumeric:"tabular-nums"}}>{csChange > 0 ? '+' : ''}{csChange} {csChange >= 0 ? '↗' : '↘'}</span>
                   )}
                 </div>
                 <div style={{fontSize:13, color:"var(--matte-fg-3)", marginTop:8}}>100 이상 = 긍정 · {csRegion} (한국은행 KOSIS 301)</div>

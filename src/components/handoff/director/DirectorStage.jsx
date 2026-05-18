@@ -31,7 +31,7 @@ export function MarketStage() {
         </div>
         <div className="dr-panel">
           <div className="dr-panel__title">시간대별 통행량 <span>피크: 18시</span></div>
-          <DrBarChart id="m.hourBar" data={hourData} labels={hourLabels} color="#5478C9" h={150} highlightIdx={18}/>
+          <DrBarChart id="m.hourBar" data={hourData} labels={hourLabels} color="#4C7BE4" h={150} highlightIdx={18}/>
           <div className="dr-line__foot">KT 빅데이터 2025.04</div>
         </div>
       </div>
@@ -88,7 +88,7 @@ export function CompStage() {
         <div className="dr-panel" style={{minHeight: 280}}>
           <div className="dr-panel__title">5축 종합 평가 <span>만점 100</span></div>
           <div style={{display:"flex", gap:24, alignItems:"center"}}>
-            <DrRadar id="c.radar" data={radarData} size={240} color="#5478C9"/>
+            <DrRadar id="c.radar" data={radarData} size={240} color="#4C7BE4"/>
             <div style={{flex:1}}>
               <div className="dr-bigscore">
                 <div className="dr-bigscore__lbl">종합 점수</div>

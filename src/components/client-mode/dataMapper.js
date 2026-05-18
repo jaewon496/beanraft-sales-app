@@ -1000,6 +1000,48 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
         const dailyPop = Math.round(monthlyPop / 30);
         return totalCafes > 0 ? Math.round(dailyPop / totalCafes) : 0;
       })(),
+      // 국적별 분포 (FOREIGN_BRAND_KEYWORDS 매칭, 폴백 KR)
+      nationalRatio: (() => {
+        try {
+          const fl = cd.nearbyFranchiseList || [];
+          if (fl.length === 0) return { kr: 0, foreign: 0, krCount: 0, foreignCount: 0 };
+          let krCount = 0;
+          let foreignCount = 0;
+          fl.forEach(f => {
+            const name = String(f.brand || f.name || '');
+            const upper = name.toUpperCase();
+            // 인라인 매칭 — FOREIGN_BRAND_KEYWORDS와 동일 키워드 (모듈 의존 회피)
+            const isForeign = [
+              'STARBUCKS','스타벅스','COFFEE BEAN','COFFEEBEAN','커피빈',
+              'BLUE BOTTLE','BLUEBOTTLE','블루보틀',
+              'ARABICA','아라비카','% ARABICA',
+              'PAUL BASSETT','PAULBASSETT','폴바셋',
+              'PASCUCCI','파스쿠찌','COSTA','코스타',
+              'DUNKIN','던킨','KRISPY','크리스피크림',
+              'BASKIN','배스킨라빈스','HAAGEN','하겐다즈',
+              'BEN & JERRY','BENJERRY','벤앤제리',
+              'COLD STONE','COLDSTONE','콜드스톤',
+              'GONGCHA','GONG CHA','공차',
+              'KUNGFUTEA','KUNG FU TEA','쿵푸티',
+              'CHATIME','차차','HEROTEA','히어로티',
+              'SHAKE SHACK','SHAKESHACK','쉐이크쉑',
+              'BURGER KING','버거킹','MCDONALD','맥도날드',
+              'SEATTLE','시애틀','DOUTOR','도토루','INODA','이노다',
+            ].some(kw => upper.includes(String(kw).toUpperCase()));
+            if (isForeign) foreignCount++;
+            else krCount++;
+          });
+          const total = krCount + foreignCount;
+          return {
+            kr: total > 0 ? Math.round(krCount / total * 100) : 0,
+            foreign: total > 0 ? Math.round(foreignCount / total * 100) : 0,
+            krCount,
+            foreignCount,
+          };
+        } catch (e) {
+          return { kr: 0, foreign: 0, krCount: 0, foreignCount: 0 };
+        }
+      })(),
     },
     tag: '프랜차이즈',
   };
@@ -1249,6 +1291,39 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       if (avgUsage > 0) bmAvgUsageStr = `${avgUsage.toLocaleString()}건`;
       // 결제단가는 '원' 단위 정수 → 콤마 표기 (만 단위 쪼개기 금지)
       if (avgPrice > 0) bmAvgPriceStr = `${avgPrice.toLocaleString()}원`;
+    }
+  }
+
+  // [2026-05-18] usageAndPaymentTrendList 권한 미보유로 빈 경우 폴백:
+  // 객단가는 popularMenuList의 avgPrice × rate 가중평균으로 계산
+  if (!bmAvgPriceStr) {
+    const _popMenu = aiData?.apis?.bizMapPopularMenu?.data ?? apis.bizMapPopularMenu?.data;
+    if (Array.isArray(_popMenu) && _popMenu.length > 0) {
+      let _wSum = 0, _w = 0;
+      _popMenu.forEach(m => {
+        const _p = parseFloat(m?.avgPrice ?? m?.AVG_SALE_UPRC ?? 0);
+        const _r = parseFloat(m?.rate ?? m?.SALE_RATE ?? 0);
+        if (_p > 0 && _r > 0) { _wSum += _p * _r; _w += _r; }
+      });
+      const _avgPriceCalc = _w > 0 ? Math.round(_wSum / _w) : 0;
+      if (_avgPriceCalc > 0) bmAvgPriceStr = `${_avgPriceCalc.toLocaleString()}원`;
+    }
+  }
+  // 이용건수 폴백: costAnalysisList(행정동) totalAmt(천원) ÷ 객단가(원) = 월매출건수 추정
+  // totalAmt 단위는 천원 → 원으로 환산: totalAmt × 1000
+  if (!bmAvgUsageStr) {
+    const _ca = aiData?.apis?.bizMapCostAnalysis?.data ?? apis.bizMapCostAnalysis?.data;
+    if (Array.isArray(_ca) && _ca.length > 0) {
+      const _row = _ca.find(x => x?.region === 'admi') || _ca[0];
+      const _totalAmtKrw = (parseFloat(_row?.totalAmt) || 0) * 1000;
+      const _unitPrice = (() => {
+        if (bmAvgPriceStr) return parseInt(String(bmAvgPriceStr).replace(/[^0-9]/g, ''), 10) || 0;
+        return 0;
+      })();
+      if (_totalAmtKrw > 0 && _unitPrice > 0) {
+        const _cnt = Math.round(_totalAmtKrw / _unitPrice);
+        if (_cnt > 0) bmAvgUsageStr = `${_cnt.toLocaleString()}건`;
+      }
     }
   }
 
@@ -1913,6 +1988,51 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     }
   }
 
+  // [2026-05-18] 카드 7 비용 구조 5종 (영업이익률/임차료/인건비/식자재/기타)
+  // costAnalysisList raw 필드 직접 인식: profitRt, rentalRt, laborRt, ingredientRt, etcCstRt, totalAmt, operatingAmt
+  // 행정동(region='admi') 행 우선, 없으면 첫 행
+  const _costListCard7 = aiData?.apis?.bizMapCostAnalysis?.data ?? apis.bizMapCostAnalysis?.data ?? [];
+  const _costRowCard7 = (() => {
+    if (!Array.isArray(_costListCard7) || _costListCard7.length === 0) return null;
+    const admi = _costListCard7.find(x => x?.region === 'admi');
+    return admi || _costListCard7[0];
+  })();
+  let bmOpIncomePctCard7 = null;
+  let bmMaterialPctCard7 = null;
+  let bmLaborPctCard7 = null;
+  let bmRentPctCard7 = null;
+  let bmEtcPctCard7 = null;
+  let bmTotalAmtCard7 = null;
+  if (_costRowCard7 && typeof _costRowCard7 === 'object') {
+    if (typeof _costRowCard7.profitRt === 'number') bmOpIncomePctCard7 = _costRowCard7.profitRt;
+    if (typeof _costRowCard7.ingredientRt === 'number') bmMaterialPctCard7 = _costRowCard7.ingredientRt;
+    if (typeof _costRowCard7.laborRt === 'number') bmLaborPctCard7 = _costRowCard7.laborRt;
+    if (typeof _costRowCard7.rentalRt === 'number') bmRentPctCard7 = _costRowCard7.rentalRt;
+    if (typeof _costRowCard7.etcCstRt === 'number') bmEtcPctCard7 = _costRowCard7.etcCstRt;
+    if (typeof _costRowCard7.totalAmt === 'number') bmTotalAmtCard7 = _costRowCard7.totalAmt;
+    // DOM 폴백
+    if (bmOpIncomePctCard7 == null) {
+      const r = _costListCard7.find(x => /영업이익|이익/.test(x?.item || ''));
+      if (r?.ratio) bmOpIncomePctCard7 = r.ratio;
+    }
+    if (bmRentPctCard7 == null) {
+      const r = _costListCard7.find(x => /임차|임대/.test(x?.item || ''));
+      if (r?.ratio) bmRentPctCard7 = r.ratio;
+    }
+    if (bmLaborPctCard7 == null) {
+      const r = _costListCard7.find(x => /인건/.test(x?.item || ''));
+      if (r?.ratio) bmLaborPctCard7 = r.ratio;
+    }
+    if (bmMaterialPctCard7 == null) {
+      const r = _costListCard7.find(x => /재료|식자재/.test(x?.item || ''));
+      if (r?.ratio) bmMaterialPctCard7 = r.ratio;
+    }
+    if (bmEtcPctCard7 == null) {
+      const r = _costListCard7.find(x => /기타/.test(x?.item || ''));
+      if (r?.ratio) bmEtcPctCard7 = r.ratio;
+    }
+  }
+
   const card7 = {
     title: '임대/창업 정보',
     subtitle: '상가 시세 및 지원',
@@ -1937,9 +2057,10 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
         : ''),
     chartType: 'priceCards',
     metaInfo: '임대',
-    chartData: rentBarItems.length > 0 ? {
-      items: rentBarItems,
-      totalCost: rentBarItems.reduce((s, it) => s + (it.value || 0), 0),
+    // [2026-05-17] rentBarItems가 비어도 chartData는 항상 만들어서 kosisCafe/premium은 전달
+    chartData: {
+      items: rentBarItems.length > 0 ? rentBarItems : [],
+      totalCost: rentBarItems.length > 0 ? rentBarItems.reduce((s, it) => s + (it.value || 0), 0) : 0,
       // [KOSIS 외식업체경영실태조사] 카페 전국 평균 - Card 8 UI 표시용
       kosisCafe: (() => {
         const k = buildKosisCafeStats(apis.kosisFoodSurvey?.data || null);
@@ -2030,7 +2151,7 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
             : [],
         };
       })(),
-    } : null,
+    },
     bodyData: {
       rentPerPyeong: avgRent,
       deposit: avgDeposit,
@@ -2043,7 +2164,14 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       interiorCost: interiorCost,
       equipmentCost: equipmentCost,
       totalStartupCost: totalStartupCost,
-      // premiumCost 제거: 권리금은 chartData.premium 박스에서 시도별 평균으로 표시
+      // [2026-05-18] premiumCost 복원: 카드 8 권리금 박스 폴백용 (만원 단위, 시도 평균 → 전국 폴백)
+      premiumCost: (() => {
+        const _dongCd = dong?.dongCd || cd?.dongCd || '';
+        const _dongNm = dong?.dongNm || '';
+        const _fbAddr = apis.firebaseRent?.data?.searchAddr || apis.firebaseRent?.data?.fullAddr || '';
+        const _stat = buildPremiumStats(_dongCd || _dongNm || _fbAddr);
+        return Number(_stat?.sidoAvg) || Number(_stat?.nationalAvg) || 0;
+      })(),
       // 비즈맵 보강: 상권 유형 (입지 특성)
       bizmapBlockType: bmBlockTypeLabel,
     },
@@ -2218,6 +2346,23 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     chartData: null,
     bodyData: {
       findings: _findings,
+      // [2026-05-18] 비즈맵 비용 구조 5종 (행정동 행 우선 → 시도 폴백, % 단위)
+      // costAnalysisList raw 필드 직접 인식: profitRt/ingredientRt/laborRt/rentalRt/etcCstRt
+      bizmapOpIncomePct: bmOpIncomePctCard7,
+      bizmapMaterialPct: bmMaterialPctCard7,
+      bizmapLaborPct: bmLaborPctCard7,
+      bizmapRentPct: bmRentPctCard7,
+      bizmapEtcPct: bmEtcPctCard7,
+      // 평균 월매출 (행정동 카페 1곳, 천원 단위 → 화면에서 만원 환산)
+      bizmapAvgMonthlyAmt: bmTotalAmtCard7,
+      bizmapCostSummary: (() => {
+        const labor = bmLaborPctCard7;
+        const mat = bmMaterialPctCard7;
+        const parts = [];
+        if (typeof labor === 'number' && labor > 0) parts.push(`인건비 ${labor}%`);
+        if (typeof mat === 'number' && mat > 0) parts.push(`식자재 ${mat}%`);
+        return parts.length > 0 ? parts.join(' / ') : null;
+      })(),
     },
     tag: '카페 기회',
   };
@@ -2951,8 +3096,24 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       if (_hasHotTheme) _s_change_hotpl = 4;
     }
   } catch (e) { /* 0 유지 */ }
-  const _scoreChange = Math.max(0, Math.min(15, _s_change_newClose + _s_change_5yr + _s_change_hotpl));
-  console.log(`[5축] 변화 ${_scoreChange}/15 = 신폐 ${_s_change_newClose}(신${_selfRecentOpen}/폐${_selfRecentClose}) + 5년 ${_s_change_5yr}(${_cafes5yAgoEarly}→${_selfTotalCafes}) + 핫플 ${_s_change_hotpl}`);
+  // [2026-05-18] 3-4. 비즈맵 popularMenuList + risingMenuList → 메뉴 트렌드 강도 (2점)
+  // 인기 메뉴 TOP1 매출비중 30% 이상 = 시장 집중도 신호 → +1
+  // 급상승 메뉴 평균 증가율 50% 이상 = 시장 변화 신호 → +1
+  let _s_change_menu = 0;
+  try {
+    const _popM = aiData?.apis?.bizMapPopularMenu?.data ?? apis.bizMapPopularMenu?.data ?? [];
+    if (Array.isArray(_popM) && _popM.length > 0) {
+      const _topRate = parseFloat(_popM[0]?.rate ?? _popM[0]?.SALE_RATE ?? 0);
+      if (_topRate >= 30) _s_change_menu += 1;
+    }
+    const _risM = cd?.nicebizmapMenu?.risingMenuList || aiData?.risingMenuList || [];
+    if (Array.isArray(_risM) && _risM.length > 0) {
+      const _avgRise = _risM.slice(0, 3).reduce((s, x) => s + (parseFloat(x?.COM_PRE_RATE ?? x?.GROWTH_RATE ?? 0) || 0), 0) / Math.min(3, _risM.length);
+      if (_avgRise >= 50) _s_change_menu += 1;
+    }
+  } catch (e) { /* 0 유지 */ }
+  const _scoreChange = Math.max(0, Math.min(15, _s_change_newClose + _s_change_5yr + _s_change_hotpl + _s_change_menu));
+  console.log(`[5축] 변화 ${_scoreChange}/15 = 신폐 ${_s_change_newClose}(신${_selfRecentOpen}/폐${_selfRecentClose}) + 5년 ${_s_change_5yr}(${_cafes5yAgoEarly}→${_selfTotalCafes}) + 핫플 ${_s_change_hotpl} + 메뉴 ${_s_change_menu}`);
 
   // [축 4] 생존 (30점) - "1년·3년·5년 살아남나"
   // LOCALDATA 활성/폐업 매장 추출 (위쪽 _ldRowsEarly 등은 변화 축에서 사용, 여기서는 별도 변수명 유지)
@@ -3063,7 +3224,24 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
 
   // 비즈맵 의존 변수는 호환성 유지 위해 빈 값으로 계산 (다른 카드/디버그에서 참조)
   const _costList = aiData?.apis?.bizMapCostAnalysis?.data ?? apis.bizMapCostAnalysis?.data ?? [];
+  // [2026-05-18] raw API costAnalysisList 인식: 행정동(region='admi') 행 우선, 없으면 첫 행
+  // raw 필드: profitRt(영업이익률), rentalRt(임차료율), laborRt(인건비율), ingredientRt(식자재율), etcCstRt(기타율), totalAmt, operatingAmt
+  // DOM 변환 필드: { item, ratio, regionAmount, sidoAmount }
+  const _costRowRaw = (() => {
+    if (!Array.isArray(_costList) || _costList.length === 0) return null;
+    const admi = _costList.find(x => x?.region === 'admi');
+    return admi || _costList[0];
+  })();
   const _findCostRatio = (kw) => {
+    // 1순위: raw API 직접 필드 (행정동 행 사용)
+    if (_costRowRaw && typeof _costRowRaw === 'object') {
+      if (/임차|임대/.test(kw) && typeof _costRowRaw.rentalRt === 'number') return _costRowRaw.rentalRt;
+      if (/영업이익|이익/.test(kw) && typeof _costRowRaw.profitRt === 'number') return _costRowRaw.profitRt;
+      if (/인건/.test(kw) && typeof _costRowRaw.laborRt === 'number') return _costRowRaw.laborRt;
+      if (/재료비|식자재|재료/.test(kw) && typeof _costRowRaw.ingredientRt === 'number') return _costRowRaw.ingredientRt;
+      if (/기타/.test(kw) && typeof _costRowRaw.etcCstRt === 'number') return _costRowRaw.etcCstRt;
+    }
+    // 2순위: DOM 변환 형식 (item 텍스트 매칭)
     const r = (_costList || []).find(x => (x?.item || '').includes(kw));
     return r?.ratio || 0;
   };
@@ -3073,6 +3251,11 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   const _bizmapOpIncome = _selfOpIncomePct || _findCostRatio('영업이익') || _findCostRatio('이익') || 0;
   const _bizmapLaborPct = _findCostRatio('인건비') || _findCostRatio('인건') || 0;
   const _bizmapMaterialPct = _findCostRatio('재료비') || _findCostRatio('식자재') || _findCostRatio('재료') || 0;
+  const _bizmapEtcPct = _findCostRatio('기타') || 0;
+  // raw API에서 직접 추출 (천원 단위 → 만원으로 환산)
+  const _bizmapTotalAmt = _costRowRaw && typeof _costRowRaw.totalAmt === 'number' ? _costRowRaw.totalAmt : 0;
+  const _bizmapOperatingAmt = _costRowRaw && typeof _costRowRaw.operatingAmt === 'number' ? _costRowRaw.operatingAmt : 0;
+  const _bizmapProfitAmt = _costRowRaw && typeof _costRowRaw.profitAmt === 'number' ? _costRowRaw.profitAmt : 0;
   // 호환용 점수 (UI scoreDetails 표시 유지)
   const _s_rent = _s_cost_rent;
   const _s_opIncome = _s_cost_opIncome;
@@ -3867,7 +4050,7 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       scoreDetails: {
         market: { potCust: _s_pot, avgSales: _s_avgSales, marketSize: _s_marketSize, unitPrice: _s_unitPrice },
         compete: { density: _s_density, fcRatio: _s_fcRatio, diversity: _s_diversity },
-        change: { newClose: _s_newClose, storeTrend: _s_storeTrend, marketChange: _s_marketChange },
+        change: { newClose: _s_newClose, storeTrend: _s_storeTrend, marketChange: _s_marketChange, menuTrend: _s_change_menu },
         survival: { fiveYr: _s_fiveYr, avgYears: _s_avgYears, closure: _s_closure },
         cost: { rent: _s_rent, opIncome: _s_opIncome },
       },
@@ -4437,12 +4620,20 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   }
 
   // === 리스크 리스트 추출 ===
+  // [2026-05-17] aiData.risks가 title="리스크 분석"·detail=""만 들어오는 경우 무시 (의미 없는 페이로드)
   const c14Risks = [];
   if (Array.isArray(aiData?.risks) && aiData.risks.length > 0) {
     aiData.risks.forEach(r => {
-      c14Risks.push({ title: r?.title || '리스크', detail: r?.detail || '' });
+      const t = (r?.title || '').trim();
+      const d = (r?.detail || '').trim();
+      // title과 detail 둘 다 비거나, 메타 텍스트("리스크 분석"·"분석") 단독은 스킵
+      if (!t && !d) return;
+      if (!d && (t === '리스크 분석' || t === '리스크' || t === '분석')) return;
+      c14Risks.push({ title: t || '리스크', detail: d });
     });
-  } else {
+  }
+  // aiData.risks가 비어있거나 위 필터로 다 빠진 경우 자동 생성 룰 적용
+  if (c14Risks.length === 0) {
     if (c14Total > 80) c14Risks.push({ title: '카페 과밀', detail: `반경 내 ${c14Total}개. 신규 진입 시 차별화 필수` });
     if (c14Closed >= 3) c14Risks.push({ title: '폐업 발생', detail: `최근 폐업 ${c14Closed}개. 생존율 점검 필요` });
     if (c14CafeSales > 0 && c14DongAvg > 0 && c14CafeSales < c14DongAvg * 0.8) c14Risks.push({ title: '평균 매출 낮음', detail: `카페 매출 ${c14CafeSales.toLocaleString()}만원 (동평균 대비 ${Math.round((1 - c14CafeSales / c14DongAvg) * 100)}% 하회)` });
@@ -4472,9 +4663,16 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   })();
 
   // === 시그널 (긍정/부정 항목 통합) ===
+  // [2026-05-17] detail이 비면 콜론 없이 title만 표시
   const c14Signals = [];
-  c14Opps.slice(0, 3).forEach(o => c14Signals.push({ type: 'positive', text: `${o.title}: ${o.detail}`.substring(0, 80) }));
-  c14Risks.slice(0, 3).forEach(r => c14Signals.push({ type: 'negative', text: `${r.title}: ${r.detail}`.substring(0, 80) }));
+  c14Opps.slice(0, 3).forEach(o => {
+    const txt = o.detail ? `${o.title}: ${o.detail}` : o.title;
+    c14Signals.push({ type: 'positive', text: String(txt || '').substring(0, 80) });
+  });
+  c14Risks.slice(0, 3).forEach(r => {
+    const txt = r.detail ? `${r.title}: ${r.detail}` : r.title;
+    c14Signals.push({ type: 'negative', text: String(txt || '').substring(0, 80) });
+  });
 
   // === 태그 ===
   const c14Tags = [];
@@ -5063,6 +5261,51 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       card.aiSummary = convertAmountsInText(card.aiSummary);
     }
   }
+
+  // ── [핸드오프] 카드별 후처리 데이터 합치기 ──
+  // Card 4 (개인 카페): topNearbyIndie에 시그니처/추천이유 보강 (Card 10 topShops에서 매칭)
+  try {
+    const _snsTopShops = card10?.bodyData?.topShops || [];
+    const _topIndie = card4?.bodyData?.topNearbyIndie || [];
+    if (Array.isArray(_topIndie) && _topIndie.length > 0) {
+      card4.bodyData.topShopsWithSignature = _topIndie.map(indie => {
+        const matched = _snsTopShops.find(s => s.name && indie.name && (s.name.includes(indie.name) || indie.name.includes(s.name)));
+        return {
+          name: indie.name,
+          dist: indie.dist,
+          addr: indie.addr,
+          signature: matched?.menu || '',
+          reason: matched?.reason || '',
+        };
+      });
+    }
+  } catch (e) { console.warn('[핸드오프] Card4 topShopsWithSignature 실패:', e?.message); }
+
+  // Card 6 (유동인구): 시군구 상위 3개 동 (dynPplCmpr.data.slice(0,3))
+  try {
+    const _dyn = collectedData?.apis?.dynPplCmpr?.data;
+    const _list = Array.isArray(_dyn) ? _dyn : null;
+    if (Array.isArray(_list) && _list.length > 0) {
+      card6.bodyData = card6.bodyData || {};
+      card6.bodyData.top3Dongs = _list.slice(0, 3).map(d => ({
+        name: d?.admNm || d?.dongNm || d?.signguCdNm || '인근 동',
+        pop: Math.round((d?.cnt || d?.fpCnt || 0) / 30),
+      }));
+    }
+  } catch (e) { console.warn('[핸드오프] Card6 top3Dongs 실패:', e?.message); }
+
+  // 시군구명 추출 (카드들에 공통 prop으로 전달용) — 검색 주소에서
+  try {
+    const _addrFull = String(collectedData?.addressInfo?.address || collectedData?.address || collectedData?.dongInfo?.address || '').trim();
+    const _sigunguMatch = _addrFull.match(/^([가-힣]+(?:특별시|광역시|특별자치시|특별자치도|도|시))\s+([가-힣]+(?:시|군|구))/);
+    const _sigungu = _sigunguMatch ? _sigunguMatch[2] : '';
+    if (_sigungu) {
+      for (const c of allCards) {
+        c.sigungu = _sigungu;
+      }
+    }
+  } catch (e) { /* silent */ }
+
   return allCards;
 }
 
@@ -5720,13 +5963,92 @@ export function extractYieldRate(apis, sangkwonCode) {
 }
 
 /**
- * 순영업소득 - 한국부동산원 DT_40801_N2303_06
- * 응답 구조 확인 결과: T001 영업수입, T002 기타수입, T003 이자경비 등
- * 모든 항목이 % 비율 (수입/비용 구성비)이지 평당 금액이 아님.
- * 평당 금액으로 환산 시 부정확하므로 null 반환 → 카드 박스 자동 숨김.
+ * 순영업소득 - 한국부동산원 KOSIS netIncome (상권별 중대형 임대수입 구성비)
+ * [정답지 재보강 2026-05-18 v2] 실측 응답 구조에 맞춰 수정:
+ *   - ITM_ID=T001=임대수입(100% 기준), T003=운영경비, T004=순영업소득(%)
+ *   - 단위가 %이므로 ㎡/평 환산 불필요. 순영업소득률(%) 그대로 표시.
+ *   - 폴백 1: marketRent(㎡당 임대료 원) × 순영업소득률 × 3.305785 × 4분기 = 원/평/년
+ *   - 폴백 2: 상권코드 일치 → 시도 코드(C1[0:3]) 평균 → 전국 평균 순서
+ *   - 폴백 3: ITM_ID=T004 없으면 "순영업소득" 이름으로도 탐색
  */
-export function extractNetIncome(_apis, _sangkwonCode) {
-  return null;
+export function extractNetIncome(apis, sangkwonCode) {
+  const rows = _getExternalRows(apis, 'netIncome');
+  if (!rows.length) return null;
+
+  // 다단 풀: 상권코드 정확 일치 → 같은 시도(C1 앞 3자리) 평균 → 전국
+  const tryPools = [];
+  if (sangkwonCode) tryPools.push(rows.filter(r => (r.C1 || '') === sangkwonCode));
+  if (sangkwonCode && sangkwonCode.length >= 3) {
+    const sidoPrefix = sangkwonCode.slice(0, 3);
+    tryPools.push(rows.filter(r => (r.C1 || '').startsWith(sidoPrefix) && r.C1 !== sangkwonCode));
+  }
+  tryPools.push(rows);
+
+  // 순영업소득 식별: ITM_ID T004(주) → T005(부) → "순영업소득" 이름
+  const isNetIncome = (r) => {
+    const id = r.ITM_ID || '';
+    const nm = r.ITM_NM || '';
+    return id === 'T004' || id === 'T005' || /순영업소득|영업소득|NOI/.test(nm);
+  };
+
+  let netRow = null;
+  let usedPool = null;
+  for (const pool of tryPools) {
+    if (!pool.length) continue;
+    const sorted = [...pool].sort((a, b) => (b.PRD_DE || '').localeCompare(a.PRD_DE || ''));
+    const latestPrd = sorted[0]?.PRD_DE;
+    if (!latestPrd) continue;
+    const sameDate = sorted.filter(r => r.PRD_DE === latestPrd);
+    const found = sameDate.find(isNetIncome);
+    if (found && parseFloat(found.DT) > 0) {
+      netRow = found;
+      usedPool = sameDate;
+      break;
+    }
+  }
+  if (!netRow) return null;
+
+  const noiPct = parseFloat(netRow.DT) || 0;  // 순영업소득률 (%)
+  if (!noiPct) return null;
+
+  // 같은 시점/같은 지역의 marketRent(㎡당 원)와 결합해서 원/평/년 환산
+  let valuePerPyeongAnnual = 0;
+  try {
+    const mrRows = _getExternalRows(apis, 'marketRent');
+    if (mrRows.length) {
+      // 같은 C1 코드 우선, 없으면 같은 시도, 없으면 전국
+      const mrPools = [
+        mrRows.filter(r => r.C1 === netRow.C1 && r.PRD_DE === netRow.PRD_DE),
+        netRow.C1 && netRow.C1.length >= 3
+          ? mrRows.filter(r => (r.C1 || '').startsWith(netRow.C1.slice(0, 3)) && r.PRD_DE === netRow.PRD_DE)
+          : [],
+        mrRows.filter(r => r.PRD_DE === netRow.PRD_DE),
+      ];
+      for (const p of mrPools) {
+        if (!p.length) continue;
+        const rentRow = p[0];
+        const rentPerSqm = parseFloat(rentRow.DT) || 0;
+        if (rentPerSqm > 0) {
+          // 임대수입 100% 기준 → 순영업소득 N% → 평당 월소득 = rent × (N/100) × 3.305785
+          // 분기 단위라서 ×3개월 → 월 → ×12 = 연
+          // KOSIS 임대료가 ㎡당 분기 임대료라면 ×4, 월 임대료라면 ×12. 정답지 표기 "원/㎡"는 월 기준 일반적.
+          const monthlyPerPyeong = rentPerSqm * (noiPct / 100) * 3.305785;
+          valuePerPyeongAnnual = Math.round(monthlyPerPyeong * 12);
+          break;
+        }
+      }
+    }
+  } catch (e) { /* ignore */ }
+
+  return {
+    value: valuePerPyeongAnnual || noiPct,     // 환산값이 있으면 원/평/년, 없으면 % 값
+    noiPct: Math.round(noiPct * 10) / 10,
+    unit: valuePerPyeongAnnual ? '원/평/년' : '%',
+    period: netRow.PRD_DE,
+    region: netRow.C1_NM || '',
+    code: netRow.C1 || '',
+    scope: _resolveScope(netRow.C1, sangkwonCode),
+  };
 }
 
 /** 시도 카페 폐업 수 (커피음료점만 필터) */

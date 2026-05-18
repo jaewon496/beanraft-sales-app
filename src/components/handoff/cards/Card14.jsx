@@ -50,7 +50,7 @@ export default function Card14({ body = {}, onOpenDirector }) {
           <div>
             <div className="label" style={{fontSize:15}}>종합 점수</div>
             <div style={{display:"flex", alignItems:"baseline", gap:8, marginTop:10}}>
-              <span style={{fontSize:80, fontWeight:700, letterSpacing:"-0.03em", lineHeight:1, fontVariantNumeric:"tabular-nums", color:"#5478C9"}}><CountUp id="c14.score" value={String(total)}/></span>
+              <span style={{fontSize:80, fontWeight:700, letterSpacing:"-0.03em", lineHeight:1, fontVariantNumeric:"tabular-nums", color:"#4C7BE4"}}><CountUp id="c14.score" value={String(total)}/></span>
               <span style={{fontSize:18, color:"var(--matte-fg-3)", fontWeight:500}}>/ 100점</span>
             </div>
           </div>

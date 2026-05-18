@@ -56,11 +56,11 @@ const CardCtx = createContext({
    Sidebar — 5 categories. Clicking a category collapses sidebar
    and filters main area to that category's cards.
    ============================================================ */
-function Sidebar({ active, onNav, onStartTour, onCategoryClick, filterCategory }) {
+function Sidebar({ active, onNav, onStartTour, onCategoryClick, onShowAll, filterCategory, isAll }) {
   return (
     <aside className="bc-sb">
       <div className="bc-sb__brand">
-        <span className="bc-sb__logo"><img src={window.__resources?.beancraftLogo || "assets/beancraft-logo.webp"} alt="BEANCRAFT"/></span>
+        <span className="bc-sb__logo"><img src={window.__resources?.beancraftLogo || "assets/beancraft-logo-cropped.png"} alt="BEANCRAFT"/></span>
       </div>
       <div style={{padding:"4px 10px 14px"}}>
         <div style={{fontSize:15, color:"var(--fg-4)", letterSpacing:"0.06em", marginBottom:4}}>검색</div>
@@ -91,7 +91,19 @@ function Sidebar({ active, onNav, onStartTour, onCategoryClick, filterCategory }
         </button>
       </div>
 
-      <div className="bc-sb__group-title">분석 카드 · 5개 카테고리</div>
+      <div
+        className={"bc-cat bc-cat--all" + (isAll ? " filtering" : "")}
+        onClick={() => onShowAll?.()}
+        title="전체 보고서 보기"
+        style={{marginBottom:4}}
+      >
+        <span className="bc-cat__icon"><i className="ph ph-stack"></i></span>
+        <span className="bc-cat__label">전체 보고서</span>
+        <span className="bc-cat__count">{CARDS.length}</span>
+        <i className={"ph " + (isAll ? "ph-check" : "ph-caret-right") + " bc-cat__chev"}></i>
+      </div>
+
+      <div className="bc-sb__group-title">카테고리별 보기 · 5개</div>
 
       <div style={{display:"flex", flexDirection:"column", gap:2}}>
         {GROUPS.map(g => {
@@ -244,7 +256,7 @@ function StatTile({ tone = "blue", label, value, unit, delta, deltaPositive = tr
   if (has("glow")) cls += " glow";
   if (has("float")) cls += " float";
   return (
-    <div className={cls} style={{position:"relative"}}>
+    <div className={cls} data-fx-id={id} style={{position:"relative"}}>
       <div className="label">{label}</div>
       <div className="row">
         <span className={"value " + (hero ? "value-hero" : "")}>
@@ -256,7 +268,7 @@ function StatTile({ tone = "blue", label, value, unit, delta, deltaPositive = tr
           </span>
         )}
       </div>
-      {has("sparkle") && window.Sparkles && <window.Sparkles id={id} count={7} radius={48}/>}
+      {/* sparkle 효과 — 제거됨 */}
     </div>
   );
 }

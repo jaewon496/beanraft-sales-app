@@ -193,12 +193,12 @@ export function VBars({ items, height = 160, accent, color, barW = 22, gap = 14,
               maxWidth: "100%",
               height: h,
               borderRadius: 9999,
-              background: isAcc ? "#5478C9" : baseColor,
+              background: isAcc ? "#4C7BE4" : baseColor,
               opacity: isAcc ? 1 : 0.9,
               animation: `${animName} 0.7s var(--ease) ${i*0.08}s both`,
               "--target-h": h + "px",
             }}></div>
-            <div style={{fontSize:15, color: isAcc ? "#5478C9" : "var(--matte-fg-2)", fontWeight: isAcc ? 700 : 500}}>{it.l}</div>
+            <div style={{fontSize:15, color: isAcc ? "#4C7BE4" : "var(--matte-fg-2)", fontWeight: isAcc ? 700 : 500}}>{it.l}</div>
             {it.v != null && <div style={{fontSize:15, color: isAcc ? "var(--matte-fg)" : "var(--matte-fg-3)", fontWeight: isAcc ? 600 : 500, fontVariantNumeric:"tabular-nums"}}>{it.t || `${it.v}%`}</div>}
           </div>
         );
@@ -218,12 +218,12 @@ export function BarRow({ label, value, max, color, suffix, accent, id }) {
     const t = setTimeout(() => setW(target), 60);
     return () => clearTimeout(t);
   }, [trig]);
-  const fill = color || (accent ? "#5478C9" : "#FFFFFF");
+  const fill = color || (accent ? "#4C7BE4" : "#FFFFFF");
   return (
     <div style={{display:"grid", gridTemplateColumns:"110px 1fr 70px", gap:12, alignItems:"center", padding:"6px 0"}}>
       <div style={{fontSize:15, color: accent ? "var(--matte-fg)" : "var(--matte-fg-2)", fontWeight: accent ? 700 : 500, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{label}</div>
       <div className="bc-bar" style={{height:10, background:"rgba(255,255,255,0.05)"}}><div style={{width:`${w}%`, background: fill}}></div></div>
-      <div style={{textAlign:"right", fontSize:15, color: accent ? "#5478C9" : "var(--matte-fg)", fontWeight:700, fontVariantNumeric:"tabular-nums"}}>{value}{suffix}</div>
+      <div style={{textAlign:"right", fontSize:15, color: accent ? "#4C7BE4" : "var(--matte-fg)", fontWeight:700, fontVariantNumeric:"tabular-nums"}}>{value}{suffix}</div>
     </div>
   );
 }
@@ -274,8 +274,8 @@ export function ScoreGauge({ value, max = 100, size = 280, label, id, accent = f
       >
         <defs>
           <linearGradient id={`scoreGrad-${safeId}`} x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%"   stopColor={accent ? "#5478C9" : "#6a6a6a"}/>
-            <stop offset="100%" stopColor={accent ? "#5478C9" : "#6a6a6a"}/>
+            <stop offset="0%"   stopColor={accent ? "#4C7BE4" : "#6a6a6a"}/>
+            <stop offset="100%" stopColor={accent ? "#4C7BE4" : "#6a6a6a"}/>
           </linearGradient>
         </defs>
         <path
@@ -360,9 +360,9 @@ export function Radar({ axes, values, size = 320, id, accent = false }) {
           const [x, y] = ringPoint(i, 1);
           return <line key={i} x1={cx} y1={cy} x2={x} y2={y} stroke="rgba(255,255,255,0.04)" strokeWidth="1"/>;
         })}
-        <polygon points={polyPoints} fill={accent ? "rgba(84,120,201,0.22)" : "rgba(255,255,255,0.06)"} stroke={accent ? "#5478C9" : "#9a9a9a"} strokeWidth="2" strokeLinejoin="round" style={{transition:"all 1.2s cubic-bezier(.4,0,.2,1)"}}/>
+        <polygon points={polyPoints} fill={accent ? "rgba(84,120,201,0.22)" : "rgba(255,255,255,0.06)"} stroke={accent ? "#4C7BE4" : "#9a9a9a"} strokeWidth="2" strokeLinejoin="round" style={{transition:"all 1.2s cubic-bezier(.4,0,.2,1)"}}/>
         {valPts.map(([x, y], i) => (
-          <circle key={i} cx={x} cy={y} r="4.5" fill={accent ? "#5478C9" : "#c9c9c9"} stroke="var(--matte-card)" strokeWidth="2" style={{transition:"all 1.2s cubic-bezier(.4,0,.2,1)"}}/>
+          <circle key={i} cx={x} cy={y} r="4.5" fill={accent ? "#4C7BE4" : "#c9c9c9"} stroke="var(--matte-card)" strokeWidth="2" style={{transition:"all 1.2s cubic-bezier(.4,0,.2,1)"}}/>
         ))}
         {axes.map((a, i) => {
           const [lx, ly] = ringPoint(i, 1.42);

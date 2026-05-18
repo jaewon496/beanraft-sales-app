@@ -34,8 +34,8 @@ function Card13({ body = {} }) {
         <div>
           <div style={{fontSize:13, color:"var(--matte-fg-3)", fontWeight:600, letterSpacing:"0.10em", textTransform:"uppercase", marginBottom:14}}>한 줄 요약</div>
           <div style={{fontSize:30, fontWeight:700, lineHeight:1.35, color:"#fff", letterSpacing:"-0.015em", marginBottom:28}}>
-            시장은 강하지만 <span style={{color:"#5478C9"}}>비용 부담</span>이 큰 자리.<br/>
-            자본 여력이 있다면 <span style={{color:"#5478C9"}}>강한 추천</span> 등급.
+            시장은 강하지만 <span style={{color:"#4C7BE4"}}>비용 부담</span>이 큰 자리.<br/>
+            자본 여력이 있다면 <span style={{color:"#4C7BE4"}}>강한 추천</span> 등급.
           </div>
           <div style={{display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:14}}>
             {[
@@ -46,7 +46,7 @@ function Card13({ body = {} }) {
               <div key={l} style={{padding:"20px 22px", background:"rgba(255,255,255,0.03)", borderRadius:12, border:"1px solid var(--matte-line)"}}>
                 <div style={{fontSize:14, color:"var(--matte-fg-3)", marginBottom:10, fontWeight:500}}>{l}</div>
                 <div style={{fontSize:32, fontWeight:700, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.02em", lineHeight:1}}>{v}<span style={{fontSize:14, color:"var(--matte-fg-3)", marginLeft:4, fontWeight:500}}>{u}</span></div>
-                <div style={{fontSize:13, color: acc ? "#5478C9" : "var(--matte-fg-3)", marginTop:8, fontWeight:600}}>{sub}</div>
+                <div style={{fontSize:13, color: acc ? "#4C7BE4" : "var(--matte-fg-3)", marginTop:8, fontWeight:600}}>{sub}</div>
               </div>
             ))}
           </div>
@@ -64,12 +64,12 @@ function Card13({ body = {} }) {
         {axes.map((a, idx) => {
           const pct = a.score / a.max;
           const isMax = pct === maxRatio;
-          const barColor = isMax ? "#5478C9" : "#FFFFFF";
+          const barColor = isMax ? "#4C7BE4" : "#FFFFFF";
           return (
             <div key={a.key} style={{padding:"20px 0", borderTop: idx > 0 ? "1px solid var(--matte-line)" : "none"}}>
               <div style={{display:"grid", gridTemplateColumns:"180px 1fr 130px", gap:20, alignItems:"center"}}>
                 <div>
-                  <div style={{fontSize:17, fontWeight:700, color: isMax ? "#5478C9" : "#fff", letterSpacing:"-0.01em", marginBottom:4}}>{a.label}</div>
+                  <div style={{fontSize:17, fontWeight:700, color: isMax ? "#4C7BE4" : "#fff", letterSpacing:"-0.01em", marginBottom:4}}>{a.label}</div>
                   <div style={{fontSize:13, color:"var(--matte-fg-3)", fontVariantNumeric:"tabular-nums"}}>만점 {a.max}점</div>
                 </div>
                 <div>
@@ -79,7 +79,7 @@ function Card13({ body = {} }) {
                   <div style={{fontSize:14, color:"var(--matte-fg-2)", lineHeight:1.5}}>{a.headline}</div>
                 </div>
                 <div style={{textAlign:"right"}}>
-                  <div style={{fontSize:36, fontWeight:700, color: isMax ? "#5478C9" : "var(--matte-fg)", fontVariantNumeric:"tabular-nums", letterSpacing:"-0.02em", lineHeight:1}}>{a.score}</div>
+                  <div style={{fontSize:36, fontWeight:700, color: isMax ? "#4C7BE4" : "var(--matte-fg)", fontVariantNumeric:"tabular-nums", letterSpacing:"-0.02em", lineHeight:1}}>{a.score}</div>
                   <div style={{fontSize:13, color:"var(--matte-fg-3)", marginTop:8}}>비율 <strong style={{color:"var(--matte-fg-2)", fontWeight:700}}>{Math.round(pct*100)}%</strong></div>
                 </div>
               </div>
@@ -91,9 +91,9 @@ function Card13({ body = {} }) {
 
       {/* 강점 / 약점 — 자동 분류 */}
       <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginTop:16}}>
-        <div className="bc-box" style={{padding:28, border:"1px solid rgba(84,120,201,0.35)", background:"linear-gradient(180deg, rgba(84,120,201,0.06), transparent 70%)"}}>
+        <div className="bc-box" style={{padding:28, border:"1px solid rgba(76, 123, 228,0.35)", background:"linear-gradient(180deg, rgba(76, 123, 228,0.06), transparent 70%)", display:"flex", flexDirection:"column"}}>
           <div style={{display:"flex", alignItems:"baseline", justifyContent:"space-between", marginBottom:18}}>
-            <div style={{fontSize:18, fontWeight:700, color:"#5478C9", letterSpacing:"-0.01em"}}>강점</div>
+            <div style={{fontSize:18, fontWeight:700, color:"#4C7BE4", letterSpacing:"-0.01em"}}>강점</div>
             <div style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:600}}>{strengths.length}개 축</div>
           </div>
           <div style={{display:"flex", flexDirection:"column", gap:12}}>
@@ -101,15 +101,36 @@ function Card13({ body = {} }) {
               <div key={a.key} style={{padding:"16px 20px", background:"rgba(255,255,255,0.03)", borderRadius:10, border:"1px solid var(--matte-line)"}}>
                 <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:8}}>
                   <span style={{fontSize:16, fontWeight:700, color:"#fff", letterSpacing:"-0.005em"}}>{a.label}</span>
-                  <span style={{fontSize:18, fontWeight:700, fontVariantNumeric:"tabular-nums", color:"#5478C9", letterSpacing:"-0.01em"}}>{a.score}<span style={{fontSize:13, color:"var(--matte-fg-3)", marginLeft:3, fontWeight:500}}>/{a.max}</span></span>
+                  <span style={{fontSize:18, fontWeight:700, fontVariantNumeric:"tabular-nums", color:"#4C7BE4", letterSpacing:"-0.01em"}}>{a.score}<span style={{fontSize:13, color:"var(--matte-fg-3)", marginLeft:3, fontWeight:500}}>/{a.max}</span></span>
                 </div>
                 <div style={{fontSize:14, color:"var(--matte-fg-2)", lineHeight:1.5}}>{a.headline}</div>
               </div>
             ))}
           </div>
+
+          <div style={{marginTop:"auto", paddingTop:20}}>
+            <div style={{padding:"18px 20px", background:"rgba(76, 123, 228,0.05)", borderRadius:10, border:"1px dashed rgba(76, 123, 228,0.30)"}}>
+              <div style={{fontSize:12, color:"#4C7BE4", fontWeight:700, letterSpacing:"0.10em", textTransform:"uppercase", marginBottom:12}}>강점 활용 포인트</div>
+              <div style={{display:"flex", flexDirection:"column", gap:10}}>
+                {[
+                  ["프리미엄 포지셔닝", "객단가 24,800원 — 강남 평균 +12%"],
+                  ["성장 메뉴 선점", "크림라떼·디카페인 트렌드 매장 도입"],
+                  ["충성 고객 확보", "3년 생존 71% — 재방문 38% 기반"],
+                ].map(([k, v], i) => (
+                  <div key={i} style={{display:"grid", gridTemplateColumns:"22px 1fr", gap:8, alignItems:"baseline"}}>
+                    <span style={{fontSize:13, color:"#4C7BE4", fontVariantNumeric:"tabular-nums", fontWeight:700}}>{String(i+1).padStart(2,"0")}</span>
+                    <div>
+                      <div style={{fontSize:14, color:"var(--matte-fg)", fontWeight:700, marginBottom:2}}>{k}</div>
+                      <div style={{fontSize:13, color:"var(--matte-fg-3)", lineHeight:1.5}}>{v}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div className="bc-box" style={{padding:28}}>
+        <div className="bc-box" style={{padding:28, display:"flex", flexDirection:"column"}}>
           <div style={{display:"flex", alignItems:"baseline", justifyContent:"space-between", marginBottom:18}}>
             <div style={{fontSize:18, fontWeight:700, letterSpacing:"-0.01em"}}>약점</div>
             <div style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:600}}>{weaknesses.length}개 축</div>
@@ -124,6 +145,27 @@ function Card13({ body = {} }) {
                 <div style={{fontSize:14, color:"var(--matte-fg-2)", lineHeight:1.5}}>{a.headline}</div>
               </div>
             ))}
+          </div>
+
+          <div style={{marginTop:"auto", paddingTop:20}}>
+            <div style={{padding:"18px 20px", background:"rgba(255,255,255,0.02)", borderRadius:10, border:"1px dashed rgba(255,255,255,0.12)"}}>
+              <div style={{fontSize:12, color:"var(--matte-fg-3)", fontWeight:700, letterSpacing:"0.10em", textTransform:"uppercase", marginBottom:12}}>권장 대응 전략</div>
+              <div style={{display:"flex", flexDirection:"column", gap:10}}>
+                {[
+                  ["권리금 절감", "이면 1블록 이동 시 -40% (1.1억 → 6,600만)"],
+                  ["과밀 경쟁", "시그니처 메뉴 확보 — 크림라떼·디카페인 +28% 상승"],
+                  ["수익 안정화", "배달 채널 30% 비중 확보로 폭염·우천 변동 완충"],
+                ].map(([k, v], i) => (
+                  <div key={i} style={{display:"grid", gridTemplateColumns:"22px 1fr", gap:8, alignItems:"baseline"}}>
+                    <span style={{fontSize:13, color:"#4C7BE4", fontVariantNumeric:"tabular-nums", fontWeight:700}}>{String(i+1).padStart(2,"0")}</span>
+                    <div>
+                      <div style={{fontSize:14, color:"var(--matte-fg)", fontWeight:700, marginBottom:2}}>{k}</div>
+                      <div style={{fontSize:13, color:"var(--matte-fg-3)", lineHeight:1.5}}>{v}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -173,7 +215,7 @@ function Card14({ body = {}, onOpenDirector }) {
           <div>
             <div className="label" style={{fontSize:15}}>종합 점수</div>
             <div style={{display:"flex", alignItems:"baseline", gap:8, marginTop:10}}>
-              <span style={{fontSize:80, fontWeight:700, letterSpacing:"-0.03em", lineHeight:1, fontVariantNumeric:"tabular-nums", color:"#5478C9"}}><CountUp id="c14.score" value={String(total)}/></span>
+              <span style={{fontSize:80, fontWeight:700, letterSpacing:"-0.03em", lineHeight:1, fontVariantNumeric:"tabular-nums", color:"#4C7BE4"}}><CountUp id="c14.score" value={String(total)}/></span>
               <span style={{fontSize:18, color:"var(--matte-fg-3)", fontWeight:500}}>/ 100점</span>
             </div>
           </div>

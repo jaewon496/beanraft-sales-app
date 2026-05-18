@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=1440"/>
+<title>빈크래프트 영업모드 · 결과 리포트</title>
+
+<link rel="stylesheet" href="lib/colors_and_type.css"/>
+<link rel="stylesheet" href="lib/sales.css"/>
+<link rel="stylesheet" href="lib/matte.css"/>
+
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css"/>
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/duotone/style.css"/>
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css"/>
+
+<style>
+  html, body, #root { height: 100%; margin: 0; padding: 0; }
+  body { background: #0a0a0a; }
+
+  /* 지도 모달 — 반경 슬라이더 */
+  .bc-map-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.12);
+    outline: none;
+    cursor: pointer;
+  }
+  .bc-map-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: #FFFFFF;
+    border: 0;
+    box-shadow: 0 0 0 2px rgba(13,16,20,0.9), 0 2px 8px rgba(0,0,0,0.5);
+    cursor: pointer;
+    transition: transform 120ms;
+  }
+  .bc-map-slider::-webkit-slider-thumb:hover { transform: scale(1.12); }
+  .bc-map-slider::-moz-range-thumb {
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: #FFFFFF;
+    border: 0;
+    box-shadow: 0 0 0 2px rgba(13,16,20,0.9), 0 2px 8px rgba(0,0,0,0.5);
+    cursor: pointer;
+  }
+  @keyframes bc-fade-in { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes bc-spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <script type="text/babel" src="lib/director-anim.jsx"></script>
+  <script type="text/babel" src="lib/shared.jsx"></script>
+  <script type="text/babel" src="lib/charts.jsx"></script>
+  <script type="text/babel" src="lib/map-modal.jsx"></script>
+  <script type="text/babel" src="lib/search-modal.jsx"></script>
+  <script type="text/babel" src="lib/cards-a.jsx"></script>
+  <script type="text/babel" src="lib/cards-b.jsx"></script>
+  <script type="text/babel" src="lib/cards-c.jsx"></script>
+  <script type="text/babel" src="lib/director-modal.jsx"></script>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useMemo, useCallback } = React;
+
+    function App() {
+      const [active, setActive] = useState("01");
+      const [director, setDirector] = useState(false);
+      const [sidebarOpen, setSidebarOpen] = useState(true);
+      const [filterCategory, setFilterCategory] = useState(null);
+      const [singleCardN, setSingleCardN] = useState(null);   /* ★ 개별 카드 풀스크린 */
+      const scrollRef = useRef(null);
+
+      /* sidebar nav (개별 카드 항목) → 그 카드만 풀스크린 모드 */
+      const onNav = useCallback((n) => {
+        setActive(n);
+        setSingleCardN(prev => prev === n ? null : n);
+        setFilterCategory(null);
+        setTimeout(() => scrollRef.current?.scrollTo({top:0, behavior:"instant"}), 30);
+      }, []);
+
+      /* 카테고리 클릭: 같은 카테고리면 해제, 다른 거면 전환 */
+      const onCategoryClick = useCallback((catId) => {
+        setSingleCardN(null);
+        setFilterCategory(prev => {
+          if (prev === catId) return null;
+          const g = window.GROUPS.find(x => x.id === catId);
+          if (g && g.cards.length > 0) setActive(g.cards[0]);
+          setTimeout(() => scrollRef.current?.scrollTo({top:0, behavior:"smooth"}), 50);
+          return catId;
+        });
+      }, []);
+
+      const toggleSidebar = useCallback(() => setSidebarOpen(o => !o), []);
+      const clearFilter   = useCallback(() => { setFilterCategory(null); setSingleCardN(null); }, []);
+      const openDirector  = () => setDirector(true);
+      const closeDirector = () => setDirector(false);
+
+      /* Scroll → highlight active sidebar item (전체 모드일 때만) */
+      useEffect(() => {
+        if (singleCardN || filterCategory) return;
+        const root = scrollRef.current;
+        if (!root) return;
+        const ids = window.CARDS.map(c => c.n);
+        const els = ids.map(n => document.getElementById(`card-${n}`)).filter(Boolean);
+        const io = new IntersectionObserver((entries) => {
+          let best = null, bestRatio = 0;
+          for (const e of entries) {
+            if (e.isIntersecting && e.intersectionRatio > bestRatio) {
+              best = e.target;
+              bestRatio = e.intersectionRatio;
+            }
+          }
+          if (best) {
+            const n = best.dataset.card || best.id.replace("card-", "");
+            setActive(n);
+          }
+        }, { root, threshold: [0.2, 0.4, 0.6], rootMargin: "-80px 0px -50% 0px" });
+        els.forEach(el => io.observe(el));
+        return () => io.disconnect();
+      }, [filterCategory, singleCardN]);
+
+      /* SeqCtx */
+      const seqValue = useMemo(() => ({ seq: {}, tab: "main", speed: 1 }), []);
+
+      /* ★ single-card: 가로/세로 둘 다 고려해서 비례 유지로만 fit.
+         (이전엔 세로 기준만 잡아 가로로 오버플로우되며 빈영역이 생김) */
+      useEffect(() => {
+        const root = scrollRef.current;
+        if (!singleCardN || !root) {
+          root?.querySelector(".bc-card")?.style.removeProperty("--sc-zoom");
+          return;
+        }
+        const fit = () => {
+          const card = root.querySelector(".bc-card");
+          if (!card) return;
+          card.style.setProperty("--sc-zoom", "1");
+          requestAnimationFrame(() => {
+            const naturalH = card.scrollHeight;
+            const naturalW = card.scrollWidth;
+            const availH = root.clientHeight;
+            const availW = root.clientWidth;
+            if (!naturalH || !naturalW) return;
+            // 비례 그대로 → 가로/세로 둘 다 viewport 안에 들어오는 한도로만 확대
+            const zw = availW / naturalW;
+            const zh = availH / naturalH;
+            const z = Math.max(1, Math.min(zw, zh, 1.6));
+            card.style.setProperty("--sc-zoom", z.toFixed(3));
+          });
+        };
+        fit();
+        window.addEventListener("resize", fit);
+        return () => window.removeEventListener("resize", fit);
+      }, [singleCardN]);
+
+      const visibleCardNums = useMemo(() => {
+        if (singleCardN) return [singleCardN];
+        if (!filterCategory) return window.CARDS.map(c => c.n);
+        const g = window.GROUPS.find(x => x.id === filterCategory);
+        return g ? g.cards : window.CARDS.map(c => c.n);
+      }, [filterCategory, singleCardN]);
+
+      const filterLabel = singleCardN
+        ? (window.CARDS.find(c => c.n === singleCardN)?.title)
+        : (filterCategory ? window.GROUPS.find(x => x.id === filterCategory)?.label : null);
+
+      const renderCard = (n) => {
+        const Comp = window[`Card${n}`];
+        if (!Comp) return null;
+        // [bc] window.__BC_DATA__.cards[n-1].body를 카드에 props로 주입
+        const idx = parseInt(n, 10) - 1;
+        const body = (window.__BC_DATA__ && window.__BC_DATA__.cards && window.__BC_DATA__.cards[idx] && window.__BC_DATA__.cards[idx].body) || {};
+        const props = n === "14" ? { onOpenDirector: openDirector, body } : { body };
+        return <Comp key={n} {...props}/>;
+      };
+
+      // [bc] 부모(영업관리 앱)가 데이터 주입 후 강제 재렌더할 수 있게 훅 등록
+      const [, forceTick] = useState(0);
+      useEffect(() => {
+        window.__bcRender = () => forceTick(t => t + 1);
+        return () => { delete window.__bcRender; };
+      }, []);
+
+      const filtered = singleCardN || filterCategory;
+      const filterClass = filtered ? " filtered filter-" + visibleCardNums.length : "";
+
+      return (
+        <window.SeqCtx.Provider value={seqValue}>
+          <div className={"bc-app" + (sidebarOpen ? "" : " sb-closed") + filterClass + (singleCardN ? " single-card" : "")}>
+            <div className={"bc-shell " + (sidebarOpen ? "sb-open" : "sb-closed")}>
+              <Sidebar
+                active={active}
+                onNav={onNav}
+                onStartTour={openDirector}
+                onCategoryClick={onCategoryClick}
+                onShowAll={clearFilter}
+                isAll={!filterCategory && !singleCardN}
+                filterCategory={filterCategory}
+              />
+              <main className="bc-canvas">
+                <TopBar
+                  onToggleSidebar={toggleSidebar}
+                  sidebarOpen={sidebarOpen}
+                  filterLabel={filterLabel}
+                  onClearFilter={clearFilter}
+                />
+                <div ref={scrollRef} className="bc-scroll">
+                  {visibleCardNums.map(renderCard)}
+                </div>
+              </main>
+            </div>
+            <DirectorModal open={director} onClose={closeDirector}/>
+            <window.SearchModalHost/>
+          </div>
+        </window.SeqCtx.Provider>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+  </script>
+</body>
+</html>

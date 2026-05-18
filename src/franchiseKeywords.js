@@ -1076,3 +1076,55 @@ export const FRANCHISE_ALIASES = {
   '배스킨라빈스': ['배스킨라빈스', 'BASKIN ROBBINS', 'BASKIN', 'BASKINROBBINS'],
   '쥬씨': ['쥬씨', 'JUICY'],
 };
+
+// === BRAND_ORIGIN: 본사 국적 분류 (FOREIGN/KR) ===
+// 한국 시장의 대표 해외 본사 브랜드만 명시. 나머지 전체는 KR로 폴백 (한국 시장 특성상 대부분 국내).
+// 분류 기준: 본사 소재지. 한국 라이센스 운영(예: 던킨도너츠/SPC 운영)이라도 본사가 해외면 FOREIGN.
+export const FOREIGN_BRAND_KEYWORDS = [
+  // 글로벌 커피 체인
+  '스타벅스', 'STARBUCKS',
+  '커피빈', 'COFFEE BEAN', 'COFFEEBEAN', 'COFFEE BEAN AND TEA LEAF',
+  '블루보틀', 'BLUE BOTTLE', 'BLUEBOTTLE',
+  '아라비카', 'ARABICA', '% ARABICA',
+  '폴바셋', 'PAUL BASSETT', 'PAULBASSETT',  // 호주 본사 (이지스호스피탈리티)
+  '파스쿠찌', 'PASCUCCI',  // 이탈리아
+  '코스타커피', 'COSTA',
+  // 도넛/베이커리/디저트
+  '던킨', 'DUNKIN',
+  '크리스피크림', 'KRISPY KREME', 'KRISPY', 'KRISPYKREME',
+  '배스킨라빈스', 'BASKIN', 'BASKIN ROBBINS', 'BASKINROBBINS',
+  '벤앤제리스', 'BEN & JERRY', 'BENJERRY',
+  '하겐다즈', 'HAAGEN', 'HAAGEN-DAZS',
+  '콜드스톤', 'COLD STONE', 'COLDSTONE',
+  '오레오', 'OREO',
+  // 차/음료
+  '공차', 'GONGCHA', 'GONG CHA',  // 대만
+  '쿵푸티', 'KUNGFUTEA', 'KUNG FU TEA',
+  '히어로티', 'HEROTEA', '히어로 티',
+  '카멜리아', 'CAMELLIA',
+  '차차', 'CHATIME',
+  '잭쿡', 'JACKCOOK',
+  '쉐이크쉑', 'SHAKE SHACK', 'SHAKESHACK',
+  '버거킹', 'BURGER KING',
+  '맥도날드', 'MCDONALD',
+  // 기타 글로벌
+  '시애틀', 'SEATTLE',  // SEATTLES BEST
+  '도토루', 'DOUTOR',  // 일본
+  '이노다', 'INODA',  // 일본
+  '키링', 'KEYLING',
+];
+
+/**
+ * 브랜드명을 입력받아 'FOREIGN' 또는 'KR' 반환.
+ * 매칭 알고리즘: 한글/영문 키워드 부분 포함 (대소문자 무시).
+ * 모르는 브랜드는 KR로 폴백 (한국 시장 대부분 국내 본사).
+ */
+export function getBrandOrigin(brandName) {
+  if (!brandName) return 'KR';
+  const upper = String(brandName).toUpperCase();
+  for (const kw of FOREIGN_BRAND_KEYWORDS) {
+    if (upper.includes(String(kw).toUpperCase())) return 'FOREIGN';
+  }
+  return 'KR';
+}
+

@@ -1,8 +1,56 @@
 /* Card11 — SNS 트렌드 (소셜미디어 카페 분위기) */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { CardShell, StatTile } from '../Shared.jsx';
 import { DrStagger } from '../director/DirectorAnim.jsx';
+
+/* 키워드 떠다니는 효과 — 사용자 명시 요청으로 보존 (기존 ChartWordCloud 이식)
+   원본: src/components/client-mode/UnifiedLayout.jsx ~L1326 */
+function FloatingKeywordCloud({ keywords, height = 220 }) {
+  const displayCount = Math.min(keywords.length, 20);
+  const positions = [
+    { x: 55, y: 25 }, { x: 160, y: 18 }, { x: 270, y: 28 }, { x: 100, y: 45 },
+    { x: 215, y: 42 }, { x: 310, y: 50 }, { x: 35, y: 60 }, { x: 140, y: 65 },
+    { x: 245, y: 62 }, { x: 70, y: 80 }, { x: 185, y: 82 }, { x: 290, y: 77 },
+    { x: 120, y: 95 }, { x: 230, y: 98 }, { x: 40, y: 105 }, { x: 310, y: 100 },
+    { x: 170, y: 115 }, { x: 80, y: 122 }, { x: 260, y: 118 }, { x: 150, y: 40 },
+  ];
+  const maxWeight = Math.max(...keywords.slice(0, displayCount).map(k => k.weight ?? 1), 1);
+  const floatParams = useMemo(() => Array.from({ length: displayCount }, (_, i) => ({
+    duration: 3 + (i % 7) * 0.6,
+    delay: (i * 0.3) % 3,
+  })), [displayCount]);
+  if (keywords.length === 0) return null;
+  return (
+    <svg width="100%" height={height} viewBox="0 0 340 150" preserveAspectRatio="xMidYMid meet" style={{ overflow: 'visible', display: 'block' }}>
+      <defs>
+        <style>{`
+          @keyframes hfWcFloat0 { 0%,100%{transform:translate(0,0)} 33%{transform:translate(1.5px,-2.5px)} 66%{transform:translate(-1px,2px)} }
+          @keyframes hfWcFloat1 { 0%,100%{transform:translate(0,0)} 25%{transform:translate(-1.8px,2px)} 75%{transform:translate(1.2px,-2.8px)} }
+          @keyframes hfWcFloat2 { 0%,100%{transform:translate(0,0)} 40%{transform:translate(2px,1.5px)} 80%{transform:translate(-1.5px,-2px)} }
+          @keyframes hfWcFloat3 { 0%,100%{transform:translate(0,0)} 30%{transform:translate(-1px,-2.2px)} 60%{transform:translate(1.8px,1.8px)} }
+          @keyframes hfWcFloat4 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(1.2px,2.5px)} }
+        `}</style>
+      </defs>
+      {keywords.slice(0, displayCount).map((kw, i) => {
+        const pos = positions[i % positions.length];
+        const sizeRatio = (kw.weight ?? (displayCount - i)) / maxWeight;
+        const fontSize = 7 + sizeRatio * 11;
+        const opacity = 0.45 + sizeRatio * 0.45;
+        const color = sizeRatio >= 0.7 ? '#FFFFFF' : sizeRatio >= 0.4 ? '#C9C9C9' : '#A3A3A3';
+        const fp = floatParams[i];
+        const animName = `hfWcFloat${i % 5}`;
+        return (
+          <text key={i} x={pos.x} y={pos.y} textAnchor="middle"
+            fill={color} fontSize={fontSize} fontWeight={sizeRatio > 0.6 ? 700 : 600}
+            opacity={opacity} fontFamily="Pretendard, system-ui, sans-serif"
+            style={{ animation: `${animName} ${fp.duration}s ease-in-out ${fp.delay}s infinite` }}
+          >#{kw.text}</text>
+        );
+      })}
+    </svg>
+  );
+}
 
 export default function Card11({ body = {} }) {
   const bodyData = body.bodyData || {};
@@ -44,11 +92,10 @@ export default function Card11({ body = {} }) {
         <div className="bc-box" style={{padding:18}}>
           <div style={{fontSize:15, fontWeight:600, marginBottom:12}}>SNS 키워드 클라우드</div>
           {wcItems.length > 0 ? (
-            <DrStagger id="c11.cloud" delay={60} style={{display:"flex", flexWrap:"wrap", gap:10, alignItems:"baseline", padding:"8px 0"}}>
-              {wcItems.map((kw, i) => (
-                <span key={i} style={{fontSize:kw.size, color: kw.size>=20 ? "#FFFFFF" : kw.size>=14 ? "#C9C9C9" : "#A3A3A3", fontWeight: kw.size>18 ? 700 : 600, lineHeight:1.1}}>#{kw.text}</span>
-              ))}
-            </DrStagger>
+            <FloatingKeywordCloud
+              keywords={wcItems.map((kw, i) => ({ text: kw.text, weight: wcItems.length - i }))}
+              height={220}
+            />
           ) : (
             <div style={{fontSize:13, color:"var(--matte-fg-4)", padding:"30px 0"}}>SNS 키워드 데이터 수집 중</div>
           )}
@@ -88,7 +135,7 @@ export default function Card11({ body = {} }) {
                     <div style={{display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:12, marginBottom:6}}>
                       <div style={{display:"flex", alignItems:"baseline", gap:10, minWidth:0}}>
                         <span style={{fontSize:13, color:"var(--matte-fg-4)", fontVariantNumeric:"tabular-nums", fontWeight:700, flexShrink:0}}>{String(i+1).padStart(2,"0")}</span>
-                        <span style={{fontSize:17, fontWeight:700, letterSpacing:"-0.01em", color: isAcc ? "#5478C9" : "var(--matte-fg)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{s.name}</span>
+                        <span style={{fontSize:17, fontWeight:700, letterSpacing:"-0.01em", color: isAcc ? "#4C7BE4" : "var(--matte-fg)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{s.name}</span>
                       </div>
                       <span style={{fontSize:14, color: "var(--matte-fg-2)", fontWeight:700, flexShrink:0}}>{s.menu}</span>
                     </div>

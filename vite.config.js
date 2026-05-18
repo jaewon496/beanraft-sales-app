@@ -3,6 +3,12 @@ import react from '@vitejs/plugin-react'
 import fs from 'fs'
 import path from 'path'
 import https from 'https'
+import { createRequire } from 'module'
+import { fileURLToPath } from 'url'
+
+const __require = createRequire(import.meta.url)
+const __filename_local = fileURLToPath(import.meta.url)
+const __dirname_local = path.dirname(__filename_local)
 
 // 빌드 시 sw.js의 CACHE_VERSION을 타임스탬프로 자동 교체하는 플러그인
 function swVersionPlugin() {
@@ -293,6 +299,161 @@ function storeRadiusProxyPlugin() {
   };
 }
 
+// KOSIS API 로컬 프록시 미들웨어 (개발 서버 전용)
+// 로컬에서 /.netlify/functions/kosis-proxy 요청을 직접 처리
+// 통계청 KOSIS / 한국부동산원 / 국세청 / 한국은행 등 외부 통계 호출
+function kosisProxyPlugin() {
+  return {
+    name: 'kosis-local-proxy',
+    configureServer(server) {
+      // .env 로드하여 KOSIS_API_KEY를 process.env에 주입 (netlify function이 process.env 참조)
+      const env = loadEnv('development', process.cwd(), '');
+      if (env.KOSIS_API_KEY && !process.env.KOSIS_API_KEY) {
+        process.env.KOSIS_API_KEY = env.KOSIS_API_KEY;
+      }
+
+      // netlify function 핸들러를 직접 require (CommonJS)
+      let handler;
+      try {
+        const fnPath = path.resolve(__dirname_local, 'netlify/functions/kosis-proxy.js');
+        delete __require.cache[fnPath];
+        handler = __require(fnPath).handler;
+      } catch (e) {
+        console.error('[kosis-local] failed to load kosis-proxy.js:', e.message);
+      }
+
+      server.middlewares.use('/.netlify/functions/kosis-proxy', async (req, res) => {
+        // CORS
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+        if (req.method === 'OPTIONS') {
+          res.writeHead(200);
+          res.end();
+          return;
+        }
+
+        if (!handler) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'kosis-proxy handler not loaded' }));
+          return;
+        }
+
+        try {
+          const fullUrl = req.originalUrl || req.url;
+          const url = new URL(fullUrl, `http://${req.headers.host}`);
+          const queryStringParameters = Object.fromEntries(url.searchParams.entries());
+
+          // POST body 수집 (필요 시)
+          let body = '';
+          if (req.method === 'POST') {
+            for await (const chunk of req) body += chunk;
+          }
+
+          // Netlify Function 이벤트 객체 시뮬레이션
+          const event = {
+            httpMethod: req.method,
+            queryStringParameters,
+            headers: req.headers,
+            body: body || null,
+            path: url.pathname,
+          };
+
+          console.log('[kosis-local]', queryStringParameters.mode || 'no-mode', queryStringParameters.key || '');
+
+          const result = await handler(event, {});
+          const statusCode = result.statusCode || 200;
+          const resHeaders = result.headers || { 'Content-Type': 'application/json' };
+          res.writeHead(statusCode, resHeaders);
+          res.end(result.body || '');
+        } catch (err) {
+          console.error('[kosis-local] error:', err.message);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+    }
+  };
+}
+
+// Netlify Function을 직접 로드해 로컬 미들웨어로 노출하는 공통 팩토리
+// 로컬 netlify/functions/*.js 의 exports.handler를 그대로 호출.
+// 프로덕션 배포가 안 됐거나 다른 버전인 함수도 로컬 코드 기준으로 응답.
+function netlifyFnPlugin(fnName, opts = {}) {
+  const route = `/.netlify/functions/${fnName}`;
+  return {
+    name: `${fnName}-local-proxy`,
+    configureServer(server) {
+      // .env 키들을 process.env에 주입 (이미 kosis 플러그인이 처리하지만 호출 순서 보장 위해 중복 안전)
+      const env = loadEnv('development', process.cwd(), '');
+      const envKeys = opts.envKeys || [];
+      for (const k of envKeys) {
+        if (env[k] && !process.env[k]) process.env[k] = env[k];
+      }
+
+      let handler;
+      try {
+        const fnPath = path.resolve(__dirname_local, `netlify/functions/${fnName}.js`);
+        delete __require.cache[fnPath];
+        handler = __require(fnPath).handler;
+      } catch (e) {
+        console.error(`[${fnName}-local] failed to load:`, e.message);
+      }
+
+      server.middlewares.use(route, async (req, res) => {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+        if (req.method === 'OPTIONS') {
+          res.writeHead(200);
+          res.end();
+          return;
+        }
+
+        if (!handler) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: `${fnName} handler not loaded` }));
+          return;
+        }
+
+        try {
+          const fullUrl = req.originalUrl || req.url;
+          const url = new URL(fullUrl, `http://${req.headers.host}`);
+          const queryStringParameters = Object.fromEntries(url.searchParams.entries());
+
+          let body = '';
+          if (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH') {
+            for await (const chunk of req) body += chunk;
+          }
+
+          const event = {
+            httpMethod: req.method,
+            queryStringParameters,
+            headers: req.headers,
+            body: body || null,
+            path: url.pathname,
+          };
+
+          const hint = queryStringParameters.api || queryStringParameters.apiName || queryStringParameters.endpoint || queryStringParameters.mode || queryStringParameters.type || '';
+          console.log(`[${fnName}-local]`, req.method, hint);
+
+          const result = await handler(event, {});
+          const statusCode = result.statusCode || 200;
+          const resHeaders = result.headers || { 'Content-Type': 'application/json' };
+          res.writeHead(statusCode, resHeaders);
+          res.end(result.body || '');
+        } catch (err) {
+          console.error(`[${fnName}-local] error:`, err.message);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+    }
+  };
+}
+
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
@@ -309,7 +470,12 @@ export default defineConfig({
     swVersionPlugin(),
     openubProxyPlugin(),
     ncpGeoProxyPlugin(),
-    storeRadiusProxyPlugin()
+    storeRadiusProxyPlugin(),
+    kosisProxyPlugin(),
+    netlifyFnPlugin('sbiz-proxy'),
+    netlifyFnPlugin('sbiz-report-proxy'),
+    netlifyFnPlugin('gemini-proxy', { envKeys: ['VITE_GEMINI_API_KEY', 'GEMINI_API_KEY'] }),
+    netlifyFnPlugin('nicebizmap-proxy', { envKeys: ['NICEBIZMAP_SESSION_ID'] })
   ],
   build: {
     outDir: 'dist',
@@ -346,9 +512,27 @@ export default defineConfig({
         target: 'https://beancraft-sales.netlify.app',
         changeOrigin: true,
         secure: true,
-        // store-radius-proxy는 로컬 미들웨어에서 처리하므로 프록시 바이패스
+        // 로컬 미들웨어에서 처리하는 함수들은 프록시 바이패스
         bypass(req) {
           if (req.url && req.url.startsWith('/.netlify/functions/store-radius-proxy')) {
+            return req.url;
+          }
+          if (req.url && req.url.startsWith('/.netlify/functions/kosis-proxy')) {
+            return req.url;
+          }
+          if (req.url && req.url.startsWith('/.netlify/functions/sbiz-proxy')) {
+            return req.url;
+          }
+          if (req.url && req.url.startsWith('/.netlify/functions/sbiz-report-proxy')) {
+            return req.url;
+          }
+          if (req.url && req.url.startsWith('/.netlify/functions/gemini-proxy')) {
+            return req.url;
+          }
+          if (req.url && req.url.startsWith('/.netlify/functions/nicebizmap-proxy')) {
+            return req.url;
+          }
+          if (req.url && req.url.startsWith('/.netlify/functions/openub-proxy')) {
             return req.url;
           }
         }
