@@ -40,11 +40,21 @@ function Card01({ body = {} }) {
   const rentSeriesRaw = (Array.isArray(body.rentSeries) && body.rentSeries.length > 0)
     ? body.rentSeries.map(s => Math.round((Number(s?.value) || 0) / 10000)).filter(v => v > 0)
     : [];
-  const rentSeries = rentSeriesRaw.length >= 2 ? rentSeriesRaw : (rentPerPyeong > 0 ? [rentPerPyeong] : []);
+  // [2026-05-19] 임계값 완화: 1개라도 있으면 표시 (단일값은 동일값 복제로 평탄 라인)
+  const rentSeries = rentSeriesRaw.length >= 2
+    ? rentSeriesRaw
+    : (rentSeriesRaw.length === 1
+        ? [rentSeriesRaw[0], rentSeriesRaw[0]]
+        : (rentPerPyeong > 0 ? [rentPerPyeong, rentPerPyeong] : []));
   const vacancySeriesRaw = (Array.isArray(body.vacancySeries) && body.vacancySeries.length > 0)
     ? body.vacancySeries.map(s => Number(s?.value) || 0).filter(v => v > 0)
     : [];
-  const vacancySeries = vacancySeriesRaw.length >= 2 ? vacancySeriesRaw : (Number(vacancyRate) > 0 ? [Number(vacancyRate)] : []);
+  // [2026-05-19] 임계값 완화: 1개라도 있으면 표시 (단일값은 동일값 복제로 평탄 라인)
+  const vacancySeries = vacancySeriesRaw.length >= 2
+    ? vacancySeriesRaw
+    : (vacancySeriesRaw.length === 1
+        ? [vacancySeriesRaw[0], vacancySeriesRaw[0]]
+        : (Number(vacancyRate) > 0 ? [Number(vacancyRate), Number(vacancyRate)] : []));
   const priceChange = body.priceChange;
   const vacancyDelta = vacancySeries.length >= 2
     ? (vacancySeries[vacancySeries.length - 1] - vacancySeries[0])
@@ -59,10 +69,10 @@ function Card01({ body = {} }) {
       headerRight={window.MapTriggerButton ? <window.MapTriggerButton/> : null}>
       {/* Top: hero + donut */}
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
-        <StatTile id="c1.tile1" tone="blue"  label="카페 수"        value={totalStores > 0 ? String(totalStores) : '-'} unit={totalStores > 0 ? '개' : ''} hero/>
+        <StatTile id="c1.tile1" tone="blue"  label="총 매장"        value={totalStores > 0 ? String(totalStores) : '-'} unit={totalStores > 0 ? '개' : ''} hero/>
         <StatTile id="c1.tile2" tone="lilac" label="프랜차이즈"     value={franchise > 0 ? String(franchise) : '-'} unit={franchise > 0 ? '개' : ''}/>
         <StatTile id="c1.tile3" tone="mint"  label="평당 월세"      value={rentPerPyeong > 0 ? String(rentPerPyeong) : '-'} unit={rentPerPyeong > 0 ? '만원' : ''} delta={priceChange != null && Number(priceChange) !== 0 ? String(Math.abs(Number(priceChange)).toFixed(1)) : null} deltaPositive={priceChange == null || Number(priceChange) >= 0}/>
-        <StatTile id="c1.tile4" tone="rose"  label="공실률"         value={vacancyDisplay} unit={vacancyDisplay !== '-' ? '%' : ''} delta={vacancyDelta !== 0 ? `${vacancyDelta > 0 ? '+' : ''}${vacancyDelta.toFixed(1)}` : null} deltaPositive={false}/>
+        <StatTile id="c1.tile4" tone="rose"  label="공실률"         value={vacancyDisplay} unit={vacancyDisplay !== '-' ? '%' : ''} delta={vacancyDelta !== 0 ? String(Math.abs(vacancyDelta).toFixed(1)) : null} deltaPositive={vacancyDelta <= 0}/>
       </div>
 
       <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16}}>
@@ -334,44 +344,60 @@ function Card03({ body = {} }) {
         {/* 메뉴 트렌드 */}
         <div className="bc-box" style={{padding:24}}>
           <div style={{fontSize:16, fontWeight:600, marginBottom:18}}>메뉴 트렌드</div>
-          <div style={{fontSize:14, color:"var(--matte-fg-3)", marginBottom:10, fontWeight:500}}>인기 TOP 3</div>
-          {popularMenus.length > 0 ? (
-            <div style={{display:"flex", flexDirection:"column", gap:10, marginBottom:18}}>
-              {popularMenus.map(([m, p], i) => (
-                <div key={m} style={{display:"grid", gridTemplateColumns:"24px 1fr 50px", gap:10, alignItems:"center"}}>
-                  <span style={{fontSize:13, color:"var(--matte-fg-4)", fontWeight:600, fontVariantNumeric:"tabular-nums"}}>{i+1}</span>
-                  <div>
-                    <div style={{fontSize:14, color:"var(--matte-fg-2)", fontWeight:600, marginBottom:4}}>{m}</div>
-                    <div className="bc-bar" style={{height:6, background:"rgba(255,255,255,0.04)"}}>
-                      <div style={{width:`${Math.max(10, Math.round((p / popMax) * 100))}%`, background: i === 0 ? "#4C7BE4" : "#FFFFFF", height:"100%", borderRadius:"inherit"}}></div>
+          {/* [2026-05-19] popular/rising 빈 배열일 때 박스 숨김 (메모리 규칙: '데이터 수집 중' 금지) */}
+          {popularMenus.length > 0 && (
+            <>
+              <div style={{fontSize:14, color:"var(--matte-fg-3)", marginBottom:10, fontWeight:500}}>인기 TOP 3</div>
+              <div style={{display:"flex", flexDirection:"column", gap:10, marginBottom:18}}>
+                {popularMenus.map(([m, p], i) => (
+                  <div key={m} style={{display:"grid", gridTemplateColumns:"24px 1fr 50px", gap:10, alignItems:"center"}}>
+                    <span style={{fontSize:13, color:"var(--matte-fg-4)", fontWeight:600, fontVariantNumeric:"tabular-nums"}}>{i+1}</span>
+                    <div>
+                      <div style={{fontSize:14, color:"var(--matte-fg-2)", fontWeight:600, marginBottom:4}}>{m}</div>
+                      <div className="bc-bar" style={{height:6, background:"rgba(255,255,255,0.04)"}}>
+                        <div style={{width:`${Math.max(10, Math.round((p / popMax) * 100))}%`, background: i === 0 ? "#4C7BE4" : "#FFFFFF", height:"100%", borderRadius:"inherit"}}></div>
+                      </div>
                     </div>
+                    <span style={{textAlign:"right", fontSize:14, fontWeight:700, fontVariantNumeric:"tabular-nums", color: i === 0 ? "#4C7BE4" : "var(--matte-fg)"}}>{Number(p).toFixed(1)}%</span>
                   </div>
-                  <span style={{textAlign:"right", fontSize:14, fontWeight:700, fontVariantNumeric:"tabular-nums", color: i === 0 ? "#4C7BE4" : "var(--matte-fg)"}}>{Number(p).toFixed(1)}%</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div style={{fontSize:13, color:"var(--matte-fg-4)", marginBottom:18}}>인기 메뉴 데이터 수집 중</div>
+                ))}
+              </div>
+            </>
           )}
-          <div style={{fontSize:14, color:"var(--matte-fg-3)", marginBottom:10, fontWeight:500, paddingTop:14, borderTop:"1px solid var(--matte-line)"}}>급상승 TOP 3</div>
-          {risingMenus.length > 0 ? (
-            <div style={{display:"flex", flexDirection:"column", gap:10}}>
-              {risingMenus.map(([m, p], i) => (
-                <div key={m} style={{display:"grid", gridTemplateColumns:"24px 1fr 60px", gap:10, alignItems:"center"}}>
-                  <span style={{fontSize:13, color:"var(--matte-fg-4)", fontWeight:600, fontVariantNumeric:"tabular-nums"}}>{i+1}</span>
-                  <div>
-                    <div style={{fontSize:14, color:"var(--matte-fg-2)", fontWeight:600, marginBottom:4}}>{m}</div>
-                    <div className="bc-bar" style={{height:6, background:"rgba(255,255,255,0.04)"}}>
-                      <div style={{width:`${Math.max(10, Math.round((p / riseMax) * 100))}%`, background: i === 0 ? "#4C7BE4" : "#FFFFFF", height:"100%", borderRadius:"inherit"}}></div>
+          {risingMenus.length > 0 && (
+            <>
+              <div style={{fontSize:14, color:"var(--matte-fg-3)", marginBottom:10, fontWeight:500, paddingTop:14, borderTop: popularMenus.length > 0 ? "1px solid var(--matte-line)" : "none"}}>급상승 TOP 3</div>
+              <div style={{display:"flex", flexDirection:"column", gap:10}}>
+                {risingMenus.map(([m, p], i) => (
+                  <div key={m} style={{display:"grid", gridTemplateColumns:"24px 1fr 60px", gap:10, alignItems:"center"}}>
+                    <span style={{fontSize:13, color:"var(--matte-fg-4)", fontWeight:600, fontVariantNumeric:"tabular-nums"}}>{i+1}</span>
+                    <div>
+                      <div style={{fontSize:14, color:"var(--matte-fg-2)", fontWeight:600, marginBottom:4}}>{m}</div>
+                      <div className="bc-bar" style={{height:6, background:"rgba(255,255,255,0.04)"}}>
+                        <div style={{width:`${Math.max(10, Math.round((p / riseMax) * 100))}%`, background: i === 0 ? "#4C7BE4" : "#FFFFFF", height:"100%", borderRadius:"inherit"}}></div>
+                      </div>
                     </div>
+                    <span style={{textAlign:"right", fontSize:14, fontWeight:700, fontVariantNumeric:"tabular-nums", color: i === 0 ? "#4C7BE4" : "var(--matte-fg)"}}>+{Math.round(p)}%</span>
                   </div>
-                  <span style={{textAlign:"right", fontSize:14, fontWeight:700, fontVariantNumeric:"tabular-nums", color: i === 0 ? "#4C7BE4" : "var(--matte-fg)"}}>+{Math.round(p)}%</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div style={{fontSize:13, color:"var(--matte-fg-4)"}}>급상승 메뉴 데이터 수집 중</div>
+                ))}
+              </div>
+            </>
           )}
+          {/* 둘 다 비면 c6.searchIntents 폴백 (인기 카페 검색 키워드) */}
+          {popularMenus.length === 0 && risingMenus.length === 0 && (() => {
+            const _intents = Array.isArray(body.searchIntents) && body.searchIntents.length > 0
+              ? body.searchIntents.slice(0, 7)
+              : [];
+            if (_intents.length === 0) return null;
+            return (
+              <>
+                <div style={{fontSize:14, color:"var(--matte-fg-3)", marginBottom:10, fontWeight:500}}>인기 카페 검색 키워드</div>
+                <div style={{display:"flex", flexWrap:"wrap", gap:6}}>
+                  {_intents.map(k => <span key={k} className="bc-pill">{k}</span>)}
+                </div>
+              </>
+            );
+          })()}
         </div>
       </div>
 
@@ -559,8 +585,16 @@ function Card05({ body = {} }) {
   const indiePct = totalCafes > 0 ? Math.round(indieCount / totalCafes * 100) : 0;
   const americanoAvg = Number(bd.americanoAvg) || 0;
   const dessertAvg = Number(bd.dessertAvg) || Number(bd.menuAvg) || 0;
+  // [2026-05-19] name/addr 정규화: 빈 name 제거, 긴 이름 잘라내기, 줄바꿈 방지
   const top5Indie = Array.isArray(bd.topNearbyIndie) && bd.topNearbyIndie.length > 0
-    ? bd.topNearbyIndie.slice(0, 5).map((c, i) => [c.name, c.dist || 0, (c.addr || '').slice(0, 18)])
+    ? bd.topNearbyIndie
+        .filter(c => c && typeof c.name === 'string' && c.name.trim().length > 0)
+        .slice(0, 5)
+        .map((c) => {
+          const _nm = String(c.name).trim().replace(/\s+/g, ' ');
+          const _shortNm = _nm.length > 14 ? _nm.slice(0, 14) + '…' : _nm;
+          return [_shortNm, c.dist || 0, (c.addr || '').slice(0, 16)];
+        })
     : [];
   const compare = bd.indieFranchPriceCompare || null;
   const priceItems = [];
@@ -598,7 +632,7 @@ function Card05({ body = {} }) {
                 }}>
                   <div style={{display:"flex", alignItems:"baseline", gap:10, marginBottom:6, minWidth:0}}>
                     <span style={{fontSize:13, color:"var(--matte-fg-4)", fontVariantNumeric:"tabular-nums", fontWeight:700, flexShrink:0}}>{String(i+1).padStart(2,"0")}</span>
-                    <span style={{fontSize:16, color:"var(--matte-fg)", fontWeight:700, letterSpacing:"-0.01em", flex:1, minWidth:0, wordBreak:"keep-all"}}>{n}</span>
+                    <span style={{fontSize:16, color:"var(--matte-fg)", fontWeight:700, letterSpacing:"-0.01em", flex:1, minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{n}</span>
                   </div>
                   <div style={{display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:12, paddingLeft:23}}>
                     <span style={{fontSize:13, color:"var(--matte-fg-3)", minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{sig}</span>
@@ -710,10 +744,10 @@ function Card06({ body = {} }) {
       title="매출 분석"
       sub="월평균 예상 매출">
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
-        <StatTile id="c6.tile1" tone="blue"  label="월평균 매출"     value={monthly > 0 ? monthly.toLocaleString() : '-'} unit={monthly > 0 ? '만원' : ''} delta={prevYearRate ? `${prevYearRate > 0 ? '+' : ''}${Number(prevYearRate).toFixed(1)}` : undefined} deltaPositive={prevYearRate >= 0} hero accent/>
+        <StatTile id="c6.tile1" tone="blue"  label="월평균 매출"     value={monthly > 0 ? monthly.toLocaleString() : '-'} unit={monthly > 0 ? '만원' : ''} delta={prevYearRate ? String(Math.abs(Number(prevYearRate)).toFixed(1)) : undefined} deltaPositive={prevYearRate >= 0} hero accent/>
         <StatTile id="c6.tile2" tone="mint"  label="월 매출 건수"    value={dongSaleCnt > 0 ? dongSaleCnt.toLocaleString() : '-'} unit={dongSaleCnt > 0 ? '건' : ''}/>
         <StatTile id="c6.tile3" tone="lilac" label="객단가"          value={unitPriceDisplay}/>
-        <StatTile id="c6.tile4" tone="cream" label="매출 순위"       value={cafeSalesRank ? String(cafeSalesRank).split(' /')[0] : '-'} delta={prevMonRate ? `${prevMonRate > 0 ? '+' : ''}${Number(prevMonRate).toFixed(1)}` : undefined} deltaPositive={prevMonRate >= 0}/>
+        <StatTile id="c6.tile4" tone="cream" label="매출 순위"       value={cafeSalesRank ? String(cafeSalesRank).split(' /')[0] : '-'} delta={prevMonRate ? String(Math.abs(Number(prevMonRate)).toFixed(1)) : undefined} deltaPositive={prevMonRate >= 0}/>
       </div>
 
       <div style={{display:"grid", gridTemplateColumns:"2fr 1fr", gap:16}}>

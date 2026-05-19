@@ -63,7 +63,18 @@ function Card13({ body = {} }) {
               : '메뉴 다양성 낮음';
           return `인기 메뉴 ${popularMenuTop.name}${rateTxt} — ${diversity}`;
         }
-        return '메뉴 트렌드 데이터 수집 중';
+        // [2026-05-19] 메뉴 데이터 없을 때 신규/폐업 비율 폴백 (메모리 규칙: '데이터 수집 중' 금지)
+        const _openCnt = Number(body.openCount) || Number(body.newOpen) || 0;
+        const _closeCnt = Number(body.closeCount) || Number(body.closed) || 0;
+        if (_openCnt > 0 || _closeCnt > 0) {
+          const _net = _openCnt - _closeCnt;
+          const _label = _net > 0 ? '확장 국면' : _net < 0 ? '수축 국면' : '균형 회전';
+          return `신규 ${_openCnt}개 / 폐업 ${_closeCnt}개 — ${_label}`;
+        }
+        if (cafeCount > 0) {
+          return `매장수 ${cafeCount}개 — ${cafeCount > 80 ? '포화' : cafeCount > 40 ? '경쟁' : '여유'}`;
+        }
+        return '시장 변화 신호 없음';
       })(),
     },
     {

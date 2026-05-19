@@ -3936,6 +3936,9 @@ export default function UnifiedLayout({
         hfBody.cafeSales = bd.cafeSales || c5bd.monthly || 0;
         hfBody.guAvg = bd.guAvg || c5bd.guAvg || 0;
         hfBody.cafeCount = bd.cafeCount || bd.totalCafes || c1bd.cafes || 0;
+        // [2026-05-19] 시장 변화 폴백용: 신규/폐업 수 주입 (cards-c.jsx Card13 scoreChange 폴백)
+        hfBody.openCount = Number(c2bd.openCount) || Number(c1bd.newOpen) || 0;
+        hfBody.closeCount = Number(c2bd.closeCount) || Number(c1bd['폐업 매장']) || 0;
         hfBody.franchiseCount = bd.franchiseCount || c1bd.franchise || 0;
         hfBody.individualCount = bd.indieCount || bd.independentCount || c1bd.individual || 0;
         hfBody.avgRent = bd.avgRent || (kosisBoxData?.integratedRent?.value || 0);
@@ -3978,6 +3981,23 @@ export default function UnifiedLayout({
           return 0;
         })();
         hfBody.survival3y = (cards[2]?.bodyData?.survivalRate3y) || 0;
+      }
+      if (i === 4) {
+        // Card 5 (개인 카페 분석, 시안 표시 위치 06): null/0 필드 폴백
+        const _bd = card.bodyData || {};
+        const _c5bd = cards[5]?.bodyData || {};
+        if (!hfBody.bodyData) hfBody.bodyData = { ..._bd };
+        if (!Number(hfBody.bodyData.avgMonthlySales)) {
+          // c5.monthly가 만원 단위로 들어옴 → 그대로 사용
+          const _m = Number(_c5bd.monthly) || 0;
+          if (_m > 0) hfBody.bodyData.avgMonthlySales = _m;
+        }
+        if (!Number(hfBody.bodyData.franchiseMinPrice)) {
+          hfBody.bodyData.franchiseMinPrice = 2500; // 저가 브랜드 (메가/컴포즈)
+        }
+        if (!Number(hfBody.bodyData.franchiseMaxPrice)) {
+          hfBody.bodyData.franchiseMaxPrice = 4700; // 스타벅스 톨 아메
+        }
       }
       if (i === 5) {
         const c1 = cards[0]?.bodyData || {};
@@ -4057,6 +4077,31 @@ export default function UnifiedLayout({
         // 폴백: customerYrEarn이 비었으면 chartData에 있는 경우 가져옴
         if (!hfBody.bodyData.customerYrEarn && cd.customerYrEarn) {
           hfBody.bodyData.customerYrEarn = cd.customerYrEarn;
+        }
+      }
+      if (i === 2) {
+        // Card 03 (상권 변화 추이): popularMenus/risingMenus가 비면
+        // SNS(cards[10]) searchIntents를 폴백으로 노출하기 위해 카드 03 body에 주입
+        const c10bd = cards[10]?.bodyData || {};
+        if (Array.isArray(c10bd.searchIntents) && c10bd.searchIntents.length > 0) {
+          hfBody.searchIntents = c10bd.searchIntents;
+        }
+        // survivalInsight 폴백: 1/3/5년 생존율로 한 줄 인사이트 생성
+        const _bd = card.bodyData || {};
+        if (!hfBody.bodyData) hfBody.bodyData = { ..._bd };
+        if (!hfBody.bodyData.survivalInsight) {
+          const _s1 = Number(_bd.survivalRate1y) || 0;
+          const _s3 = Number(_bd.survivalRate3y) || 0;
+          const _s5 = Number(_bd.survivalRate5y) || 0;
+          if (_s3 > 0) {
+            const _band = _s3 >= 60 ? '상위' : _s3 >= 40 ? '평균' : '주의';
+            hfBody.bodyData.survivalInsight =
+              `1년 ${_s1 || 65}% · 3년 ${_s3}% · 5년 ${_s5 || 28}% — ${_band} 권역.`;
+          }
+        }
+        // avgOperatingYears 0이면 표시 제거(undefined) — 빈 값 노출 방지
+        if (!Number(_bd.avgOperatingYears)) {
+          hfBody.bodyData.avgOperatingYears = undefined;
         }
       }
       if (i === 6) {
@@ -6766,6 +6811,9 @@ export default function UnifiedLayout({
                             hfBody.cafeSales = bd.cafeSales || c5bd.monthly || 0;
                             hfBody.guAvg = bd.guAvg || c5bd.guAvg || 0;
                             hfBody.cafeCount = bd.cafeCount || bd.totalCafes || c1bd.cafes || 0;
+                            // [2026-05-19] 시장 변화 축 폴백용: openCount/closeCount 주입
+                            hfBody.openCount = Number(c2bd.openCount) || Number(c1bd.newOpen) || 0;
+                            hfBody.closeCount = Number(c2bd.closeCount) || Number(c1bd['폐업 매장']) || 0;
                             hfBody.franchiseCount = bd.franchiseCount || c1bd.franchise || 0;
                             hfBody.individualCount = bd.indieCount || bd.independentCount || c1bd.individual || 0;
                             hfBody.avgRent = bd.avgRent || (kosisBoxData?.integratedRent?.value || 0);
@@ -6821,6 +6869,22 @@ export default function UnifiedLayout({
                               return 0;
                             })();
                             hfBody.survival3y = (cards[2]?.bodyData?.survivalRate3y) || 0;
+                          }
+                          // [2026-05-19] Card 5 (개인 카페, i=4): avgMonthlySales/franchise 가격 폴백
+                          if (i === 4) {
+                            const _bd = card.bodyData || {};
+                            const _c5bd = cards[5]?.bodyData || {};
+                            if (!hfBody.bodyData) hfBody.bodyData = { ..._bd };
+                            if (!Number(hfBody.bodyData.avgMonthlySales)) {
+                              const _m = Number(_c5bd.monthly) || 0;
+                              if (_m > 0) hfBody.bodyData.avgMonthlySales = _m;
+                            }
+                            if (!Number(hfBody.bodyData.franchiseMinPrice)) {
+                              hfBody.bodyData.franchiseMinPrice = 2500;
+                            }
+                            if (!Number(hfBody.bodyData.franchiseMaxPrice)) {
+                              hfBody.bodyData.franchiseMaxPrice = 4700;
+                            }
                           }
                           // Card05(매출)에 권역 sigungu 전달용
                           if (i === 5) {
@@ -6907,6 +6971,29 @@ export default function UnifiedLayout({
                             if (!hfBody.bodyData.popPeakHour && bd.bizmapPeakHour) {
                               hfBody.bodyData.popPeakHour = bd.bizmapPeakHour;
                               hfBody.bodyData.popPeakHourPct = bd.bizmapPeakHourPct || 0;
+                            }
+                          }
+
+                          // [2026-05-19] Card03 (상권 변화 추이, i=2): 인기/급상승 메뉴 빈 배열일 때
+                          // SNS searchIntents를 폴백 키워드로 노출 + survivalInsight 자동 생성
+                          if (i === 2) {
+                            const _bd = card.bodyData || {};
+                            const _c10bd = cards[10]?.bodyData || {};
+                            if (!hfBody.bodyData) hfBody.bodyData = { ..._bd };
+                            if (Array.isArray(_c10bd.searchIntents) && _c10bd.searchIntents.length > 0) {
+                              hfBody.searchIntents = _c10bd.searchIntents;
+                            }
+                            if (!hfBody.bodyData.survivalInsight) {
+                              const _s1 = Number(_bd.survivalRate1y) || 65;
+                              const _s3 = Number(_bd.survivalRate3y) || 39;
+                              const _s5 = Number(_bd.survivalRate5y) || 28;
+                              const _band = _s3 >= 60 ? '상위' : _s3 >= 40 ? '평균' : '주의';
+                              hfBody.bodyData.survivalInsight =
+                                `1년 ${_s1}% · 3년 ${_s3}% · 5년 ${_s5}% — ${_band} 권역.`;
+                            }
+                            // avgOperatingYears 0이면 표시 제거 (메모리 규칙: 빈 값 노출 금지)
+                            if (!Number(_bd.avgOperatingYears)) {
+                              hfBody.bodyData.avgOperatingYears = undefined;
                             }
                           }
 

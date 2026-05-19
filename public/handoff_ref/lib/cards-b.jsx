@@ -85,11 +85,18 @@ function Card08({ body = {} }) {
           <div style={{fontSize:15, fontWeight:600, marginBottom:12}}>전국 카페 평균</div>
           {kc ? (
             <>
+              {/* [2026-05-19] 인테리어비 폴백: interiorAvg 없으면 interiorPerPyeong × avgAreaPyeong, 그것도 없으면 전국 카페 평균(약 5,250만원) */}
               <div className="bc-grid-3" style={{gap:8}}>
-                <Box label="인테리어비" value={kc?.interiorAvg > 0 ? kc.interiorAvg.toLocaleString() : '-'} unit={kc?.interiorAvg > 0 ? '만' : ''}/>
+                {(() => {
+                  const _interiorFallback = (kc?.interiorPerPyeong > 0 && kc?.avgAreaPyeong > 0)
+                    ? Math.round(kc.interiorPerPyeong * kc.avgAreaPyeong)
+                    : 5250; // 외식업체경영실태조사 카페 전국 평균
+                  const _interiorShown = kc?.interiorAvg > 0 ? kc.interiorAvg : _interiorFallback;
+                  return <Box label="인테리어비" value={_interiorShown.toLocaleString()} unit="만원"/>;
+                })()}
                 <Box label="총 투자비"  value={kc?.startupInvestAvg > 0 ? (kc.startupInvestAvg / 10000).toFixed(2) : '-'} unit={kc?.startupInvestAvg > 0 ? '억' : ''}/>
                 <Box label="평수"       value={kc?.avgAreaPyeong > 0 ? kc.avgAreaPyeong.toFixed(1) : '-'} unit={kc?.avgAreaPyeong > 0 ? '평' : ''}/>
-                <Box label="월 매출"    value={kc?.salesAvg > 0 ? kc.salesAvg.toLocaleString() : '-'} unit={kc?.salesAvg > 0 ? '만' : ''}/>
+                <Box label="월 매출"    value={kc?.salesAvg > 0 ? kc.salesAvg.toLocaleString() : '-'} unit={kc?.salesAvg > 0 ? '만원' : ''}/>
                 <Box label="객단가"     value={kc?.unitPriceAvg > 0 ? kc.unitPriceAvg.toLocaleString() : '-'} unit={kc?.unitPriceAvg > 0 ? '원' : ''}/>
                 <Box label="이익률"     value={kc?.profitMargin > 0 ? kc.profitMargin.toFixed(1) : '-'} unit={kc?.profitMargin > 0 ? '%' : ''}/>
               </div>
@@ -199,7 +206,7 @@ function Card09({ body = {} }) {
       sub="이 동네 카페 데이터 발견">
       {/* 4-up KPI */}
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
-        <StatTile id="c9.hero" tone="mint" label="공실률" value={vacancy > 0 ? Number(vacancy).toFixed(1) : '-'} unit={vacancy > 0 ? '%' : ''} delta={vacavgDelta !== 0 ? `${vacavgDelta > 0 ? '+' : ''}${vacavgDelta}` : undefined} deltaPositive={vacavgDelta <= 0} hero accent/>
+        <StatTile id="c9.hero" tone="mint" label="공실률" value={vacancy > 0 ? Number(vacancy).toFixed(1) : '-'} unit={vacancy > 0 ? '%' : ''} delta={vacavgDelta !== 0 ? String(Math.abs(vacavgDelta)) : undefined} deltaPositive={vacavgDelta <= 0} hero accent/>
         <StatTile tone="blue" label="평균 대비" value={vacavgDelta !== 0 ? `${vacavgDelta > 0 ? '+' : ''}${vacavgDelta}` : '-'} unit={vacavgDelta !== 0 ? '%p' : ''}/>
         <StatTile tone="lilac" label="1년 신규" value={String(newOpen)} unit="개"/>
         <StatTile tone="cream" label="1년 폐업" value={String(closed)} unit="개"/>
@@ -319,9 +326,9 @@ function Card10({ body = {} }) {
       title="배달 객단가"
       sub="이 동네 배달 객단가">
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
-        <StatTile id="c10.tile1" tone="blue"  label="동 객단가 (배달)" value={searchAvgPrice > 0 ? searchAvgPrice.toLocaleString() : '-'} unit={searchAvgPrice > 0 ? '원' : ''} delta={yoyPct ? `${yoyPct > 0 ? '+' : ''}${yoyPct}` : undefined} deltaPositive={yoyPct >= 0} hero/>
+        <StatTile id="c10.tile1" tone="blue"  label="동 객단가 (배달)" value={searchAvgPrice > 0 ? searchAvgPrice.toLocaleString() : '-'} unit={searchAvgPrice > 0 ? '원' : ''} delta={yoyPct ? String(Math.abs(yoyPct)) : undefined} deltaPositive={yoyPct >= 0} hero/>
         <StatTile id="c10.tile2" tone="mint"  label="월 배달 매출"   value={searchSales > 0 ? searchSales.toLocaleString() : '-'} unit={searchSales > 0 ? '만' : ''}/>
-        <StatTile id="c10.tile3" tone="lilac" label="월 배달 건수"   value={searchOrders > 0 ? searchOrders.toLocaleString() : '-'} unit={searchOrders > 0 ? '건' : ''} delta={yoyPct ? `${yoyPct > 0 ? '+' : ''}${yoyPct}` : undefined} deltaPositive={yoyPct >= 0}/>
+        <StatTile id="c10.tile3" tone="lilac" label="월 배달 건수"   value={searchOrders > 0 ? searchOrders.toLocaleString() : '-'} unit={searchOrders > 0 ? '건' : ''} delta={yoyPct ? String(Math.abs(yoyPct)) : undefined} deltaPositive={yoyPct >= 0}/>
         <StatTile id="c10.tile4" tone="cream" label="업종 순위"      value={cafeRank > 0 ? String(cafeRank) : '-'} unit={cafeRank > 0 ? '위' : ''} sub={totalBiz > 0 ? `/ ${totalBiz}개 업종` : undefined}/>
       </div>
 
