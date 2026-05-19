@@ -46,68 +46,69 @@ export default function Card08({ body = {} }) {
       title="임대/창업 정보"
       sub="상가 시세 및 창업 비용"
       sources={["한국부동산원 (KOSIS 408)", "농림축산식품부 외식업체경영실태조사", "중소벤처기업부 상가건물임대차실태조사", "자체 수집기"]}>
+      {/* [2026-05-19] 메모리 절대 규칙: "-" 표시 금지 → NULL 타일은 자체 숨김 */}
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
-        <StatTile id="c8.tile1" tone="blue"  label="통합 평당 월세" value={rentPerPyeong > 0 ? String(rentPerPyeong) : '-'} unit={rentPerPyeong > 0 ? '만원' : ''} hero/>
-        <StatTile id="c8.tile2" tone="lilac" label="평균 보증금"   value={deposit > 0 ? `${(deposit / 10000).toFixed(2)}` : '-'} unit={deposit > 0 ? '억' : ''}/>
-        <StatTile id="c8.tile3" tone="mint"  label="총 창업 (15평)" value={totalStartupCost > 0 ? `${(totalStartupCost / 10000).toFixed(2)}` : (simTotal > 0 ? `${(simTotal / 10000).toFixed(2)}` : '-')} unit={(totalStartupCost > 0 || simTotal > 0) ? '억' : ''}/>
-        <StatTile id="c8.tile4" tone="rose"  label="권리금"  value={premiumManwon > 0 ? `${(premiumManwon / 10000).toFixed(1)}` : '-'} unit={premiumManwon > 0 ? '억' : ''}/>
+        {rentPerPyeong > 0 && <StatTile id="c8.tile1" tone="blue"  label="통합 평당 월세" value={String(rentPerPyeong)} unit="만원" hero/>}
+        {deposit > 0 && <StatTile id="c8.tile2" tone="lilac" label="평균 보증금"   value={(deposit / 10000).toFixed(2)} unit="억"/>}
+        {(totalStartupCost > 0 || simTotal > 0) && <StatTile id="c8.tile3" tone="mint"  label="총 창업 (15평)" value={totalStartupCost > 0 ? (totalStartupCost / 10000).toFixed(2) : (simTotal / 10000).toFixed(2)} unit="억"/>}
+        {premiumManwon > 0 && <StatTile id="c8.tile4" tone="rose"  label="권리금"  value={(premiumManwon / 10000).toFixed(1)} unit="억"/>}
       </div>
 
       <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16}}>
         <div className="bc-box" style={{padding:18}}>
           <div style={{fontSize:15, fontWeight:600, marginBottom:12}}>한국부동산원 임대 4종</div>
+          {/* [2026-05-19] NULL 박스 숨김 (메모리 절대 규칙) */}
           <div className="bc-grid-2" style={{gap:10}}>
-            <Box label="평당 월세" value={marketRent > 0 ? String(marketRent) : '-'} unit={marketRent > 0 ? '만/평' : ''} sub={kosisRegion || ''} src={kosisPeriod}/>
-            <Box label="전환율"   value={conversionRate > 0 ? conversionRate.toFixed(1) : '-'} unit={conversionRate > 0 ? '%' : ''} src={kosisPeriod}/>
-            <Box label="수익률"   value={yieldRate > 0 ? yieldRate.toFixed(1) : '-'} unit={yieldRate > 0 ? '%' : ''} sub="순영업소득 기준" src={kosisPeriod}/>
-            <Box label="순영업소득"
-                 value={
-                   netIncomeUnit === '%' && netIncomePct > 0
-                     ? netIncomePct.toFixed(1)
-                     : (netIncome > 0
-                         ? (netIncome >= 10000
-                             ? Math.round(netIncome / 10000).toLocaleString()
-                             : Math.round(netIncome).toLocaleString())
-                         : '-')
-                 }
-                 unit={
-                   netIncomeUnit === '%' && netIncomePct > 0
-                     ? '%'
-                     : (netIncome > 0 ? (netIncome >= 10000 ? '만/평/년' : '원/평/년') : '')
-                 }
-                 sub={netIncomeUnit === '%' ? '임대수입 대비' : ''}
-                 src={kosisPeriod}/>
+            {marketRent > 0 && <Box label="평당 월세" value={String(marketRent)} unit="만/평" sub={kosisRegion || ''} src={kosisPeriod}/>}
+            {conversionRate > 0 && <Box label="전환율"   value={conversionRate.toFixed(1)} unit="%" src={kosisPeriod}/>}
+            {yieldRate > 0 && <Box label="수익률"   value={yieldRate.toFixed(1)} unit="%" sub="순영업소득 기준" src={kosisPeriod}/>}
+            {((netIncomeUnit === '%' && netIncomePct > 0) || netIncome > 0) && (
+              <Box label="순영업소득"
+                   value={
+                     netIncomeUnit === '%' && netIncomePct > 0
+                       ? netIncomePct.toFixed(1)
+                       : (netIncome >= 10000
+                           ? Math.round(netIncome / 10000).toLocaleString()
+                           : Math.round(netIncome).toLocaleString())
+                   }
+                   unit={
+                     netIncomeUnit === '%' && netIncomePct > 0
+                       ? '%'
+                       : (netIncome >= 10000 ? '만/평/년' : '원/평/년')
+                   }
+                   sub={netIncomeUnit === '%' ? '임대수입 대비' : ''}
+                   src={kosisPeriod}/>
+            )}
           </div>
         </div>
 
         <div className="bc-box" style={{padding:18}}>
           <div style={{fontSize:15, fontWeight:600, marginBottom:12}}>전국 카페 평균 (KOSIS 114)</div>
           {(() => {
-            // [2026-05-19] KOSIS 외식업체경영실태조사 2023 공식 카페 평균 (전국 단위, 항상 표시 보장)
-            //   - 메모리 절대 규칙 "- 표현 금지" 위반 방지를 위해 모든 칸은 KOSIS 공식 폴백값으로 항상 채움
-            //   - kc.* 값이 0/없음일 때만 폴백 적용. KOSIS 응답 들어오면 실제 값 우선.
-            const NF = { interior: 5250, startup: 1.62, areaPy: 21.3, sales: 1830, unitPrice: 5856, profit: 17.2 };
-            const _interiorFallback = (kc?.interiorPerPyeong > 0 && kc?.avgAreaPyeong > 0)
-              ? Math.round(kc.interiorPerPyeong * kc.avgAreaPyeong)
-              : NF.interior;
-            const _interior = kc?.interiorAvg > 0 ? kc.interiorAvg : _interiorFallback;
-            const _startupBil = kc?.startupInvestAvg > 0 ? (kc.startupInvestAvg / 10000) : NF.startup;
-            const _areaPy = kc?.avgAreaPyeong > 0 ? kc.avgAreaPyeong : NF.areaPy;
-            const _sales = kc?.salesAvg > 0 ? kc.salesAvg : NF.sales;
-            const _unit = kc?.unitPriceAvg > 0 ? kc.unitPriceAvg : NF.unitPrice;
-            const _profit = kc?.profitMargin > 0 ? kc.profitMargin : NF.profit;
-            const _year = kc?.year || '2023';
+            // [2026-05-19 회귀롤백] e8ad0a9 의 NF 폴백 일괄적용 코드가 단위/표시 망가뜨림 →
+            // a7e82cd 시점 로직으로 복구하되, 메모리 절대규칙(- 표시 금지)을 지키기 위해
+            // kc.* 값이 없는 칸은 박스 자체를 숨김 (조건부 렌더링).
+            if (!kc) return null;
+            const _interior = kc.interiorAvg > 0
+              ? kc.interiorAvg
+              : ((kc.interiorPerPyeong > 0 && kc.avgAreaPyeong > 0) ? Math.round(kc.interiorPerPyeong * kc.avgAreaPyeong) : 0);
+            const _startupBil = kc.startupInvestAvg > 0 ? (kc.startupInvestAvg / 10000) : 0;
+            const _areaPy = kc.avgAreaPyeong > 0 ? kc.avgAreaPyeong : 0;
+            const _sales = kc.salesAvg > 0 ? kc.salesAvg : 0;
+            const _unit = kc.unitPriceAvg > 0 ? kc.unitPriceAvg : 0;
+            const _profit = kc.profitMargin > 0 ? kc.profitMargin : 0;
+            const _year = kc.year || '';
             return (
               <>
                 <div className="bc-grid-3" style={{gap:8}}>
-                  <Box label="인테리어비" value={_interior.toLocaleString()} unit="만원"/>
-                  <Box label="총 투자비"  value={_startupBil.toFixed(2)} unit="억"/>
-                  <Box label="평수"       value={_areaPy.toFixed(1)} unit="평"/>
-                  <Box label="월 매출"    value={_sales.toLocaleString()} unit="만원"/>
-                  <Box label="객단가"     value={_unit.toLocaleString()} unit="원"/>
-                  <Box label="이익률"     value={_profit.toFixed(1)} unit="%"/>
+                  {_interior > 0 && <Box label="인테리어비" value={_interior.toLocaleString()} unit="만원"/>}
+                  {_startupBil > 0 && <Box label="총 투자비"  value={_startupBil.toFixed(2)} unit="억"/>}
+                  {_areaPy > 0 && <Box label="평수"       value={_areaPy.toFixed(1)} unit="평"/>}
+                  {_sales > 0 && <Box label="월 매출"    value={_sales.toLocaleString()} unit="만원"/>}
+                  {_unit > 0 && <Box label="객단가"     value={_unit.toLocaleString()} unit="원"/>}
+                  {_profit > 0 && <Box label="이익률"     value={_profit.toFixed(1)} unit="%"/>}
                 </div>
-                <div style={{fontSize:13, color:"var(--matte-fg-4)", marginTop:8}}>외식업체경영실태조사 {_year}</div>
+                {_year && <div style={{fontSize:13, color:"var(--matte-fg-4)", marginTop:8}}>외식업체경영실태조사 {_year}</div>}
               </>
             );
           })()}
@@ -154,19 +155,26 @@ export default function Card08({ body = {} }) {
           <div style={{display:"flex", justifyContent:"space-between", fontSize:13, color:"var(--matte-fg-4)", marginTop:6}}>
             <span>5평</span><span>15</span><span>30</span><span>45</span><span>60평</span>
           </div>
+          {/* [2026-05-19] NULL 박스 숨김 (메모리 절대 규칙). 시뮬레이터는 보통 항상 값이 있으나 안전장치. */}
           <div className="bc-grid-3" style={{gap:12, marginTop:20}}>
-            <div style={{padding:"16px 18px", background:"rgba(255,255,255,0.03)", borderRadius:10, border:"1px solid var(--matte-line)"}}>
-              <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:6, fontWeight:500}}>월 임대료</div>
-              <div style={{fontSize:22, fontWeight:700, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{monthly > 0 ? monthly.toLocaleString() : '-'}<span style={{fontSize:13, color:"var(--matte-fg-3)", marginLeft:3, fontWeight:500}}>{monthly > 0 ? '만' : ''}</span></div>
-            </div>
-            <div style={{padding:"16px 18px", background:"rgba(255,255,255,0.03)", borderRadius:10, border:"1px solid var(--matte-line)"}}>
-              <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:6, fontWeight:500}}>보증금</div>
-              <div style={{fontSize:22, fontWeight:700, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{simDeposit > 0 ? `${(simDeposit/10000).toFixed(2)}` : '-'}<span style={{fontSize:13, color:"var(--matte-fg-3)", marginLeft:3, fontWeight:500}}>{simDeposit > 0 ? '억' : ''}</span></div>
-            </div>
-            <div style={{padding:"16px 18px", background:"rgba(84,120,201,0.10)", borderRadius:10, border:"1px solid rgba(84,120,201,0.45)"}}>
-              <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:6, fontWeight:500}}>총 창업비</div>
-              <div style={{fontSize:22, fontWeight:700, color:"#4C7BE4", fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{simTotal > 0 ? `${(simTotal/10000).toFixed(2)}` : '-'}<span style={{fontSize:13, color:"var(--matte-fg-3)", marginLeft:3, fontWeight:500}}>{simTotal > 0 ? '억' : ''}</span></div>
-            </div>
+            {monthly > 0 && (
+              <div style={{padding:"16px 18px", background:"rgba(255,255,255,0.03)", borderRadius:10, border:"1px solid var(--matte-line)"}}>
+                <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:6, fontWeight:500}}>월 임대료</div>
+                <div style={{fontSize:22, fontWeight:700, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{monthly.toLocaleString()}<span style={{fontSize:13, color:"var(--matte-fg-3)", marginLeft:3, fontWeight:500}}>만</span></div>
+              </div>
+            )}
+            {simDeposit > 0 && (
+              <div style={{padding:"16px 18px", background:"rgba(255,255,255,0.03)", borderRadius:10, border:"1px solid var(--matte-line)"}}>
+                <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:6, fontWeight:500}}>보증금</div>
+                <div style={{fontSize:22, fontWeight:700, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{(simDeposit/10000).toFixed(2)}<span style={{fontSize:13, color:"var(--matte-fg-3)", marginLeft:3, fontWeight:500}}>억</span></div>
+              </div>
+            )}
+            {simTotal > 0 && (
+              <div style={{padding:"16px 18px", background:"rgba(84,120,201,0.10)", borderRadius:10, border:"1px solid rgba(84,120,201,0.45)"}}>
+                <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:6, fontWeight:500}}>총 창업비</div>
+                <div style={{fontSize:22, fontWeight:700, color:"#4C7BE4", fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{(simTotal/10000).toFixed(2)}<span style={{fontSize:13, color:"var(--matte-fg-3)", marginLeft:3, fontWeight:500}}>억</span></div>
+              </div>
+            )}
           </div>
           {premiumManwon > 0 && premiumOk && (
             <div style={{marginTop:14, fontSize:13, color:"var(--matte-fg-3)"}}>{premiumOk} 기준 권리금 평균 {premiumManwon.toLocaleString()}만원 포함</div>

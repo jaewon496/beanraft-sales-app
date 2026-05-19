@@ -104,17 +104,15 @@ export default function LoadingScreen({ progress = 0, onComplete, onGoHomepage, 
   }, [progress, displayProgress]);
 
   // 100% → waitClick (사용자 클릭 대기) — 표시 진행률 기준으로 전환
-  // [bugfix 2026-05-19] 함수형 업데이터로 변경: 동시 setState 와 충돌해도 phase 가
-  // closing/blackout/done 이면 절대 waitClick 으로 되돌아가지 않도록 가드.
-  // [bugfix 2026-05-19 v2] progress prop 이 100 도달 못해도 displayProgress 가
-  // 100 도달했으면 waitClick 으로 전환 (사용자 화면에 "분석 완료" 보이면 클릭 가능해야 함).
-  //   원인: ClientMode가 progressRef 가드로 setLoadingProgress(100) 누락 시
-  //   progress prop은 100 미만이지만 displayProgress 보간으로 100 도달 가능.
+  // [bugfix 2026-05-19 v4] 진단 로그 추가: displayProgress/phase 추적
   useEffect(() => {
+    if (typeof console !== 'undefined') {
+      console.log('[LoadingScreen] tick progress=', progress, 'displayProgress=', displayProgress, 'phase=', phase);
+    }
     if (displayProgress >= 100) {
       setPhase((cur) => (cur === 'ready' ? 'waitClick' : cur));
     }
-  }, [displayProgress, progress]);
+  }, [displayProgress, progress, phase]);
 
   // 재검색 버튼 — 현재 분석 중단 + 검색 시작 화면으로 복귀
   const handleReSearchClick = () => {
@@ -126,27 +124,19 @@ export default function LoadingScreen({ progress = 0, onComplete, onGoHomepage, 
     }
   };
 
-  // [bugfix 2026-05-19] 클릭이 발생해도 phase 가 closing 으로 안 바뀌는 배포 버그.
-  // 원인: motion.button + whileTap 의 pointer-event 처리가 React 합성 onClick 과 충돌해
-  //       onClick 콜백 안에서 호출한 setState 가 다음 commit 직전에 가로채진 사례가 있음.
-  // 해법:
-  //  1) motion.button -> 일반 button 으로 교체 (아래 렌더 부분)
-  //  2) setPhase 를 함수형 업데이터로 변경해 클로저 stale 값 위험 제거
-  //  3) ready 상태에서도 한 번에 closing 으로 보낼 수 있게 가드 완화 (waitClick 이펙트보다 빨라도 OK)
-  //  4) 클릭 발생을 배포에서 확인할 수 있도록 console.log 1회만 출력
+  // [bugfix 2026-05-19 v4] phase 검사 자체를 제거.
+  //   배경: v1~v3 까지 phase('ready'/'waitClick') 가드를 두고 클릭을 거르려 했지만,
+  //         실제로는 displayProgress 보간 useEffect 가 발화되지 않아 phase 가 'ready'
+  //         에 머무는 사례가 있었음. 가드를 두면 '버튼이 보이는데도 클릭이 무시되는'
+  //         최악의 UX 가 발생. 가드 제거 + ref 중복 차단으로 단순화.
+  //   - 사용자가 버튼을 누르면 무조건 'closing' 으로 전환.
+  //   - completeClickedRef 로 다중 클릭/다중 이벤트 발화(pointerdown+click 중복) 차단.
   const completeClickedRef = useRef(false);
   const handleCompleteClick = () => {
     if (completeClickedRef.current) return; // 중복 클릭/이중 발화 차단
-    setPhase((cur) => {
-      // [bugfix 2026-05-19 v2] progress prop 의존 제거. displayProgress 만 100 이면 클릭 허용.
-      if (cur === 'waitClick' || (cur === 'ready' && displayProgress >= 100)) {
-        completeClickedRef.current = true;
-        if (typeof console !== 'undefined') console.log('[LoadingScreen] complete click -> closing');
-        return 'closing';
-      }
-      if (typeof console !== 'undefined') console.log('[LoadingScreen] complete click ignored, phase=', cur);
-      return cur;
-    });
+    completeClickedRef.current = true;
+    if (typeof console !== 'undefined') console.log('[LoadingScreen] complete click -> closing');
+    setPhase('closing');
   };
 
   // [bugfix 2026-05-19] onComplete 가 매 렌더마다 새 reference면 (부모가 inline 함수로 전달)
@@ -391,35 +381,21 @@ export default function LoadingScreen({ progress = 0, onComplete, onGoHomepage, 
               type="button"
               onClick={handleCompleteClick}
               onPointerDown={(e) => {
-                // [bugfix 2026-05-19 v3] pointerdown 단계에서 먼저 트리거.
-                //   원인 가설: 부모 motion.div 의 framer-motion 변환(scale/opacity)
-                //   재계산 타이밍과 button 의 click 사이클이 충돌해 onClick 이 발화
-                //   되지 않음. pointerdown 은 click 보다 먼저 발생하고 motion 변환과
-                //   독립적이므로 가장 확실한 트리거 경로.
-                if (phase === 'waitClick') {
-                  e.stopPropagation();
-                  handleCompleteClick();
-                }
+                // [bugfix 2026-05-19 v4] phase 가드 제거. completeClickedRef 가 다중 발화를 막음.
+                e.stopPropagation();
+                handleCompleteClick();
               }}
               onMouseDown={(e) => {
-                // 보조: 일부 데스크톱 브라우저에서 pointerdown 미발화 사례 대비.
-                if (phase === 'waitClick') {
-                  e.stopPropagation();
-                  handleCompleteClick();
-                }
+                e.stopPropagation();
+                handleCompleteClick();
               }}
               onPointerUp={(e) => {
-                // 보조 트리거: 일부 브라우저(특히 모바일 PWA)에서 click 이 안 올라오는 경우 대비
-                if (phase === 'waitClick') {
-                  e.stopPropagation();
-                  handleCompleteClick();
-                }
+                e.stopPropagation();
+                handleCompleteClick();
               }}
               className="bc-loading-complete-btn"
-              data-active={phase === 'waitClick' ? 'true' : 'false'}
+              data-active={(phase === 'waitClick' || (phase === 'ready' && displayProgress >= 100)) ? 'true' : 'false'}
               style={{
-                // [bugfix 2026-05-19 v3] 동일 zIndex 스택에서 motion 형제 요소가
-                // 클릭을 가로채지 않도록 position+zIndex 명시.
                 position: 'relative',
                 zIndex: 5,
                 minWidth: 120,
@@ -431,11 +407,10 @@ export default function LoadingScreen({ progress = 0, onComplete, onGoHomepage, 
                 borderRadius: 6,
                 padding: '10px 32px',
                 background: 'transparent',
-                cursor: phase === 'waitClick' ? 'pointer' : 'default',
+                cursor: 'pointer',
                 transition: 'background-color 0.15s, transform 0.1s',
                 WebkitTapHighlightColor: 'transparent',
                 touchAction: 'manipulation',
-                // 클릭 가로채기 방지
                 pointerEvents: 'auto',
               }}
             >
