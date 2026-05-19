@@ -185,7 +185,10 @@ export default function LoadingScreen({ progress = 0, onComplete, onGoHomepage, 
       style={{
         position: 'fixed',
         inset: 0,
-        zIndex: 100,
+        // [bugfix 2026-05-19] zIndex 100 → 10002. FloatingProgress 가 10001 로 떠 있어
+        // 동일 LOADING 단계에서 isHomepageOpen 이면 LoadingScreen 위를 덮어 클릭을
+        // 가로채는 사례가 관찰됨. LoadingScreen 을 무조건 최상단으로 끌어올림.
+        zIndex: 10002,
         backgroundColor: 'rgba(0,0,0,1)',
         ...GPU_LAYER,
       }}
@@ -387,6 +390,24 @@ export default function LoadingScreen({ progress = 0, onComplete, onGoHomepage, 
             <button
               type="button"
               onClick={handleCompleteClick}
+              onPointerDown={(e) => {
+                // [bugfix 2026-05-19 v3] pointerdown 단계에서 먼저 트리거.
+                //   원인 가설: 부모 motion.div 의 framer-motion 변환(scale/opacity)
+                //   재계산 타이밍과 button 의 click 사이클이 충돌해 onClick 이 발화
+                //   되지 않음. pointerdown 은 click 보다 먼저 발생하고 motion 변환과
+                //   독립적이므로 가장 확실한 트리거 경로.
+                if (phase === 'waitClick') {
+                  e.stopPropagation();
+                  handleCompleteClick();
+                }
+              }}
+              onMouseDown={(e) => {
+                // 보조: 일부 데스크톱 브라우저에서 pointerdown 미발화 사례 대비.
+                if (phase === 'waitClick') {
+                  e.stopPropagation();
+                  handleCompleteClick();
+                }
+              }}
               onPointerUp={(e) => {
                 // 보조 트리거: 일부 브라우저(특히 모바일 PWA)에서 click 이 안 올라오는 경우 대비
                 if (phase === 'waitClick') {
@@ -397,6 +418,10 @@ export default function LoadingScreen({ progress = 0, onComplete, onGoHomepage, 
               className="bc-loading-complete-btn"
               data-active={phase === 'waitClick' ? 'true' : 'false'}
               style={{
+                // [bugfix 2026-05-19 v3] 동일 zIndex 스택에서 motion 형제 요소가
+                // 클릭을 가로채지 않도록 position+zIndex 명시.
+                position: 'relative',
+                zIndex: 5,
                 minWidth: 120,
                 height: 44,
                 display: 'flex',
@@ -410,6 +435,8 @@ export default function LoadingScreen({ progress = 0, onComplete, onGoHomepage, 
                 transition: 'background-color 0.15s, transform 0.1s',
                 WebkitTapHighlightColor: 'transparent',
                 touchAction: 'manipulation',
+                // 클릭 가로채기 방지
+                pointerEvents: 'auto',
               }}
             >
               <span style={{

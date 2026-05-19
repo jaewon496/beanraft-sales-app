@@ -157,7 +157,7 @@ html, body { background: var(--matte-bg) !important; }
 }
 .bc-app .bc-box .label { font-size: 14px; color: var(--matte-fg-3); font-weight: 500; }
 .bc-app .bc-box .value { font-size: 28px; color: var(--matte-fg); font-weight: 700; }
-.bc-app .bc-box .unit  { font-size: 14px; color: var(--matte-fg-3); }
+.bc-app .bc-box .unit  { font-size: 15px; color: var(--matte-fg-2); font-weight: 600; margin-left: 4px; letter-spacing: -0.005em; }
 .bc-app .bc-box .sub   { color: var(--matte-fg-3); }
 .bc-app .bc-box .src   { color: var(--matte-fg-4); }
 
