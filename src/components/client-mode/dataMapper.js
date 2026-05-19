@@ -5281,16 +5281,21 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     }
   } catch (e) { console.warn('[핸드오프] Card4 topShopsWithSignature 실패:', e?.message); }
 
-  // Card 6 (유동인구): 시군구 상위 3개 동 (dynPplCmpr.data.slice(0,3))
+  // Card 6 (유동인구): top3Dongs 사후처리 복원 (2026-05-19)
+  // 정답지 위치: /tmp/jeongdapji/카드별/카드07_유동인구.md 라인 56
+  //   "top3Dongs: apis.dynPplCmpr.data.slice(0,3) 시군구 상위 3개 (사후 처리, 라인 5284~5295)"
+  // 정답지 의도: dynPplCmpr.data 상위 3개를 [{name, pop}] 형태로 변환.
+  // pop은 일평균(cnt/30) 환산. 응답이 1~3개 가변이면 가변 슬롯으로 표시됨.
   try {
     const _dyn = collectedData?.apis?.dynPplCmpr?.data;
-    const _list = Array.isArray(_dyn) ? _dyn : null;
-    if (Array.isArray(_list) && _list.length > 0) {
-      card6.bodyData = card6.bodyData || {};
-      card6.bodyData.top3Dongs = _list.slice(0, 3).map(d => ({
-        name: d?.admNm || d?.dongNm || d?.signguCdNm || '인근 동',
-        pop: Math.round((d?.cnt || d?.fpCnt || 0) / 30),
-      }));
+    if (card6?.bodyData && Array.isArray(_dyn) && _dyn.length > 0) {
+      const _list = _dyn.slice(0, 3).map(d => ({
+        name: d?.nm || d?.name || '',
+        pop: Math.round((Number(d?.cnt) || 0) / 30),
+      })).filter(d => d.name);
+      if (_list.length > 0) {
+        card6.bodyData.top3Dongs = _list;
+      }
     }
   } catch (e) { console.warn('[핸드오프] Card6 top3Dongs 실패:', e?.message); }
 
@@ -5820,6 +5825,18 @@ function _resolveScope(matchedCode, sangkwonCode) {
   return '전국평균';
 }
 
+// [버그 X2 수정 2026-05-19] KOSIS 408 region 라벨 정규화
+// 응답의 C1_NM이 "전국"이면 사용자가 의도된 폴백인지 헷갈리므로 scope에 맞춰 명확한 라벨로 변환한다.
+//   - 상권 매칭 성공 → 원본 C1_NM 그대로 (예: "강남대로")
+//   - 시도 평균 폴백 → "{시도명} 평균" (예: "서울 평균")
+//   - 전국 평균 폴백 → "전국 평균"
+function _labelRegion(rawName, scope) {
+  const name = (rawName || '').trim();
+  if (scope === '전국평균') return '전국 평균';
+  if (scope === '시도평균') return name ? `${name} 평균` : '시도 평균';
+  return name;
+}
+
 /**
  * 우리 상권 평당 임대료 (원/평) - 천원/㎡ × 3.3058 × 1000
  * @param {object} apis - collectedData.apis
@@ -5832,15 +5849,16 @@ export function extractMarketRent(apis, sangkwonCode) {
   const valPerSqmThousand = parseFloat(r.DT) || 0;
   if (!valPerSqmThousand) return null;
   const wonPerPyeong = Math.round(valPerSqmThousand * 3.3058 * 1000);
+  const scope = _resolveScope(r.C1, sangkwonCode);
   return {
     value: wonPerPyeong,
     unit: '원/평',
     raw: valPerSqmThousand,
     rawUnit: '천원/㎡',
     period: r.PRD_DE,
-    region: r.C1_NM,
+    region: _labelRegion(r.C1_NM, scope),
     code: r.C1,
-    scope: _resolveScope(r.C1, sangkwonCode),
+    scope,
   };
 }
 
@@ -5849,7 +5867,8 @@ export function extractVacancy(apis, sangkwonCode) {
   const rows = _getExternalRows(apis, 'vacancy');
   const r = _pickLatestByCode(rows, sangkwonCode);
   if (!r) return null;
-  return { value: parseFloat(r.DT) || 0, unit: '%', period: r.PRD_DE, region: r.C1_NM, code: r.C1, scope: _resolveScope(r.C1, sangkwonCode) };
+  const scope = _resolveScope(r.C1, sangkwonCode);
+  return { value: parseFloat(r.DT) || 0, unit: '%', period: r.PRD_DE, region: _labelRegion(r.C1_NM, scope), code: r.C1, scope };
 }
 
 /** 임대가격지수 (1년 변동률 %) */
@@ -5872,8 +5891,9 @@ export function extractPriceChange(apis, sangkwonCode) {
     yearAgo = sorted.find(r => r.PRD_DE === targetPrd);
   }
   const latestVal = parseFloat(latest.DT) || 0;
+  const pcScope = _resolveScope(latest.C1, sangkwonCode);
   if (!yearAgo) {
-    return { value: null, latestIndex: latestVal, unit: '%', period: latestPrd, region: latest.C1_NM, code: latest.C1, scope: _resolveScope(latest.C1, sangkwonCode), note: '1년전 데이터 없음' };
+    return { value: null, latestIndex: latestVal, unit: '%', period: latestPrd, region: _labelRegion(latest.C1_NM, pcScope), code: latest.C1, scope: pcScope, note: '1년전 데이터 없음' };
   }
   const yearAgoVal = parseFloat(yearAgo.DT) || 0;
   if (!yearAgoVal) return null;
@@ -5884,9 +5904,9 @@ export function extractPriceChange(apis, sangkwonCode) {
     latestIndex: latestVal,
     yearAgoIndex: yearAgoVal,
     period: latestPrd,
-    region: latest.C1_NM,
+    region: _labelRegion(latest.C1_NM, pcScope),
     code: latest.C1,
-    scope: _resolveScope(latest.C1, sangkwonCode),
+    scope: pcScope,
   };
 }
 
@@ -5895,7 +5915,8 @@ export function extractConversionRate(apis, sangkwonCode) {
   const rows = _getExternalRows(apis, 'conversionRate');
   const r = _pickLatestByCode(rows, sangkwonCode);
   if (!r) return null;
-  return { value: parseFloat(r.DT) || 0, unit: '%', period: r.PRD_DE, region: r.C1_NM, code: r.C1, scope: _resolveScope(r.C1, sangkwonCode) };
+  const scope = _resolveScope(r.C1, sangkwonCode);
+  return { value: parseFloat(r.DT) || 0, unit: '%', period: r.PRD_DE, region: _labelRegion(r.C1_NM, scope), code: r.C1, scope };
 }
 
 /**
@@ -5950,15 +5971,16 @@ export function extractYieldRate(apis, sangkwonCode) {
 
   const annual = Math.round(quarterly * 4 * 100) / 100; // 분기 → 연 환산
   const ref = investRow || sameDate[0];
+  const yrScope = _resolveScope(ref.C1, sangkwonCode);
   return {
     value: annual,        // 연 환산값 (카드에 표시)
     quarterly: Math.round(quarterly * 100) / 100,
     annual,
     unit: '%',
     period: latestPrd,
-    region: ref.C1_NM,
+    region: _labelRegion(ref.C1_NM, yrScope),
     code: ref.C1,
-    scope: _resolveScope(ref.C1, sangkwonCode),
+    scope: yrScope,
   };
 }
 
@@ -6027,7 +6049,12 @@ export function extractNetIncome(apis, sangkwonCode) {
       for (const p of mrPools) {
         if (!p.length) continue;
         const rentRow = p[0];
-        const rentPerSqm = parseFloat(rentRow.DT) || 0;
+        // [2026-05-19 단위 보정] KOSIS 408 임대료 raw DT 단위는 천원/㎡/월.
+        // extractMarketRent는 × 1000 해서 원/평으로 변환하는데 여기서는 그 변환을 빠뜨려
+        // 결과가 1/1000로 축소되어 905원/평/년 같은 비정상 값이 나옴.
+        // 원/㎡로 변환 후 평·연 환산.
+        const rentPerSqmRaw = parseFloat(rentRow.DT) || 0;
+        const rentPerSqm = rentPerSqmRaw * 1000; // 천원/㎡ → 원/㎡
         if (rentPerSqm > 0) {
           // 임대수입 100% 기준 → 순영업소득 N% → 평당 월소득 = rent × (N/100) × 3.305785
           // 분기 단위라서 ×3개월 → 월 → ×12 = 연
@@ -6040,14 +6067,15 @@ export function extractNetIncome(apis, sangkwonCode) {
     }
   } catch (e) { /* ignore */ }
 
+  const niScope = _resolveScope(netRow.C1, sangkwonCode);
   return {
     value: valuePerPyeongAnnual || noiPct,     // 환산값이 있으면 원/평/년, 없으면 % 값
     noiPct: Math.round(noiPct * 10) / 10,
     unit: valuePerPyeongAnnual ? '원/평/년' : '%',
     period: netRow.PRD_DE,
-    region: netRow.C1_NM || '',
+    region: _labelRegion(netRow.C1_NM, niScope),
     code: netRow.C1 || '',
-    scope: _resolveScope(netRow.C1, sangkwonCode),
+    scope: niScope,
   };
 }
 
@@ -6060,20 +6088,41 @@ export function extractCafeClosure(apis, sido) {
     return /커피\s*음료점|커피전문점|커피\s*전문점/.test(all);
   });
   if (!cafeRows.length) return null;
+  // [2026-05-19] 광역 합계 행 제거 (전국 폐업 합계가 시도 평균으로 잘못 잡히는 문제)
+  const _isAggCC = (r) => /^(전국|합계|소계|총계)$/.test(String(r.C1_NM || '').trim());
   const pool = sido ? cafeRows.filter(r => {
     const text = (r.C1_NM || '') + '|' + (r.C2_NM || '');
-    return text.includes(sido);
-  }) : cafeRows;
-  const matched = pool.length > 0;
-  const finalPool = pool.length ? pool : cafeRows;
+    return text.includes(sido) && !_isAggCC(r);
+  }) : cafeRows.filter(r => !_isAggCC(r));
+  const matched = sido && pool.length > 0;
+
+  // 시도 매칭 실패 시 전국 시도 평균 계산
+  let finalPool = pool;
+  let fallbackAvgValue = null;
+  if (!finalPool.length) {
+    const nonAgg = cafeRows.filter(r => !_isAggCC(r));
+    if (!nonAgg.length) return null;
+    const sortedAll = [...nonAgg].sort((a, b) => (b.PRD_DE || '').localeCompare(a.PRD_DE || ''));
+    const latestPrd = sortedAll[0]?.PRD_DE;
+    const latestRows = sortedAll.filter(r => r.PRD_DE === latestPrd);
+    if (latestRows.length > 0) {
+      const sum = latestRows.reduce((s, r) => s + (parseFloat(r.DT) || 0), 0);
+      fallbackAvgValue = Math.round(sum / latestRows.length);
+      finalPool = [latestRows[0]];
+    } else {
+      finalPool = nonAgg;
+    }
+  }
+  if (!finalPool.length) return null;
+
   const sorted = [...finalPool].sort((a, b) => (b.PRD_DE || '').localeCompare(a.PRD_DE || ''));
   const latest = sorted[0];
   if (!latest) return null;
   return {
-    value: parseInt(parseFloat(latest.DT) || 0, 10),
+    value: fallbackAvgValue != null ? fallbackAvgValue : parseInt(parseFloat(latest.DT) || 0, 10),
     unit: '명',
     period: latest.PRD_DE,
-    region: latest.C1_NM || latest.C2_NM,
+    region: matched ? (latest.C1_NM || latest.C2_NM) : '전국 시도 평균',
     scope: sido ? (matched ? '시도평균' : '전국평균') : '전국평균',
   };
 }
@@ -6102,11 +6151,38 @@ export function extractRegionClosure(apis, sigungu, bizType = 'individual') {
   const rows = _getExternalRows(apis, 'regionClosure');
   if (!rows.length) return null;
 
+  // [2026-05-19 단위 폭주 재수정]
+  // KOSIS DT_133001N_9816 응답 실측 결과:
+  //   C1="A00", C1_NM="전국"           → 전국 합계 (제거 대상)
+  //   C1="A01", C1_NM="서울"           → 서울 시도 합계 (제거 대상, 172,699명)
+  //   C1="A02", C1_NM="인천"           → 인천 시도 합계 (제거 대상)
+  //   ... (시도 17개)
+  //   C1="A0101", C1_NM="강남구"        → 강남구 시군구 (유지 대상, 13,939명)
+  //   C1="A0102", C1_NM="강동구"        → 강동구 시군구 (유지 대상, 7,209명)
+  // 핵심: C1_NM은 시도 합계도 "서울"·"부산" 등 bare name으로 응답 (특별시/광역시 suffix 없음).
+  //       → 이전 regex `/(특별시|광역시|...)$/` 로는 시도 합계를 못 잡아냄.
+  //       → C1 코드 길이로 판별: 시군구는 5자리(A0101) 이상, 시도/전국은 3자리(A00, A01).
+  // 이 수정으로 화면의 "전국 시군구 평균 172,699곳" 폭주가 사라진다.
+  const _isAggregateRow = (r) => {
+    const c1nm = String(r.C1_NM || '').trim();
+    if (!c1nm) return true;
+    // 광역 합계 명: "전국", "합계", "소계", "총계", "전국합계"
+    if (/^(전국|합계|소계|총계|전국합계|전국\s*평균)$/.test(c1nm)) return true;
+    // 시도 코드(A00~A17, 3자리) 또는 더 짧은 경우는 시군구 단위가 아니므로 집계 행으로 처리
+    const c1 = String(r.C1 || '').trim();
+    if (c1 && c1.length <= 3) return true;
+    // 보조 명칭 기반 검사(예전 호환): "서울특별시"·"경기도" 등으로 끝나는 경우
+    if (/(특별시|광역시|특별자치시|특별자치도|도)$/.test(c1nm) && !/[시군구]\s*$/.test(c1nm.replace(/(특별시|광역시|특별자치시|특별자치도|도)$/, ''))) return true;
+    return false;
+  };
+
   // 사업자 종류 필터 ('개인사업자' 또는 '총계')
   const c2Target = bizType === 'individual' ? '개인사업자' : '총계';
-  const typed = rows.filter(r => (r.C2_NM || '').includes(c2Target));
+  const typed = rows.filter(r => (r.C2_NM || '').includes(c2Target) && !_isAggregateRow(r));
   // 개인사업자 결과가 비면 총계로 폴백
-  const baseRows = typed.length ? typed : rows.filter(r => (r.C2_NM || '').includes('총계'));
+  const baseRows = typed.length
+    ? typed
+    : rows.filter(r => (r.C2_NM || '').includes('총계') && !_isAggregateRow(r));
   const usedBizType = typed.length ? c2Target : '총계';
 
   // sigungu 입력에서 시도 prefix 추출 (예: "부산 해운대구" → 시도='부산', 동/구='해운대구')
@@ -6120,7 +6196,7 @@ export function extractRegionClosure(apis, sigungu, bizType = 'individual') {
     }
   }
 
-  let pool = baseRows;
+  let pool = [];
   if (sigunguName) {
     pool = baseRows.filter(r => {
       const c1nm = r.C1_NM || '';
@@ -6133,18 +6209,39 @@ export function extractRegionClosure(apis, sigungu, bizType = 'individual') {
     });
   }
   const matched = sigungu && pool.length > 0;
-  const finalPool = pool.length ? pool : baseRows;
-  if (!finalPool.length) return null;
-  const sorted = [...finalPool].sort((a, b) => (b.PRD_DE || '').localeCompare(a.PRD_DE || ''));
-  const latest = sorted[0];
-  if (!latest) return null;
+
+  // 시군구 매칭 성공: 해당 시군구 최신값 반환
+  if (matched) {
+    const sorted = [...pool].sort((a, b) => (b.PRD_DE || '').localeCompare(a.PRD_DE || ''));
+    const latest = sorted[0];
+    return {
+      value: parseInt(parseFloat(latest.DT) || 0, 10),
+      unit: '명',
+      period: latest.PRD_DE,
+      region: latest.C1_NM || latest.C2_NM,
+      bizType: usedBizType,
+      scope: '시군구',
+    };
+  }
+
+  // 시군구 매칭 실패 (또는 sigungu 미지정): baseRows는 이미 시군구 단위만 포함하므로
+  // 최신 시점의 모든 시군구 평균을 계산하여 "전국 시군구 평균" 으로 반환
+  if (!baseRows.length) return null;
+  const sortedAll = [...baseRows].sort((a, b) => (b.PRD_DE || '').localeCompare(a.PRD_DE || ''));
+  const latestPrd = sortedAll[0]?.PRD_DE;
+  if (!latestPrd) return null;
+  const latestRows = sortedAll.filter(r => r.PRD_DE === latestPrd);
+  if (latestRows.length === 0) return null;
+  const sum = latestRows.reduce((s, r) => s + (parseFloat(r.DT) || 0), 0);
+  const avgValue = Math.round(sum / latestRows.length);
   return {
-    value: parseInt(parseFloat(latest.DT) || 0, 10),
+    value: avgValue,
     unit: '명',
-    period: latest.PRD_DE,
-    region: latest.C1_NM || latest.C2_NM,
+    period: latestPrd,
+    region: '전국 시군구 평균',
     bizType: usedBizType,
-    scope: matched ? '시군구' : '전국평균',
+    scope: '전국평균',
+    sampleCount: latestRows.length,
   };
 }
 
@@ -6196,8 +6293,15 @@ export function extractConsumerSentiment(apis, region) {
     }
   }
 
-  // 서울처럼 한국은행 권역 데이터에 없는 시도면 12개 권역 평균값 계산
-  if (mappedFromSido && bokRegion === null) {
+  // [버그 X1 수정 2026-05-19] 빈 region 입력 + 12개 권역 평균 폴백을 통일
+  // 기존: mappedFromSido && bokRegion === null 만 평균 분기 진입 → 빈 문자열 입력 시 첫 행 임의 권역 노출
+  // 수정: 입력이 비었거나 매핑 실패한 경우도 모두 12개 권역 평균으로 폴백 (region: '전국 평균')
+  const needsNationalFallback =
+    (mappedFromSido && bokRegion === null) ||  // 서울 등 한국은행 권역 없는 시도
+    !region ||                                  // 빈 region 입력 (sidoForExt='' 인 경우)
+    !mappedFromSido;                            // 시도 매핑 실패 (응답 권역명과 무관한 입력)
+
+  if (needsNationalFallback) {
     const cssiAll = rows.filter(r => /소비자심리지수|CCSI/.test(r.C1_NM || ''));
     const sortedAll = [...cssiAll].sort((a, b) => (b.PRD_DE || '').localeCompare(a.PRD_DE || ''));
     const latestPeriod = sortedAll[0]?.PRD_DE;
@@ -6219,11 +6323,31 @@ export function extractConsumerSentiment(apis, region) {
   // 권역 매칭 (응답에서 C2_NM이 권역명을 담음)
   const pool = bokRegion ? rows.filter(r => (r.C2_NM || '') === bokRegion) : [];
   const matched = bokRegion && pool.length > 0;
-  const finalPool = pool.length ? pool : rows;
+
+  // [버그 X1 수정] 매칭 실패 시(권역 데이터 응답에 해당 권역 없음) 첫 행을 그대로 잡지 말고
+  // 전국 평균 분기로 폴백 (위의 needsNationalFallback과 동일 로직)
+  if (!matched) {
+    const cssiAll = rows.filter(r => /소비자심리지수|CCSI/.test(r.C1_NM || ''));
+    const sortedAll = [...cssiAll].sort((a, b) => (b.PRD_DE || '').localeCompare(a.PRD_DE || ''));
+    const latestPeriod = sortedAll[0]?.PRD_DE;
+    if (!latestPeriod) return null;
+    const sameMonth = cssiAll.filter(r => r.PRD_DE === latestPeriod);
+    if (sameMonth.length === 0) return null;
+    const avgValue = sameMonth.reduce((s, r) => s + (parseFloat(r.DT) || 0), 0) / sameMonth.length;
+    return {
+      value: Math.round(avgValue * 10) / 10,
+      unit: '점',
+      period: latestPeriod,
+      region: '전국 평균',
+      indicator: '소비자심리지수',
+      item: sameMonth[0].ITM_NM,
+      scope: '전국평균',
+    };
+  }
 
   // 종합지수(CCSI = "소비자심리지수")는 C1_NM에 위치 - 우선 추출
-  const cssi = finalPool.filter(r => /소비자심리지수|CCSI/.test(r.C1_NM || ''));
-  const usePool = cssi.length ? cssi : finalPool;
+  const cssi = pool.filter(r => /소비자심리지수|CCSI/.test(r.C1_NM || ''));
+  const usePool = cssi.length ? cssi : pool;
   const sorted = [...usePool].sort((a, b) => (b.PRD_DE || '').localeCompare(a.PRD_DE || ''));
   const latest = sorted[0];
   if (!latest) return null;
@@ -6234,7 +6358,7 @@ export function extractConsumerSentiment(apis, region) {
     region: latest.C2_NM,        // 권역명 (응답 C2_NM)
     indicator: latest.C1_NM,     // 지표명 (응답 C1_NM, 예: "소비자심리지수")
     item: latest.ITM_NM,
-    scope: matched ? '권역' : '전국평균',
+    scope: '권역',
   };
 }
 

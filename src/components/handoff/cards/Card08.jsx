@@ -57,7 +57,7 @@ export default function Card08({ body = {} }) {
         <div className="bc-box" style={{padding:18}}>
           <div style={{fontSize:15, fontWeight:600, marginBottom:12}}>한국부동산원 임대 4종</div>
           <div className="bc-grid-2" style={{gap:10}}>
-            <Box label="평당 월세" value={marketRent > 0 ? String(marketRent) : '-'} unit={marketRent > 0 ? '만' : ''} sub={kosisRegion || ''} src={kosisPeriod}/>
+            <Box label="평당 월세" value={marketRent > 0 ? String(marketRent) : '-'} unit={marketRent > 0 ? '만/평' : ''} sub={kosisRegion || ''} src={kosisPeriod}/>
             <Box label="전환율"   value={conversionRate > 0 ? conversionRate.toFixed(1) : '-'} unit={conversionRate > 0 ? '%' : ''} src={kosisPeriod}/>
             <Box label="수익률"   value={yieldRate > 0 ? yieldRate.toFixed(1) : '-'} unit={yieldRate > 0 ? '%' : ''} sub="순영업소득 기준" src={kosisPeriod}/>
             <Box label="순영업소득"
@@ -73,7 +73,7 @@ export default function Card08({ body = {} }) {
                  unit={
                    netIncomeUnit === '%' && netIncomePct > 0
                      ? '%'
-                     : (netIncome > 0 ? (netIncome >= 10000 ? '만/년' : '원/평/년') : '')
+                     : (netIncome > 0 ? (netIncome >= 10000 ? '만/평/년' : '원/평/년') : '')
                  }
                  sub={netIncomeUnit === '%' ? '임대수입 대비' : ''}
                  src={kosisPeriod}/>

@@ -107,7 +107,8 @@ export default function Card13({ body = {} }) {
   // 외부 지표 6칸 (창업기상도/상권지도 5종)
   const externalCards = (() => {
     const items = [];
-    if (weatherLabel) items.push(['창업 기상도', weatherLabel]);
+    if (weatherLabel && weatherScore > 0) items.push(['창업 기상도', `${weatherLabel} (${weatherScore}점)`]);
+    else if (weatherLabel) items.push(['창업 기상도', weatherLabel]);
     else if (weatherScore > 0) items.push(['창업 기상도', `${weatherScore}점`]);
 
     const mm = externalIndicators?.marketMapScores || [];
@@ -145,7 +146,7 @@ export default function Card13({ body = {} }) {
             {[
               ["3년 생존", survival3y > 0 ? String(survival3y) : '-', survival3y > 0 ? "%" : "", survival3y > 0 ? `${survival3y > 39 ? '+' : ''}${(survival3y - 39).toFixed(1)}%p (전국)` : '', survival3y >= 60],
               ["월매출", cafeSales > 0 ? cafeSales.toLocaleString() : '-', cafeSales > 0 ? "만" : "", cafeSales > 0 && guAvg > 0 ? `${sigungu || '시군구'} 평균 대비 ${cafeSales > guAvg ? '+' : ''}${Math.round((cafeSales/guAvg-1)*100)}%` : '', false],
-              ["창업 기상도", weatherLabel || (weatherScore > 0 ? String(weatherScore) : '-'), "", weatherScore > 0 ? `${weatherScore}/100` : '', weatherScore >= 60],
+              ["창업 기상도", weatherLabel ? `${weatherLabel}` : (weatherScore > 0 ? String(weatherScore) : '-'), "", weatherScore > 0 ? `${weatherScore} / 100점` : '', weatherScore >= 60],
             ].map(([l, v, u, sub, acc]) => (
               <div key={l} style={{padding:"20px 22px", background:"rgba(255,255,255,0.03)", borderRadius:12, border:"1px solid var(--matte-line)"}}>
                 <div style={{fontSize:14, color:"var(--matte-fg-3)", marginBottom:10, fontWeight:500}}>{l}</div>

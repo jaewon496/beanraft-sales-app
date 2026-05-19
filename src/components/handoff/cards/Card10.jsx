@@ -51,10 +51,10 @@ export default function Card10({ body = {} }) {
       sub="이 동네 배달 객단가"
       sources={["소상공인진흥공단 delivery", "배민/쿠팡이츠 핫플레이스", "KOSIS 외식업체경영실태조사"]}>
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
-        <StatTile id="c10.tile1" tone="blue"  label="동 객단가 (배달)" value={searchAvgPrice > 0 ? searchAvgPrice.toLocaleString() : '-'} unit={searchAvgPrice > 0 ? '원' : ''} delta={yoyPct ? `${yoyPct > 0 ? '+' : ''}${yoyPct}` : undefined} deltaPositive={yoyPct >= 0} hero/>
-        <StatTile id="c10.tile2" tone="mint"  label="월 배달 매출"   value={searchSales > 0 ? searchSales.toLocaleString() : '-'} unit={searchSales > 0 ? '만' : ''}/>
-        <StatTile id="c10.tile3" tone="lilac" label="월 배달 건수"   value={searchOrders > 0 ? searchOrders.toLocaleString() : '-'} unit={searchOrders > 0 ? '건' : ''} delta={yoyPct ? `${yoyPct > 0 ? '+' : ''}${yoyPct}` : undefined} deltaPositive={yoyPct >= 0}/>
-        <StatTile id="c10.tile4" tone="cream" label="업종 순위"      value={cafeRank > 0 ? `${cafeRank}위` : '-'} delta={totalBiz > 0 ? `/ ${totalBiz}개` : undefined}/>
+        <StatTile id="c10.tile1" tone="blue"  label="동 객단가 (배달)" value={searchAvgPrice > 0 ? searchAvgPrice.toLocaleString() : '-'} unit={searchAvgPrice > 0 ? '원' : ''} hero/>
+        <StatTile id="c10.tile2" tone="mint"  label="월 배달 매출"   value={searchSales > 0 ? searchSales.toLocaleString() : '-'} unit={searchSales > 0 ? '만원' : ''}/>
+        <StatTile id="c10.tile3" tone="lilac" label="월 배달 건수"   value={searchOrders > 0 ? searchOrders.toLocaleString() : '-'} unit={searchOrders > 0 ? '건' : ''}/>
+        <StatTile id="c10.tile4" tone="cream" label="배달 카페 순위"  value={cafeRank > 0 ? `${cafeRank}` : '-'} unit={cafeRank > 0 ? (totalBiz > 0 ? `위 / ${totalBiz}개 업종` : '위') : ''}/>
       </div>
 
       <div style={{display:"grid", gridTemplateColumns:"1.4fr 1fr", gap:16, alignItems:"stretch"}}>

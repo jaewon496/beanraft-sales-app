@@ -204,9 +204,13 @@
                 onShowAll={clearFilter}
                 isAll={!filterCategory && !singleCardN}
                 filterCategory={filterCategory}
+                address={(window.__BC_DATA__ && window.__BC_DATA__.address) || ''}
+                radius={(window.__BC_DATA__ && window.__BC_DATA__.radius) || undefined}
               />
               <main className="bc-canvas">
                 <TopBar
+                  address={(window.__BC_DATA__ && window.__BC_DATA__.address) || ''}
+                  radius={(window.__BC_DATA__ && window.__BC_DATA__.radius) || undefined}
                   onToggleSidebar={toggleSidebar}
                   sidebarOpen={sidebarOpen}
                   filterLabel={filterLabel}

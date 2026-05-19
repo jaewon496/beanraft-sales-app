@@ -32,6 +32,7 @@ const PhaseWrapper = ({ children, phaseKey }) => (
 
 export default function ClientMode({
   onSearchRegion,
+  onCancelSearch,
   searchResult,
   searchLoading,
   analysisProgress = 0,
@@ -99,10 +100,14 @@ export default function ClientMode({
 
   const handleSearch = useCallback((address, radius) => {
     setSearchAddress(address);
-    setSearchRadius(radius);
+    if (radius != null) setSearchRadius(radius);
     setPhase(PHASE.LOADING);
+    // 새 검색 시작 시 진행률 초기화 (재검색 시 부드러운 카운트가 0부터 다시 시작되도록)
+    progressRef.current = 0;
+    setLoadingProgress(0);
     // If real search function is provided, use it; otherwise fall back to simulated loading
     if (onSearchRegion) {
+      // onSearchRegion 내부에서 기존 AbortController가 있으면 abort + 새 분석 시작
       onSearchRegion(address);
     } else {
       startLoading(address);
@@ -127,6 +132,20 @@ export default function ClientMode({
     // 홈페이지가 열려있으면 HOMEPAGE phase로, 아니면 RESULT로
     setPhase(isHomepageOpen ? PHASE.HOMEPAGE : PHASE.RESULT);
   }, [searchAddress, searchRadius, isHomepageOpen]);
+
+  // 로딩 중 재검색 — 진행 중인 분석 중단 + 검색 시작 화면으로 복귀
+  const handleCancelLoading = useCallback(() => {
+    // 시뮬레이션 타이머 중단
+    stopLoading();
+    progressRef.current = 0;
+    setLoadingProgress(0);
+    // 실제 분석 abort (부모가 제공한 경우)
+    if (typeof onCancelSearch === 'function') {
+      onCancelSearch();
+    }
+    // 검색 시작 화면으로 복귀
+    setPhase(PHASE.SEARCH);
+  }, [stopLoading, onCancelSearch]);
 
   const handleGoHomepage = useCallback(() => {
     setIsHomepageOpen(true);
@@ -195,6 +214,8 @@ export default function ClientMode({
             progress={loadingProgress}
             onComplete={handleLoadingComplete}
             onGoHomepage={handleGoHomepage}
+            onSearch={(addr) => handleSearch(addr, searchRadius)}
+            onCancel={handleCancelLoading}
           />
         )}
       </AnimatePresence>

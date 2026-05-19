@@ -595,3 +595,165 @@ html, body { background: var(--matte-bg) !important; }
 .bc-app .bc-box > div[style*="justify-content: space-between"] {
   gap: 16px;
 }
+
+/* ============================================================
+   반응형 — 태블릿(≤1024px), 모바일(≤768px), 폴드 등 작은 화면
+   PC(1440px+)는 시안 디자인 그대로. 작은 화면에서만 적용.
+   세로 잘림(글자 한 글자씩 표시), 가로 오버플로우 차단이 핵심.
+   ============================================================ */
+
+/* ── 태블릿 ── */
+@media (max-width: 1024px) {
+  .bc-app .bc-scroll {
+    padding: 16px 16px 60px;
+  }
+  .bc-app .bc-card {
+    padding: 22px 22px;
+    border-radius: 14px;
+  }
+  .bc-app .bc-card__title { font-size: 19px; }
+  .bc-app .bc-card__sub   { font-size: 13px; }
+
+  /* 카드 내부 grid: 4칼럼 → 2칼럼, 3칼럼 → 2칼럼 */
+  .bc-app .bc-grid-4,
+  .bc-app .bc-grid-3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  /* 인라인 style로 박힌 좁은 그리드들도 2칼럼으로 */
+  .bc-app .bc-card__body > div[style*="grid-template-columns"],
+  .bc-app .bc-card__body div[style*="320px"],
+  .bc-app .bc-card__body div[style*="260px"],
+  .bc-app .bc-card__body div[style*="2fr 1fr"],
+  .bc-app .bc-card__body div[style*="1.2fr 1fr"],
+  .bc-app .bc-card__body div[style*="1.3fr 1fr"],
+  .bc-app .bc-card__body div[style*="1.4fr"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .bc-app .bc-tile { padding: 18px 18px; min-height: 110px; }
+  .bc-app .bc-tile .value { font-size: clamp(20px, 8cqi, 30px); }
+  .bc-app .bc-tile .value-hero { font-size: clamp(24px, 10cqi, 38px); }
+}
+
+/* ── 모바일 / 폴드 ── */
+@media (max-width: 768px) {
+  /* 사이드바 — 모바일에서 자동 숨김 (햄버거로만 열림) */
+  .bc-app .bc-sb {
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    width: 240px !important;
+    height: 100vh;
+    z-index: 200;
+    box-shadow: 4px 0 24px rgba(0,0,0,0.45);
+  }
+  /* 기본은 숨김 — 외부에서 sb-open 클래스가 있을 때만 표시 */
+  .bc-app:not(.sb-open) .bc-sb,
+  .bc-app.sb-closed .bc-sb {
+    margin-left: -240px !important;
+    opacity: 0;
+    transform: translateX(-12px);
+    pointer-events: none;
+  }
+  .bc-app.sb-open .bc-sb {
+    margin-left: 0 !important;
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
+  /* 사이드바 카테고리 헤더 — 좁은 폭에서도 한 줄 유지, 폰트 축소 */
+  .bc-app .bc-cat { height: 40px; padding: 0 12px; font-size: 13px; }
+  .bc-app .bc-cat__label { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bc-app .bc-sb__group-title { font-size: 10px; padding: 12px 12px 4px; white-space: nowrap; }
+
+  /* 메인 영역 — 사이드바 영역 회수, 가로폭 가득 */
+  .bc-app .bc-shell { display: block; }
+  .bc-app .bc-canvas { width: 100%; min-width: 0; }
+  .bc-app .bc-scroll {
+    padding: 14px 14px 60px;
+    max-width: 100%;
+  }
+
+  /* 카드 — 모바일은 모든 내부 grid를 1칼럼으로 강제 */
+  .bc-app .bc-card {
+    padding: 18px 16px;
+    border-radius: 12px;
+    margin-bottom: 12px;
+  }
+  .bc-app .bc-card__title { font-size: 17px; line-height: 1.3; word-break: keep-all; }
+  .bc-app .bc-card__sub   { font-size: 12px; line-height: 1.45; word-break: keep-all; }
+  .bc-app .bc-card__num { width: 30px; height: 30px; font-size: 12px; }
+
+  .bc-app .bc-grid-2,
+  .bc-app .bc-grid-3,
+  .bc-app .bc-grid-4 {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  /* 인라인 grid도 1칼럼 — 카드 안 nested 박스 깨짐 차단 */
+  .bc-app .bc-card__body > div[style*="grid-template-columns"],
+  .bc-app .bc-card__body div[style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  /* 타일 — 라벨/숫자 모두 한 줄 보장 */
+  .bc-app .bc-tile {
+    padding: 16px 16px;
+    min-height: 96px;
+    container-type: normal; /* container query 끄기 — 모바일은 고정 폰트 */
+  }
+  .bc-app .bc-tile .label { font-size: 13px; white-space: normal; word-break: keep-all; line-height: 1.35; }
+  .bc-app .bc-tile .value { font-size: 26px; white-space: nowrap; }
+  .bc-app .bc-tile .value-hero { font-size: 32px; white-space: nowrap; }
+  .bc-app .bc-tile .unit { font-size: 14px; }
+  .bc-app .bc-tile .value-hero .unit { font-size: 16px; }
+
+  /* 박스 */
+  .bc-app .bc-box { padding: 16px 16px; container-type: normal; }
+  .bc-app .bc-box .value { font-size: 22px; white-space: nowrap; }
+  .bc-app .bc-box .label { font-size: 13px; word-break: keep-all; }
+
+  /* 도넛 / 차트 SVG — 부모 폭에 fit, 가운데 숫자 잘림 차단 */
+  .bc-app svg { max-width: 100%; height: auto; display: block; }
+  .bc-app .bc-card svg text { font-size: 14px; }
+
+  /* TopBar — 주소가 길어도 줄바꿈 허용 */
+  .bc-app .bc-tb { padding: 10px 14px; flex-wrap: wrap; gap: 8px; }
+  .bc-app .bc-tb__addr { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+
+  /* 필터(category) 모드 — 4장 2열 강제를 1열로 */
+  .bc-app.filtered .bc-scroll,
+  .bc-app.filtered.filter-3 .bc-scroll,
+  .bc-app.filtered.filter-4 .bc-scroll {
+    grid-template-columns: 1fr !important;
+    padding: 14px 14px 60px !important;
+  }
+  .bc-app.filtered.filter-1 .bc-card { padding: 24px 18px; }
+  .bc-app.filtered.filter-1 .bc-card__title { font-size: 22px; }
+  .bc-app.filtered.filter-1 .bc-tile { padding: 18px 16px; min-height: 110px; }
+  .bc-app.filtered.filter-1 .bc-tile .value { font-size: 32px; }
+  .bc-app.filtered.filter-1 .bc-tile .value-hero { font-size: 40px; }
+
+  /* single-card 모드 — 가로 fit이 폰에서는 zoom 1 고정 (잘림 방지) */
+  .bc-app.single-card .bc-card { width: 100%; zoom: 1 !important; }
+  .bc-app.single-card .bc-scroll { padding: 12px; }
+
+  /* AI 디렉터 모달 — 사이드 패널 접고 풀스크린 */
+  .dm-root { grid-template-columns: 1fr !important; }
+  .dm-side { display: none; }
+  .dm-stage { padding: 16px; }
+  .dm-stage__card .bc-tile .value { font-size: 26px; }
+  .dm-stage__card .bc-tile .value-hero { font-size: 32px; }
+}
+
+/* ── 초소형(아주 좁은 폴드 메인 화면 ≤480px) ── */
+@media (max-width: 480px) {
+  .bc-app .bc-card { padding: 14px 12px; }
+  .bc-app .bc-card__title { font-size: 16px; }
+  .bc-app .bc-tile .value { font-size: 22px; }
+  .bc-app .bc-tile .value-hero { font-size: 28px; }
+  .bc-app .bc-box .value { font-size: 20px; }
+}

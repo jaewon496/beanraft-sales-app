@@ -123,27 +123,28 @@ html, body { background: var(--matte-bg) !important; }
   background: var(--matte-elev) !important;
   border: 1px solid var(--matte-line);
   border-radius: 14px;
-  padding: 24px 26px;
-  min-height: 124px;
-  display: flex; flex-direction: column; justify-content: space-between;
-  gap: 12px;
+  padding: 16px 20px;
+  min-height: 100px;
+  display: flex; flex-direction: column; justify-content: center;
+  gap: 6px;
 }
 .bc-app .bc-tile .label {
-  font-size: 15px; font-weight: 500; color: var(--matte-fg-3); letter-spacing: -0.005em;
+  font-size: 13px; font-weight: 600; color: var(--matte-fg-3); letter-spacing: -0.005em;
+  margin-bottom: 2px;
 }
 .bc-app .bc-tile .value {
-  font-size: 36px; font-weight: 700; color: var(--matte-fg);
+  font-size: 30px; font-weight: 700; color: var(--matte-fg);
   letter-spacing: -0.02em; line-height: 1;
 }
 .bc-app .bc-tile .value-hero {
-  font-size: 56px; font-weight: 700; color: var(--matte-fg);
+  font-size: 44px; font-weight: 700; color: var(--matte-fg);
   letter-spacing: -0.025em; line-height: 1;
 }
-.bc-app .bc-tile .unit  { font-size: 16px; font-weight: 500; color: var(--matte-fg-3); }
+.bc-app .bc-tile .unit  { font-size: 14px; font-weight: 500; color: var(--matte-fg-3); }
 .bc-app .bc-tile .delta,
 .bc-app .bc-tile .delta.up,
 .bc-app .bc-tile .delta.down {
-  color: var(--matte-fg-3); font-size: 13px; font-weight: 500;
+  color: var(--matte-fg-3); font-size: 12px; font-weight: 500;
 }
 .bc-app .bc-tile .delta i { color: var(--matte-fg-4); }
 
@@ -344,11 +345,11 @@ html, body { background: var(--matte-bg) !important; }
 .bc-app.filtered.filter-1 .bc-card__title { font-size: 36px; }
 .bc-app.filtered.filter-1 .bc-card__sub { font-size: 18px; }
 .bc-app.filtered.filter-1 .bc-card__num { width: 44px; height: 44px; font-size: 16px; border-radius: 10px; }
-.bc-app.filtered.filter-1 .bc-tile { padding: 32px 36px; min-height: 160px; }
-.bc-app.filtered.filter-1 .bc-tile .value { font-size: 56px; }
-.bc-app.filtered.filter-1 .bc-tile .value-hero { font-size: 80px; }
-.bc-app.filtered.filter-1 .bc-tile .label { font-size: 18px; }
-.bc-app.filtered.filter-1 .bc-tile .unit { font-size: 20px; }
+.bc-app.filtered.filter-1 .bc-tile { padding: 22px 28px; min-height: 130px; gap: 8px; }
+.bc-app.filtered.filter-1 .bc-tile .value { font-size: 44px; }
+.bc-app.filtered.filter-1 .bc-tile .value-hero { font-size: 60px; }
+.bc-app.filtered.filter-1 .bc-tile .label { font-size: 15px; }
+.bc-app.filtered.filter-1 .bc-tile .unit { font-size: 18px; }
 .bc-app.filtered.filter-1 .bc-box { padding: 28px 32px; }
 .bc-app.filtered.filter-1 .bc-box .value { font-size: 36px; }
 .bc-app.filtered.filter-1 .bc-box .label { font-size: 16px; }
@@ -356,9 +357,9 @@ html, body { background: var(--matte-bg) !important; }
 /* 3장 또는 4장 — 조금만 확대 */
 .bc-app.filtered:not(.filter-1) .bc-card { padding: 36px 36px; }
 .bc-app.filtered:not(.filter-1) .bc-card__title { font-size: 24px; }
-.bc-app.filtered:not(.filter-1) .bc-tile { padding: 24px 26px; min-height: 130px; }
-.bc-app.filtered:not(.filter-1) .bc-tile .value { font-size: 36px; }
-.bc-app.filtered:not(.filter-1) .bc-tile .value-hero { font-size: 48px; }
+.bc-app.filtered:not(.filter-1) .bc-tile { padding: 16px 20px; min-height: 105px; gap: 6px; }
+.bc-app.filtered:not(.filter-1) .bc-tile .value { font-size: 28px; }
+.bc-app.filtered:not(.filter-1) .bc-tile .value-hero { font-size: 36px; }
 
 /* 카드 내부 KPI 그리드: 풀폭 모드에서도 비례 — 자동 fit */
 .bc-app.filtered .bc-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -402,9 +403,9 @@ html, body { background: var(--matte-bg) !important; }
 .dm-stage__card .bc-card__title { font-size: 26px; }
 
 /* 모달 안 KPI 박스도 단일 다크 — sales.css 의 size 오버라이드 비활성 */
-.dm-stage__card .bc-tile { padding: 24px 26px; min-height: 130px; }
-.dm-stage__card .bc-tile .value { font-size: 36px; }
-.dm-stage__card .bc-tile .value-hero { font-size: 52px; }
+.dm-stage__card .bc-tile { padding: 18px 22px; min-height: 110px; gap: 6px; }
+.dm-stage__card .bc-tile .value { font-size: 30px; }
+.dm-stage__card .bc-tile .value-hero { font-size: 44px; }
 
 /* ────────────────────────────────────────────────────
    상태 색 차단 — 인라인 color: var(--st-good/bad/mid) 전부 무채색화
@@ -413,9 +414,9 @@ html, body { background: var(--matte-bg) !important; }
 
 /* ────────────────────────────────────────────────────
    가독성 floor — 작은 글자/짧은 캡션 일괄 상향
+   (단, .bc-tile .delta 는 위에서 12px 로 제어 — KPI 박스 비례)
    ──────────────────────────────────────────────────── */
 .bc-app .bc-pill,
-.bc-app .bc-tile .delta,
 .bc-app .bc-box .src,
 .bc-app .bc-box .sub,
 .bc-app .bc-source { font-size: 14px; }
@@ -468,22 +469,23 @@ html, body { background: var(--matte-bg) !important; }
 }
 
 /* container query — 셀 폭에 비례한 폰트.
-   숫자 + 단위가 한 줄에 들어가도록 보수적 비율. */
+   숫자 + 단위가 한 줄에 들어가도록 보수적 비율.
+   상한·하한을 줄여서 헐렁함 차단. */
 .bc-app .bc-tile { container-type: inline-size; }
-.bc-app .bc-tile .value       { font-size: clamp(18px, 11cqi, 26px); }
-.bc-app .bc-tile .value-hero  { font-size: clamp(20px, 13cqi, 32px); }
+.bc-app .bc-tile .value       { font-size: clamp(20px, 12cqi, 30px); }
+.bc-app .bc-tile .value-hero  { font-size: clamp(24px, 14cqi, 38px); }
 
 /* 필터 모드 (3·4장) */
-.bc-app.filtered:not(.filter-1) .bc-tile .value      { font-size: clamp(16px, 10cqi, 24px); }
-.bc-app.filtered:not(.filter-1) .bc-tile .value-hero { font-size: clamp(18px, 12cqi, 30px); }
+.bc-app.filtered:not(.filter-1) .bc-tile .value      { font-size: clamp(18px, 10cqi, 26px); }
+.bc-app.filtered:not(.filter-1) .bc-tile .value-hero { font-size: clamp(22px, 12cqi, 32px); }
 
 /* 풀폭 모드 — 셀 더 넓음 */
-.bc-app.filtered.filter-1 .bc-tile .value      { font-size: clamp(24px, 4cqi, 40px); }
-.bc-app.filtered.filter-1 .bc-tile .value-hero { font-size: clamp(32px, 5.5cqi, 56px); }
+.bc-app.filtered.filter-1 .bc-tile .value      { font-size: clamp(28px, 4cqi, 44px); }
+.bc-app.filtered.filter-1 .bc-tile .value-hero { font-size: clamp(36px, 5.5cqi, 60px); }
 
-/* unit/대비 글자 비례 — 고정 사이즈로 가독성 보장 */
-.bc-app .bc-tile .unit { font-size: 20px; font-weight: 500; }
-.bc-app .bc-tile .value-hero .unit { font-size: 26px; }
+/* unit — 값 폰트의 절반 정도로 비례 (값 30 → 단위 14, hero 44 → 단위 20) */
+.bc-app .bc-tile .unit { font-size: 14px; font-weight: 500; }
+.bc-app .bc-tile .value-hero .unit { font-size: 20px; }
 
 /* ────────────────────────────────────────────────────
    카드/박스 — 텍스트 잘림 / 넘침 방지
@@ -560,11 +562,11 @@ html, body { background: var(--matte-bg) !important; }
 .bc-app.single-card.filtered.filter-1 .bc-card__title { font-size: 22px; }
 .bc-app.single-card.filtered.filter-1 .bc-card__sub { font-size: 14px; }
 .bc-app.single-card.filtered.filter-1 .bc-card__num { width: 32px; height: 32px; font-size: 13px; border-radius: 9px; }
-.bc-app.single-card.filtered.filter-1 .bc-tile { padding: 18px 20px; min-height: 110px; }
-.bc-app.single-card.filtered.filter-1 .bc-tile .value { font-size: 28px; }
-.bc-app.single-card.filtered.filter-1 .bc-tile .value-hero { font-size: 40px; }
-.bc-app.single-card.filtered.filter-1 .bc-tile .label { font-size: 13px; }
-.bc-app.single-card.filtered.filter-1 .bc-tile .unit { font-size: 14px; }
+.bc-app.single-card.filtered.filter-1 .bc-tile { padding: 14px 16px; min-height: 90px; gap: 5px; }
+.bc-app.single-card.filtered.filter-1 .bc-tile .value { font-size: 26px; }
+.bc-app.single-card.filtered.filter-1 .bc-tile .value-hero { font-size: 36px; }
+.bc-app.single-card.filtered.filter-1 .bc-tile .label { font-size: 12px; }
+.bc-app.single-card.filtered.filter-1 .bc-tile .unit { font-size: 13px; }
 .bc-app.single-card.filtered.filter-1 .bc-box { padding: 18px 20px; }
 .bc-app.single-card.filtered.filter-1 .bc-box .value { font-size: 24px; }
 .bc-app.single-card.filtered.filter-1 .bc-box .label { font-size: 13px; }
@@ -575,9 +577,9 @@ html, body { background: var(--matte-bg) !important; }
 .bc-app .bc-card__body > div[style*="grid-template-columns"] {
   align-items: stretch;
 }
-.bc-app .bc-grid-4 > .bc-tile { min-height: 140px; }
+.bc-app .bc-grid-4 > .bc-tile { min-height: 110px; }
 .bc-app .bc-box { padding: 22px 24px; }
-.bc-app .bc-grid-4 > .bc-tile { min-height: 140px; }
+.bc-app .bc-grid-4 > .bc-tile { min-height: 110px; }
 .bc-app .bc-box { padding: 22px 24px; }
 
 /* ────────────────────────────────────────────────────
@@ -594,4 +596,170 @@ html, body { background: var(--matte-bg) !important; }
 .bc-app .bc-box > div[style*="justify-content:space-between"][style*="display:flex"],
 .bc-app .bc-box > div[style*="justify-content: space-between"] {
   gap: 16px;
+}
+
+/* ============================================================
+   반응형 — 태블릿(≤1024px), 모바일(≤768px), 폴드 등 작은 화면
+   PC(1440px+)는 시안 디자인 그대로. 작은 화면에서만 적용.
+   세로 잘림(글자 한 글자씩 표시), 가로 오버플로우 차단이 핵심.
+   ============================================================ */
+
+/* ── 태블릿 ── */
+@media (max-width: 1024px) {
+  .bc-app .bc-scroll {
+    padding: 16px 16px 60px;
+  }
+  .bc-app .bc-card {
+    padding: 22px 22px;
+    border-radius: 14px;
+  }
+  .bc-app .bc-card__title { font-size: 19px; }
+  .bc-app .bc-card__sub   { font-size: 13px; }
+
+  /* 카드 내부 grid: 4칼럼 → 2칼럼, 3칼럼 → 2칼럼 */
+  .bc-app .bc-grid-4,
+  .bc-app .bc-grid-3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  /* 인라인 style로 박힌 좁은 그리드들도 2칼럼으로 */
+  .bc-app .bc-card__body > div[style*="grid-template-columns"],
+  .bc-app .bc-card__body div[style*="320px"],
+  .bc-app .bc-card__body div[style*="260px"],
+  .bc-app .bc-card__body div[style*="2fr 1fr"],
+  .bc-app .bc-card__body div[style*="1.2fr 1fr"],
+  .bc-app .bc-card__body div[style*="1.3fr 1fr"],
+  .bc-app .bc-card__body div[style*="1.4fr"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .bc-app .bc-tile { padding: 14px 16px; min-height: 92px; gap: 5px; }
+  .bc-app .bc-tile .value { font-size: clamp(20px, 8cqi, 28px); }
+  .bc-app .bc-tile .value-hero { font-size: clamp(24px, 10cqi, 34px); }
+}
+
+/* ── 모바일 / 폴드 ── */
+@media (max-width: 768px) {
+  /* 사이드바 — 모바일에서 자동 숨김 (햄버거로만 열림) */
+  .bc-app .bc-sb {
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    width: 240px !important;
+    height: 100vh;
+    z-index: 200;
+    box-shadow: 4px 0 24px rgba(0,0,0,0.45);
+  }
+  /* 기본은 숨김 — 외부에서 sb-open 클래스가 있을 때만 표시 */
+  .bc-app:not(.sb-open) .bc-sb,
+  .bc-app.sb-closed .bc-sb {
+    margin-left: -240px !important;
+    opacity: 0;
+    transform: translateX(-12px);
+    pointer-events: none;
+  }
+  .bc-app.sb-open .bc-sb {
+    margin-left: 0 !important;
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
+  /* 사이드바 카테고리 헤더 — 좁은 폭에서도 한 줄 유지, 폰트 축소 */
+  .bc-app .bc-cat { height: 40px; padding: 0 12px; font-size: 13px; }
+  .bc-app .bc-cat__label { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bc-app .bc-sb__group-title { font-size: 10px; padding: 12px 12px 4px; white-space: nowrap; }
+
+  /* 메인 영역 — 사이드바 영역 회수, 가로폭 가득 */
+  .bc-app .bc-shell { display: block; }
+  .bc-app .bc-canvas { width: 100%; min-width: 0; }
+  .bc-app .bc-scroll {
+    padding: 14px 14px 60px;
+    max-width: 100%;
+  }
+
+  /* 카드 — 모바일은 모든 내부 grid를 1칼럼으로 강제 */
+  .bc-app .bc-card {
+    padding: 18px 16px;
+    border-radius: 12px;
+    margin-bottom: 12px;
+  }
+  .bc-app .bc-card__title { font-size: 17px; line-height: 1.3; word-break: keep-all; }
+  .bc-app .bc-card__sub   { font-size: 12px; line-height: 1.45; word-break: keep-all; }
+  .bc-app .bc-card__num { width: 30px; height: 30px; font-size: 12px; }
+
+  .bc-app .bc-grid-2,
+  .bc-app .bc-grid-3,
+  .bc-app .bc-grid-4 {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  /* 인라인 grid도 1칼럼 — 카드 안 nested 박스 깨짐 차단 */
+  .bc-app .bc-card__body > div[style*="grid-template-columns"],
+  .bc-app .bc-card__body div[style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  /* 타일 — 라벨/숫자 모두 한 줄 보장 */
+  .bc-app .bc-tile {
+    padding: 12px 14px;
+    min-height: 82px;
+    gap: 4px;
+    container-type: normal; /* container query 끄기 — 모바일은 고정 폰트 */
+  }
+  .bc-app .bc-tile .label { font-size: 12px; white-space: normal; word-break: keep-all; line-height: 1.35; }
+  .bc-app .bc-tile .value { font-size: 24px; white-space: nowrap; }
+  .bc-app .bc-tile .value-hero { font-size: 30px; white-space: nowrap; }
+  .bc-app .bc-tile .unit { font-size: 13px; }
+  .bc-app .bc-tile .value-hero .unit { font-size: 15px; }
+
+  /* 박스 */
+  .bc-app .bc-box { padding: 16px 16px; container-type: normal; }
+  .bc-app .bc-box .value { font-size: 22px; white-space: nowrap; }
+  .bc-app .bc-box .label { font-size: 13px; word-break: keep-all; }
+
+  /* 도넛 / 차트 SVG — 부모 폭에 fit, 가운데 숫자 잘림 차단 */
+  .bc-app svg { max-width: 100%; height: auto; display: block; }
+  .bc-app .bc-card svg text { font-size: 14px; }
+
+  /* TopBar — 주소가 길어도 줄바꿈 허용 */
+  .bc-app .bc-tb { padding: 10px 14px; flex-wrap: wrap; gap: 8px; }
+  .bc-app .bc-tb__addr { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+
+  /* 필터(category) 모드 — 4장 2열 강제를 1열로 */
+  .bc-app.filtered .bc-scroll,
+  .bc-app.filtered.filter-3 .bc-scroll,
+  .bc-app.filtered.filter-4 .bc-scroll {
+    grid-template-columns: 1fr !important;
+    padding: 14px 14px 60px !important;
+  }
+  .bc-app.filtered.filter-1 .bc-card { padding: 24px 18px; }
+  .bc-app.filtered.filter-1 .bc-card__title { font-size: 22px; }
+  .bc-app.filtered.filter-1 .bc-tile { padding: 14px 14px; min-height: 92px; gap: 5px; }
+  .bc-app.filtered.filter-1 .bc-tile .value { font-size: 28px; }
+  .bc-app.filtered.filter-1 .bc-tile .value-hero { font-size: 36px; }
+
+  /* single-card 모드 — 가로 fit이 폰에서는 zoom 1 고정 (잘림 방지) */
+  .bc-app.single-card .bc-card { width: 100%; zoom: 1 !important; }
+  .bc-app.single-card .bc-scroll { padding: 12px; }
+
+  /* AI 디렉터 모달 — 사이드 패널 접고 풀스크린 */
+  .dm-root { grid-template-columns: 1fr !important; }
+  .dm-side { display: none; }
+  .dm-stage { padding: 16px; }
+  .dm-stage__card .bc-tile .value { font-size: 24px; }
+  .dm-stage__card .bc-tile .value-hero { font-size: 30px; }
+}
+
+/* ── 초소형(아주 좁은 폴드 메인 화면 ≤480px) ── */
+@media (max-width: 480px) {
+  .bc-app .bc-card { padding: 14px 12px; }
+  .bc-app .bc-card__title { font-size: 16px; }
+  .bc-app .bc-tile { padding: 10px 12px; min-height: 76px; gap: 3px; }
+  .bc-app .bc-tile .label { font-size: 11px; }
+  .bc-app .bc-tile .value { font-size: 22px; }
+  .bc-app .bc-tile .value-hero { font-size: 28px; }
+  .bc-app .bc-tile .unit { font-size: 12px; }
+  .bc-app .bc-box .value { font-size: 20px; }
 }

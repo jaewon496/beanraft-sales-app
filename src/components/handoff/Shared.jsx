@@ -53,7 +53,9 @@ export const CardCtx = createContext({
 /* ============================================================
    Sidebar
    ============================================================ */
-export function Sidebar({ active, onNav, onStartTour, onCategoryClick, filterCategory }) {
+export function Sidebar({ active, onNav, onStartTour, onCategoryClick, filterCategory, searchAddress, radius }) {
+  const displayAddr = (typeof searchAddress === 'string' && searchAddress.trim()) || '검색 결과';
+  const displayRadius = Number(radius) > 0 ? Math.round(Number(radius)) : 500;
   return (
     <aside className="bc-sb">
       <div className="bc-sb__brand">
@@ -61,8 +63,8 @@ export function Sidebar({ active, onNav, onStartTour, onCategoryClick, filterCat
       </div>
       <div style={{padding:"4px 10px 14px"}}>
         <div style={{fontSize:15, color:"var(--fg-4)", letterSpacing:"0.06em", marginBottom:4}}>검색</div>
-        <div style={{fontSize:15, color:"var(--fg)", padding:"3px 0", fontWeight:500}}>강남역 1번 출구</div>
-        <div style={{fontSize:15, color:"var(--fg-4)", marginBottom:10}}>반경 500m · 결과 리포트</div>
+        <div style={{fontSize:15, color:"var(--fg)", padding:"3px 0", fontWeight:500, wordBreak:"keep-all"}}>{displayAddr}</div>
+        <div style={{fontSize:15, color:"var(--fg-4)", marginBottom:10}}>반경 {displayRadius}m · 결과 리포트</div>
         <button
           type="button"
           onClick={() => window.dispatchEvent(new CustomEvent("bc:research"))}
@@ -146,7 +148,7 @@ export function Sidebar({ active, onNav, onStartTour, onCategoryClick, filterCat
 /* ============================================================
    TopBar
    ============================================================ */
-export function TopBar({ address = "강남역 1번 출구", crumbCur = "결과 리포트", onToggleSidebar, sidebarOpen, filterLabel, onClearFilter }) {
+export function TopBar({ address = "", crumbCur = "결과 리포트", onToggleSidebar, sidebarOpen, filterLabel, onClearFilter }) {
   return (
     <div className="bc-tb bc-topbar">
       <button

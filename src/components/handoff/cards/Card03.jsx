@@ -31,8 +31,9 @@ export default function Card03({ body = {} }) {
   const popMaxRate = Math.max(1, ...popularMenus.map(m => Number(m.salesRate) || 0));
   const riseMaxRate = Math.max(1, ...risingMenus.map(m => Number(m.growthRate) || 0));
 
-  // KOSIS 시군구 카페 폐업 (regionClosure) - 동 평균 비교용
+  // KOSIS 시군구 폐업자 (regionClosure, 전체 개인사업자 폐업자 수 - 카페 한정 X) - 시군구 비교
   const regionClosure = kosis?.regionClosure?.value || 0;
+  const regionClosureScope = kosis?.regionClosure?.scope || '';  // '시군구' or '전국평균'
 
   // KOSIS 카페 폐업 시계열 (cafeClosureSeries) - 시도 추세
   const closureSeries = kosis?.cafeClosureSeries?.series || [];
@@ -132,7 +133,9 @@ export default function Card03({ body = {} }) {
             {closeCnt > 0 && <span style={{fontSize:15, color:"var(--matte-fg-3)"}}>개</span>}
           </div>
           {regionClosure > 0 && (
-            <div style={{fontSize:13, color:"var(--matte-fg-3)", marginTop:6, fontVariantNumeric:"tabular-nums"}}>{sigungu || '시군구'} 평균 {regionClosure}개</div>
+            <div style={{fontSize:13, color:"var(--matte-fg-3)", marginTop:6, fontVariantNumeric:"tabular-nums"}}>
+              {regionClosureScope === '시군구' ? (sigungu || '시군구') : '전국 시군구 평균'} 전체 업종 폐업 {regionClosure.toLocaleString()}곳/년
+            </div>
           )}
         </div>
         <div className="bc-box" style={{padding:20}}>

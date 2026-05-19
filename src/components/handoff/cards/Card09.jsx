@@ -19,10 +19,13 @@ export default function Card09({ body = {} }) {
   const survival3y = Number(body.survival3y) || 0;
 
   // 공실률 시계열 (kosisBoxData.vacancySeries.series = [{period, value}, ...])
+  // [2026-05-19] 0% 값도 유효한 분기 데이터로 유지 (이전: v>0 필터로 분기 1개 누락되어 7분기로 표시됨)
   const vacSeries = body.vacancySeries || kosis?.vacancySeries?.series || null;
-  const vacValues = Array.isArray(vacSeries) ? vacSeries.map(s => Number(s.value) || 0).filter(v => v > 0) : [];
-  const vacMin = vacValues.length > 0 ? Math.min(...vacValues) : 0;
-  const vacMax = vacValues.length > 0 ? Math.max(...vacValues) : 0;
+  const vacRaw = Array.isArray(vacSeries) ? vacSeries.map(s => Number(s.value)) : [];
+  const vacValues = vacRaw.filter(v => Number.isFinite(v));
+  const vacNonZero = vacValues.filter(v => v > 0);
+  const vacMin = vacNonZero.length > 0 ? Math.min(...vacNonZero) : 0;
+  const vacMax = vacNonZero.length > 0 ? Math.max(...vacNonZero) : 0;
   const vacRange = vacMax > 0 ? Math.round((vacMax - vacMin) * 10) / 10 : 0;
 
   // 동 평균 vs 현재

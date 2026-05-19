@@ -24,9 +24,14 @@ export default function Card06({ body = {} }) {
   const indieAmericano = compare?.indie || americanoAvg;
   const franchAmericano = compare?.franch || 4500;
 
-  // KOSIS 시군구/시도 카페 폐업 (regionClosure / cafeClosure)
+  // KOSIS 폐업 자료 (2종) — 단위/대상이 달라서 비교 라벨 X
+  //   sidoClose: 시도 카페 한정 폐업 수 (KOSIS 133 cafeClosure)
+  //   regionClose: 시군구 전체 업종 폐업자 수 (KOSIS 133 regionClosure) - 카페 한정 X
   const regionClose = kosis?.regionClosure?.value || 0;
+  const regionCloseScope = kosis?.regionClosure?.scope || '';
+  const regionCloseRegion = kosis?.regionClosure?.region || '';
   const sidoClose = kosis?.cafeClosure?.value || 0;
+  const sidoCloseRegion = kosis?.cafeClosure?.region || '';
 
   // 가격 비교 막대 항목 (개인/스벅/프랜/저가)
   const priceItems = (() => {
@@ -98,22 +103,22 @@ export default function Card06({ body = {} }) {
           </div>
 
           <div style={{paddingTop:20, borderTop:"1px solid var(--matte-line)"}}>
-            <div style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:500, marginBottom:14}}>카페 폐업 (KOSIS)</div>
+            <div style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:500, marginBottom:14}}>폐업 동향 (KOSIS 국세청 133)</div>
             {(sidoClose > 0 || regionClose > 0) ? (
               <>
                 <div className="bc-grid-2" style={{gap:12}}>
                   <div style={{padding:"18px 20px", background:"rgba(255,255,255,0.03)", borderRadius:10, border:"1px solid var(--matte-line)"}}>
-                    <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:8, fontWeight:500}}>시도 평균</div>
+                    <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:8, fontWeight:500}}>{sidoCloseRegion || '시도'} 카페 한정</div>
                     <div style={{fontSize:24, fontWeight:700, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{sidoClose > 0 ? sidoClose.toLocaleString() : '-'}<span style={{fontSize:13, color:"var(--matte-fg-3)", marginLeft:3, fontWeight:500}}>곳/년</span></div>
                   </div>
                   <div style={{padding:"18px 20px", background:"rgba(84,120,201,0.08)", borderRadius:10, border:"1px solid rgba(84,120,201,0.45)"}}>
-                    <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:8, fontWeight:500}}>{sigungu || '시군구'}</div>
+                    <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:8, fontWeight:500}}>{regionCloseScope === '시군구' ? (sigungu || regionCloseRegion || '시군구') : '전국 시군구 평균'} 전체 업종</div>
                     <div style={{fontSize:24, fontWeight:700, color:"#4C7BE4", fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{regionClose > 0 ? regionClose.toLocaleString() : '-'}<span style={{fontSize:13, color:"var(--matte-fg-3)", marginLeft:3, fontWeight:500}}>곳/년</span></div>
                   </div>
                 </div>
-                {(sidoClose > 0 && regionClose > 0) && (
-                  <div style={{fontSize:13, color:"var(--matte-fg-3)", marginTop:12, lineHeight:1.6}}>{sigungu || '이 시군구'}는 시도 평균 대비 <strong style={{color:"#4C7BE4"}}>{regionClose > sidoClose ? '+' : ''}{Math.round(((regionClose - sidoClose) / sidoClose) * 100)}%</strong> 수준</div>
-                )}
+                <div style={{fontSize:13, color:"var(--matte-fg-4)", marginTop:12, lineHeight:1.6}}>
+                  좌: 시도 단위 커피전문점만 / 우: 시군구 단위 전체 업종 폐업자 (단위 비교 불가)
+                </div>
               </>
             ) : (
               <div style={{fontSize:13, color:"var(--matte-fg-4)"}}>KOSIS 폐업 데이터 수집 중</div>

@@ -96,12 +96,12 @@
 }
 .bc-app.filtered .bc-card__title { font-size: 20px; }
 .bc-app.filtered .bc-card__sub   { font-size: 14px; }
-.bc-app.filtered .bc-tile { padding: 24px 26px; min-height: 120px; gap: 10px; }
-.bc-app.filtered .bc-tile .label { font-size: 14px; }
-.bc-app.filtered .bc-tile .value { font-size: 32px; }
-.bc-app.filtered .bc-tile .value-hero { font-size: 48px; }
-.bc-app.filtered .bc-tile .unit  { font-size: 16px; }
-.bc-app.filtered .bc-tile .delta { font-size: 14px; }
+.bc-app.filtered .bc-tile { padding: 16px 20px; min-height: 100px; gap: 6px; }
+.bc-app.filtered .bc-tile .label { font-size: 13px; }
+.bc-app.filtered .bc-tile .value { font-size: 28px; }
+.bc-app.filtered .bc-tile .value-hero { font-size: 40px; }
+.bc-app.filtered .bc-tile .unit  { font-size: 14px; }
+.bc-app.filtered .bc-tile .delta { font-size: 12px; }
 .bc-app.filtered .bc-box { padding: 24px; }
 .bc-app.filtered .bc-box .label { font-size: 13px; }
 .bc-app.filtered .bc-box .value { font-size: 24px; }
@@ -359,22 +359,23 @@
 /* ── Stat Tile (SnowUI signature — light pastel BG, dark text, in dark mode!) ─────────── */
 .bc-tile {
   border-radius: 16px;
-  padding: 18px 20px;
+  padding: 16px 20px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  justify-content: center;
+  gap: 6px;
   min-height: 96px;
   color: #0F0F0F;            /* 더 진한 검정 — 파스텔 위 대비 강화 */
 }
 .bc-tile .label { font-size: 13px; font-weight: 700; letter-spacing: -0.005em; color: #1A1A1A; }
 .bc-tile .row { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
 .bc-tile .value {
-  font-size: 24px; font-weight: 700; letter-spacing: -0.01em;
+  font-size: 26px; font-weight: 700; letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
   line-height: 1.05;
   color: #0F0F0F;
 }
-.bc-tile .value-hero { font-size: 32px; }
+.bc-tile .value-hero { font-size: 36px; }
 .bc-tile .unit { font-size: 13px; font-weight: 600; color: #444; margin-left: 2px; }
 .bc-tile .delta {
   font-size: 12px;
@@ -1958,10 +1959,10 @@
 }
 .dm-stage__card .bc-card__title { font-size: 22px; }
 .dm-stage__card .bc-card__sub { font-size: 14px; }
-.dm-stage__card .bc-tile { padding: 22px 24px; min-height: 112px; }
-.dm-stage__card .bc-tile .value { font-size: 30px; }
-.dm-stage__card .bc-tile .value-hero { font-size: 44px; }
-.dm-stage__card .bc-tile .label { font-size: 14px; }
+.dm-stage__card .bc-tile { padding: 16px 20px; min-height: 100px; gap: 6px; }
+.dm-stage__card .bc-tile .value { font-size: 28px; }
+.dm-stage__card .bc-tile .value-hero { font-size: 40px; }
+.dm-stage__card .bc-tile .label { font-size: 13px; }
 .dm-stage__card .bc-box { padding: 20px; }
 
 /* responsive: narrow viewports collapse to stacked */

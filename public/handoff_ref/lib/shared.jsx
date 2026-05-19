@@ -56,7 +56,8 @@ const CardCtx = createContext({
    Sidebar — 5 categories. Clicking a category collapses sidebar
    and filters main area to that category's cards.
    ============================================================ */
-function Sidebar({ active, onNav, onStartTour, onCategoryClick, onShowAll, filterCategory, isAll }) {
+function Sidebar({ active, onNav, onStartTour, onCategoryClick, onShowAll, filterCategory, isAll, address = "", radius }) {
+  const radiusLabel = (typeof radius === "number" && radius > 0) ? `${radius}m` : "500m";
   return (
     <aside className="bc-sb">
       <div className="bc-sb__brand">
@@ -64,8 +65,8 @@ function Sidebar({ active, onNav, onStartTour, onCategoryClick, onShowAll, filte
       </div>
       <div style={{padding:"4px 10px 14px"}}>
         <div style={{fontSize:15, color:"var(--fg-4)", letterSpacing:"0.06em", marginBottom:4}}>검색</div>
-        <div style={{fontSize:15, color:"var(--fg)", padding:"3px 0", fontWeight:500}}>강남역 1번 출구</div>
-        <div style={{fontSize:15, color:"var(--fg-4)", marginBottom:10}}>반경 500m · 결과 리포트</div>
+        <div style={{fontSize:15, color:"var(--fg)", padding:"3px 0", fontWeight:500, wordBreak:"keep-all"}}>{(typeof address === "string" && address.trim()) || "검색 결과"}</div>
+        <div style={{fontSize:15, color:"var(--fg-4)", marginBottom:10}}>{`반경 ${radiusLabel} · 결과 리포트`}</div>
         <button
           type="button"
           onClick={() => window.dispatchEvent(new CustomEvent("bc:research"))}
@@ -163,7 +164,8 @@ function Sidebar({ active, onNav, onStartTour, onCategoryClick, onShowAll, filte
 /* ============================================================
    TopBar
    ============================================================ */
-function TopBar({ address = "강남역 1번 출구", crumbCur = "결과 리포트", onToggleSidebar, sidebarOpen, filterLabel, onClearFilter }) {
+function TopBar({ address = "", crumbCur = "결과 리포트", onToggleSidebar, sidebarOpen, filterLabel, onClearFilter, radius }) {
+  const radiusLabel = (typeof radius === "number" && radius > 0) ? `${radius}m` : "500m";
   return (
     <div className="bc-tb">
       <button
@@ -195,8 +197,8 @@ function TopBar({ address = "강남역 1번 출구", crumbCur = "결과 리포�
       </div>
       <div className="bc-tb__addr">
         <span className="bc-tb__pin"></span>
-        <span style={{fontWeight:600}}>{address}</span>
-        <span style={{color:"var(--fg-3)"}}>· 반경 500m</span>
+        <span style={{fontWeight:600}}>{(typeof address === "string" && address.trim()) || "검색 결과"}</span>
+        <span style={{color:"var(--fg-3)"}}>{`· 반경 ${radiusLabel}`}</span>
       </div>
       <div className="bc-tb__spacer"></div>
       <button className="bc-tb__icon-btn" title="필터"><i className="ph ph-funnel"></i></button>
@@ -240,7 +242,7 @@ function CardShell({ n, title, sub, date = "2026.05.13", sources = [], headerRig
    Uses count-up animation on mount; if `id` given, re-animates on tour trigger.
    Flavor classes (sparkle/glow/float/hot/roulette/bounce/glitch) come from seq.anim.
    ============================================================ */
-function StatTile({ tone = "blue", label, value, unit, delta, deltaPositive = true, hero, id, accent = false }) {
+function StatTile({ tone = "blue", label, value, unit, delta, deltaPositive = true, hero, id, accent = false, sub }) {
   const fx = id ? (window.useFx?.(id) ?? { n: 0, anim: [] }) : { n: 0, anim: [] };
   const [hot, setHot] = useState(false);
   useEffect(() => {
@@ -268,6 +270,7 @@ function StatTile({ tone = "blue", label, value, unit, delta, deltaPositive = tr
           </span>
         )}
       </div>
+      {sub && <div style={{fontSize:13, color:"var(--matte-fg-3)", marginTop:6, fontWeight:500}}>{sub}</div>}
       {/* sparkle 효과 — 제거됨 */}
     </div>
   );

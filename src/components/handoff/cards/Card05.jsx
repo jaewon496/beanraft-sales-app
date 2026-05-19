@@ -46,14 +46,25 @@ export default function Card05({ body = {} }) {
   const csChange = csLatest != null && csPrev != null ? Math.round((csLatest - csPrev) * 10) / 10 : null;
   const csRegion = kosis?.consumerSentiment?.region || kosis?.consumerSentimentSeries?.region || '전국 평균';
 
-  // 객단가 (bizmapAvgUnitPrice만 사용 - 역산은 "방문당 매출"이라 객단가 의미와 다름)
-  // 보조: bodyData.unitPrice, bodyData.avgUnitPrice 같은 명시적 객단가 키도 허용
+  // 객단가 폴백 체인 (정답지 카드 06)
+  //   1. bizmapAvgUnitPrice (UnifiedLayout i===5에서 bizmapAvgPayment도 흡수)
+  //   2. bodyData.unitPrice / avgUnitPrice (명시 키)
+  //   3. card 03 popularMenus 가중평균 (Σ(avgPrice × salesRate) / Σ(salesRate))
+  //      - 비즈맵 popularMenuList 들어왔을 때만 사용 가능
   const unitPrice = (() => {
-    if (bizmapAvgPrice) return bizmapAvgPrice;
+    if (bizmapAvgPrice) {
+      // 문자열("X,XXX원") 또는 숫자 둘 다 허용
+      if (typeof bizmapAvgPrice === 'string') return bizmapAvgPrice;
+      const n = Number(bizmapAvgPrice) || 0;
+      if (n > 0) return `${Math.round(n).toLocaleString()}원`;
+    }
     const explicit = Number(bodyData.unitPrice) || Number(bodyData.avgUnitPrice) || 0;
     if (explicit > 0 && explicit < 100000) {
       return `${Math.round(explicit).toLocaleString()}원`;
     }
+    // popularMenus 가중평균 폴백 (body.popularMenuWeightedAvg 또는 body.bodyData.popularMenuWeightedAvg)
+    const wAvg = Number(bodyData.popularMenuWeightedAvg) || Number(body.popularMenuWeightedAvg) || 0;
+    if (wAvg > 0) return `${Math.round(wAvg).toLocaleString()}원`;
     return '-';
   })();
 

@@ -12,9 +12,18 @@ export default function Card04({ body = {} }) {
   const franchiseCount = Number(bodyData.franchiseCount) || 0;
   const totalCafes = Number(bodyData.totalCafes) || 0;
   const independentCount = Number(bodyData.independentCount) || 0;
-  const franchiseShare = Number(bodyData.franchiseShare) || 0;
-  const independentShare = Number(bodyData.independentShare) || 0;
-  const bakeryShare = Number(bodyData.bakeryShare) || 0;
+  // [2026-05-19] 점유 바 합계 100% 정규화: 시안 디자인은 스택 바라서 합이 100%여야 함.
+  // dataMapper는 franchise/indie/bakery 각각 totalCafes(=franchise+indie) 기준 % 라 합이 113% 등으로 넘침.
+  // 여기서는 시각화 한정으로 (franchise+indie+bakery) 합계 100% 기준 재계산. 카드 01과 동일 방식.
+  const _shareFr = Number(bodyData.franchiseShare) || 0;
+  const _shareIn = Number(bodyData.independentShare) || 0;
+  const _shareBk = Number(bodyData.bakeryShare) || 0;
+  const _shareSum = _shareFr + _shareIn + _shareBk;
+  const franchiseShare = _shareSum > 0 ? Math.round(_shareFr / _shareSum * 100) : _shareFr;
+  const independentShare = _shareSum > 0 ? Math.round(_shareIn / _shareSum * 100) : _shareIn;
+  const bakeryShare = _shareSum > 0 ? Math.max(0, 100 - franchiseShare - independentShare) : _shareBk;
+  // KPI 상단 "시장 점유"는 카페 대비 프랜차이즈 원본 비율 사용 (정답지 의미 보존)
+  const franchisePctOfCafe = _shareFr;
   const perCafePotential = Number(bodyData.perCafePotential) || 0;
 
   // brandBarItems: [{name, count}, ...]
@@ -30,16 +39,14 @@ export default function Card04({ body = {} }) {
   // 200m 내 프랜차이즈 (StatTile 3번)
   const innerCnt = dist.inner || 0;
 
-  // 국내 vs 해외 브랜드 (간단 휴리스틱: 영문/외국 브랜드 구분)
-  const FOREIGN_KW = ['스타벅스', '블루보틀', '커피빈', 'BLUE', 'STARBUCKS', 'COFFEE BEAN', '폴바셋', 'PAUL', '아라비카', '%', '드롭탑', 'CRINNI'];
-  const isForeign = (n) => FOREIGN_KW.some(k => String(n).toUpperCase().includes(k.toUpperCase()));
-  const foreignBrands = brandBars.filter(b => isForeign(b.name));
-  const domesticBrands = brandBars.filter(b => !isForeign(b.name));
-  const domesticCnt = domesticBrands.reduce((s, b) => s + (Number(b.count) || 0), 0);
-  const foreignCnt = foreignBrands.reduce((s, b) => s + (Number(b.count) || 0), 0);
+  // [2026-05-19] 국내/해외 브랜드 — 정답지: dataMapper.nationalRatio 사용 (전체 franchise 리스트 기준)
+  // 자체 brandBars 기반 계산은 상위 7개만 보고 점포 수를 합산해 franchiseCount와 모순 발생.
+  const nationalRatio = bodyData.nationalRatio || null;
+  const domesticCnt = nationalRatio?.krCount ?? 0;
+  const foreignCnt = nationalRatio?.foreignCount ?? 0;
   const totalBrandCnt = domesticCnt + foreignCnt;
-  const domesticPct = totalBrandCnt > 0 ? Math.round(domesticCnt / totalBrandCnt * 100) : 0;
-  const foreignPct = totalBrandCnt > 0 ? 100 - domesticPct : 0;
+  const domesticPct = nationalRatio?.kr ?? (totalBrandCnt > 0 ? Math.round(domesticCnt / totalBrandCnt * 100) : 0);
+  const foreignPct = nationalRatio?.foreign ?? (totalBrandCnt > 0 ? 100 - domesticPct : 0);
 
   return (
     <CardShell n="04" id="04"
@@ -48,7 +55,7 @@ export default function Card04({ body = {} }) {
       sources={["오픈업/카카오", "공정거래위원회 가맹사업거래"]}>
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
         <StatTile tone="lilac" label="프랜차이즈 매장" value={String(franchiseCount)} unit="개" hero/>
-        <StatTile tone="blue"  label="시장 점유"      value={franchiseShare > 0 ? String(franchiseShare) : '-'} unit={franchiseShare > 0 ? '%' : ''}/>
+        <StatTile tone="blue"  label="시장 점유"      value={franchisePctOfCafe > 0 ? String(franchisePctOfCafe) : '-'} unit={franchisePctOfCafe > 0 ? '%' : ''}/>
         <StatTile tone="mint"  label="200m 이내"     value={String(innerCnt)} unit="개"/>
         <StatTile tone="cream" label="카페당 잠재 고객" value={perCafePotential > 0 ? perCafePotential.toLocaleString() : '-'} unit={perCafePotential > 0 ? '명/일' : ''}/>
       </div>

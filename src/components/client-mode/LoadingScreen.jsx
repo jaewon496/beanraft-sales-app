@@ -71,10 +71,12 @@ const GPU_LAYER = {
   WebkitBackfaceVisibility: 'hidden',
 };
 
-export default function LoadingScreen({ progress = 0, onComplete, onGoHomepage }) {
+export default function LoadingScreen({ progress = 0, onComplete, onGoHomepage, onSearch, onCancel }) {
   // phases: expanding -> ready -> shockwave -> closing -> blackout -> done
   const [phase, setPhase] = useState('expanding');
   const [linesExpanded, setLinesExpanded] = useState(false);
+  // 화면에 표시되는 진행률 — 실제 progress 값에 1씩 부드럽게 따라간다
+  const [displayProgress, setDisplayProgress] = useState(0);
 
   // Lines expand on mount
   useEffect(() => {
@@ -85,12 +87,38 @@ export default function LoadingScreen({ progress = 0, onComplete, onGoHomepage }
     return () => clearTimeout(t);
   }, []);
 
-  // 100% → waitClick (사용자 클릭 대기)
+  // displayProgress가 실제 progress에 1씩 부드럽게 따라가도록 보간
   useEffect(() => {
-    if (progress >= 100 && phase === 'ready') {
+    const target = Math.min(100, Math.max(0, progress));
+    if (displayProgress === target) return;
+    // 차이가 클수록 빠르게 (40ms~12ms), 작을수록 자연스럽게
+    const diff = Math.abs(target - displayProgress);
+    const stepMs = Math.max(12, Math.min(40, Math.round(400 / Math.max(1, diff))));
+    const id = setTimeout(() => {
+      setDisplayProgress((cur) => {
+        if (cur === target) return cur;
+        return cur < target ? cur + 1 : cur - 1;
+      });
+    }, stepMs);
+    return () => clearTimeout(id);
+  }, [progress, displayProgress]);
+
+  // 100% → waitClick (사용자 클릭 대기) — 표시 진행률 기준으로 전환
+  useEffect(() => {
+    if (displayProgress >= 100 && progress >= 100 && phase === 'ready') {
       setPhase('waitClick');
     }
-  }, [progress, phase]);
+  }, [displayProgress, progress, phase]);
+
+  // 재검색 버튼 — 현재 분석 중단 + 검색 시작 화면으로 복귀
+  const handleReSearchClick = () => {
+    if (typeof onCancel === 'function') {
+      onCancel();
+    } else if (typeof onSearch === 'function') {
+      // 폴백: 부모가 onCancel을 제공하지 않으면 빈 문자열 전달
+      onSearch('');
+    }
+  };
 
   const handleCompleteClick = () => {
     if (phase === 'waitClick') {
@@ -131,6 +159,55 @@ export default function LoadingScreen({ progress = 0, onComplete, onGoHomepage }
         ...GPU_LAYER,
       }}
     >
+      {/* 모바일 반응형 — 2개 네모가 좁은 화면에서도 한 줄 유지되도록 패딩/최소너비 축소 */}
+      <style>{`
+        @media (max-width: 480px) {
+          .bc-loading-actions { gap: 8px !important; }
+          .bc-loading-actions > button { min-width: 88px !important; padding-left: 12px !important; padding-right: 12px !important; }
+          .bc-loading-research { font-size: 13px !important; }
+        }
+        @media (max-width: 360px) {
+          .bc-loading-actions { gap: 6px !important; }
+          .bc-loading-actions > button { min-width: 76px !important; padding-left: 8px !important; padding-right: 8px !important; }
+        }
+        .bc-loading-research:hover { text-decoration: underline; opacity: 1 !important; }
+      `}</style>
+
+      {/* 재검색 텍스트 — 상단 흰 선 위쪽 (이전 검색 입력창 자리) */}
+      <motion.span
+        role="button"
+        tabIndex={0}
+        onClick={handleReSearchClick}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleReSearchClick();
+          }
+        }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: contentVisible ? 0.85 : 0 }}
+        transition={{ duration: 0.8, delay: contentVisible ? 0.5 : 0 }}
+        className="bc-loading-research"
+        style={{
+          position: 'fixed',
+          left: '50%',
+          top: '50%',
+          marginTop: -(LINE_GAP_EXPANDED + 40),
+          transform: 'translateX(-50%)',
+          zIndex: 3,
+          color: COLORS.white,
+          fontSize: 15,
+          fontWeight: 500,
+          letterSpacing: '0.05em',
+          whiteSpace: 'nowrap',
+          cursor: 'pointer',
+          userSelect: 'none',
+          padding: '6px 12px',
+        }}
+      >
+        재검색
+      </motion.span>
+
       {/* Top line */}
       <motion.div
         initial={{ opacity: 0 }}
@@ -241,8 +318,8 @@ export default function LoadingScreen({ progress = 0, onComplete, onGoHomepage }
                 height: LOGO_RENDER_HEIGHT,
                 width: 'auto',
                 objectFit: 'contain',
-                clipPath: `inset(0 ${100 - clampedProgress}% 0 0)`,
-                transition: 'clip-path 0.5s ease-out',
+                clipPath: `inset(0 ${100 - displayProgress}% 0 0)`,
+                transition: 'clip-path 80ms linear',
                 willChange: 'clip-path',
                 ...GPU_LAYER,
               }}
@@ -267,8 +344,12 @@ export default function LoadingScreen({ progress = 0, onComplete, onGoHomepage }
             </AnimatePresence>
           </div>
 
-          {/* 버튼 영역 */}
-          <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+          {/* 버튼 영역 — 2개 네모 (진행률 / 홈페이지) */}
+          <div
+            className="bc-loading-actions"
+            style={{ display: 'flex', gap: 16, alignItems: 'center', justifyContent: 'center', flexWrap: 'nowrap' }}
+          >
+            {/* 진행률 / 분석 완료 */}
             <motion.button
               onClick={handleCompleteClick}
               whileHover={phase === 'waitClick' ? { backgroundColor: 'rgba(255,255,255,0.1)' } : {}}
@@ -293,10 +374,11 @@ export default function LoadingScreen({ progress = 0, onComplete, onGoHomepage }
                 fontVariantNumeric: 'tabular-nums',
                 letterSpacing: '0.05em',
               }}>
-                {clampedProgress >= 100 ? '분석 완료' : `${Math.round(clampedProgress)}%`}
+                {displayProgress >= 100 ? '분석 완료' : `${displayProgress}%`}
               </span>
             </motion.button>
 
+            {/* 홈페이지 */}
             <HoverSlideButton onClick={onGoHomepage} label="홈페이지" hoverLabel="바로가기" />
           </div>
         </motion.div>
@@ -322,7 +404,7 @@ export default function LoadingScreen({ progress = 0, onComplete, onGoHomepage }
           pointerEvents: 'none',
         }}
       >
-        {clampedProgress >= 100 ? '분석 완료를 눌러주세요' : '잠시만 기다려주세요'}
+        {displayProgress >= 100 ? '분석 완료를 눌러주세요' : '잠시만 기다려주세요'}
       </motion.span>
     </motion.div>
   );

@@ -3745,6 +3745,21 @@ export default function UnifiedLayout({
   const [address, setAddress] = useState('');
   const [radius, setRadius] = useState(SLIDER_DEFAULT);
   const [mapRevealed, setMapRevealed] = useState(!resultsReady && !salesModeLoading);
+  // [2026-05-18] 모바일 검색 화면에서 좌측 패널이 풀폭 차지하도록 viewport 감지
+  const [isMobile, setIsMobile] = useState(() => {
+    try { return typeof window !== 'undefined' && window.innerWidth <= 768; } catch (_) { return false; }
+  });
+  useEffect(() => {
+    const handleResize = () => {
+      try { setIsMobile(window.innerWidth <= 768); } catch (_) {}
+    };
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+    };
+  }, []);
   // ── Sidebar collapse toggle (영업모드 결과 화면 좌측 영역 접기/펼치기) ──
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
@@ -3971,6 +3986,26 @@ export default function UnifiedLayout({
         if (!hfBody.bodyData.bizmapAvgUnitPrice && bd.bizmapAvgPayment) {
           hfBody.bodyData.bizmapAvgUnitPrice = `${Number(bd.bizmapAvgPayment).toLocaleString()}원`;
         }
+        // [2026-05-19 객단가 폴백 추가] 정답지 카드 06 매출분석 사양:
+        //   비즈맵 raw가 없을 때 카드 03 popularMenus 가중평균으로 객단가 폴백.
+        //   공식: Σ(avgPrice × salesRate) / Σ(salesRate)
+        if (!hfBody.bodyData.bizmapAvgUnitPrice) {
+          const _popList = (cards[2]?.bodyData?.popularMenus) || [];
+          if (Array.isArray(_popList) && _popList.length > 0) {
+            let _sumWP = 0, _sumR = 0;
+            _popList.forEach(m => {
+              const p = Number(m?.avgPrice) || 0;
+              const r = Number(m?.salesRate) || 0;
+              if (p > 0 && r > 0) { _sumWP += p * r; _sumR += r; }
+            });
+            if (_sumR > 0) {
+              const _wAvg = Math.round(_sumWP / _sumR);
+              if (_wAvg > 0 && _wAvg < 100000) {
+                hfBody.bodyData.popularMenuWeightedAvg = _wAvg;
+              }
+            }
+          }
+        }
       }
       if (i === 0) {
         const bd = card.bodyData || {};
@@ -4087,26 +4122,45 @@ export default function UnifiedLayout({
         }
       }
       if (i === 9) {
-        // [2026-05-18] Card10 배달 매출/객단가 단위 정규화
-        // delivery API의 mmavgSlsAmt 단위가 만원이 아닌 큰 값으로 들어올 때 환산.
-        // 정답지 카드10: searchSales는 만원 단위로 표시.
+        // [2026-05-18 / 2026-05-19 재보정] Card10 배달 매출/객단가 단위 정규화
+        // delivery API mmavgSlsAmt 단위는 응답에 따라 (a)만원·(b)원 두 가지로 들어옴.
+        // searchAvgPrice = sales / orders (dataMapper에서 raw 그대로 계산되어 들어옴)
+        // → searchSales 만원 환산 + searchAvgPrice 원 단위로 다시 정합.
+        // 정답지 카드10: searchSales(만원), searchOrders(건), searchAvgPrice(원).
         const bd = card.bodyData || {};
         if (!hfBody.bodyData) hfBody.bodyData = { ...bd };
         const _sRaw = Number(bd.searchSales) || 0;
+        const _oRaw = Number(bd.searchOrders) || 0;
+        const _avgRaw = Number(bd.searchAvgPrice) || 0;
+
+        // [단위 추론] avgPrice가 1,000원 이상 100,000원 미만이면 raw sales는 원 단위(=avg×orders)
+        // 그 외에는 sales가 이미 만원 단위로 들어왔다고 본다.
+        let _sManwon = _sRaw;
+        let _avgWon = _avgRaw;
         if (_sRaw > 0) {
-          let _sManwon = _sRaw;
-          // 1,000,000,000 (10억) 이상이면 원 단위 → /10000
-          if (_sRaw >= 1000000000) _sManwon = Math.round(_sRaw / 10000);
-          // 1,000,000 (백만) 이상이면 천원 단위 → /100  (만원으로 환산: x1000/10000)
-          else if (_sRaw >= 1000000) _sManwon = Math.round(_sRaw / 100);
+          if (_avgRaw >= 1000 && _avgRaw < 100000 && _oRaw > 0) {
+            // sales raw는 원 단위 (= avg × orders)
+            // 만원 환산
+            _sManwon = Math.round(_sRaw / 10000);
+          } else if (_sRaw >= 1000000000) {
+            _sManwon = Math.round(_sRaw / 10000); // 10억+ → 원으로 보고 /10000
+          } else if (_sRaw >= 10000000) {
+            _sManwon = Math.round(_sRaw / 10000); // 1천만+ → 원으로 보고 /10000
+          }
+          // _avgWon이 너무 작거나 0이면 만원 단위 sales × 10000 / orders 로 재계산
+          if (_oRaw > 0 && (!(_avgWon > 0 && _avgWon < 100000))) {
+            const _v = Math.round((_sManwon * 10000) / _oRaw);
+            if (_v > 0 && _v < 100000) _avgWon = _v;
+          }
           hfBody.bodyData.searchSales = _sManwon;
+          if (_avgWon > 0) hfBody.bodyData.searchAvgPrice = _avgWon;
         }
         // cafeDeliveryAmount도 같은 보정 (만원 단위로 정규화)
         const _cRaw = Number(bd.cafeDeliveryAmount) || 0;
         if (_cRaw > 0) {
           let _cManwon = _cRaw;
           if (_cRaw >= 1000000000) _cManwon = Math.round(_cRaw / 10000);
-          else if (_cRaw >= 1000000) _cManwon = Math.round(_cRaw / 100);
+          else if (_cRaw >= 10000000) _cManwon = Math.round(_cRaw / 10000);
           hfBody.bodyData.cafeDeliveryAmount = _cManwon;
         }
       }
@@ -4143,17 +4197,28 @@ export default function UnifiedLayout({
 
   // iframe → 시안 데이터 푸시
   const handoffIframeRef = useRef(null);
+  // [2026-05-19] 검색 주소가 시안 TopBar 기본값("강남역 1번 출구")으로 덮이지 않도록
+  // collectedData / searchAddress에서 실제 주소를 추출해 iframe으로 함께 푸시한다.
+  const bcSearchAddress = useMemo(() => {
+    const _addr =
+      collectedData?.addressInfo?.address ||
+      collectedData?.address ||
+      collectedData?.region ||
+      searchAddress ||
+      '';
+    return String(_addr).trim();
+  }, [collectedData, searchAddress]);
   useEffect(() => {
     if (!resultsReady) return;
     const win = handoffIframeRef.current?.contentWindow;
     if (!win) return;
     try {
-      win.__BC_DATA__ = { cards: bcCardsBodiesSwapped };
+      win.__BC_DATA__ = { cards: bcCardsBodiesSwapped, address: bcSearchAddress, radius };
       if (typeof win.__bcRender === 'function') win.__bcRender();
     } catch (e) {
       // iframe cross-origin/not ready
     }
-  }, [bcCardsBodiesSwapped, resultsReady]);
+  }, [bcCardsBodiesSwapped, resultsReady, bcSearchAddress, radius]);
 
   // iframe 안에서 '다시 검색하기' 클릭 시 부모로 전달
   useEffect(() => {
@@ -4717,11 +4782,13 @@ export default function UnifiedLayout({
 
   // [2026-05-18] 결과 화면(resultsReady)에서는 시안 iframe이 화면 100% 점유.
   // 우리 영업관리 사이드바(좌측 패널)와 토글 버튼 전부 숨김.
+  // [2026-05-18] 모바일에서는 검색 화면에서 좌측 패널(검색+지도)을 부모 100%로,
+  // PC는 기존 100vw 유지. resultsReady=true면 좌측 패널 0px (시안 사이드바가 따로 들어감)
   const leftWidth = resultsReady
     ? '0px'
     : salesModeLoading
       ? LAYOUT.mapPanelWidth
-      : '100vw';
+      : (isMobile ? '100%' : '100vw');
   // 토글 버튼 제거 (결과 화면에서 우리 UI 0건)
   const showSidebarToggle = false;
   // 결과 화면에서는 항상 collapsed 처리 — CSS로 left panel 완전 차단
@@ -6136,6 +6203,8 @@ export default function UnifiedLayout({
             onShowAll={clearFilter}
             isAll={!filterCategory}
             filterCategory={filterCategory}
+            searchAddress={bcSearchAddress}
+            radius={radius}
           />
         ) : (
         <>
@@ -6393,7 +6462,9 @@ export default function UnifiedLayout({
         animate={{ opacity: 1 }}
         transition={{ duration: 0.6, delay: 0.4 }}
         style={{
-          flex: 1,
+          // [2026-05-18] 모바일 검색 단계에서는 우측 패널 완전 제거 (좌측 풀폭 보장)
+          flex: (isMobile && !resultsReady && !salesModeLoading) ? '0 0 0px' : 1,
+          width: (isMobile && !resultsReady && !salesModeLoading) ? 0 : undefined,
           minWidth: 0,
           height: '100%',
           overflow: 'hidden',
@@ -6507,7 +6578,7 @@ export default function UnifiedLayout({
                     const win = handoffIframeRef.current?.contentWindow;
                     if (!win) return;
                     try {
-                      win.__BC_DATA__ = { cards: bcCardsBodiesSwapped };
+                      win.__BC_DATA__ = { cards: bcCardsBodiesSwapped, address: bcSearchAddress, radius };
                       if (typeof win.__bcRender === 'function') win.__bcRender();
                     } catch (_) {}
                   }}
@@ -7191,20 +7262,24 @@ export default function UnifiedLayout({
             height: 100% !important;
           }
         }
-        /* Search-only phase (no results yet) — preserve original full-width behavior */
+        /* Search-only phase (no results yet) — 모바일에서는 검색/지도 좌측 패널이 풀폭,
+           우측 카드 패널은 숨김 (검색 단계에서는 카드가 없으므로) */
         @media (max-width: 767px) {
           .unified-layout-root:not([data-results="true"]) {
-            flex-direction: row !important;
+            flex-direction: column !important;
           }
           .unified-layout-root:not([data-results="true"]) .unified-left-panel {
-            width: 30% !important;
-            min-width: 120px !important;
+            flex: 1 1 100% !important;
+            width: 100% !important;
+            min-width: 0 !important;
             height: 100% !important;
           }
           .unified-layout-root:not([data-results="true"]) .unified-right-panel {
-            flex: 1 !important;
-            width: 70% !important;
-            height: 100% !important;
+            display: none !important;
+            width: 0 !important;
+            min-width: 0 !important;
+            flex: 0 0 0 !important;
+            visibility: hidden !important;
           }
         }
         /* [2026-05-18] 결과 화면(resultsReady) — 좌측 영업관리 사이드바 완전 제거,
