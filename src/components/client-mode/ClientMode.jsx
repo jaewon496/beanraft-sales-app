@@ -152,13 +152,15 @@ export default function ClientMode({
   }, []);
 
   // Sync real analysis progress to loading progress
+  // [bugfix 2026-05-19] 100 도달 후 같은 값으로 매번 setState 하면 LoadingScreen 이
+  // 무한히 리렌더되어 내부 setPhase('closing') 후에도 effect 가 재실행되며
+  // displayProgress/phase 충돌이 생긴다. 값이 실제로 바뀔 때만 setState.
   useEffect(() => {
-    if (onSearchRegion && phase === PHASE.LOADING) {
-      // When search result arrives, jump to 100% to trigger LoadingScreen closing animation
-      const effectiveProgress = searchResult?.success ? 100 : analysisProgress;
-      progressRef.current = effectiveProgress;
-      setLoadingProgress(effectiveProgress);
-    }
+    if (!onSearchRegion || phase !== PHASE.LOADING) return;
+    const effectiveProgress = searchResult?.success ? 100 : analysisProgress;
+    if (progressRef.current === effectiveProgress) return; // 동일값이면 무시
+    progressRef.current = effectiveProgress;
+    setLoadingProgress(effectiveProgress);
   }, [analysisProgress, searchResult, onSearchRegion, phase]);
 
   const handleLoadingComplete = useCallback(() => {

@@ -76,7 +76,11 @@ export async function handler(event) {
         const callAgent = async (agent) => {
           const controller = new AbortController();
           // Pro 모델은 응답이 느릴 수 있어 타임아웃 확장
-          const agentTimeout = agent.model === 'pro' ? 22000 : 15000;
+          // 호출자가 agent.timeout으로 명시적 지정 가능 (최대 24000ms — Netlify 26초 제한 내)
+          let agentTimeout = agent.model === 'pro' ? 22000 : 15000;
+          if (typeof agent.timeout === 'number' && agent.timeout > 0) {
+            agentTimeout = Math.min(agent.timeout, 24000);
+          }
           const timeoutId = setTimeout(() => controller.abort(), agentTimeout);
           try {
             // 에이전트별 모델 선택 (기본 flash, pro 지정 가능)

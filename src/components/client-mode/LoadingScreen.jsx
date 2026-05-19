@@ -104,11 +104,13 @@ export default function LoadingScreen({ progress = 0, onComplete, onGoHomepage, 
   }, [progress, displayProgress]);
 
   // 100% → waitClick (사용자 클릭 대기) — 표시 진행률 기준으로 전환
+  // [bugfix 2026-05-19] 함수형 업데이터로 변경: 동시 setState 와 충돌해도 phase 가
+  // closing/blackout/done 이면 절대 waitClick 으로 되돌아가지 않도록 가드.
   useEffect(() => {
-    if (displayProgress >= 100 && progress >= 100 && phase === 'ready') {
-      setPhase('waitClick');
+    if (displayProgress >= 100 && progress >= 100) {
+      setPhase((cur) => (cur === 'ready' ? 'waitClick' : cur));
     }
-  }, [displayProgress, progress, phase]);
+  }, [displayProgress, progress]);
 
   // 재검색 버튼 — 현재 분석 중단 + 검색 시작 화면으로 복귀
   const handleReSearchClick = () => {
@@ -120,10 +122,26 @@ export default function LoadingScreen({ progress = 0, onComplete, onGoHomepage, 
     }
   };
 
+  // [bugfix 2026-05-19] 클릭이 발생해도 phase 가 closing 으로 안 바뀌는 배포 버그.
+  // 원인: motion.button + whileTap 의 pointer-event 처리가 React 합성 onClick 과 충돌해
+  //       onClick 콜백 안에서 호출한 setState 가 다음 commit 직전에 가로채진 사례가 있음.
+  // 해법:
+  //  1) motion.button -> 일반 button 으로 교체 (아래 렌더 부분)
+  //  2) setPhase 를 함수형 업데이터로 변경해 클로저 stale 값 위험 제거
+  //  3) ready 상태에서도 한 번에 closing 으로 보낼 수 있게 가드 완화 (waitClick 이펙트보다 빨라도 OK)
+  //  4) 클릭 발생을 배포에서 확인할 수 있도록 console.log 1회만 출력
+  const completeClickedRef = useRef(false);
   const handleCompleteClick = () => {
-    if (phase === 'waitClick') {
-      setPhase('closing');
-    }
+    if (completeClickedRef.current) return; // 중복 클릭/이중 발화 차단
+    setPhase((cur) => {
+      if (cur === 'waitClick' || (cur === 'ready' && displayProgress >= 100 && progress >= 100)) {
+        completeClickedRef.current = true;
+        if (typeof console !== 'undefined') console.log('[LoadingScreen] complete click -> closing');
+        return 'closing';
+      }
+      if (typeof console !== 'undefined') console.log('[LoadingScreen] complete click ignored, phase=', cur);
+      return cur;
+    });
   };
 
   // [bugfix 2026-05-19] onComplete 가 매 렌더마다 새 reference면 (부모가 inline 함수로 전달)
@@ -179,6 +197,8 @@ export default function LoadingScreen({ progress = 0, onComplete, onGoHomepage, 
           .bc-loading-actions > button { min-width: 76px !important; padding-left: 8px !important; padding-right: 8px !important; }
         }
         .bc-loading-research:hover { text-decoration: underline; opacity: 1 !important; }
+        .bc-loading-complete-btn[data-active="true"]:hover { background-color: rgba(255,255,255,0.1) !important; }
+        .bc-loading-complete-btn[data-active="true"]:active { transform: scale(0.96); }
       `}</style>
 
       {/* 재검색 텍스트 — 상단 흰 선 위쪽 (이전 검색 입력창 자리) */}
@@ -357,11 +377,20 @@ export default function LoadingScreen({ progress = 0, onComplete, onGoHomepage, 
             className="bc-loading-actions"
             style={{ display: 'flex', gap: 16, alignItems: 'center', justifyContent: 'center', flexWrap: 'nowrap' }}
           >
-            {/* 진행률 / 분석 완료 */}
-            <motion.button
+            {/* 진행률 / 분석 완료 — [bugfix 2026-05-19] motion.button 의 pointer-event 가 onClick 을 가로채는
+                케이스가 배포에서 관찰됨. framer-motion 의존을 제거하고 일반 button + CSS hover 로 교체. */}
+            <button
+              type="button"
               onClick={handleCompleteClick}
-              whileHover={phase === 'waitClick' ? { backgroundColor: 'rgba(255,255,255,0.1)' } : {}}
-              whileTap={phase === 'waitClick' ? { scale: 0.96 } : {}}
+              onPointerUp={(e) => {
+                // 보조 트리거: 일부 브라우저(특히 모바일 PWA)에서 click 이 안 올라오는 경우 대비
+                if (phase === 'waitClick') {
+                  e.stopPropagation();
+                  handleCompleteClick();
+                }
+              }}
+              className="bc-loading-complete-btn"
+              data-active={phase === 'waitClick' ? 'true' : 'false'}
               style={{
                 minWidth: 120,
                 height: 44,
@@ -373,6 +402,9 @@ export default function LoadingScreen({ progress = 0, onComplete, onGoHomepage, 
                 padding: '10px 32px',
                 background: 'transparent',
                 cursor: phase === 'waitClick' ? 'pointer' : 'default',
+                transition: 'background-color 0.15s, transform 0.1s',
+                WebkitTapHighlightColor: 'transparent',
+                touchAction: 'manipulation',
               }}
             >
               <span style={{
@@ -381,10 +413,11 @@ export default function LoadingScreen({ progress = 0, onComplete, onGoHomepage, 
                 fontWeight: 600,
                 fontVariantNumeric: 'tabular-nums',
                 letterSpacing: '0.05em',
+                pointerEvents: 'none', // 텍스트가 클릭을 가로채지 않도록
               }}>
                 {displayProgress >= 100 ? '분석 완료' : `${displayProgress}%`}
               </span>
-            </motion.button>
+            </button>
 
             {/* 홈페이지 */}
             <HoverSlideButton onClick={onGoHomepage} label="홈페이지" hoverLabel="바로가기" />
