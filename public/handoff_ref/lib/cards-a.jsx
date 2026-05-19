@@ -56,7 +56,6 @@ function Card01({ body = {} }) {
     <CardShell n="01" id="01"
       title="상권 분석 리포트"
       sub="반경 500m 매장 구성과 임대 시세"
-      sources={["소상공인진흥공단", "나이스비즈맵", "한국부동산원 (KOSIS 408)"]}
       headerRight={window.MapTriggerButton ? <window.MapTriggerButton/> : null}>
       {/* Top: hero + donut */}
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
@@ -185,8 +184,7 @@ function Card02({ body = {} }) {
   return (
     <CardShell n="02" id="02"
       title="고객 분석"
-      sub="방문 고객 특성"
-      sources={["나이스비즈맵", "통계청 인구주택총조사"]}>
+      sub="방문 고객 특성">
       {/* 4-up KPI */}
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
         <StatTile id="c2.tile1" tone="blue"  label="주요 연령대"   value={topAge || '-'} hero accent/>
@@ -299,8 +297,7 @@ function Card03({ body = {} }) {
   return (
     <CardShell n="03" id="03"
       title="상권 변화 추이"
-      sub="개폐업 및 상권 트렌드"
-      sources={["국세청 (KOSIS 133)", "소상공인진흥공단"]}>
+      sub="개폐업 및 상권 트렌드">
       {/* Top tiles */}
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
         <StatTile id="c3.tile1" tone={trend === '성장' ? 'mint' : trend === '쇠퇴' ? 'rose' : 'lilac'} label="추세" value={trend} hero/>
@@ -445,8 +442,7 @@ function Card04({ body = {} }) {
   return (
     <CardShell n="04" id="04"
       title="프랜차이즈 현황"
-      sub="주요 프랜차이즈 브랜드 분석"
-      sources={["나이스비즈맵", "공정거래위원회 가맹사업거래"]}>
+      sub="주요 프랜차이즈 브랜드 분석">
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
         <StatTile tone="lilac" label="프랜차이즈 매장" value={String(franchiseCount)} unit="개" hero/>
         <StatTile tone="blue"  label="시장 점유"      value={franchisePctOfCafe > 0 ? String(franchisePctOfCafe) : '-'} unit={franchisePctOfCafe > 0 ? '%' : ''}/>
@@ -577,8 +573,7 @@ function Card05({ body = {} }) {
   return (
     <CardShell n="06" id="06"
       title="개인 카페 분석"
-      sub="주변 개인 카페 현황 및 가격대"
-      sources={["나이스비즈맵", "오픈업 리뷰 수집", "국세청 (KOSIS 133)"]}>
+      sub="주변 개인 카페 현황 및 가격대">
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
         <StatTile id="c5.tile1" tone="blue"  label="개인 카페 수" value={String(indieCount)} unit="개" hero/>
         <StatTile id="c5.tile2" tone="mint"  label="비중"        value={indiePct > 0 ? String(indiePct) : '-'} unit={indiePct > 0 ? '%' : ''}/>
@@ -636,7 +631,7 @@ function Card05({ body = {} }) {
           </div>
 
           <div style={{paddingTop:20, borderTop:"1px solid var(--matte-line)"}}>
-            <div style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:500, marginBottom:14}}>폐업 동향 (KOSIS 국세청 133)</div>
+            <div style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:500, marginBottom:14}}>폐업 동향</div>
             {(sidoClose > 0 || regionClose > 0) ? (
               <div className="bc-grid-2" style={{gap:12}}>
                 <div style={{padding:"18px 20px", background:"rgba(255,255,255,0.03)", borderRadius:10, border:"1px solid var(--matte-line)"}}>
@@ -649,7 +644,7 @@ function Card05({ body = {} }) {
                 </div>
               </div>
             ) : (
-              <div style={{fontSize:13, color:"var(--matte-fg-4)"}}>KOSIS 폐업 데이터 수집 중</div>
+              <div style={{fontSize:13, color:"var(--matte-fg-4)"}}>폐업 데이터 수집 중</div>
             )}
           </div>
         </div>
@@ -713,8 +708,7 @@ function Card06({ body = {} }) {
   return (
     <CardShell n="05" id="05"
       title="매출 분석"
-      sub="월평균 예상 매출"
-      sources={["소상공인진흥공단", "나이스비즈맵", "한국은행 (KOSIS 301)"]}>
+      sub="월평균 예상 매출">
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
         <StatTile id="c6.tile1" tone="blue"  label="월평균 매출"     value={monthly > 0 ? monthly.toLocaleString() : '-'} unit={monthly > 0 ? '만원' : ''} delta={prevYearRate ? `${prevYearRate > 0 ? '+' : ''}${Number(prevYearRate).toFixed(1)}` : undefined} deltaPositive={prevYearRate >= 0} hero accent/>
         <StatTile id="c6.tile2" tone="mint"  label="월 매출 건수"    value={dongSaleCnt > 0 ? dongSaleCnt.toLocaleString() : '-'} unit={dongSaleCnt > 0 ? '건' : ''}/>
@@ -787,7 +781,7 @@ function Card06({ body = {} }) {
                     <span style={{fontSize:14, color: csChange >= 0 ? "#4C7BE4" : "var(--st-bad)", fontWeight:700, fontVariantNumeric:"tabular-nums"}}>{csChange > 0 ? '+' : ''}{csChange} {csChange >= 0 ? '↗' : '↘'}</span>
                   )}
                 </div>
-                <div style={{fontSize:13, color:"var(--matte-fg-3)", marginTop:8}}>100 이상 = 긍정 · {csRegion} (한국은행 KOSIS 301)</div>
+                <div style={{fontSize:13, color:"var(--matte-fg-3)", marginTop:8}}>100 이상 = 긍정 · {csRegion}</div>
               </>
             ) : (
               <div style={{fontSize:13, color:"var(--matte-fg-4)"}}>소비심리 데이터 수집 중</div>
@@ -835,8 +829,7 @@ function Card07({ body = {} }) {
   return (
     <CardShell n="07" id="07"
       title="유동인구"
-      sub="시간대별 통행량"
-      sources={["KT 빅데이터", "서울시 교통정보시스템"]}>
+      sub="시간대별 통행량">
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
         <StatTile id="c7.tile1" tone="blue"  label="동 일평균 유동인구" value={dongDailyPop > 0 ? dongDailyPop.toLocaleString() : (totalPop > 0 ? totalPop.toLocaleString() : '-')} unit={(dongDailyPop > 0 || totalPop > 0) ? '명' : ''} hero/>
         <StatTile id="c7.tile2" tone="mint"  label="최다 요일"        value={peakDay !== '-' ? peakDay : '-'} delta={peakDayPct > 0 ? Number(peakDayPct).toFixed(1) : undefined}/>

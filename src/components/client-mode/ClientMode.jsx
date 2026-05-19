@@ -126,7 +126,6 @@ export default function ClientMode({
     bcSearchHandlersRef.current = { handleSearch, onCancelSearch, stopLoading };
   }, [handleSearch, onCancelSearch, stopLoading]);
   useEffect(() => {
-    if (!import.meta.env.DEV) return;
     if (typeof window === 'undefined') return;
 
     window.__bcDoSearch = (address, radius) => {

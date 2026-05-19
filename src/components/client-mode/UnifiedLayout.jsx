@@ -4742,6 +4742,7 @@ export default function UnifiedLayout({
   // ═══ [수집능력 고정 - 수정 금지] 자동완성 POI 좌표 획득 ═══
   // 역/출구 패턴 감지 → "XX역 XX호선 X번출구" 전체로 카카오 키워드 검색
   // → 원천 보고서와 0m 오차 좌표 획득
+  // [2026-05-19] 2자리 출구(예: 14번)도 정확히 잡히도록 size=15 + 출구번호 매칭 우선 로직 도입
   const handleSuggestionClick = useCallback((label, originalLabel) => {
     setAddress(label);
     setAutoCompleteOpen(false);
@@ -4754,13 +4755,33 @@ export default function UnifiedLayout({
         try {
           // 원래 label 전체로 검색 (예: "강남역 2호선 1번출구") → 정확한 출구 좌표
           const _kwQuery = _origLabel.includes('출구') ? _origLabel : _stMatch[1];
-          const kwRes = await fetch(`/.netlify/functions/kakao-proxy?type=keyword&query=${encodeURIComponent(_kwQuery)}&size=1`);
+          // 출구 번호 추출 (1~2자리 모두 허용 — \d+)
+          const _exitMatch = _origLabel.match(/(\d+)\s*번\s*출구/);
+          const _exitNum = _exitMatch ? _exitMatch[1] : null;
+          // size=15로 받아 출구 번호가 정확히 일치하는 결과 우선 선택
+          const kwRes = await fetch(`/.netlify/functions/kakao-proxy?type=keyword&query=${encodeURIComponent(_kwQuery)}&size=15`);
           const kwData = await kwRes.json();
-          if (kwData.documents?.[0]) {
-            const doc = kwData.documents[0];
-            console.log('[POI-FIX] 자동완성 역 패턴 감지, 카카오 키워드 좌표 보정:', _stMatch[1], doc.y, doc.x);
-            onSearch(label, radius, { poiCoords: { lat: parseFloat(doc.y), lng: parseFloat(doc.x) } });
-            return;
+          const docs = Array.isArray(kwData.documents) ? kwData.documents : [];
+          let picked = null;
+          if (_exitNum && docs.length > 0) {
+            const _exitPatterns = [
+              new RegExp(`${_exitNum}\\s*번\\s*출구`),
+              new RegExp(`${_exitNum}번출구`)
+            ];
+            picked = docs.find(d => {
+              const name = (d.place_name || '') + ' ' + (d.address_name || '');
+              return _exitPatterns.some(re => re.test(name));
+            }) || null;
+          }
+          if (!picked && docs.length > 0) picked = docs[0];
+          if (picked) {
+            const lat = parseFloat(picked.y);
+            const lng = parseFloat(picked.x);
+            if (!isNaN(lat) && !isNaN(lng) && lat > 33 && lat < 39 && lng > 124 && lng < 132) {
+              console.log('[POI-FIX] 자동완성 역 패턴 감지, 카카오 키워드 좌표 보정:', _stMatch[1], picked.place_name, lat, lng, '| exitNum:', _exitNum);
+              onSearch(label, radius, { poiCoords: { lat, lng } });
+              return;
+            }
           }
         } catch (e) { /* 폴백 */ }
         onSearch(label, radius);

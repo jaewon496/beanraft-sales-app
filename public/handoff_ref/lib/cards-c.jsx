@@ -125,8 +125,7 @@ function Card13({ body = {} }) {
   return (
     <CardShell n="13" id="13"
       title="상권 경쟁 분석"
-      sub="5축 분해 종합 평가 (만점 100)"
-      sources={["빈크래프트 5축 점수 모델", "한국부동산원 (KOSIS 408)", "국세청 (KOSIS 133)", "소상공인 창업기상도"]}>
+      sub="5축 분해 종합 평가 (만점 100)">
 
       <div style={{display:"grid", gridTemplateColumns:"320px 1fr", gap:32, alignItems:"center", marginBottom:24, padding:"8px 8px 16px"}}>
         <div style={{display:"flex", justifyContent:"center"}}>
@@ -285,7 +284,6 @@ function Card14({ body = {}, onOpenDirector }) {
     <CardShell n="14" id="14"
       title="AI 종합 분석"
       sub="AI 에이전트 종합 피드백"
-      sources={["7개 AI 에이전트 종합", "위 13개 카드 데이터 통합"]}
       headerRight={
         <button onClick={onOpenDirector} className="bc-btn" style={{height:32, padding:"0 14px", fontSize:15}}>
           <i className="ph ph-sparkle"></i> AI 디렉터

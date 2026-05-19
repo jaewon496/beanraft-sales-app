@@ -46,8 +46,7 @@ function Card08({ body = {} }) {
   return (
     <CardShell n="08" id="08"
       title="임대/창업 정보"
-      sub="상가 시세 및 창업 비용"
-      sources={["한국부동산원 (KOSIS 408)", "농림축산식품부 (KOSIS 114)", "중소벤처기업부 (KOSIS 142)", "자체 수집기"]}>
+      sub="상가 시세 및 창업 비용">
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
         <StatTile id="c8.tile1" tone="blue"  label="통합 평당 월세" value={rentPerPyeong > 0 ? String(rentPerPyeong) : '-'} unit={rentPerPyeong > 0 ? '만원' : ''} hero/>
         <StatTile id="c8.tile2" tone="lilac" label="평균 보증금"   value={depositPerPy > 0 ? Math.round(depositPerPy).toLocaleString() : '-'} unit={depositPerPy > 0 ? '만/평' : ''}/>
@@ -57,7 +56,7 @@ function Card08({ body = {} }) {
 
       <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16}}>
         <div className="bc-box" style={{padding:18}}>
-          <div style={{fontSize:15, fontWeight:600, marginBottom:12}}>한국부동산원 임대 4종</div>
+          <div style={{fontSize:15, fontWeight:600, marginBottom:12}}>임대 시세 4종</div>
           <div className="bc-grid-2" style={{gap:10}}>
             <Box label="평당 월세" value={marketRent > 0 ? String(marketRent) : '-'} unit={marketRent > 0 ? '만' : ''} sub={kosisRegion || ''} src={kosisPeriod}/>
             <Box label="전환율"   value={conversionRate > 0 ? Number(conversionRate).toFixed(1) : '-'} unit={conversionRate > 0 ? '%' : ''} src={kosisPeriod}/>
@@ -83,7 +82,7 @@ function Card08({ body = {} }) {
         </div>
 
         <div className="bc-box" style={{padding:18}}>
-          <div style={{fontSize:15, fontWeight:600, marginBottom:12}}>전국 카페 평균 (KOSIS 114)</div>
+          <div style={{fontSize:15, fontWeight:600, marginBottom:12}}>전국 카페 평균</div>
           {kc ? (
             <>
               <div className="bc-grid-3" style={{gap:8}}>
@@ -94,10 +93,9 @@ function Card08({ body = {} }) {
                 <Box label="객단가"     value={kc?.unitPriceAvg > 0 ? kc.unitPriceAvg.toLocaleString() : '-'} unit={kc?.unitPriceAvg > 0 ? '원' : ''}/>
                 <Box label="이익률"     value={kc?.profitMargin > 0 ? kc.profitMargin.toFixed(1) : '-'} unit={kc?.profitMargin > 0 ? '%' : ''}/>
               </div>
-              <div style={{fontSize:15, color:"var(--fg-4)", marginTop:8}}>외식업체경영실태조사 {kc?.year || ''}</div>
             </>
           ) : (
-            <div style={{fontSize:13, color:"var(--matte-fg-4)", padding:"20px 0"}}>KOSIS 카페 평균 데이터 수집 중</div>
+            <div style={{fontSize:13, color:"var(--matte-fg-4)", padding:"20px 0"}}>카페 평균 데이터 수집 중</div>
           )}
         </div>
       </div>
@@ -129,7 +127,7 @@ function Card08({ body = {} }) {
             });
           })()}
           </div>
-          <div style={{fontSize:13, color:"var(--matte-fg-3)", marginTop:16, paddingTop:14, borderTop:"1px solid var(--matte-line)"}}>평균 시공 권장 — 평당 {kc?.interiorPerPyeong > 0 ? kc.interiorPerPyeong.toLocaleString() : '~350'}만원 기준 (KOSIS 외식업체경영실태조사)</div>
+          <div style={{fontSize:13, color:"var(--matte-fg-3)", marginTop:16, paddingTop:14, borderTop:"1px solid var(--matte-line)"}}>평균 시공 권장 — 평당 {kc?.interiorPerPyeong > 0 ? kc.interiorPerPyeong.toLocaleString() : '~350'}만원 기준</div>
         </div>
 
         <div className="bc-box" style={{padding:24, background:"linear-gradient(135deg, rgba(76, 123, 228,0.10), transparent 60%)", border:"1px solid rgba(76, 123, 228,0.45)"}}>
@@ -198,8 +196,7 @@ function Card09({ body = {} }) {
   return (
     <CardShell n="09" id="09"
       title="카페 기회"
-      sub="이 동네 카페 데이터 발견"
-      sources={["한국부동산원 (KOSIS 408)", "소상공인진흥공단"]}>
+      sub="이 동네 카페 데이터 발견">
       {/* 4-up KPI */}
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
         <StatTile id="c9.hero" tone="mint" label="공실률" value={vacancy > 0 ? Number(vacancy).toFixed(1) : '-'} unit={vacancy > 0 ? '%' : ''} delta={vacavgDelta !== 0 ? `${vacavgDelta > 0 ? '+' : ''}${vacavgDelta}` : undefined} deltaPositive={vacavgDelta <= 0} hero accent/>
@@ -320,8 +317,7 @@ function Card10({ body = {} }) {
   return (
     <CardShell n="10" id="10"
       title="배달 객단가"
-      sub="이 동네 배달 객단가"
-      sources={["배민/쿠팡이츠 (자체 수집)", "통계청 서비스업동향"]}>
+      sub="이 동네 배달 객단가">
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
         <StatTile id="c10.tile1" tone="blue"  label="동 객단가 (배달)" value={searchAvgPrice > 0 ? searchAvgPrice.toLocaleString() : '-'} unit={searchAvgPrice > 0 ? '원' : ''} delta={yoyPct ? `${yoyPct > 0 ? '+' : ''}${yoyPct}` : undefined} deltaPositive={yoyPct >= 0} hero/>
         <StatTile id="c10.tile2" tone="mint"  label="월 배달 매출"   value={searchSales > 0 ? searchSales.toLocaleString() : '-'} unit={searchSales > 0 ? '만' : ''}/>
@@ -368,7 +364,7 @@ function Card10({ body = {} }) {
               ))}
               </div>
             ) : (
-              <div style={{fontSize:13, color:"var(--matte-fg-4)", padding:"20px 0"}}>KOSIS 운영 비용 데이터 수집 중</div>
+              <div style={{fontSize:13, color:"var(--matte-fg-4)", padding:"20px 0"}}>운영 비용 데이터 수집 중</div>
             )}
           </div>
 
@@ -386,7 +382,7 @@ function Card10({ body = {} }) {
                 ]}/>
               </div>
             ) : (
-              <div style={{fontSize:13, color:"var(--matte-fg-4)", padding:"30px 0", textAlign:"center"}}>KOSIS 배달 운영 비중 수집 중</div>
+              <div style={{fontSize:13, color:"var(--matte-fg-4)", padding:"30px 0", textAlign:"center"}}>배달 운영 비중 수집 중</div>
             )}
           </div>
         </div>
@@ -415,8 +411,7 @@ function Card11({ body = {} }) {
   return (
     <CardShell n="11" id="11"
       title="SNS 트렌드"
-      sub="소셜미디어 카페 분위기 분석"
-      sources={["인스타그램 해시태그", "네이버 카페 후기", "오픈업"]}>
+      sub="소셜미디어 카페 분위기 분석">
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
         <StatTile id="c11.tile1" tone="mint"  label="긍정 비율"      value={positivePct > 0 ? String(positivePct) : '-'} unit={positivePct > 0 ? '%' : ''} hero/>
         <StatTile id="c11.tile2" tone="rose"  label="부정 비율"      value={negativePct > 0 ? String(negativePct) : '-'} unit={negativePct > 0 ? '%' : ''} deltaPositive={false}/>
@@ -527,8 +522,7 @@ function Card12({ body = {} }) {
   return (
     <CardShell n="12" id="12"
       title="날씨 영향 분석"
-      sub="연간 기상 분포와 매출 영향"
-      sources={["기상청 종관기상관측", "자체 매출 매핑"]}>
+      sub="연간 기상 분포와 매출 영향">
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
         <StatTile id="c12.tile1" tone="cream" label="맑음" value={sunnyDays > 0 ? String(sunnyDays) : '-'} unit={sunnyDays > 0 ? '일/년' : ''} hero/>
         <StatTile id="c12.tile2" tone="lilac" label="흐림" value={cloudyDays > 0 ? String(cloudyDays) : '-'} unit={cloudyDays > 0 ? '일/년' : ''}/>
