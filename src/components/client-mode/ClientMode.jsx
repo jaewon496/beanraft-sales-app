@@ -155,10 +155,15 @@ export default function ClientMode({
   // [bugfix 2026-05-19] 100 도달 후 같은 값으로 매번 setState 하면 LoadingScreen 이
   // 무한히 리렌더되어 내부 setPhase('closing') 후에도 effect 가 재실행되며
   // displayProgress/phase 충돌이 생긴다. 값이 실제로 바뀔 때만 setState.
+  // [bugfix 2026-05-19 v2] searchResult.success 시점에는 가드 무시하고 강제 100 푸시.
+  //   기존 가드(===)는 progressRef가 이미 99.x 또는 100으로 부분 도달했을 때
+  //   동일값으로 판단되어 setLoadingProgress(100) 호출이 누락 → LoadingScreen의
+  //   progress prop이 100에 못 도달 → waitClick 전환 안 됨 → 클릭 무시 버그.
   useEffect(() => {
     if (!onSearchRegion || phase !== PHASE.LOADING) return;
     const effectiveProgress = searchResult?.success ? 100 : analysisProgress;
-    if (progressRef.current === effectiveProgress) return; // 동일값이면 무시
+    const isCompleteEvent = !!searchResult?.success && effectiveProgress === 100;
+    if (!isCompleteEvent && progressRef.current === effectiveProgress) return; // 분석 중에만 동일값 가드
     progressRef.current = effectiveProgress;
     setLoadingProgress(effectiveProgress);
   }, [analysisProgress, searchResult, onSearchRegion, phase]);

@@ -81,7 +81,7 @@ export default function Card09({ body = {} }) {
       sub="이 동네 카페 데이터 발견"
       sources={["한국부동산원 (KOSIS 408)", "지방행정인허가데이터", "소상공인진흥공단"]}>
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
-        <StatTile id="c9.hero" tone="mint" label="공실률" value={vacancy > 0 ? vacancy.toFixed(1) : '-'} unit={vacancy > 0 ? '%' : ''} delta={vacavgDelta ? `${vacavgDelta > 0 ? '+' : ''}${vacavgDelta}` : undefined} deltaPositive={vacavgDelta <= 0} hero accent/>
+        <StatTile id="c9.hero" tone="mint" label="공실률" value={vacancy > 0 ? vacancy.toFixed(1) : '-'} unit={vacancy > 0 ? '%' : ''} delta={vacavgDelta ? `${vacavgDelta > 0 ? '+' : ''}${vacavgDelta}` : undefined} deltaPositive={vacavgDelta <= 0} deltaPrefixDisabled hero accent/>
         <StatTile tone="blue" label="평균 대비" value={vacavgDelta ? `${vacavgDelta > 0 ? '+' : ''}${vacavgDelta}` : '-'} unit={vacavgDelta ? '%p' : ''}/>
         <StatTile tone="lilac" label="1년 신규" value={String(newOpen)} unit="개"/>
         <StatTile tone="cream" label="1년 폐업" value={String(closed)} unit="개"/>

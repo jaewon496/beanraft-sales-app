@@ -80,8 +80,8 @@ export default function Card01({ body = {} }) {
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
         <StatTile id="c1.tile1" tone="blue"  label="총 카페 수"   value={String(cafeCount)} unit="개" hero/>
         <StatTile id="c1.tile2" tone="lilac" label="프랜차이즈"   value={String(franchise)} unit="개"/>
-        <StatTile id="c1.tile3" tone="mint"  label="평당 월세"    value={rentPerPyeong > 0 ? String(rentPerPyeong) : '-'} unit={rentPerPyeong > 0 ? '만원' : ''} delta={rentPerPyeong > 0 ? rentDelta : undefined} deltaPositive={priceChange >= 0}/>
-        <StatTile id="c1.tile4" tone="rose"  label="공실률"       value={vacancyRate > 0 ? vacancyRate.toFixed(1) : '-'} unit={vacancyRate > 0 ? '%' : ''} delta={vacancyRate > 0 ? vacancyDelta : undefined} deltaPositive={false}/>
+        <StatTile id="c1.tile3" tone="mint"  label="평당 월세"    value={rentPerPyeong > 0 ? String(rentPerPyeong) : '-'} unit={rentPerPyeong > 0 ? '만원' : ''} delta={rentPerPyeong > 0 ? rentDelta : undefined} deltaPositive={priceChange >= 0} deltaPrefixDisabled/>
+        <StatTile id="c1.tile4" tone="rose"  label="공실률"       value={vacancyRate > 0 ? vacancyRate.toFixed(1) : '-'} unit={vacancyRate > 0 ? '%' : ''} delta={vacancyRate > 0 ? vacancyDelta : undefined} deltaPositive={(() => { const last = vacancySeries?.[vacancySeries.length-1]?.value ?? vacancyRate; const prev = vacancySeries?.[0]?.value ?? vacancyRate; return (last - prev) <= 0; })()} deltaPrefixDisabled/>
       </div>
 
       <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16}}>

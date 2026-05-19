@@ -106,8 +106,12 @@ export default function LoadingScreen({ progress = 0, onComplete, onGoHomepage, 
   // 100% → waitClick (사용자 클릭 대기) — 표시 진행률 기준으로 전환
   // [bugfix 2026-05-19] 함수형 업데이터로 변경: 동시 setState 와 충돌해도 phase 가
   // closing/blackout/done 이면 절대 waitClick 으로 되돌아가지 않도록 가드.
+  // [bugfix 2026-05-19 v2] progress prop 이 100 도달 못해도 displayProgress 가
+  // 100 도달했으면 waitClick 으로 전환 (사용자 화면에 "분석 완료" 보이면 클릭 가능해야 함).
+  //   원인: ClientMode가 progressRef 가드로 setLoadingProgress(100) 누락 시
+  //   progress prop은 100 미만이지만 displayProgress 보간으로 100 도달 가능.
   useEffect(() => {
-    if (displayProgress >= 100 && progress >= 100) {
+    if (displayProgress >= 100) {
       setPhase((cur) => (cur === 'ready' ? 'waitClick' : cur));
     }
   }, [displayProgress, progress]);
@@ -134,7 +138,8 @@ export default function LoadingScreen({ progress = 0, onComplete, onGoHomepage, 
   const handleCompleteClick = () => {
     if (completeClickedRef.current) return; // 중복 클릭/이중 발화 차단
     setPhase((cur) => {
-      if (cur === 'waitClick' || (cur === 'ready' && displayProgress >= 100 && progress >= 100)) {
+      // [bugfix 2026-05-19 v2] progress prop 의존 제거. displayProgress 만 100 이면 클릭 허용.
+      if (cur === 'waitClick' || (cur === 'ready' && displayProgress >= 100)) {
         completeClickedRef.current = true;
         if (typeof console !== 'undefined') console.log('[LoadingScreen] complete click -> closing');
         return 'closing';

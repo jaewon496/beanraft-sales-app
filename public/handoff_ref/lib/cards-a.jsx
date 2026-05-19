@@ -71,8 +71,8 @@ function Card01({ body = {} }) {
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
         <StatTile id="c1.tile1" tone="blue"  label="총 매장"        value={totalStores > 0 ? String(totalStores) : '-'} unit={totalStores > 0 ? '개' : ''} hero/>
         <StatTile id="c1.tile2" tone="lilac" label="프랜차이즈"     value={franchise > 0 ? String(franchise) : '-'} unit={franchise > 0 ? '개' : ''}/>
-        <StatTile id="c1.tile3" tone="mint"  label="평당 월세"      value={rentPerPyeong > 0 ? String(rentPerPyeong) : '-'} unit={rentPerPyeong > 0 ? '만원' : ''} delta={priceChange != null && Number(priceChange) !== 0 ? String(Math.abs(Number(priceChange)).toFixed(1)) : null} deltaPositive={priceChange == null || Number(priceChange) >= 0}/>
-        <StatTile id="c1.tile4" tone="rose"  label="공실률"         value={vacancyDisplay} unit={vacancyDisplay !== '-' ? '%' : ''} delta={vacancyDelta !== 0 ? String(Math.abs(vacancyDelta).toFixed(1)) : null} deltaPositive={vacancyDelta <= 0}/>
+        <StatTile id="c1.tile3" tone="mint"  label="평당 월세"      value={rentPerPyeong > 0 ? String(rentPerPyeong) : '-'} unit={rentPerPyeong > 0 ? '만원' : ''} delta={priceChange != null && Number(priceChange) !== 0 ? `${Number(priceChange) >= 0 ? '+' : ''}${Number(priceChange).toFixed(1)}` : null} deltaPositive={priceChange == null || Number(priceChange) >= 0} deltaPrefixDisabled/>
+        <StatTile id="c1.tile4" tone="rose"  label="공실률"         value={vacancyDisplay} unit={vacancyDisplay !== '-' ? '%' : ''} delta={vacancyDelta !== 0 ? `${vacancyDelta >= 0 ? '+' : ''}${vacancyDelta.toFixed(1)}` : null} deltaPositive={vacancyDelta <= 0} deltaPrefixDisabled/>
       </div>
 
       <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16}}>

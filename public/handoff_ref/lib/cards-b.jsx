@@ -206,7 +206,7 @@ function Card09({ body = {} }) {
       sub="이 동네 카페 데이터 발견">
       {/* 4-up KPI */}
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
-        <StatTile id="c9.hero" tone="mint" label="공실률" value={vacancy > 0 ? Number(vacancy).toFixed(1) : '-'} unit={vacancy > 0 ? '%' : ''} delta={vacavgDelta !== 0 ? String(Math.abs(vacavgDelta)) : undefined} deltaPositive={vacavgDelta <= 0} hero accent/>
+        <StatTile id="c9.hero" tone="mint" label="공실률" value={vacancy > 0 ? Number(vacancy).toFixed(1) : '-'} unit={vacancy > 0 ? '%' : ''} delta={vacavgDelta !== 0 ? `${vacavgDelta >= 0 ? '+' : ''}${vacavgDelta}` : undefined} deltaPositive={vacavgDelta <= 0} deltaPrefixDisabled hero accent/>
         <StatTile tone="blue" label="평균 대비" value={vacavgDelta !== 0 ? `${vacavgDelta > 0 ? '+' : ''}${vacavgDelta}` : '-'} unit={vacavgDelta !== 0 ? '%p' : ''}/>
         <StatTile tone="lilac" label="1년 신규" value={String(newOpen)} unit="개"/>
         <StatTile tone="cream" label="1년 폐업" value={String(closed)} unit="개"/>

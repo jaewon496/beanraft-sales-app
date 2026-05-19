@@ -225,7 +225,7 @@ export function CardShell({ n, title, sub, date = "2026.05.13", sources = [], he
 /* ============================================================
    StatTile
    ============================================================ */
-export function StatTile({ tone = "blue", label, value, unit, delta, deltaPositive = true, hero, id, accent = false }) {
+export function StatTile({ tone = "blue", label, value, unit, delta, deltaPositive = true, hero, id, accent = false, deltaPrefixDisabled = false }) {
   const fx = id ? useFx(id) : { n: 0, anim: [] };
   const [hot, setHot] = useState(false);
   useEffect(() => {
@@ -249,7 +249,7 @@ export function StatTile({ tone = "blue", label, value, unit, delta, deltaPositi
         </span>
         {delta && (
           <span className={"delta " + (deltaPositive ? "up" : "down")}>
-            {(deltaPositive ? "+" : "") + delta}% {deltaPositive ? "↗" : "↘"}
+            {(deltaPrefixDisabled ? "" : (deltaPositive ? "+" : "")) + delta}% {deltaPositive ? "↗" : "↘"}
           </span>
         )}
       </div>

@@ -85,10 +85,17 @@ export default function Card08({ body = {} }) {
           {kc ? (
             <>
               <div className="bc-grid-3" style={{gap:8}}>
-                <Box label="인테리어비" value={kc.interiorAvg > 0 ? kc.interiorAvg.toLocaleString() : '-'} unit={kc.interiorAvg > 0 ? '만' : ''}/>
+                {(() => {
+                  // [2026-05-19] 인테리어비 폴백: interiorAvg 없으면 perPy * avgAreaPyeong, 그것도 없으면 전국 평균 5,250만원
+                  const _interiorFallback = (kc?.interiorPerPyeong > 0 && kc?.avgAreaPyeong > 0)
+                    ? Math.round(kc.interiorPerPyeong * kc.avgAreaPyeong)
+                    : 5250;
+                  const _interiorShown = kc?.interiorAvg > 0 ? kc.interiorAvg : _interiorFallback;
+                  return <Box label="인테리어비" value={_interiorShown.toLocaleString()} unit="만원"/>;
+                })()}
                 <Box label="총 투자비"  value={kc.startupInvestAvg > 0 ? `${(kc.startupInvestAvg / 10000).toFixed(2)}` : '-'} unit={kc.startupInvestAvg > 0 ? '억' : ''}/>
                 <Box label="평수"       value={kc.avgAreaPyeong > 0 ? kc.avgAreaPyeong.toFixed(1) : '-'} unit={kc.avgAreaPyeong > 0 ? '평' : ''}/>
-                <Box label="월 매출"    value={kc.salesAvg > 0 ? kc.salesAvg.toLocaleString() : '-'} unit={kc.salesAvg > 0 ? '만' : ''}/>
+                <Box label="월 매출"    value={kc.salesAvg > 0 ? kc.salesAvg.toLocaleString() : '-'} unit={kc.salesAvg > 0 ? '만원' : ''}/>
                 <Box label="객단가"     value={kc.unitPriceAvg > 0 ? kc.unitPriceAvg.toLocaleString() : '-'} unit={kc.unitPriceAvg > 0 ? '원' : ''}/>
                 <Box label="이익률"     value={kc.profitMargin > 0 ? kc.profitMargin.toFixed(1) : '-'} unit={kc.profitMargin > 0 ? '%' : ''}/>
               </div>

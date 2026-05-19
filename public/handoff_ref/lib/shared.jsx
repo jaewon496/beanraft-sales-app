@@ -242,7 +242,7 @@ function CardShell({ n, title, sub, date = "2026.05.13", sources = [], headerRig
    Uses count-up animation on mount; if `id` given, re-animates on tour trigger.
    Flavor classes (sparkle/glow/float/hot/roulette/bounce/glitch) come from seq.anim.
    ============================================================ */
-function StatTile({ tone = "blue", label, value, unit, delta, deltaPositive = true, hero, id, accent = false, sub }) {
+function StatTile({ tone = "blue", label, value, unit, delta, deltaPositive = true, hero, id, accent = false, sub, deltaPrefixDisabled = false }) {
   const fx = id ? (window.useFx?.(id) ?? { n: 0, anim: [] }) : { n: 0, anim: [] };
   const [hot, setHot] = useState(false);
   useEffect(() => {
@@ -266,7 +266,7 @@ function StatTile({ tone = "blue", label, value, unit, delta, deltaPositive = tr
         </span>
         {delta && (
           <span className={"delta " + (deltaPositive ? "up" : "down")}>
-            {(deltaPositive ? "+" : "") + delta}% {deltaPositive ? "↗" : "↘"}
+            {(deltaPrefixDisabled ? "" : (deltaPositive ? "+" : "")) + delta}% {deltaPositive ? "↗" : "↘"}
           </span>
         )}
       </div>
