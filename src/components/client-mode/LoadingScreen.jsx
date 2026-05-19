@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { COLORS } from './constants';
 
@@ -126,6 +126,14 @@ export default function LoadingScreen({ progress = 0, onComplete, onGoHomepage, 
     }
   };
 
+  // [bugfix 2026-05-19] onComplete 가 매 렌더마다 새 reference면 (부모가 inline 함수로 전달)
+  // 이 effect의 cleanup이 매번 호출되어 closing/blackout setTimeout이 취소+재시작 됨.
+  // 또한 setTimeout 콜백 안에서 setPhase('done') + onComplete() 두 가지가 호출되는데,
+  // 콜백 실행 직후 onComplete 가 변경되면 useEffect 재실행되어 또 setTimeout 이 걸리고,
+  // 결과적으로 setPhase('done') + onComplete() 가 두 번 호출되는 경우가 있음.
+  // → onComplete 를 ref 로 안정화하고, 의존성에서 제거.
+  const onCompleteRef = useRef(onComplete);
+  useEffect(() => { onCompleteRef.current = onComplete; }, [onComplete]);
   useEffect(() => {
     if (phase === 'closing') {
       setLinesExpanded(false);
@@ -135,11 +143,11 @@ export default function LoadingScreen({ progress = 0, onComplete, onGoHomepage, 
     if (phase === 'blackout') {
       const t = setTimeout(() => {
         setPhase('done');
-        onComplete?.();
+        onCompleteRef.current?.();
       }, BLACKOUT_DURATION * 1000);
       return () => clearTimeout(t);
     }
-  }, [phase, onComplete]);
+  }, [phase]);
 
   const clampedProgress = Math.min(100, Math.max(0, progress));
   const isClosing = phase === 'closing' || phase === 'blackout' || phase === 'done';

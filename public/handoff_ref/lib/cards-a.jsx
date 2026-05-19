@@ -153,7 +153,20 @@ function Card02({ body = {} }) {
   const ageGroups = (Array.isArray(cd.ageGroups) && cd.ageGroups.length > 0)
     ? cd.ageGroups.map(g => ({ l: g?.name || '-', v: Number(g?.pct) || 0, t: `${Number(g?.pct) || 0}%` }))
     : [];
-  const topAgeIdx = ageGroups.findIndex(g => g.l === topAge);
+  // [2026-05-19] topAge 매칭 보강: "30대 (28%)" 같은 괄호 표기 + 직접 매칭 실패 시 최대값 인덱스 사용
+  const _topAgeBase = (topAge || '').replace(/\s*\([^)]*\)\s*$/, '').trim();
+  let topAgeIdx = ageGroups.findIndex(g => g.l === _topAgeBase || g.l === topAge);
+  if (topAgeIdx < 0 && _topAgeBase) {
+    // "30대" 같은 부분 매칭 — 라벨이 "30대"·"30s"·"30~39세" 등 변형돼도 첫 숫자 비교
+    const _topNum = (_topAgeBase.match(/\d+/) || [])[0];
+    if (_topNum) topAgeIdx = ageGroups.findIndex(g => (String(g.l).match(/\d+/) || [])[0] === _topNum);
+  }
+  if (topAgeIdx < 0 && ageGroups.length > 0) {
+    // 최후 폴백: 가장 높은 비율의 인덱스
+    let _maxV = -1; let _maxI = 0;
+    ageGroups.forEach((g, idx) => { if (g.v > _maxV) { _maxV = g.v; _maxI = idx; } });
+    topAgeIdx = _maxI;
+  }
   const earn = bd.customerYrEarn || null;
   const maleIncome = Number(earn?.male) || 0;
   const femaleIncome = Number(earn?.female) || 0;

@@ -74,20 +74,25 @@
     function App() {
       const [active, setActive] = useState("01");
       const [director, setDirector] = useState(false);
-      const [sidebarOpen, setSidebarOpen] = useState(true);
+      // [2026-05-19] 모바일 viewport(≤768px)에서는 사이드바 기본 닫힘
+      const _isMobile = () => (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 768px)').matches);
+      const [sidebarOpen, setSidebarOpen] = useState(() => !_isMobile());
       const [filterCategory, setFilterCategory] = useState(null);
       const [singleCardN, setSingleCardN] = useState(null);   /* ★ 개별 카드 풀스크린 */
       const scrollRef = useRef(null);
 
-      /* sidebar nav (개별 카드 항목) → 그 카드만 풀스크린 모드 */
+      /* sidebar nav (개별 카드 항목) → 그 카드만 풀스크린 모드
+         [2026-05-19] 모바일이면 사이드바 자동 닫음 */
       const onNav = useCallback((n) => {
         setActive(n);
         setSingleCardN(prev => prev === n ? null : n);
         setFilterCategory(null);
+        if (_isMobile()) setSidebarOpen(false);
         setTimeout(() => scrollRef.current?.scrollTo({top:0, behavior:"instant"}), 30);
       }, []);
 
-      /* 카테고리 클릭: 같은 카테고리면 해제, 다른 거면 전환 */
+      /* 카테고리 클릭: 같은 카테고리면 해제, 다른 거면 전환
+         [2026-05-19] 모바일이면 사이드바 자동 닫음 */
       const onCategoryClick = useCallback((catId) => {
         setSingleCardN(null);
         setFilterCategory(prev => {
@@ -97,10 +102,14 @@
           setTimeout(() => scrollRef.current?.scrollTo({top:0, behavior:"smooth"}), 50);
           return catId;
         });
+        if (_isMobile()) setSidebarOpen(false);
       }, []);
 
       const toggleSidebar = useCallback(() => setSidebarOpen(o => !o), []);
-      const clearFilter   = useCallback(() => { setFilterCategory(null); setSingleCardN(null); }, []);
+      const clearFilter   = useCallback(() => {
+        setFilterCategory(null); setSingleCardN(null);
+        if (_isMobile()) setSidebarOpen(false);
+      }, []);
       const openDirector  = () => setDirector(true);
       const closeDirector = () => setDirector(false);
 
@@ -194,7 +203,14 @@
 
       return (
         <window.SeqCtx.Provider value={seqValue}>
-          <div className={"bc-app" + (sidebarOpen ? "" : " sb-closed") + filterClass + (singleCardN ? " single-card" : "")}>
+          <div
+            className={"bc-app" + (sidebarOpen ? " sb-open" : " sb-closed") + filterClass + (singleCardN ? " single-card" : "")}
+            onClick={(e) => {
+              // [2026-05-19] 모바일에서 사이드바 오버레이 백드롭(::before) 클릭 시 닫음
+              // bc-app 자기 자신을 클릭 (자식이 아닌) 했을 때만 처리
+              if (_isMobile() && sidebarOpen && e.target === e.currentTarget) setSidebarOpen(false);
+            }}
+          >
             <div className={"bc-shell " + (sidebarOpen ? "sb-open" : "sb-closed")}>
               <Sidebar
                 active={active}

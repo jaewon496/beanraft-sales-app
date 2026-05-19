@@ -56,11 +56,25 @@ export default function Card02({ body = {} }) {
       <div style={{display:"grid", gridTemplateColumns:"1.2fr 1fr", gap:16}}>
         <div className="bc-box" style={{padding:24}}>
           <div style={{fontSize:16, fontWeight:600, marginBottom:18}}>연령대 분포</div>
-          {ageGroups.length > 0 ? (
-            <VBars id="c2.bars" accent={ageGroups.findIndex(g => g.name === topAge)} barW={48} gap={28} height={200} items={ageGroups.map(g => ({
-              l: g.name, v: g.pct, t: `${g.pct}%`
-            }))}/>
-          ) : (
+          {ageGroups.length > 0 ? (() => {
+            // [2026-05-19] topAge 매칭 보강: "30대 (28%)" 같은 괄호 표기 + 직접 매칭 실패 시 최대값 인덱스 사용
+            const _topBase = (topAge || '').replace(/\s*\([^)]*\)\s*$/, '').trim();
+            let _accIdx = ageGroups.findIndex(g => g.name === _topBase || g.name === topAge);
+            if (_accIdx < 0 && _topBase) {
+              const _topNum = (_topBase.match(/\d+/) || [])[0];
+              if (_topNum) _accIdx = ageGroups.findIndex(g => (String(g.name).match(/\d+/) || [])[0] === _topNum);
+            }
+            if (_accIdx < 0) {
+              let _maxV = -1, _maxI = 0;
+              ageGroups.forEach((g, idx) => { const v = Number(g.pct) || 0; if (v > _maxV) { _maxV = v; _maxI = idx; } });
+              _accIdx = _maxI;
+            }
+            return (
+              <VBars id="c2.bars" accent={_accIdx} barW={48} gap={28} height={200} items={ageGroups.map(g => ({
+                l: g.name, v: g.pct, t: `${g.pct}%`
+              }))}/>
+            );
+          })() : (
             <div style={{fontSize:14, color:"var(--matte-fg-3)", textAlign:"center", padding:"40px 0"}}>연령대 데이터 수집 중</div>
           )}
           <div style={{marginTop:24, paddingTop:20, borderTop:"1px solid var(--matte-line)"}}>

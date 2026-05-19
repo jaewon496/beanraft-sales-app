@@ -638,29 +638,48 @@ html, body { background: var(--matte-bg) !important; }
 
 /* ── 모바일 / 폴드 ── */
 @media (max-width: 768px) {
-  /* 사이드바 — 모바일에서 자동 숨김 (햄버거로만 열림) */
+  /* 사이드바 — 모바일에서 풀스크린 오버레이 (햄버거로만 열림) */
   .bc-app .bc-sb {
     position: fixed !important;
     top: 0;
     left: 0;
-    width: 240px !important;
+    width: 280px !important;
+    max-width: 86vw;
     height: 100vh;
     z-index: 200;
+    overflow-y: auto;
     box-shadow: 4px 0 24px rgba(0,0,0,0.45);
+    transition: transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 200ms;
   }
   /* 기본은 숨김 — 외부에서 sb-open 클래스가 있을 때만 표시 */
   .bc-app:not(.sb-open) .bc-sb,
   .bc-app.sb-closed .bc-sb {
-    margin-left: -240px !important;
+    transform: translateX(-100%);
     opacity: 0;
-    transform: translateX(-12px);
     pointer-events: none;
   }
   .bc-app.sb-open .bc-sb {
-    margin-left: 0 !important;
-    opacity: 1;
     transform: none;
+    opacity: 1;
     pointer-events: auto;
+  }
+  /* 오버레이 백드롭 — 사이드바 열렸을 때 메인 영역 어둡게 + 클릭으로 닫힘 유도 */
+  .bc-app.sb-open::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 199;
+    pointer-events: auto;
+  }
+  /* 햄버거 버튼 모바일에서 더 크고 잘 보이게 */
+  .bc-app .bc-tb__hamb {
+    width: 40px;
+    height: 40px;
+    font-size: 22px;
+    color: #fff !important;
+    background: rgba(255,255,255,0.08) !important;
+    border-radius: 8px;
   }
   /* 사이드바 카테고리 헤더 — 좁은 폭에서도 한 줄 유지, 폰트 축소 */
   .bc-app .bc-cat { height: 40px; padding: 0 12px; font-size: 13px; }
@@ -685,19 +704,98 @@ html, body { background: var(--matte-bg) !important; }
   .bc-app .bc-card__sub   { font-size: 12px; line-height: 1.45; word-break: keep-all; }
   .bc-app .bc-card__num { width: 30px; height: 30px; font-size: 12px; }
 
-  .bc-app .bc-grid-2,
-  .bc-app .bc-grid-3,
+  /* 4-up KPI: 2칼럼 (1칼럼이면 스크롤이 너무 길음) */
   .bc-app .bc-grid-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+  }
+  .bc-app .bc-grid-2,
+  .bc-app .bc-grid-3 {
     grid-template-columns: 1fr !important;
     gap: 10px !important;
   }
 
-  /* 인라인 grid도 1칼럼 — 카드 안 nested 박스 깨짐 차단 */
-  .bc-app .bc-card__body > div[style*="grid-template-columns"],
-  .bc-app .bc-card__body div[style*="grid-template-columns"] {
+  /* 인라인 grid도 1칼럼 — 카드 안 nested 박스 깨짐 차단
+     (단, repeat(12, ...)·repeat(N, ...)·grid 차트·gauge/bar 행은 예외)
+     [2026-05-19] selector 좁힘: 2~3칼럼·"1fr 1fr"·"1.x fr"만 1칼럼화 */
+  .bc-app .bc-card__body > div[style*="1fr 1fr"]:not([style*="repeat"]),
+  .bc-app .bc-card__body div[style*="1fr 1fr"]:not([style*="repeat"]),
+  .bc-app .bc-card__body > div[style*="1.2fr"],
+  .bc-app .bc-card__body div[style*="1.2fr"],
+  .bc-app .bc-card__body > div[style*="1.3fr"],
+  .bc-app .bc-card__body div[style*="1.3fr"],
+  .bc-app .bc-card__body > div[style*="1.4fr"],
+  .bc-app .bc-card__body div[style*="1.4fr"],
+  .bc-app .bc-card__body > div[style*="2fr 1fr"],
+  .bc-app .bc-card__body div[style*="2fr 1fr"],
+  .bc-app .bc-card__body > div[style*="320px"],
+  .bc-app .bc-card__body div[style*="320px"],
+  .bc-app .bc-card__body > div[style*="260px"],
+  .bc-app .bc-card__body div[style*="260px"] {
     grid-template-columns: 1fr !important;
     gap: 10px !important;
   }
+  /* repeat(2~4) 그리드는 2칼럼으로 — 1칼럼이면 너무 길어짐 */
+  .bc-app .bc-card__body div[style*="repeat(4, 1fr)"],
+  .bc-app .bc-card__body div[style*="repeat(3, 1fr)"],
+  .bc-app .bc-card__body div[style*="repeat(2, minmax"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+  /* repeat(12, 1fr) — 카드 12 월별 캘린더: 가로 스크롤 컨테이너로 */
+  .bc-app .bc-card__body div[style*="repeat(12, 1fr)"] {
+    grid-template-columns: repeat(12, minmax(28px, 1fr)) !important;
+    overflow-x: auto;
+    overflow-y: hidden;
+    min-width: 0;
+    width: 100%;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+  }
+  /* 차트 SVG·차트 div: 부모 100%, 가로 오버플로우 스크롤 */
+  .bc-app .bc-card__body svg {
+    width: 100% !important;
+    max-width: 100%;
+    height: auto;
+  }
+  /* VBars/BarRow 컨테이너: 너무 좁으면 가로 스크롤 */
+  .bc-app .bc-card__body [data-fx-id] {
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  /* BarRow 110px 라벨 컬럼은 너무 넓음 → 80px (모든 변형 처리) */
+  .bc-app .bc-card__body div[style*="110px 1fr 70px"],
+  .bc-app .bc-card__body div[style*="110px 1fr 80px"],
+  .bc-app .bc-card__body div[style*="110px 1fr 90px"] {
+    grid-template-columns: 78px 1fr 64px !important;
+    gap: 8px !important;
+  }
+  /* 180px 1fr 130px (카드14 스코어 등) */
+  .bc-app .bc-card__body div[style*="180px 1fr 130px"] {
+    grid-template-columns: 100px 1fr 70px !important;
+    gap: 8px !important;
+  }
+  /* customerYrEarn 60px / 90px 그리드 — 모바일에서 컴팩트하게 */
+  .bc-app .bc-card__body div[style*="60px 1fr 90px"],
+  .bc-app .bc-card__body div[style*="60px 1fr 80px"] {
+    grid-template-columns: 50px 1fr 70px !important;
+    gap: 8px !important;
+  }
+  /* VBars 막대 width — inline 22~48px 고정인데 모바일에선 부모 폭에 맞춤 */
+  .bc-app .bc-card__body div[style*="width: 22px"],
+  .bc-app .bc-card__body div[style*="width: 28px"],
+  .bc-app .bc-card__body div[style*="width: 48px"] {
+    width: 100% !important;
+    max-width: 36px;
+  }
+  /* 카드 13 등 180/1fr/90 행 */
+  .bc-app .bc-card__body div[style*="180px 1fr 90px"] {
+    grid-template-columns: 100px 1fr 70px !important;
+    gap: 8px !important;
+  }
+  /* StatTile hero/value 모바일에서 적정 크기 */
+  .bc-app .bc-tile.hero .value { font-size: clamp(22px, 7vw, 32px); }
 
   /* 타일 — 라벨/숫자 모두 한 줄 보장 */
   .bc-app .bc-tile {
@@ -756,4 +854,14 @@ html, body { background: var(--matte-bg) !important; }
   .bc-app .bc-tile .value { font-size: 22px; }
   .bc-app .bc-tile .value-hero { font-size: 28px; }
   .bc-app .bc-box .value { font-size: 20px; }
+}
+
+/* ── 극소형(좁은 폴드 ≤380px) ── */
+@media (max-width: 380px) {
+  .bc-app .bc-grid-4 {
+    grid-template-columns: 1fr !important;
+  }
+  .bc-app .bc-card__body div[style*="repeat(12, 1fr)"] {
+    grid-template-columns: repeat(12, minmax(22px, 1fr)) !important;
+  }
 }

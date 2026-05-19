@@ -4050,6 +4050,14 @@ export default function UnifiedLayout({
           return '-';
         };
         hfBody.peakHour = _pickPeak(bd.peakTime, bd.peakHour, cd.peakHour, c6bd.peakHour, c6bd.popPeakHour, c6bd.bizmapPeakHour);
+        // [2026-05-19] customerYrEarn·라이프스타일 bodyData 명시 전달 (Card02.jsx가 body.bodyData.* 로 읽음)
+        // 시안 카드(Card02.jsx)는 body.bodyData.customerYrEarn, body.bodyData.maleLifestyle/femaleLifestyle 을 읽는다.
+        // hfBody는 위에서 ...bd 로 스프레드되지만, 명시적으로 한 번 더 bodyData 객체 보장.
+        if (!hfBody.bodyData) hfBody.bodyData = { ...bd };
+        // 폴백: customerYrEarn이 비었으면 chartData에 있는 경우 가져옴
+        if (!hfBody.bodyData.customerYrEarn && cd.customerYrEarn) {
+          hfBody.bodyData.customerYrEarn = cd.customerYrEarn;
+        }
       }
       if (i === 6) {
         const bd = card.bodyData || {};

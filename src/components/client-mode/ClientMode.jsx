@@ -114,6 +114,44 @@ export default function ClientMode({
     }
   }, [startLoading, onSearchRegion]);
 
+  // ─── DEV 전용: 검색 자동화용 글로벌 트리거 ───
+  // window.__bcDoSearch('강남역 1번 출구') 형태로 외부에서 새 분석 시작 가능
+  // 프로덕션 빌드에서는 노출되지 않음 (import.meta.env.DEV 가드)
+  // [bugfix] 이전 구현은 의존성이 매 렌더마다 변경되어 cleanup→재할당이 반복됨.
+  // 부모(App.jsx)가 inline 함수로 onCancelSearch를 주기 때문에 매 렌더마다 새 reference.
+  // 이로 인해 useEffect cleanup이 매 렌더마다 window.__bcDoSearch 를 delete + 재할당.
+  // ref로 최신 핸들러를 잡아두고 effect는 한 번만 실행 → 안정.
+  const bcSearchHandlersRef = useRef({ handleSearch, onCancelSearch, stopLoading });
+  useEffect(() => {
+    bcSearchHandlersRef.current = { handleSearch, onCancelSearch, stopLoading };
+  }, [handleSearch, onCancelSearch, stopLoading]);
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    if (typeof window === 'undefined') return;
+
+    window.__bcDoSearch = (address, radius) => {
+      if (typeof address !== 'string' || !address.trim()) {
+        console.warn('[__bcDoSearch] address(문자열) 필수');
+        return false;
+      }
+      const h = bcSearchHandlersRef.current;
+      // 진행 중 분석이 있으면 abort
+      if (typeof h.onCancelSearch === 'function') {
+        try { h.onCancelSearch(); } catch {}
+      }
+      h.stopLoading?.();
+      // 홈페이지 패널 닫기 (있으면)
+      setIsHomepageOpen(false);
+      // 항상 새 검색으로 처음부터 진입
+      h.handleSearch?.(address.trim(), radius);
+      return true;
+    };
+
+    return () => {
+      try { delete window.__bcDoSearch; } catch { window.__bcDoSearch = undefined; }
+    };
+  }, []);
+
   // Sync real analysis progress to loading progress
   useEffect(() => {
     if (onSearchRegion && phase === PHASE.LOADING) {
