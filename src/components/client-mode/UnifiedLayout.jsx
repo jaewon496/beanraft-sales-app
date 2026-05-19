@@ -6744,12 +6744,22 @@ export default function UnifiedLayout({
                             const c1bd = cards[0]?.bodyData || {};   // 상권 분석
                             const c5bd = cards[5]?.bodyData || {};   // 매출 분석
                             const c2bd = cards[2]?.bodyData || {};   // 상권 변화
-                            hfBody.totalScore = bd.score || 0;
-                            hfBody.scoreMarket = bd.scoreMarket || 0;
-                            hfBody.scoreCompete = bd.scoreCompete || 0;
-                            hfBody.scoreChange = bd.scoreChange || 0;
-                            hfBody.scoreSurvival = bd.scoreSurvival || 0;
-                            hfBody.scoreCost = bd.scoreCost || 0;
+                            // 5축 점수 (NaN/undefined 안전 변환)
+                            const _sMarket = Number(bd.scoreMarket) || 0;
+                            const _sCompete = Number(bd.scoreCompete) || 0;
+                            const _sChange = Number(bd.scoreChange) || 0;
+                            const _sSurvival = Number(bd.scoreSurvival) || 0;
+                            const _sCost = Number(bd.scoreCost) || 0;
+                            // [2026-05-19 버그 수정] dataMapper의 bd.score가 NaN/누락 시 KPI 0 표시 → 5축 합산 폴백
+                            // 5축 합산은 항상 종합 점수와 일치해야 함
+                            const _sumAxes = _sMarket + _sCompete + _sChange + _sSurvival + _sCost;
+                            const _bdScore = Number(bd.score);
+                            hfBody.totalScore = (isFinite(_bdScore) && _bdScore > 0) ? _bdScore : _sumAxes;
+                            hfBody.scoreMarket = _sMarket;
+                            hfBody.scoreCompete = _sCompete;
+                            hfBody.scoreChange = _sChange;
+                            hfBody.scoreSurvival = _sSurvival;
+                            hfBody.scoreCost = _sCost;
                             // [2026-05-18] 정답지: 나머지 카드의 3년 생존율 = 카드 03 survivalRate3y와 동일해야 함
                             // 카드 13 자체값(bd.survival3yr)이 다르게 들어오는 경우 카드 03 값을 우선
                             hfBody.survival3y = c2bd.survivalRate3y || bd.survival3yr || 0;

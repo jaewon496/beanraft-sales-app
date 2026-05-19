@@ -3664,7 +3664,10 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   const _scoreCostFinal = _scoreCost;
 
   // 종합 점수 (0~100) + 3년 생존 가능성
-  const _competTotalScore = _scoreMarketFinal + _scoreCompeteFinal + _scoreChangeFinal + _scoreSurvivalFinal + _scoreCostFinal;
+  // [2026-05-19] NaN 가드: 각 축 값 중 하나라도 NaN이면 전체 합산이 NaN이 되어 KPI 0으로 표시되는 버그 수정
+  const _safeNum = (v) => (typeof v === 'number' && isFinite(v)) ? v : 0;
+  const _competTotalScore = _safeNum(_scoreMarketFinal) + _safeNum(_scoreCompeteFinal)
+    + _safeNum(_scoreChangeFinal) + _safeNum(_scoreSurvivalFinal) + _safeNum(_scoreCostFinal);
   const _survival3yr = Math.round((_fiveYrPct * 0.5) + (Math.min(_avgYearsCompet, 5) / 5 * 30) + ((100 - _ldClosurePct) * 0.2));
 
   // 가산점 (별도 칸) - 카페에 직접 도움되는 정보 위주

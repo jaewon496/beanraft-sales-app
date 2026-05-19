@@ -75,11 +75,11 @@ const EXTERNAL_TABLES = {
 
 const corsHandler = corsHeaders;
 
-function fetchJson(url) {
+function fetchJson(url, timeoutMs = 12000) {
   return new Promise((resolve, reject) => {
     const req = https.get(url, {
       headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' },
-      timeout: 20000,
+      timeout: timeoutMs,
       rejectUnauthorized: false,
     }, (res) => {
       let body = '';
@@ -96,6 +96,15 @@ function fetchJson(url) {
     req.on('error', reject);
     req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
   });
+}
+
+// 전체 일괄 호출용 글로벌 데드라인 헬퍼 (26초 함수 limit 보호)
+// 부분 응답이라도 반환하여 클라이언트가 폴백 가능하도록.
+function withDeadline(promise, ms, fallback) {
+  return Promise.race([
+    promise,
+    new Promise((resolve) => setTimeout(() => resolve(fallback), ms))
+  ]);
 }
 
 // 통계표 데이터 조회
@@ -126,7 +135,7 @@ async function getStatTable({ orgId, tblId, prdSe = 'Y', newEstPrdCnt = '1', sta
     params.append('newEstPrdCnt', newEstPrdCnt);
   }
   const url = `https://kosis.kr/openapi/Param/statisticsParameterData.do?${params.toString()}`;
-  return await fetchJson(url);
+  return await fetchJson(url, arguments[0]?.timeoutMs);
 }
 
 // 응답 데이터에서 "커피 전문점"만 필터링 (분류값명 또는 분류값ID 매칭)
@@ -210,13 +219,13 @@ exports.handler = async (event) => {
       };
     }
 
-    // 모드 2: 외식업체조사 전체 통계표 일괄 호출 (Firebase 캐시용)
+    // 모드 2: 외식업체조사 전체 통계표 일괄 호출 (Firebase 캐시용, 22초 글로벌 데드라인)
     if (mode === 'food-survey-all' || all === 'true') {
       const results = {};
       const errors = {};
       const keys = Object.keys(FOOD_SURVEY_TABLES);
       // 병렬 호출 (테스트 결과: 직렬 9초 → 병렬 0.5초)
-      const fetched = await Promise.all(keys.map(async (k) => {
+      const fetchTask = Promise.all(keys.map(async (k) => {
         const t = FOOD_SURVEY_TABLES[k];
         try {
           const d = await getStatTable({
@@ -226,6 +235,7 @@ exports.handler = async (event) => {
             newEstPrdCnt: '1',
             objLevels: t.objLevels || 2,
             apiKey,
+            timeoutMs: 10000,
           });
           const rows = Array.isArray(d) ? d : (d?.data || []);
           results[k] = {
@@ -240,10 +250,17 @@ exports.handler = async (event) => {
           errors[k] = e.message;
         }
       }));
+      await withDeadline(fetchTask, 22000, null);
+      const _deadlineHit = Object.keys(results).length + Object.keys(errors).length < keys.length;
+      if (_deadlineHit) {
+        keys.forEach(k => {
+          if (!results[k] && !errors[k]) errors[k] = 'deadline (22s)';
+        });
+      }
       return {
         statusCode: 200,
         headers: corsHeaders,
-        body: JSON.stringify({ success: true, mode: 'food-survey-all', results, errors, _meta: { fetchedAt: new Date().toISOString(), tableCount: keys.length } })
+        body: JSON.stringify({ success: true, mode: 'food-survey-all', results, errors, _meta: { fetchedAt: new Date().toISOString(), tableCount: keys.length, deadlineHit: _deadlineHit } })
       };
     }
 
@@ -325,10 +342,10 @@ exports.handler = async (event) => {
         };
       }
 
-      // 전체 5종 일괄 호출 (병렬)
+      // 전체 5종 일괄 호출 (병렬, 22초 글로벌 데드라인)
       const results = {};
       const errors = {};
-      await Promise.all(seriesKeys.map(async (k) => {
+      const seriesTask = Promise.all(seriesKeys.map(async (k) => {
         const t = EXTERNAL_TABLES[k];
         const cnt = SERIES_PRD_CNT[k];
         try {
@@ -339,6 +356,7 @@ exports.handler = async (event) => {
             newEstPrdCnt: String(cnt),
             objLevels: t.objLevels || 2,
             apiKey,
+            timeoutMs: 10000,
           });
           const rows = Array.isArray(d) ? d : (d?.data || []);
           // 응답 크기 줄이기: 핵심 필드만 (Stream too big 방지)
@@ -363,6 +381,14 @@ exports.handler = async (event) => {
           errors[k] = e.message;
         }
       }));
+      // 22초 글로벌 데드라인 — Netlify 함수 26초 타임아웃 전에 부분 응답이라도 반환
+      await withDeadline(seriesTask, 22000, null);
+      const _deadlineHit = Object.keys(results).length + Object.keys(errors).length < seriesKeys.length;
+      if (_deadlineHit) {
+        seriesKeys.forEach(k => {
+          if (!results[k] && !errors[k]) errors[k] = 'deadline (22s)';
+        });
+      }
       return {
         statusCode: 200,
         headers: corsHeaders,
@@ -371,17 +397,17 @@ exports.handler = async (event) => {
           mode: 'external-series',
           results,
           errors,
-          _meta: { fetchedAt: new Date().toISOString(), tableCount: seriesKeys.length, periods: SERIES_PRD_CNT }
+          _meta: { fetchedAt: new Date().toISOString(), tableCount: seriesKeys.length, periods: SERIES_PRD_CNT, deadlineHit: _deadlineHit }
         })
       };
     }
 
-    // 모드 5: 외부 통계 13종 일괄 호출 (병렬)
+    // 모드 5: 외부 통계 13종 일괄 호출 (병렬, 22초 글로벌 데드라인)
     if (mode === 'external-all') {
       const results = {};
       const errors = {};
       const keys = Object.keys(EXTERNAL_TABLES);
-      await Promise.all(keys.map(async (k) => {
+      const allTask = Promise.all(keys.map(async (k) => {
         const t = EXTERNAL_TABLES[k];
         try {
           const d = await getStatTable({
@@ -391,6 +417,7 @@ exports.handler = async (event) => {
             newEstPrdCnt: '1',
             objLevels: t.objLevels || 2,
             apiKey,
+            timeoutMs: 10000,
           });
           const rows = Array.isArray(d) ? d : (d?.data || []);
           // 응답 크기 줄이기: 각 행에서 핵심 필드만 추출 (Stream too big 방지)
@@ -414,10 +441,18 @@ exports.handler = async (event) => {
           errors[k] = e.message;
         }
       }));
+      // 22초 글로벌 데드라인 — Netlify 함수 26초 타임아웃 전에 부분 응답이라도 반환
+      await withDeadline(allTask, 22000, null);
+      const _deadlineHit = Object.keys(results).length + Object.keys(errors).length < keys.length;
+      if (_deadlineHit) {
+        keys.forEach(k => {
+          if (!results[k] && !errors[k]) errors[k] = 'deadline (22s)';
+        });
+      }
       return {
         statusCode: 200,
         headers: corsHeaders,
-        body: JSON.stringify({ success: true, mode: 'external-all', results, errors, _meta: { fetchedAt: new Date().toISOString(), tableCount: keys.length } })
+        body: JSON.stringify({ success: true, mode: 'external-all', results, errors, _meta: { fetchedAt: new Date().toISOString(), tableCount: keys.length, deadlineHit: _deadlineHit } })
       };
     }
 
