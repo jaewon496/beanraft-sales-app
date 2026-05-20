@@ -1464,6 +1464,20 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     }
   }
 
+  // 객단가 비수도권 폴백: 비즈맵 캐시(bmAvgPriceStr)가 없을 때
+  // 소상공인365 simpleAnls avgAmt.totAmt(원 단위 객단가) → KOSIS 전국 카페 평균 5,856원
+  // (card11 결제단가 폴백과 동일 패턴)
+  let card5UnitPriceStr = bmAvgPriceStr;
+  if (!card5UnitPriceStr) {
+    const _saUnit = parseInt(
+      apis.simpleAnls?.data?.avgAmt?.totAmt ?? aiData?.apis?.simpleAnls?.data?.avgAmt?.totAmt ?? 0, 10);
+    if (_saUnit > 0 && _saUnit < 100000) {
+      card5UnitPriceStr = `${_saUnit.toLocaleString()}원`;
+    } else {
+      card5UnitPriceStr = '5,856원'; // KOSIS 외식업체경영실태조사 전국 카페 평균 객단가
+    }
+  }
+
   // ── 비즈맵 보강: 시장 규모 추이 (marketSizeTrendList) ──
   const bmMarketSize = aiData?.apis?.bizMapMarketSize?.data ?? apis.bizMapMarketSize?.data;
   let bmMarketLatestStr = null;
@@ -1781,7 +1795,7 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       bizmapAvgSales: bmAvgSalesStr,
       bizmapBottomSales: bmBtmSalesStr,
       bizmapAvgUsageCnt: bmAvgUsageStr,
-      bizmapAvgUnitPrice: bmAvgPriceStr,
+      bizmapAvgUnitPrice: card5UnitPriceStr,
       bizmapUsageTrend: bmUsageTrend,
       bizmapMarketSize: bmMarketLatestStr,
       bizmapMarketTrend: bmMarketTrendLabel,
