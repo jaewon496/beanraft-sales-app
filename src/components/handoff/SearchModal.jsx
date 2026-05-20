@@ -1,6 +1,6 @@
 /* SearchModal.jsx — "다시 검색하기" 버튼이 띄우는 검색 UI */
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 
 const POI_DATASET = [
   { name: "강남역 1번 출구",   meta: "서울 강남구 · 지하철 출구",  cafes: 350, kind: "subway" },
@@ -56,16 +56,53 @@ export function SearchModal({ open, onClose }) {
   const [highlight, setHighlight] = useState(0);
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState(null);
+  const [kakaoResults, setKakaoResults] = useState([]);
+  const [searching, setSearching] = useState(false);
   const inputRef = useRef(null);
+  const kakaoDebounceRef = useRef(null);
   const recent = useMemo(() => readRecent(), [open]);
 
+  // 첫 검색 화면과 동일한 방식: kakao-proxy 키워드 검색 (디바운스 300ms)
+  const fetchKakaoSuggestions = useCallback((q) => {
+    if (kakaoDebounceRef.current) clearTimeout(kakaoDebounceRef.current);
+    if (!q || q.trim().length < 2) {
+      setKakaoResults([]);
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    kakaoDebounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `/.netlify/functions/kakao-proxy?type=keyword&query=${encodeURIComponent(q.trim())}&size=6`,
+          { signal: AbortSignal.timeout(3000) }
+        );
+        if (res.ok) {
+          const data = await res.json();
+          setKakaoResults((data.documents || []).map(d => ({
+            name: d.place_name,
+            meta: d.road_address_name || d.address_name || "",
+            cafes: null,
+            kind: /역$|역\s|출구/.test(d.place_name || "") ? "subway" : "addr",
+          })));
+        }
+      } catch {
+        // 타임아웃/네트워크 오류 무시
+      } finally {
+        setSearching(false);
+      }
+    }, 300);
+  }, []);
+
+  // 검색 결과 = 로컬 데이터셋 매칭 + kakao 결과 (이름 중복 제거)
   const matches = useMemo(() => {
     const q = query.trim();
     if (!q) return [];
-    return POI_DATASET
-      .filter(p => p.name.includes(q) || p.meta.includes(q))
-      .slice(0, 6);
-  }, [query]);
+    const local = POI_DATASET.filter(p => p.name.includes(q) || p.meta.includes(q));
+    const localNames = new Set(local.map(p => p.name));
+    const remote = kakaoResults.filter(k => !localNames.has(k.name));
+    return [...local, ...remote].slice(0, 6);
+  }, [query, kakaoResults]);
 
   useEffect(() => {
     if (!open) return;
@@ -73,6 +110,8 @@ export function SearchModal({ open, onClose }) {
     setHighlight(0);
     setLoading(false);
     setSelected(null);
+    setKakaoResults([]);
+    setSearching(false);
     setTimeout(() => inputRef.current?.focus(), 80);
     document.body.style.overflow = "hidden";
     const onKey = (e) => {
@@ -106,7 +145,10 @@ export function SearchModal({ open, onClose }) {
   };
 
   const handleSubmit = () => {
-    const target = selected || (matches[highlight] || POI_DATASET.find(p => p.name === query.trim()));
+    const target = selected
+      || matches[highlight]
+      || matches.find(p => p.name === query.trim())
+      || (query.trim() ? { name: query.trim(), meta: "", cafes: 0, kind: "addr" } : null);
     if (!target) return;
     setLoading(true);
     writeRecent({ name: target.name, radius });
@@ -126,7 +168,7 @@ export function SearchModal({ open, onClose }) {
 
   if (!open) return null;
 
-  const canSubmit = !!(selected || matches.length > 0 || POI_DATASET.find(p => p.name === query.trim()));
+  const canSubmit = !!(selected || matches.length > 0 || query.trim());
 
   return (
     <div
@@ -208,7 +250,7 @@ export function SearchModal({ open, onClose }) {
               ref={inputRef}
               type="text"
               value={query}
-              onChange={e => { setQuery(e.target.value); setSelected(null); setHighlight(0); }}
+              onChange={e => { setQuery(e.target.value); setSelected(null); setHighlight(0); fetchKakaoSuggestions(e.target.value); }}
               onKeyDown={onKeyDown}
               placeholder="예: 강남역 1번 출구, 성수동 카페거리"
               style={{
@@ -225,7 +267,7 @@ export function SearchModal({ open, onClose }) {
             />
             {query && (
               <button
-                onClick={() => { setQuery(""); setSelected(null); inputRef.current?.focus(); }}
+                onClick={() => { setQuery(""); setSelected(null); setKakaoResults([]); inputRef.current?.focus(); }}
                 aria-label="입력 지우기"
                 style={{
                   background:"transparent",
@@ -287,17 +329,25 @@ export function SearchModal({ open, onClose }) {
                     <div style={{fontSize:14, fontWeight:600, color:"#FFFFFF", letterSpacing:"-0.005em"}}>{m.name}</div>
                     <div style={{fontSize:12, color:"#A3A3A3", marginTop:2}}>{m.meta}</div>
                   </div>
-                  <span style={{
-                    fontSize:12, color:"#A3A3A3",
-                    fontVariantNumeric:"tabular-nums",
-                    flexShrink:0,
-                  }}>매장 {m.cafes}</span>
+                  {m.cafes != null && (
+                    <span style={{
+                      fontSize:12, color:"#A3A3A3",
+                      fontVariantNumeric:"tabular-nums",
+                      flexShrink:0,
+                    }}>매장 {m.cafes}</span>
+                  )}
                 </button>
               ))}
             </div>
           )}
 
-          {query && matches.length === 0 && (
+          {query && matches.length === 0 && searching && (
+            <div style={{padding:"40px 14px", textAlign:"center"}}>
+              <div style={{fontSize:14, color:"#A3A3A3"}}>검색 중...</div>
+            </div>
+          )}
+
+          {query && matches.length === 0 && !searching && (
             <div style={{padding:"40px 14px", textAlign:"center"}}>
               <div style={{fontSize:14, color:"#A3A3A3", marginBottom:6}}>일치하는 위치를 찾지 못했습니다</div>
               <div style={{fontSize:12, color:"#6a6a6a"}}>지하철역, 도로명, 상권명으로 다시 시도해 보세요</div>
