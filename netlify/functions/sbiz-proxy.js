@@ -458,24 +458,37 @@ exports.handler = async (event, context) => {
           return { statusCode: 200, headers: corsHeaders, body: JSON.stringify({ success: true, status: single.status, data: single.data, usedCrtrYm: single.usedYm, elapsedMs: Date.now() - startTime }) };
         }
 
-        // 자동 폴백: 3 → 4 → 5 → 6개월 전까지 시도, 첫 nonZero 응답 채택
-        const monthsToTry = [3, 4, 5, 6];
+        // 자동 폴백: 3 ~ 10개월 전까지 시도. 첫 nonZero 응답을 메인 data로 채택하되,
+        // 모든 월 응답을 monthlySeries(월별 배달 주문건수 추이)로도 함께 반환한다.
+        const monthsToTry = [3, 4, 5, 6, 7, 8, 9, 10];
         let finalResp = null;
+        const monthlySeries = []; // [{ ym, orders, sales }] - 검색 동 기준 월별 추이
+        const _toRows = (resp) => Array.isArray(resp?.data) ? resp.data : (resp?.data?.data || resp?.data?.list || []);
+        const _amt = (s) => Number(String(s ?? '').replace(/[^\d.-]/g, '')) || 0;
         for (const m of monthsToTry) {
           const ym = getYmAgo(m);
           const resp = await fetchDelivery(ym);
-          const arr = Array.isArray(resp?.data) ? resp.data : (resp?.data?.data || resp?.data?.list || []);
+          const arr = _toRows(resp);
           const nonZero = Array.isArray(arr) ? arr.filter(r => r && r.mmavgSlsAmt && r.mmavgSlsAmt !== '0원').length : 0;
           console.log(`[프록시] delivery 폴백 시도: crtrYm=${ym}, rows=${Array.isArray(arr) ? arr.length : 0}, nonZero=${nonZero}`);
-          if (nonZero > 0) {
-            finalResp = resp;
-            break;
+          // 월별 추이: 해당 월 전체 행의 평균 주문건수/매출 합산 (검색 좌표 인근 동들)
+          if (Array.isArray(arr) && arr.length > 0) {
+            const valid = arr.filter(r => r && r.mmavgSlsAmt && r.mmavgSlsAmt !== '0원');
+            if (valid.length > 0) {
+              const sumOrders = valid.reduce((s, r) => s + _amt(r.mmavgOrdrNocs), 0);
+              const sumSales = valid.reduce((s, r) => s + _amt(r.mmavgSlsAmt), 0);
+              monthlySeries.push({ ym, orders: Math.round(sumOrders / valid.length), sales: Math.round(sumSales / valid.length) });
+            }
           }
-          // 마지막 시도 결과는 보관 (전부 0이면 마지막 응답이라도 반환)
-          finalResp = resp;
+          if (nonZero > 0 && !finalResp) {
+            finalResp = resp;
+          }
+          if (!finalResp) finalResp = resp; // 전부 0이면 마지막 응답이라도 보관
         }
+        // 월별 추이는 과거→현재 순서로 정렬
+        monthlySeries.sort((a, b) => String(a.ym).localeCompare(String(b.ym)));
 
-        return { statusCode: 200, headers: corsHeaders, body: JSON.stringify({ success: true, status: finalResp?.status || 200, data: finalResp?.data || null, usedCrtrYm: finalResp?.usedYm || null, elapsedMs: Date.now() - startTime }) };
+        return { statusCode: 200, headers: corsHeaders, body: JSON.stringify({ success: true, status: finalResp?.status || 200, data: finalResp?.data || null, monthlySeries, usedCrtrYm: finalResp?.usedYm || null, elapsedMs: Date.now() - startTime }) };
       }
 
       // slsIndex → 실제 API 경로는 slsIdex (오타가 아닌 실제 API 스펙)

@@ -2497,7 +2497,59 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     // 9) 방문고객 연 평균소득(vstCustYrAvgEarnInfoMap)은 카드 2(고객 분석)로 이동되어 여기서 추출하지 않음
   }
 
-  const _totalDeliveryBiz = (_dlvyHp?.tpbizSlsRnkList || []).length;
+  let _totalDeliveryBiz = (_dlvyHp?.tpbizSlsRnkList || []).length;
+
+  // ── 폴백 1: 배달 업종 순위 (deliveryHotplace 미수집 시 baeminTpbiz로 대체) ──
+  // baeminTpbiz = 배달 플랫폼 업종별 주문건수. tpbizSlsRnkList와 동일 성격(배달 업종 순위).
+  if (_topDeliveryCategories.length === 0) {
+    const _baeminArr = Array.isArray(apis.baeminTpbiz?.data) ? apis.baeminTpbiz.data : [];
+    if (_baeminArr.length > 0) {
+      const _getCnt = (it) => parseFloat(it?.cnt ?? it?.ordrCnt ?? it?.orderCnt ?? it?.slsCnt ?? it?.count ?? 0) || 0;
+      const _getNm = (it) => it?.baeminTpbizClsfNm ?? it?.tpbizClscdNm ?? it?.tpbizNm ?? it?.name ?? it?.keyD ?? '';
+      const _ranked = _baeminArr
+        .map(b => ({ name: _getNm(b), amount: _getCnt(b) }))
+        .filter(x => x.name)
+        .sort((a, b) => b.amount - a.amount);
+      if (_ranked.length > 0) {
+        _topDeliveryCategories = _ranked.slice(0, 5).map((x, i) => ({ rank: i + 1, name: x.name, amount: x.amount }));
+        _totalDeliveryBiz = _ranked.length;
+        const _cafeI = _ranked.findIndex(x => /카페|커피|음료|디저트|베이커리|빵|제과/.test(x.name));
+        if (_cafeI >= 0) {
+          _cafeRankInDelivery = _cafeI + 1;
+          if (_cafeDeliveryAmount <= 0) _cafeDeliveryAmount = _ranked[_cafeI].amount;
+        }
+      }
+    }
+  }
+
+  // ── 폴백 2: 배달 업종 순위 (delivery 동별 응답으로 한 번 더 대체) ──
+  // apis.delivery.data = 동별 배달 매출/주문 행. 검색 동 행에서 카페 위치를 추정.
+  if (_topDeliveryCategories.length === 0 && _deliveryRows.length > 0) {
+    const _ranked = _deliveryRows
+      .map(r => ({ name: r.tpbizNm || r.indsNm || r.admiNm || '', amount: _parseAmt(r.mmavgSlsAmt) }))
+      .filter(x => x.name && x.amount > 0)
+      .sort((a, b) => b.amount - a.amount);
+    if (_ranked.length > 0) {
+      _topDeliveryCategories = _ranked.slice(0, 5).map((x, i) => ({ rank: i + 1, name: x.name, amount: x.amount }));
+      _totalDeliveryBiz = _ranked.length;
+    }
+  }
+
+  // ── 폴백 3: 월별 배달 주문건수 추이 (fyerChartDList 미수집 시 delivery.monthlySeries로 대체) ──
+  // monthlySeries = 소상공인365 배달 API를 6~10개월 호출해 모은 동별 평균 월 추이 [{ym, orders, sales}].
+  if (_monthlyTrend.length < 2) {
+    const _ms = Array.isArray(apis.delivery?.monthlySeries) ? apis.delivery.monthlySeries : [];
+    if (_ms.length >= 2) {
+      _monthlyTrend = _ms.map(m => {
+        const _ym = String(m.ym || '');
+        const _mm = _ym.length >= 6 ? parseInt(_ym.slice(4, 6), 10) : null;
+        return {
+          label: _mm >= 1 && _mm <= 12 ? `${_mm}월` : _ym,
+          value: Number(m.orders) || 0,
+        };
+      }).filter(m => m.label && (Number(m.value) || 0) > 0);
+    }
+  }
 
   // 10) 배달 시장 추세 (bizonSummaryInfoList) - 전월 대비 주문건수/매출액 증감률
   let _deliveryTrend = null;

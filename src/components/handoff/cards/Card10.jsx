@@ -28,6 +28,17 @@ export default function Card10({ body = {} }) {
   }));
   const dayTopIdx = dayItems.findIndex((_, i) => weekdaySales[i]?.isTop);
 
+  // 배달 업종별 주문 구성 [{rank, name, amount}] — 월별 추이 미수집 시 대체 표시
+  const topCats = Array.isArray(bodyData.topDeliveryCategories) ? bodyData.topDeliveryCategories : [];
+  const catItems = topCats
+    .filter(c => c && c.name && (Number(c.amount) || 0) > 0)
+    .slice(0, 6)
+    .map(c => ({ l: String(c.name).slice(0, 6), v: Number(c.amount) || 0, t: '' }));
+  const catTopIdx = catItems.length > 0
+    ? catItems.reduce((mi, c, i, arr) => (c.v > arr[mi].v ? i : mi), 0)
+    : 0;
+  const hasMonthly = monthlyValues.length >= 2;
+
   // KOSIS 배달 운영 통계 (kosisDelivery = { app: {usePct, avgManwon}, agency: {...}, bothMonthlyManwon, overallUsePct })
   const kd = bodyData.kosisDelivery || null;
   const kdActiveRatio = kd ? Math.round(Number(kd.overallUsePct) || 0) : null;
@@ -45,66 +56,40 @@ export default function Card10({ body = {} }) {
     return items;
   })();
 
-  // 데이터 유무 판정 (없으면 박스 자체를 숨김 — "수집 중"/"-" 표기 금지)
-  const hasMonthly = monthlyValues.length >= 2;
-  const hasWeekday = dayItems.length > 0;
-  const hasTrendBox = hasMonthly || hasWeekday;
-  const hasCafeRank = cafeRank > 0;
-
-  // 상단 통계 타일: 값 있는 것만 노출
-  const statTiles = [
-    { id: 'c10.tile1', tone: 'blue',  label: '동 객단가 (배달)', value: searchAvgPrice, unit: '원',  hero: true,  ok: searchAvgPrice > 0 },
-    { id: 'c10.tile2', tone: 'mint',  label: '월 배달 매출',     value: searchSales,    unit: '만원', hero: false, ok: searchSales > 0 },
-    { id: 'c10.tile3', tone: 'lilac', label: '월 배달 건수',     value: searchOrders,   unit: '건',   hero: false, ok: searchOrders > 0 },
-  ].filter(t => t.ok);
-  if (hasCafeRank) {
-    statTiles.push({
-      id: 'c10.tile4', tone: 'cream', label: '배달 카페 순위',
-      value: cafeRank, unit: totalBiz > 0 ? `위 / ${totalBiz}개 업종` : '위', hero: false, ok: true,
-    });
-  }
-  const tileGridClass = statTiles.length >= 4 ? 'bc-grid-4'
-    : statTiles.length === 3 ? 'bc-grid-3'
-    : statTiles.length === 2 ? 'bc-grid-2' : '';
-
   return (
     <CardShell n="10" id="10"
       title="배달 객단가"
       sub="이 동네 배달 객단가"
       sources={["소상공인진흥공단 delivery", "배민/쿠팡이츠 핫플레이스", "KOSIS 외식업체경영실태조사"]}>
-      {statTiles.length > 0 && (
-        <div className={tileGridClass} style={tileGridClass
-          ? {gap:16, marginBottom:16}
-          : {display:'grid', gridTemplateColumns:'repeat(1, 1fr)', gap:16, marginBottom:16}}>
-          {statTiles.map(t => (
-            <StatTile key={t.id} id={t.id} tone={t.tone} label={t.label}
-              value={t.value.toLocaleString()} unit={t.unit} hero={t.hero}/>
-          ))}
-        </div>
-      )}
+      <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
+        <StatTile id="c10.tile1" tone="blue"  label="동 객단가 (배달)" value={searchAvgPrice > 0 ? searchAvgPrice.toLocaleString() : '-'} unit={searchAvgPrice > 0 ? '원' : ''} hero/>
+        <StatTile id="c10.tile2" tone="mint"  label="월 배달 매출"   value={searchSales > 0 ? searchSales.toLocaleString() : '-'} unit={searchSales > 0 ? '만원' : ''}/>
+        <StatTile id="c10.tile3" tone="lilac" label="월 배달 건수"   value={searchOrders > 0 ? searchOrders.toLocaleString() : '-'} unit={searchOrders > 0 ? '건' : ''}/>
+        <StatTile id="c10.tile4" tone="cream" label="배달 카페 순위"  value={cafeRank > 0 ? `${cafeRank}` : '-'} unit={cafeRank > 0 ? (totalBiz > 0 ? `위 / ${totalBiz}개 업종` : '위') : ''}/>
+      </div>
 
-      <div style={{display:"grid", gridTemplateColumns: hasTrendBox ? "1.4fr 1fr" : "1fr", gap:16, alignItems:"stretch"}}>
-        {hasTrendBox && (
+      <div style={{display:"grid", gridTemplateColumns:"1.4fr 1fr", gap:16, alignItems:"stretch"}}>
         <div className="bc-box" style={{padding:18, display:"flex", flexDirection:"column"}}>
-          {hasMonthly && (
-            <>
-              <div style={{display:"flex", justifyContent:"space-between", marginBottom:12}}>
-                <div style={{fontSize:15, fontWeight:600}}>월별 배달 주문건수 ({monthlyValues.length}개월)</div>
-                {yoyPct !== 0 && <span style={{fontSize:15, color: yoyPct >= 0 ? "#4C7BE4" : "var(--st-bad)", fontWeight:700}}>{yoyPct > 0 ? '+' : ''}{yoyPct}% (추세)</span>}
-              </div>
-              <div style={{flex:1, display:"flex", alignItems:"center", minHeight:180}}>
-                <LineChart id="c10.line" width={520} height={240} data={monthlyValues} color="#4C7BE4"/>
-              </div>
-            </>
-          )}
-          {hasWeekday && (
-            <div style={{marginTop: hasMonthly ? 18 : 0, paddingTop: hasMonthly ? 14 : 0, borderTop: hasMonthly ? "1px solid var(--matte-line)" : "none"}}>
+          <div style={{display:"flex", justifyContent:"space-between", marginBottom:12}}>
+            <div style={{fontSize:15, fontWeight:600}}>
+              {hasMonthly ? `월별 배달 주문건수 (${monthlyValues.length}개월)` : '배달 업종별 주문 구성'}
+            </div>
+            {hasMonthly && yoyPct !== 0 && <span style={{fontSize:15, color: yoyPct >= 0 ? "#4C7BE4" : "var(--st-bad)", fontWeight:700}}>{yoyPct > 0 ? '+' : ''}{yoyPct}% (추세)</span>}
+          </div>
+          <div style={{flex:1, display:"flex", alignItems:"center", minHeight:180}}>
+            {hasMonthly ? (
+              <LineChart id="c10.line" width={520} height={240} data={monthlyValues} color="#4C7BE4"/>
+            ) : (
+              <VBars id="c10.cats" accent={catTopIdx} height={140} barW={30} items={catItems}/>
+            )}
+          </div>
+          {dayItems.length > 0 && (
+            <div style={{marginTop:18, paddingTop:14, borderTop:"1px solid var(--matte-line)"}}>
               <div style={{fontSize:15, fontWeight:600, marginBottom:12}}>요일별 배달 주문</div>
               <VBars id="c10.days" accent={dayTopIdx >= 0 ? dayTopIdx : 0} height={80} barW={24} items={dayItems}/>
             </div>
           )}
         </div>
-        )}
 
         <div>
           <div className="bc-box" style={{padding:24, marginBottom:14}}>
