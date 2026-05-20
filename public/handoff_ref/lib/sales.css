@@ -464,12 +464,13 @@
 .bc-btn--ghost { background: var(--bg-overlay); color: var(--fg); }
 .bc-btn--lg { height: 42px; padding: 0 20px; font-size: 14px; border-radius: 12px; }
 
-/* Grids */
-.bc-grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
-.bc-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-.bc-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
-.bc-grid-5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
-.bc-grid-6 { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
+/* Grids — minmax(0,1fr): 자식 콘텐츠가 넓어도 셀이 부모 폭을 넘기지 않게
+   (사이드바 열림으로 본문이 줄면 카드 그리드도 같이 줄어듦) */
+.bc-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.bc-grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.bc-grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.bc-grid-5 { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+.bc-grid-6 { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
 
 /* Animation primitives */
 @keyframes bc-fade-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }

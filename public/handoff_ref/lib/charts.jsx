@@ -5,13 +5,13 @@
 /* ----- Donut: smooth segments with small gap, optional centerLabel ----- */
 function Donut({ segments, size = 130, thickness = 18, centerLabel, centerSub, animate = true, id }) {
   if (!Array.isArray(segments) || segments.length === 0) {
-    return <div style={{width:size, height:size}}></div>;
+    return <div style={{width:"100%", maxWidth:size, aspectRatio:"1 / 1"}}></div>;
   }
   const r = (size - thickness) / 2;
   const C = 2 * Math.PI * r;
   const total = segments.reduce((a, s) => a + (Number(s?.value) || 0), 0);
   if (total <= 0) {
-    return <div style={{width:size, height:size}}></div>;
+    return <div style={{width:"100%", maxWidth:size, aspectRatio:"1 / 1"}}></div>;
   }
   const trig = id ? (window.useTrigger?.(id) ?? 0) : 0;
   const fx = id ? (window.useFx?.(id) ?? { n: 0, anim: [] }) : { n: 0, anim: [] };
@@ -28,12 +28,13 @@ function Donut({ segments, size = 130, thickness = 18, centerLabel, centerSub, a
   let off = 0;
   const wrapCls = (id && has("glow")) ? "bc-donut-wrap glow" : "bc-donut-wrap";
   return (
-    <div className={wrapCls} data-fx-id={id} style={{position:"relative", width:size, height:size}}>
+    <div className={wrapCls} data-fx-id={id} style={{position:"relative", width:"100%", maxWidth:size, aspectRatio:"1 / 1", margin:"0 auto"}}>
       <svg
         key={spinKey}
-        width={size} height={size}
+        width="100%" height="100%"
         viewBox={`0 0 ${size} ${size}`}
-        style={{transform:"rotate(-90deg)", animation: (id && has("spin-in") && trig > 0) ? "bc-donut-spin 0.85s cubic-bezier(.2,.7,.2,1) both" : "none"}}
+        preserveAspectRatio="xMidYMid meet"
+        style={{display:"block", maxWidth:"100%", transform:"rotate(-90deg)", animation: (id && has("spin-in") && trig > 0) ? "bc-donut-spin 0.85s cubic-bezier(.2,.7,.2,1) both" : "none"}}
       >
         <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth={thickness}/>
         {segments.map((s, i) => {
@@ -301,15 +302,15 @@ function ScoreGauge({ value, max = 100, size = 280, label, id, accent = false })
   return (
     <div data-fx-id={id} style={{
       display:"flex", flexDirection:"column", alignItems:"center",
-      width: W, maxWidth: "100%",
+      width: "100%", maxWidth: W + "px",
       overflow: "hidden",   /* defensive — arc can never bleed out */
     }}>
       <svg
-        width={W}
-        height={H}
+        width="100%"
+        height="auto"
         viewBox={`0 0 ${VBW} ${VBH}`}
         preserveAspectRatio="xMidYMid meet"
-        style={{display:"block", overflow:"hidden", width: W + "px", height: H + "px"}}
+        style={{display:"block", overflow:"hidden", width:"100%", height:"auto", maxWidth: W + "px"}}
       >
         <defs>
           <linearGradient id={`scoreGrad-${safeId}`} x1="0" y1="0" x2="1" y2="0">
@@ -369,7 +370,7 @@ function Radar({ axes, values, size = 320, id, accent = false }) {
   const fx = id ? (window.useFx?.(id) ?? { n: 0, anim: [] }) : { n: 0, anim: [] };
   const has = (a) => fx.anim.includes(a);
   if (!Array.isArray(axes) || axes.length === 0 || !Array.isArray(values) || values.length === 0) {
-    return <div style={{width:size, height:size}}></div>;
+    return <div style={{width:"100%", maxWidth:size, aspectRatio:"1 / 1"}}></div>;
   }
   const cx = size / 2, cy = size / 2;
   const r = size * 0.34;
@@ -402,8 +403,8 @@ function Radar({ axes, values, size = 320, id, accent = false }) {
   const valPts = Array.from({length:n}, (_, i) => mounted ? valPoint(i) : [cx, cy]);
 
   return (
-    <div data-fx-id={id} style={{position:"relative", width:size, height:size}}>
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{overflow:"visible"}}>
+    <div data-fx-id={id} style={{position:"relative", width:"100%", maxWidth:size, aspectRatio:"1 / 1", margin:"0 auto"}}>
+      <svg width="100%" height="100%" viewBox={`0 0 ${size} ${size}`} preserveAspectRatio="xMidYMid meet" style={{overflow:"visible", display:"block", maxWidth:"100%"}}>
         {rings.map((k, i) => {
           const pts = Array.from({length:n}, (_, j) => ringPoint(j, k));
           return <polygon key={i} points={pts.map(p=>p.join(",")).join(" ")} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1"/>;
@@ -433,7 +434,7 @@ function Radar({ axes, values, size = 320, id, accent = false }) {
         <div key={particles} style={{position:"absolute", inset:0, pointerEvents:"none"}}>
           {valPts.map(([x, y], i) => (
             <span key={i} className="bc-radar-spark"
-              style={{left:x, top:y, animationDelay: `${i * 60}ms`}}
+              style={{left:`${(x / size) * 100}%`, top:`${(y / size) * 100}%`, animationDelay: `${i * 60}ms`}}
             ></span>
           ))}
         </div>

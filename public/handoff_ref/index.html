@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8"/>
-<meta name="viewport" content="width=1440"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>빈크래프트 영업모드 · 결과 리포트</title>
 
 <link rel="stylesheet" href="lib/colors_and_type.css"/>
@@ -74,8 +74,8 @@
     function App() {
       const [active, setActive] = useState("01");
       const [director, setDirector] = useState(false);
-      // [2026-05-19] 모바일 viewport(≤768px)에서는 사이드바 기본 닫힘
-      const _isMobile = () => (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 768px)').matches);
+      // [2026-05-20] 사이드바 오버레이 구간(≤900px)에서는 기본 닫힘 + 자동 닫힘
+      const _isMobile = () => (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 900px)').matches);
       const [sidebarOpen, setSidebarOpen] = useState(() => !_isMobile());
       const [filterCategory, setFilterCategory] = useState(null);
       const [singleCardN, setSingleCardN] = useState(null);   /* ★ 개별 카드 풀스크린 */

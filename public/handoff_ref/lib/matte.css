@@ -497,9 +497,11 @@ html, body { background: var(--matte-bg) !important; }
 }
 .bc-app .bc-box .value .unit { font-size: 0.55em; flex-shrink: 0; }
 
-/* SVG: 부모 셀 폭을 넘기지 않도록 */
+/* SVG: 부모 셀 폭을 넘기지 않도록 — 모든 폭에서 적용 (안전망) */
 .bc-app svg { max-width: 100%; }
 .bc-app .bc-box > svg { display: block; }
+/* 카드 본문 차트 SVG — 항상 컨테이너 폭에 맞춤 (charts.jsx 수정과 중복돼도 무방) */
+.bc-app .bc-card__body svg { max-width: 100%; height: auto; }
 
 /* ────────────────────────────────────────────────────
    필터 3·4장 모드 — 카드 안 2/3-칼럼 내부 그리드 자동 접기
@@ -634,11 +636,20 @@ html, body { background: var(--matte-bg) !important; }
   .bc-app .bc-tile { padding: 18px 18px; min-height: 110px; }
   .bc-app .bc-tile .value { font-size: clamp(20px, 8cqi, 30px); }
   .bc-app .bc-tile .value-hero { font-size: clamp(24px, 10cqi, 38px); }
+
+  /* 필터(category) 모드 — 3·4장 다열을 태블릿 폭에선 2열로
+     (좁은 본문에서 카드가 눌려 내부가 깨지는 것 차단) */
+  .bc-app.filtered.filter-3 .bc-scroll,
+  .bc-app.filtered.filter-4 .bc-scroll {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
 }
 
-/* ── 모바일 / 폴드 ── */
-@media (max-width: 768px) {
-  /* 사이드바 — 모바일에서 풀스크린 오버레이 (햄버거로만 열림) */
+/* ── 사이드바 오버레이 전환 — 폴드7 펼침/태블릿(≤900px)까지 ──
+   768~900px 구간도 사이드바를 push 대신 오버레이+햄버거+백드롭으로.
+   (push 방식이면 본문이 눌려 카드가 깨짐) */
+@media (max-width: 900px) {
+  /* 사이드바 — 풀스크린 오버레이 (햄버거로만 열림) */
   .bc-app .bc-sb {
     position: fixed !important;
     top: 0;
@@ -672,7 +683,7 @@ html, body { background: var(--matte-bg) !important; }
     z-index: 199;
     pointer-events: auto;
   }
-  /* 햄버거 버튼 모바일에서 더 크고 잘 보이게 */
+  /* 햄버거 버튼 — 더 크고 잘 보이게 */
   .bc-app .bc-tb__hamb {
     width: 40px;
     height: 40px;
@@ -681,14 +692,30 @@ html, body { background: var(--matte-bg) !important; }
     background: rgba(255,255,255,0.08) !important;
     border-radius: 8px;
   }
+  /* 메인 영역 — 사이드바 영역 회수, 가로폭 가득 */
+  .bc-app .bc-shell { display: block; }
+  .bc-app .bc-canvas { width: 100%; min-width: 0; }
+  .bc-app .bc-scroll {
+    padding: 16px 16px 60px;
+    max-width: 100%;
+  }
+  /* 사이드바 push 잔재 차단 — 닫힘 상태 음수 마진/패딩 무력화 */
+  .bc-app .bc-shell.sb-closed .bc-sb { margin-left: 0; }
+  .bc-app .bc-shell.sb-closed .bc-canvas .bc-scroll {
+    padding-left: 16px;
+    padding-right: 16px;
+    max-width: 100%;
+    margin: 0;
+  }
+}
+
+/* ── 모바일 / 폴드 ── */
+@media (max-width: 768px) {
   /* 사이드바 카테고리 헤더 — 좁은 폭에서도 한 줄 유지, 폰트 축소 */
   .bc-app .bc-cat { height: 40px; padding: 0 12px; font-size: 13px; }
   .bc-app .bc-cat__label { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .bc-app .bc-sb__group-title { font-size: 10px; padding: 12px 12px 4px; white-space: nowrap; }
 
-  /* 메인 영역 — 사이드바 영역 회수, 가로폭 가득 */
-  .bc-app .bc-shell { display: block; }
-  .bc-app .bc-canvas { width: 100%; min-width: 0; }
   .bc-app .bc-scroll {
     padding: 14px 14px 60px;
     max-width: 100%;
@@ -856,12 +883,49 @@ html, body { background: var(--matte-bg) !important; }
   .bc-app .bc-box .value { font-size: 20px; }
 }
 
-/* ── 극소형(좁은 폴드 ≤380px) ── */
-@media (max-width: 380px) {
-  .bc-app .bc-grid-4 {
+/* ── 폴드7 접힘 구간(≤360px) — KPI/타일 무조건 1칼럼, 추가 축소 ── */
+@media (max-width: 360px) {
+  .bc-app .bc-scroll { padding: 10px 10px 50px; }
+  .bc-app .bc-card { padding: 12px 10px; border-radius: 10px; }
+  .bc-app .bc-card__title { font-size: 15px; }
+  .bc-app .bc-card__sub { font-size: 11px; }
+  .bc-app .bc-card__num { width: 26px; height: 26px; font-size: 11px; }
+
+  /* 모든 KPI/타일 그리드 1칼럼 강제 */
+  .bc-app .bc-grid-2,
+  .bc-app .bc-grid-3,
+  .bc-app .bc-grid-4,
+  .bc-app .bc-grid-5,
+  .bc-app .bc-grid-6 {
     grid-template-columns: 1fr !important;
+    gap: 8px !important;
   }
+  /* 인라인 2~4칼럼 repeat 그리드도 1칼럼 */
+  .bc-app .bc-card__body div[style*="repeat(4, 1fr)"],
+  .bc-app .bc-card__body div[style*="repeat(3, 1fr)"],
+  .bc-app .bc-card__body div[style*="repeat(2, minmax"] {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+
+  /* 타일/박스 — 폰트 추가 축소 */
+  .bc-app .bc-tile { padding: 12px 12px; min-height: 84px; }
+  .bc-app .bc-tile .label { font-size: 12px; }
+  .bc-app .bc-tile .value { font-size: 22px; }
+  .bc-app .bc-tile .value-hero { font-size: 26px; }
+  .bc-app .bc-tile .unit { font-size: 12px; }
+  .bc-app .bc-tile .value-hero .unit { font-size: 14px; }
+  .bc-app .bc-box { padding: 12px 12px; }
+  .bc-app .bc-box .value { font-size: 18px; }
+  .bc-app .bc-box .label { font-size: 12px; }
+  .bc-app .bc-card svg text { font-size: 13px; }
+
+  /* 그래프/도넛/게이지/레이더 — size 더 축소 (max-width 캡으로) */
+  .bc-app .bc-card__body .bc-donut-wrap { max-width: 150px !important; }
+  .bc-app .bc-card__body [data-fx-id] svg { max-width: 100% !important; }
+
+  /* 월별 캘린더 — 최소 셀 폭 더 좁게 */
   .bc-app .bc-card__body div[style*="repeat(12, 1fr)"] {
-    grid-template-columns: repeat(12, minmax(22px, 1fr)) !important;
+    grid-template-columns: repeat(12, minmax(20px, 1fr)) !important;
   }
 }
