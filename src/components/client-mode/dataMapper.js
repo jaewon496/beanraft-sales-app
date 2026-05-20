@@ -2551,6 +2551,34 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     }
   }
 
+  // ── 폴백 4: 요일별 배달 주문 (deliveryHotplace.dfkSlsRnkList 미수집 시 오픈업 weekday로 대체) ──
+  // 오픈업 bd/sales 합산 결과 cd.openubBuildingSales.weekday = 7개 숫자 배열 [월,화,수,목,금,토,일].
+  // 정답지(오픈업 호출 정답지.md) 확인: weekday[7] = [32011,36924,35370,39905,39536,39884,26283].
+  // 카페 건물 대상 결제 데이터이므로 "배달 주문 요일 패턴" 대체 지표로 사용.
+  if (_weekdaySales.length === 0) {
+    const _obs = cd.openubBuildingSales || {};
+    let _wkArr = null;
+    if (Array.isArray(_obs.weekday) && _obs.weekday.length >= 7) {
+      _wkArr = _obs.weekday.slice(0, 7).map(v => Number(v) || 0);
+    } else if (_obs.weekday && typeof _obs.weekday === 'object') {
+      // 객체 형태({mon:..,tue:..} 또는 {0:..,1:..})로 들어온 경우 7개 추출
+      const _vals = Object.values(_obs.weekday).map(v => Number(v) || 0);
+      if (_vals.length >= 7) _wkArr = _vals.slice(0, 7);
+    }
+    if (_wkArr && _wkArr.some(v => v > 0)) {
+      const _dayLabels = ['월', '화', '수', '목', '금', '토', '일'];
+      const _items = _wkArr.map((amt, di) => ({ day: _dayLabels[di], amount: amt }));
+      const _sorted = _items.slice().sort((a, b) => b.amount - a.amount);
+      const _topAmt = _sorted[0]?.amount || 0;
+      const _lowAmt = _sorted[_sorted.length - 1]?.amount || 0;
+      _weekdaySales = _items.map(it => ({
+        ...it,
+        isTop: it.amount === _topAmt && _topAmt > 0,
+        isLow: it.amount === _lowAmt && _lowAmt < _topAmt,
+      }));
+    }
+  }
+
   // 10) 배달 시장 추세 (bizonSummaryInfoList) - 전월 대비 주문건수/매출액 증감률
   let _deliveryTrend = null;
   if (_dlvyHp) {

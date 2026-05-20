@@ -22,10 +22,14 @@ export default function Card10({ body = {} }) {
     : 0;
 
   // 요일별 매출 [{day, amount, isTop, isLow}]
+  // 라벨은 요일별 비중(%)으로 표시 — 원본 값(결제 합계 등)은 단위가 일정치 않아 비중이 직관적.
   const weekdaySales = Array.isArray(bodyData.weekdaySales) ? bodyData.weekdaySales : [];
-  const dayItems = weekdaySales.map(d => ({
-    l: d.day, v: Number(d.amount) || 0, t: String(Math.round(Number(d.amount) || 0))
-  }));
+  const daySum = weekdaySales.reduce((s, d) => s + (Number(d.amount) || 0), 0);
+  const dayItems = weekdaySales.map(d => {
+    const amt = Number(d.amount) || 0;
+    const pct = daySum > 0 ? Math.round((amt / daySum) * 100) : 0;
+    return { l: d.day, v: amt, t: `${pct}%` };
+  });
   const dayTopIdx = dayItems.findIndex((_, i) => weekdaySales[i]?.isTop);
 
   // 배달 업종별 주문 구성 [{rank, name, amount}] — 월별 추이 미수집 시 대체 표시
@@ -38,6 +42,17 @@ export default function Card10({ body = {} }) {
     ? catItems.reduce((mi, c, i, arr) => (c.v > arr[mi].v ? i : mi), 0)
     : 0;
   const hasMonthly = monthlyValues.length >= 2;
+
+  // 업종 순위 타일(tile4): 배달 업종 중 카페 위치를 우선 표시.
+  // 카페가 배달 업종 순위 안에 없으면(배민 카테고리=중식/치킨 등) 1위 업종명을 노출.
+  const topCatName = topCats.length > 0
+    ? String(topCats[0].name || '').slice(0, 6)
+    : '';
+  const rankTileValue = cafeRank > 0 ? `${cafeRank}` : (topCatName || '-');
+  const rankTileUnit = cafeRank > 0
+    ? (totalBiz > 0 ? `위 / ${totalBiz}개 업종` : '위')
+    : (totalBiz > 0 ? `1위 / ${totalBiz}개 업종` : '');
+  const rankTileLabel = cafeRank > 0 ? '배달 카페 순위' : '배달 1위 업종';
 
   // KOSIS 배달 운영 통계 (kosisDelivery = { app: {usePct, avgManwon}, agency: {...}, bothMonthlyManwon, overallUsePct })
   const kd = bodyData.kosisDelivery || null;
@@ -65,7 +80,7 @@ export default function Card10({ body = {} }) {
         <StatTile id="c10.tile1" tone="blue"  label="동 객단가 (배달)" value={searchAvgPrice > 0 ? searchAvgPrice.toLocaleString() : '-'} unit={searchAvgPrice > 0 ? '원' : ''} hero/>
         <StatTile id="c10.tile2" tone="mint"  label="월 배달 매출"   value={searchSales > 0 ? searchSales.toLocaleString() : '-'} unit={searchSales > 0 ? '만원' : ''}/>
         <StatTile id="c10.tile3" tone="lilac" label="월 배달 건수"   value={searchOrders > 0 ? searchOrders.toLocaleString() : '-'} unit={searchOrders > 0 ? '건' : ''}/>
-        <StatTile id="c10.tile4" tone="cream" label="배달 카페 순위"  value={cafeRank > 0 ? `${cafeRank}` : '-'} unit={cafeRank > 0 ? (totalBiz > 0 ? `위 / ${totalBiz}개 업종` : '위') : ''}/>
+        <StatTile id="c10.tile4" tone="cream" label={rankTileLabel} value={rankTileValue} unit={rankTileUnit}/>
       </div>
 
       <div style={{display:"grid", gridTemplateColumns:"1.4fr 1fr", gap:16, alignItems:"stretch"}}>
