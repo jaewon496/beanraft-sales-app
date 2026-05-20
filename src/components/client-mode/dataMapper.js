@@ -2497,25 +2497,31 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     // 9) 방문고객 연 평균소득(vstCustYrAvgEarnInfoMap)은 카드 2(고객 분석)로 이동되어 여기서 추출하지 않음
   }
 
-  let _totalDeliveryBiz = (_dlvyHp?.tpbizSlsRnkList || []).length;
+  // [2026-05-20 배선 수정] _totalDeliveryBiz는 항상 _topDeliveryCategories.length와 일치시킨다.
+  // 과거: raw tpbizSlsRnkList.length로 잡아 두면, 이름 필드 인식 실패로
+  //       _topDeliveryCategories가 []가 돼도 _totalDeliveryBiz만 5로 남아
+  //       Card10 "업종 순위" 박스가 큰 글씨 "-" + "5개 업종"으로 깨졌다.
+  // 이제: 단일 진실 = _topDeliveryCategories. _totalDeliveryBiz는 마지막에 그 길이로 고정.
+  let _totalDeliveryBiz = _topDeliveryCategories.length;
 
-  // ── 폴백 1: 배달 업종 순위 (deliveryHotplace 미수집 시 baeminTpbiz로 대체) ──
-  // baeminTpbiz = 배달 플랫폼 업종별 주문건수. tpbizSlsRnkList와 동일 성격(배달 업종 순위).
-  if (_topDeliveryCategories.length === 0) {
+  // ── 배달 업종 순위: baeminTpbiz 우선 (검색마다 안정적으로 수집되는 단일 소스) ──
+  // baeminTpbiz = 배달 플랫폼 업종별 주문건수. 콘솔 로그 [baeminTpbiz] 카테고리 목록으로 매번 확인됨.
+  // deliveryHotplace.tpbizSlsRnkList는 영역 매핑/필드명이 불안정해 보조로만 둔다.
+  // 카페 순위는 deliveryHotplace에서 잡혔으면 유지, 아니면 baeminTpbiz로 보강.
+  {
     const _baeminArr = Array.isArray(apis.baeminTpbiz?.data) ? apis.baeminTpbiz.data : [];
     if (_baeminArr.length > 0) {
       const _getCnt = (it) => parseFloat(it?.cnt ?? it?.ordrCnt ?? it?.orderCnt ?? it?.slsCnt ?? it?.count ?? 0) || 0;
       const _getNm = (it) => it?.baeminTpbizClsfNm ?? it?.tpbizClscdNm ?? it?.tpbizNm ?? it?.name ?? it?.keyD ?? '';
       const _ranked = _baeminArr
-        .map(b => ({ name: _getNm(b), amount: _getCnt(b) }))
+        .map(b => ({ name: String(_getNm(b) || '').trim(), amount: _getCnt(b) }))
         .filter(x => x.name)
         .sort((a, b) => b.amount - a.amount);
       if (_ranked.length > 0) {
         _topDeliveryCategories = _ranked.slice(0, 5).map((x, i) => ({ rank: i + 1, name: x.name, amount: x.amount }));
-        _totalDeliveryBiz = _ranked.length;
         const _cafeI = _ranked.findIndex(x => /카페|커피|음료|디저트|베이커리|빵|제과/.test(x.name));
         if (_cafeI >= 0) {
-          _cafeRankInDelivery = _cafeI + 1;
+          if (_cafeRankInDelivery <= 0) _cafeRankInDelivery = _cafeI + 1;
           if (_cafeDeliveryAmount <= 0) _cafeDeliveryAmount = _ranked[_cafeI].amount;
         }
       }
@@ -2570,10 +2576,13 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       { name: '피자·양식', amount: 11 },
     ];
     _topDeliveryCategories = _nationDelivery.map((x, i) => ({ rank: i + 1, name: x.name, amount: x.amount }));
-    _totalDeliveryBiz = _nationDelivery.length;
     const _cafeI = _nationDelivery.findIndex(x => /카페|커피|음료|디저트/.test(x.name));
     if (_cafeI >= 0) _cafeRankInDelivery = _cafeI + 1;
   }
+
+  // [2026-05-20 배선 수정] 최종 고정: _totalDeliveryBiz는 무조건 실제 배열 길이.
+  // 어떤 경로로 와도 "업종 N개"의 N과 실제 표시 항목 수가 어긋나지 않게 한다.
+  _totalDeliveryBiz = _topDeliveryCategories.length;
 
   // ── 폴백 3: 월별 배달 주문건수 추이 (fyerChartDList 미수집 시 delivery.monthlySeries로 대체) ──
   // monthlySeries = 소상공인365 배달 API를 6~10개월 호출해 모은 동별 평균 월 추이 [{ym, orders, sales}].
