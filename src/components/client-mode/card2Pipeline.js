@@ -52,6 +52,38 @@ const SBIZ_AGE_MAP = {
   M10: '10대', M20: '20대', M30: '30대', M40: '40대', M50: '50대', M60: '60대+',
 };
 
+// 비즈맵 연령 라벨 정규화
+// ageGrp 필드는 "20대"처럼 한국어가 오기도 하고, 1~7 같은 구간 코드가 오기도 한다.
+// 코드일 경우 "7대"처럼 잘못된 라벨이 만들어지므로 안전하게 매핑한다.
+const BIZMAP_AGE_CODE_MAP = {
+  '1': '10대', '2': '20대', '3': '30대', '4': '40대',
+  '5': '50대', '6': '60대+', '7': '60대+',
+};
+export function normalizeBizmapAgeLabel(ageRaw) {
+  const raw = String(ageRaw == null ? '' : ageRaw).trim();
+  if (!raw) return '';
+  // 이미 한국어 연령 라벨이면 숫자대 형태로 정규화 (예: "20대 미만", "20대" → "20대")
+  if (/\d/.test(raw) && raw.includes('대')) {
+    const n = (raw.match(/\d+/) || [])[0];
+    if (n) {
+      const num = parseInt(n, 10);
+      if (num >= 60) return '60대+';
+      if (num >= 10 && num <= 50) return `${num}대`;
+    }
+  }
+  const digits = raw.replace(/[^0-9]/g, '');
+  if (!digits) return raw;
+  // 두 자리 이상이면 실제 나이대(20,30,...) → 그대로 사용
+  if (digits.length >= 2) {
+    const num = parseInt(digits.slice(0, 2), 10);
+    if (num >= 60) return '60대+';
+    if (num >= 10 && num <= 50) return `${num}대`;
+    return `${num}대`;
+  }
+  // 한 자리면 구간 코드로 간주하여 매핑
+  return BIZMAP_AGE_CODE_MAP[digits] || `${digits}0대`;
+}
+
 // 비즈맵 yyyymm 자동 계산 (현재월-2개월 데이터까지가 보통 가용)
 function getCurrentYyyymm() {
   const d = new Date();
@@ -199,8 +231,7 @@ const SOURCES = [
         if (rate <= 0) return;
         if (g.includes('남') || g.toLowerCase().includes('m')) maleSum += rate;
         else if (g.includes('여') || g.toLowerCase().includes('f') || g.toLowerCase().includes('w')) femaleSum += rate;
-        const ageKey = ageRaw.replace(/[^0-9]/g, '');
-        const ageLabel = ageKey ? `${ageKey}대` : (ageRaw || '');
+        const ageLabel = normalizeBizmapAgeLabel(ageRaw);
         if (ageLabel) ageMap[ageLabel] = (ageMap[ageLabel] || 0) + rate;
       });
       const total = maleSum + femaleSum;

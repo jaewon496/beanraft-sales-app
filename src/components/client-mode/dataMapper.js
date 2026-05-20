@@ -1,5 +1,5 @@
 // 카드 2 (고객 분석) 전용 파이프라인 - 호출 경로/파라미터/fallback 순서를 명시적으로 박은 보강 함수
-import { collectCard2DataSync } from './card2Pipeline';
+import { collectCard2DataSync, normalizeBizmapAgeLabel } from './card2Pipeline';
 
 // 라이프스타일 항목명 변환 맵 (소상공인365 원본 → UI 표시용)
 const LIFESTYLE_LABEL_MAP = { '식도락': '외식 활동', '여행': '타지 방문', '쇼핑': '생활 구매', '영화': '문화 여가' };
@@ -587,10 +587,17 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   }
 
   // 신규/단골 (소상공인365에서 안 나오면 배달핫플레이스에서 가져옴)
+  // 재방문율 + 신규비율 = 100% 이므로 한쪽만 와도 나머지를 산출한다.
   let newCustomerPct = 0;
   let regularPct = 0;
   if (dlvyNewCustPct !== null) newCustomerPct = Math.round(dlvyNewCustPct * 10) / 10;
   if (dlvyRegularPct !== null) regularPct = Math.round(dlvyRegularPct * 10) / 10;
+  // 한쪽만 들어온 경우 보수: 두 값 합이 100에서 크게 벗어나지 않으면 보완
+  if (regularPct > 0 && newCustomerPct === 0 && regularPct <= 100) {
+    newCustomerPct = Math.round((100 - regularPct) * 10) / 10;
+  } else if (newCustomerPct > 0 && regularPct === 0 && newCustomerPct <= 100) {
+    regularPct = Math.round((100 - newCustomerPct) * 10) / 10;
+  }
 
   // ── 소스3: 오픈업 상권 결제 데이터 ──
   const openubSales = apis.openubSales?.data;
@@ -688,13 +695,39 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   }
 
   // ── 연 평균소득 (earnAmt) ──
+  // 두 가지 형태 지원:
+  //  (a) deliveryHotplace 추출형 { male, female } - 성별 분리
+  //  (b) GIS getMapRadsWholEarnAmt 형 { rads:[...] } 또는 배열 - 구역별 소득금액(성별 무관)
   const earnAmtData = apis.earnAmt?.data;
   let earnAmtStr = null;
+  let regionAvgMonthlyIncome = 0; // GIS 기준 지역 월평균 소득(만원)
   if (earnAmtData && (earnAmtData.male || earnAmtData.female)) {
     const parts = [];
     if (earnAmtData.male) parts.push(`남 ${fmtWon(Number(earnAmtData.male))}`);
     if (earnAmtData.female) parts.push(`여 ${fmtWon(Number(earnAmtData.female))}`);
     earnAmtStr = parts.join(' / ');
+  } else if (earnAmtData) {
+    // GIS Rads 형태: rads 배열에서 소득금액 필드 평균
+    const earnRads = Array.isArray(earnAmtData) ? earnAmtData : (earnAmtData.rads || earnAmtData.data || null);
+    if (Array.isArray(earnRads) && earnRads.length > 0) {
+      const vals = earnRads.map(r => {
+        const v = parseFloat(r?.wholEarnAmt ?? r?.earnAmt ?? r?.earnAmtVal ?? r?.amt ?? r?.val ?? 0);
+        return isFinite(v) ? v : 0;
+      }).filter(v => v > 0);
+      if (vals.length > 0) {
+        const avg = vals.reduce((s, v) => s + v, 0) / vals.length;
+        // 응답 단위가 원/연 단위일 수 있음 → 월 만원 단위로 정규화
+        // 값이 100,000 이상이면 원 단위(연) 추정 → /10000/12, 1만~10만이면 만원(연) → /12
+        let monthly;
+        if (avg >= 100000) monthly = Math.round(avg / 10000 / 12);
+        else if (avg >= 1000) monthly = Math.round(avg / 12);
+        else monthly = Math.round(avg);
+        if (monthly > 0) {
+          regionAvgMonthlyIncome = monthly;
+          earnAmtStr = `지역 평균 ${monthly.toLocaleString()}만원/월`;
+        }
+      }
+    }
   }
 
   // ── 소스4: 비즈맵 성별·연령별 결제비율 (bizMapGenderAge) - 폴백 ──
@@ -719,9 +752,8 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       if (!isFinite(rate) || rate <= 0) return;
       if (g.includes('남') || g.toLowerCase().includes('m')) bmMaleSum += rate;
       else if (g.includes('여') || g.toLowerCase().includes('f') || g.toLowerCase().includes('w')) bmFemaleSum += rate;
-      // 연령별 합산 (성별 무관)
-      const ageKey = ageRaw.replace(/[^0-9]/g, '');
-      const ageLabel = ageKey ? `${ageKey}대` : (ageRaw || '');
+      // 연령별 합산 (성별 무관) - 비즈맵 연령코드 정규화 (코드값 "7" -> "60대+" 등)
+      const ageLabel = normalizeBizmapAgeLabel(ageRaw);
       if (ageLabel) ageMap[ageLabel] = (ageMap[ageLabel] || 0) + rate;
     });
     const bmTotal = bmMaleSum + bmFemaleSum;
@@ -837,6 +869,8 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       if (peakTime) bd.peakTime = peakTime;
       // 연 평균소득
       if (earnAmtStr) bd.earnAmt = earnAmtStr;
+      // 지역 평균 월소득 (GIS earnAmt 폴백 - customerYrEarn 없을 때 카드2 평균소득 박스용)
+      if (regionAvgMonthlyIncome > 0) bd.regionAvgMonthlyIncome = regionAvgMonthlyIncome;
       // 라이프스타일 (배달핫플레이스 - 남/여 각각 TOP3)
       if (dlvyMaleLife.length > 0) {
         bd.maleLifestyle = dlvyMaleLife.map(l => `${l.name}(${l.pct.toFixed(1)}%)`).join(', ');

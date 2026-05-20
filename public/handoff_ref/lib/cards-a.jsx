@@ -176,11 +176,25 @@ function Card02({ body = {} }) {
     ageGroups.forEach((g, idx) => { if (g.v > _maxV) { _maxV = g.v; _maxI = idx; } });
     topAgeIdx = _maxI;
   }
+  // [2026-05-20] 주요 연령대 표시값 자기교정:
+  // topAge 원본이 "7대" 같은 잘못된 코드 라벨이면 ageGroups의 실제 라벨로 교체.
+  // ageGroups에 매칭/폴백된 구간이 있으면 그 라벨 + 비율을 표시값으로 사용.
+  let topAgeDisplay = topAge || '';
+  const _topAgeIsCodeBug = /^\s*\d{1,2}대/.test(topAgeDisplay)
+    && ageGroups.length > 0
+    && !ageGroups.some(g => (String(g.l).match(/\d+/) || [])[0] === (_topAgeBase.match(/\d+/) || [])[0]);
+  if ((!topAgeDisplay || _topAgeIsCodeBug) && topAgeIdx >= 0 && ageGroups[topAgeIdx]) {
+    const _g = ageGroups[topAgeIdx];
+    topAgeDisplay = _g.v > 0 ? `${_g.l} (${_g.v}%)` : _g.l;
+  }
+  if (!topAgeDisplay) topAgeDisplay = '-';
   const earn = bd.customerYrEarn || null;
   const maleIncome = Number(earn?.male) || 0;
   const femaleIncome = Number(earn?.female) || 0;
   const maleMonthly = maleIncome > 0 ? Math.round(maleIncome / 12) : 0;
   const femaleMonthly = femaleIncome > 0 ? Math.round(femaleIncome / 12) : 0;
+  // 지역 평균 월소득 폴백 (소상공인365 GIS earnAmt) - 방문고객 성별 소득이 없을 때
+  const regionMonthlyIncome = Number(bd.regionAvgMonthlyIncome) || 0;
   const parseLifeStr = (s) => {
     if (!s || typeof s !== 'string') return null;
     const items = s.split(',').map(t => {
@@ -191,13 +205,23 @@ function Card02({ body = {} }) {
   };
   const femaleKw = parseLifeStr(bd.femaleLifestyle) || [];
   const maleKw = parseLifeStr(bd.maleLifestyle) || [];
+  // 라이프스타일 폴백: 배달 핫플레이스 남/여 키워드가 없을 때
+  // 오픈업 세대구성(householdType) 또는 card2 파이프라인 lifestyle 텍스트에서 키워드 추출
+  const lifeFallbackStr = bd.householdType || bd.lifestyle || '';
+  const lifeFallbackKw = (() => {
+    if (!lifeFallbackStr || typeof lifeFallbackStr !== 'string') return [];
+    return lifeFallbackStr.split(/[,/]/).map(t => {
+      const m = t.trim().match(/^(.+?)\s*\(?[\d.]+%?\)?$/);
+      return (m ? m[1] : t).trim();
+    }).filter(Boolean).slice(0, 6);
+  })();
   return (
     <CardShell n="02" id="02"
       title="고객 분석"
       sub="방문 고객 특성">
       {/* 4-up KPI */}
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
-        <StatTile id="c2.tile1" tone="blue"  label="주요 연령대"   value={topAge || '-'} hero accent/>
+        <StatTile id="c2.tile1" tone="blue"  label="주요 연령대"   value={topAgeDisplay} hero accent/>
         <StatTile id="c2.tile2" tone="lilac" label="성비 (여:남)" value={(femaleRatio + maleRatio) > 0 ? `${femaleRatio} : ${maleRatio}` : '-'}/>
         <StatTile id="c2.tile3" tone="mint"  label="재방문율" value={regularPct > 0 ? String(regularPct) : '-'} unit={regularPct > 0 ? '%' : ''}/>
         <StatTile id="c2.tile4" tone="cream" label="신규 비율" value={newCustomerPct > 0 ? String(newCustomerPct) : '-'} unit={newCustomerPct > 0 ? '%' : ''}/>
@@ -232,8 +256,14 @@ function Card02({ body = {} }) {
                   );
                 })}
               </div>
+            ) : regionMonthlyIncome > 0 ? (
+              <div style={{display:"flex", alignItems:"baseline", gap:8}}>
+                <span style={{fontSize:24, fontWeight:700, fontVariantNumeric:"tabular-nums"}}>{regionMonthlyIncome.toLocaleString()}</span>
+                <span style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:500}}>만원</span>
+                <span style={{fontSize:12, color:"var(--matte-fg-4)", marginLeft:6}}>지역 평균 (소상공인365)</span>
+              </div>
             ) : (
-              <div style={{fontSize:13, color:"var(--matte-fg-4)"}}>평균 소득 데이터 수집 중</div>
+              <div style={{fontSize:13, color:"var(--matte-fg-4)"}}>지역 소득 데이터 미집계 구간</div>
             )}
           </div>
         </div>
@@ -258,8 +288,18 @@ function Card02({ body = {} }) {
                 </window.DrStagger>
               </div>
             ))}
-            {femaleKw.length === 0 && maleKw.length === 0 && (
-              <div style={{fontSize:13, color:"var(--matte-fg-4)", padding:"20px 0"}}>라이프스타일 데이터 수집 중</div>
+            {femaleKw.length === 0 && maleKw.length === 0 && lifeFallbackKw.length > 0 && (
+              <div style={{padding:"20px 22px", background:"rgba(255,255,255,0.03)", borderRadius:12, border:"1px solid var(--matte-line)"}}>
+                <div style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:500, marginBottom:14}}>고객 세대 구성</div>
+                <window.DrStagger id="c2.chips2" delay={50} style={{display:"flex", gap:8, flexWrap:"wrap"}}>
+                  {lifeFallbackKw.map(k => (
+                    <span key={k} style={{padding:"7px 14px", background:"rgba(255,255,255,0.06)", border:"1px solid var(--matte-line)", borderRadius:8, fontSize:14, color:"var(--matte-fg-2)", fontWeight:500}}>#{k}</span>
+                  ))}
+                </window.DrStagger>
+              </div>
+            )}
+            {femaleKw.length === 0 && maleKw.length === 0 && lifeFallbackKw.length === 0 && (
+              <div style={{fontSize:13, color:"var(--matte-fg-4)", padding:"20px 0"}}>라이프스타일 특성 미집계 구간</div>
             )}
             <div style={{paddingTop:16, borderTop:"1px solid var(--matte-line)", display:"grid", gridTemplateColumns:"1fr 1fr", gap:14}}>
               <div>
