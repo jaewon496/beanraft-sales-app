@@ -928,4 +928,43 @@ html, body { background: var(--matte-bg) !important; }
   .bc-app .bc-card__body div[style*="repeat(12, 1fr)"] {
     grid-template-columns: repeat(12, minmax(20px, 1fr)) !important;
   }
+
+  /* KPI 타일 — 폴드7 접힘 1칼럼에서 세로로 과하게 길어지는 문제 보정 */
+  .bc-app .bc-tile {
+    min-height: 0;
+    padding: 10px 12px;
+    gap: 4px;
+  }
+  .bc-app .bc-grid-4 > .bc-tile,
+  .bc-app .bc-grid-2 > .bc-tile,
+  .bc-app .bc-grid-3 > .bc-tile {
+    min-height: 0;
+  }
+}
+
+/* ── 카드 헤더 — 모바일에서 세로 스택 (제목/부제 → 버튼/날짜) ── */
+@media (max-width: 560px) {
+  /* 헤더 전체를 세로 스택: 제목 줄 위 / 버튼·날짜 줄 아래 */
+  .bc-app .bc-card__header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  /* CardShell 의 headerRight + 날짜 묶음(인라인 style div) — 줄바꿈 허용 */
+  .bc-app .bc-card__header > div:last-child {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 10px !important;
+  }
+  /* 날짜가 오른쪽 끝에서 잘리지 않도록 */
+  .bc-app .bc-card__date {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  /* 지도로 보기 버튼 — 좁은 폭에서 패딩/폰트 축소, 한 줄 유지 */
+  .bc-app .bc-map-trigger-btn {
+    padding: 6px 11px !important;
+    font-size: 12px !important;
+    white-space: nowrap;
+  }
 }

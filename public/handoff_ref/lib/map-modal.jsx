@@ -485,6 +485,7 @@
       <>
         <button
           type="button"
+          className="bc-map-trigger-btn"
           onClick={() => setOpen(true)}
           style={{
             display:"inline-flex", alignItems:"center", gap:8,
@@ -497,6 +498,8 @@
             fontWeight:600,
             cursor:"pointer",
             letterSpacing:"-0.005em",
+            whiteSpace:"nowrap",
+            flexShrink:0,
             transition:"all 160ms",
           }}
           onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.borderColor = "var(--matte-line-2)"; }}
