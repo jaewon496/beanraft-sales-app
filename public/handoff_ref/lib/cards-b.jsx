@@ -295,8 +295,24 @@ function Card10({ body = {} }) {
   const searchAvgPrice = Number(bd.searchAvgPrice) || 0;
   const searchSales = Number(bd.searchSales) || 0;
   const searchOrders = Number(bd.searchOrders) || 0;
-  const cafeRank = Number(bd.cafeRankInDelivery) || 0;
-  const totalBiz = Number(bd.totalDeliveryBiz) || 0;
+  const cafeRank = Number(bd.cafeRankInDelivery ?? body.cafeRankInDelivery) || 0;
+  const topDelivCats = Array.isArray(body.topDeliveryCategories) ? body.topDeliveryCategories
+                     : (Array.isArray(bd.topDeliveryCategories) ? bd.topDeliveryCategories : []);
+  const totalBiz = Number(bd.totalDeliveryBiz ?? body.totalDeliveryBiz) || topDelivCats.length || 0;
+  /* 업종 순위 타일: 카페가 배달 상위권이면 카페 순위, 아니면 배달 1위 업종명 노출 */
+  const rankTile = (() => {
+    if (cafeRank > 0) {
+      return { value: String(cafeRank), unit: '위', sub: totalBiz > 0 ? `/ ${totalBiz}개 업종` : undefined };
+    }
+    const top = topDelivCats[0];
+    if (top && top.name) {
+      return { value: String(top.name), unit: '', sub: totalBiz > 0 ? `배달 1위 / ${totalBiz}개 업종` : '배달 1위' };
+    }
+    if (totalBiz > 0) {
+      return { value: String(totalBiz), unit: '개 업종', sub: '배달 운영' };
+    }
+    return { value: '카페', unit: '', sub: '배달 운영 업종' };
+  })();
   const cafeDelivery = Number(bd.cafeDeliveryAmount) || 0;
   const monthlyTrendArr = Array.isArray(bd.monthlyTrend) ? bd.monthlyTrend.slice(-12) : [];
   const monthlyValues = monthlyTrendArr.map(m => Number(m.value) || 0).filter(v => v > 0);
@@ -330,7 +346,7 @@ function Card10({ body = {} }) {
         <StatTile id="c10.tile1" tone="blue"  label="동 객단가 (배달)" value={searchAvgPrice > 0 ? searchAvgPrice.toLocaleString() : '-'} unit={searchAvgPrice > 0 ? '원' : ''} delta={yoyPct ? String(Math.abs(yoyPct)) : undefined} deltaPositive={yoyPct >= 0} hero/>
         <StatTile id="c10.tile2" tone="mint"  label="월 배달 매출"   value={searchSales > 0 ? searchSales.toLocaleString() : '-'} unit={searchSales > 0 ? '만' : ''}/>
         <StatTile id="c10.tile3" tone="lilac" label="월 배달 건수"   value={searchOrders > 0 ? searchOrders.toLocaleString() : '-'} unit={searchOrders > 0 ? '건' : ''} delta={yoyPct ? String(Math.abs(yoyPct)) : undefined} deltaPositive={yoyPct >= 0}/>
-        <StatTile id="c10.tile4" tone="cream" label="업종 순위"      value={cafeRank > 0 ? String(cafeRank) : '-'} unit={cafeRank > 0 ? '위' : ''} sub={totalBiz > 0 ? `/ ${totalBiz}개 업종` : undefined}/>
+        <StatTile id="c10.tile4" tone="cream" label="업종 순위"      value={rankTile.value} unit={rankTile.unit} sub={rankTile.sub}/>
       </div>
 
       <div style={{display:"grid", gridTemplateColumns:"1.4fr 1fr", gap:16, alignItems:"stretch"}}>
