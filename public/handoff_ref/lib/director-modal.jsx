@@ -116,6 +116,114 @@ const DIRECTOR_SCRIPT = [
 ];
 
 /* ============================================================
+   buildLiveScript — 검색 지역의 실제 디렉터 데이터로 14단계 대본 생성
+   ─────────────────────────────────────────────────────────────
+   데이터 출처: window.__BC_DATA__.cards[13].body.chartData.director
+                (dataMapper.js _genDirector 결과 — 어느 지역이든 생성됨)
+   구조: { intro, market{headline,observations[],keyMetric,citation},
+           customer{...}, competition{...}, profit{...}, direction{...}, closing }
+   5영역 → 14단계 카드 매핑. 각 카드는 해당 영역의 헤드라인+관찰 멘트를 사용.
+   실데이터가 없을 때만 DIRECTOR_SCRIPT(하드코딩) 폴백.
+   ============================================================ */
+function getLiveDirector() {
+  try {
+    const cards = window.__BC_DATA__ && window.__BC_DATA__.cards;
+    if (!Array.isArray(cards)) return null;
+    // AI 종합 카드(n="14")는 배열 인덱스 13
+    const aiBody = cards[13] && cards[13].body;
+    const d = aiBody && (
+      (aiBody.chartData && aiBody.chartData.director) ||
+      aiBody.director
+    );
+    if (d && (d.intro || d.market || d.closing)) return d;
+  } catch (e) {}
+  return null;
+}
+
+/* DIRECTOR_SCRIPT 카드 식별자(n) → 디렉터 데이터 5영역 매핑.
+   각 카드가 어떤 영역의 멘트를 보여줄지 결정.
+   n 기준 (컴포넌트 식별자) — shared.jsx CARDS 참고:
+   01상권 02고객 03변화 04프랜 05매출 06개인 07유동 08임대 09기회
+   10배달 11SNS 12날씨 13경쟁 14AI종합 */
+const CARD_AREA_MAP = {
+  "01": "market",      // 상권 분석
+  "02": "customer",    // 고객 분석
+  "03": "direction",   // 상권 변화 추이
+  "04": "competition", // 프랜차이즈 현황
+  "05": "profit",      // 매출 분석
+  "06": "competition", // 개인 카페
+  "07": "customer",    // 유동인구
+  "08": "profit",      // 임대 / 창업
+  "09": "market",      // 카페 기회
+  "10": "direction",   // 배달 객단가
+  "11": "direction",   // SNS 트렌드
+  "12": "direction",   // 날씨 영향
+  "13": "competition", // 상권 경쟁 분석
+  "14": "ai",          // AI 종합 분석
+};
+
+/* 한 영역의 observations 를 카드별로 분배 — 같은 영역을 여러 카드가 쓰면
+   카드 순서(영역 내 등장 순)에 따라 다른 관찰 멘트를 보여줘 중복을 줄임.
+   영역별 카드 등장 순서 인덱스 테이블. */
+const AREA_CARD_ORDER = {
+  market:      ["01", "09"],
+  customer:    ["02", "07"],
+  competition: ["04", "06", "13"],
+  profit:      ["05", "08"],
+  direction:   ["03", "10", "11", "12"],
+};
+
+function buildLiveScript() {
+  const d = getLiveDirector();
+  if (!d) return DIRECTOR_SCRIPT; // 실데이터 없으면 하드코딩 폴백
+
+  return DIRECTOR_SCRIPT.map((step) => {
+    const area = CARD_AREA_MAP[step.card];
+    let beatTitle = step.beat;
+    let text = step.text;
+
+    if (area === "ai") {
+      // 마지막 카드 — intro + closing 종합
+      const parts = [];
+      if (d.intro) parts.push(d.intro);
+      if (d.closing) parts.push(d.closing);
+      if (parts.length) {
+        text = parts.join(' ');
+        beatTitle = "최종 의견";
+      }
+    } else {
+      const block = d[area];
+      if (block) {
+        const obs = Array.isArray(block.observations)
+          ? block.observations.filter(Boolean) : [];
+        // 같은 영역을 쓰는 카드 순서 → 관찰 멘트를 나눠 배정
+        const order = AREA_CARD_ORDER[area] || [step.card];
+        const cardPos = Math.max(0, order.indexOf(step.card));
+        const slot = order.length || 1;
+        // observations 를 slot 등분, 이 카드 몫만 추림
+        const per = Math.ceil(obs.length / slot) || 1;
+        let mine = obs.slice(cardPos * per, cardPos * per + per);
+        // 몫이 비면(관찰 수가 적을 때) 영역 전체에서 앞쪽 일부 사용
+        if (mine.length === 0) mine = obs.slice(0, 2);
+        const sentences = [];
+        if (block.headline) sentences.push(String(block.headline) + '.');
+        mine.forEach(o => {
+          let s = String(o).trim();
+          if (s && !/[.!?]$/.test(s)) s += '.';
+          if (s) sentences.push(s);
+        });
+        if (sentences.length) {
+          text = sentences.join(' ');
+          if (block.headline) beatTitle = String(block.headline);
+        }
+      }
+    }
+
+    return { ...step, beat: beatTitle, text };
+  });
+}
+
+/* ============================================================
    useDirectorPlayback — 단계별 자동 진행 + beat 타임라인 스케줄
    ============================================================ */
 function useDirectorPlayback(open) {
@@ -124,11 +232,14 @@ function useDirectorPlayback(open) {
   const [seq, setSeq] = React.useState({});
   const [prevCard, setPrevCard] = React.useState(null);
   const [activeBeat, setActiveBeat] = React.useState(-1);   // 현재 강조 중 beat idx
-  const total = DIRECTOR_SCRIPT.length;
+  // [bc] 모달 열릴 때 검색 지역 실데이터로 대본 재생성 (실데이터 없으면 하드코딩 폴백)
+  const [script, setScript] = React.useState(DIRECTOR_SCRIPT);
+  const total = script.length;
 
-  /* 모달 열릴 때마다 리셋 */
+  /* 모달 열릴 때마다 리셋 + 실데이터 대본 빌드 */
   React.useEffect(() => {
     if (!open) return;
+    setScript(buildLiveScript());
     setStep(0); setPlaying(true); setSeq({}); setPrevCard(null); setActiveBeat(-1);
   }, [open]);
 
@@ -138,8 +249,8 @@ function useDirectorPlayback(open) {
     if (!open) return;
     const prevIdx = prevStepRef.current;
     if (prevIdx !== step) {
-      const pc = DIRECTOR_SCRIPT[prevIdx]?.card;
-      if (pc && pc !== DIRECTOR_SCRIPT[step]?.card) {
+      const pc = script[prevIdx]?.card;
+      if (pc && pc !== script[step]?.card) {
         setPrevCard(pc);
         const t = setTimeout(() => setPrevCard(null), 320);
         prevStepRef.current = step;
@@ -158,7 +269,7 @@ function useDirectorPlayback(open) {
     setActiveBeat(-1);
 
     if (!open || !playing) return;
-    const cur = DIRECTOR_SCRIPT[step];
+    const cur = script[step];
     if (!cur) return;
 
     const beats = cur.beats || [];
@@ -207,12 +318,12 @@ function useDirectorPlayback(open) {
       beatTimersRef.current.forEach(t => clearTimeout(t));
       beatTimersRef.current = [];
     };
-  }, [step, open, playing]);
+  }, [step, open, playing, script]);
 
   /* 자동 다음 단계 */
   React.useEffect(() => {
     if (!open || !playing) return;
-    const dur = DIRECTOR_SCRIPT[step]?.dur || 7000;
+    const dur = script[step]?.dur || 7000;
     const t = setTimeout(() => {
       setStep(s => {
         if (s + 1 < total) return s + 1;
@@ -229,8 +340,8 @@ function useDirectorPlayback(open) {
   const toggle = () => setPlaying(p => !p);
   const goto   = (i) => setStep(Math.max(0, Math.min(total-1, i)));
 
-  return { step, total, playing, seq, prevCard, activeBeat,
-           current: DIRECTOR_SCRIPT[step] || DIRECTOR_SCRIPT[0],
+  return { step, total, playing, seq, prevCard, activeBeat, script,
+           current: script[step] || script[0],
            next, prev, toggle, goto };
 }
 
@@ -411,6 +522,12 @@ function DirectorModal({ open, onClose }) {
   const SeqCtx = window.SeqCtx;
   const cur = pb.current;
   const Comp = window[`Card${cur.card}`];
+  // [bc] index.html renderCard 와 동일하게 __BC_DATA__ 에서 실제 카드 body 주입
+  // (이게 없으면 모달 안 카드가 전부 "데이터 수집 중" 빈 화면이 됨)
+  const _cardIdx = parseInt(cur.card, 10) - 1;
+  const _cardBody = (window.__BC_DATA__ && window.__BC_DATA__.cards
+    && window.__BC_DATA__.cards[_cardIdx] && window.__BC_DATA__.cards[_cardIdx].body) || {};
+  const _compProps = cur.card === "14" ? { body: _cardBody, onOpenDirector: () => {} } : { body: _cardBody };
   const cardInfo = window.CARDS?.find(c => c.n === cur.card);
   const groupInfo = window.GROUPS?.find(g => g.cards.includes(cur.card));
   const progress = ((pb.step + 1) / pb.total) * 100;
@@ -462,7 +579,7 @@ function DirectorModal({ open, onClose }) {
             <div className="dm-progress">
               <div className="dm-progress__bar" style={{width:`${progress}%`}}></div>
               <div className="dm-progress__ticks">
-                {DIRECTOR_SCRIPT.map((s, i) => (
+                {pb.script.map((s, i) => (
                   <button key={i}
                     className={"dm-tick " + (i === pb.step ? "on" : i < pb.step ? "done" : "")}
                     style={{left:`${(i/(pb.total-1))*100}%`}}
@@ -498,7 +615,7 @@ function DirectorModal({ open, onClose }) {
             <span>{cardInfo?.title}</span>
           </div>
           <div className="dm-stage__card" ref={stageRef} key={"card-"+cur.card}>
-            {Comp ? <Comp/> : <div style={{padding:32, color:"var(--fg-3)"}}>카드 {cur.card}</div>}
+            {Comp ? <Comp {..._compProps}/> : <div style={{padding:32, color:"var(--fg-3)"}}>카드 {cur.card}</div>}
           </div>
         </main>
       </div>
