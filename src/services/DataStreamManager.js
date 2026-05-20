@@ -44,6 +44,35 @@ const CACHE_PREFIX = 'dsm_cache_';
 // kosisExternal: 13종 응답 수 MB. 검색마다 라이브 호출하므로 캐시 불필요. localStorage quota 보호.
 const CACHE_EXCLUDE_PREFIXES = ['kosisExternal', 'kosis_external', 'kosisAll'];
 
+// ─── 캐시 TTL (오래된 캐시는 무시하고 새로 호출) ───
+const CACHE_TTL_MS = 60 * 60 * 1000; // 1시간
+
+/**
+ * URL을 짧은 해시 문자열로 변환 (캐시 키 좌표 구분용)
+ * 호출 URL에 좌표/dongCd가 들어 있으므로, URL 해시를 캐시 키에 붙이면
+ * 같은 cacheKey라도 좌표가 다르면 다른 캐시 슬롯을 쓰게 된다.
+ */
+function hashUrl(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) {
+    h = ((h << 5) - h + str.charCodeAt(i)) | 0;
+  }
+  return (h >>> 0).toString(36);
+}
+
+/**
+ * 응답 데이터가 의미있는 값인지 판정 (빈 응답 캐시 고착 방지)
+ * strict 검증 금지 (원칙 9): 키가 하나라도 의미있게 있으면 정상으로 본다.
+ * 진짜 빈 것(null/undefined/빈 배열/빈 객체)만 false.
+ */
+function isMeaningfulData(data) {
+  if (data === null || data === undefined) return false;
+  if (Array.isArray(data)) return data.length > 0;
+  if (typeof data === 'object') return Object.keys(data).length > 0;
+  // 원시값(문자열/숫자/불리언)은 의미있는 값으로 본다
+  return true;
+}
+
 /**
  * 개별 API 호출 + Plan B(캐시) + Plan C(표준 데이터) 폴백
  * @param {string} url - 요청 URL
@@ -53,7 +82,11 @@ const CACHE_EXCLUDE_PREFIXES = ['kosisExternal', 'kosis_external', 'kosisAll'];
  * @returns {Promise<{sourceId: string, timestamp: number, data: any, source: string}>}
  */
 export async function fetchWithFallback(url, cacheKey, timeout = 5000, options = {}) {
-  const fullCacheKey = CACHE_PREFIX + cacheKey;
+  // 캐시 키에 URL+body 해시를 붙여 좌표/파라미터별로 분리.
+  // 같은 cacheKey('storeRadius' 등)라도 좌표가 다르면 다른 캐시 슬롯 사용 →
+  // 이전 지역 캐시가 새 지역 검색에 잘못 재사용되는 문제 차단.
+  const keyMaterial = url + (options && options.body ? '|' + options.body : '');
+  const fullCacheKey = CACHE_PREFIX + cacheKey + '_' + hashUrl(keyMaterial);
 
   // Plan A: 실시간 API 호출
   try {
@@ -75,15 +108,22 @@ export async function fetchWithFallback(url, cacheKey, timeout = 5000, options =
     const data = await response.json();
 
     // 성공 시 캐시 저장 (제외 목록은 건너뜀)
+    // 빈 응답(빈 배열/빈 객체/null)은 캐시에 저장하지 않는다.
+    // 토큰 만료 직전·한도 차감·네트워크 일시 오류로 빈 응답이 와도
+    // 그것을 캐시에 박아두면 이후 같은 좌표 호출이 영구히 빈 응답으로 고착된다.
     const isExcluded = CACHE_EXCLUDE_PREFIXES.some(prefix => cacheKey.startsWith(prefix));
     if (!isExcluded) {
-      try {
-        localStorage.setItem(fullCacheKey, JSON.stringify({
-          data,
-          timestamp: Date.now(),
-        }));
-      } catch (e) {
-        // localStorage 용량 초과 등 무시
+      if (isMeaningfulData(data)) {
+        try {
+          localStorage.setItem(fullCacheKey, JSON.stringify({
+            data,
+            timestamp: Date.now(),
+          }));
+        } catch (e) {
+          // localStorage 용량 초과 등 무시
+        }
+      } else {
+        console.warn(`[DataStreamManager] 빈 응답 - 캐시 저장 안 함 (${cacheKey})`);
       }
     }
 
@@ -103,13 +143,24 @@ export async function fetchWithFallback(url, cacheKey, timeout = 5000, options =
     const cached = localStorage.getItem(fullCacheKey);
     if (cached) {
       const parsed = JSON.parse(cached);
-      console.warn(`[DataStreamManager] Plan B 적용 (${cacheKey}): 캐시 사용 (${new Date(parsed.timestamp).toLocaleString()})`);
-      return {
-        sourceId: cacheKey,
-        timestamp: parsed.timestamp,
-        data: parsed.data,
-        source: 'cache',
-      };
+      const age = Date.now() - (parsed.timestamp || 0);
+      // TTL 초과 캐시는 폐기 → Plan C로
+      if (age > CACHE_TTL_MS) {
+        console.warn(`[DataStreamManager] 캐시 만료 (${cacheKey}): ${Math.round(age / 60000)}분 경과 - 폐기`);
+        localStorage.removeItem(fullCacheKey);
+      } else if (!isMeaningfulData(parsed.data)) {
+        // 캐시된 값이 비어 있으면 캐시 미스로 처리 (빈 응답 고착 방지)
+        console.warn(`[DataStreamManager] 캐시 값이 빈 응답 (${cacheKey}) - 폐기`);
+        localStorage.removeItem(fullCacheKey);
+      } else {
+        console.warn(`[DataStreamManager] Plan B 적용 (${cacheKey}): 캐시 사용 (${new Date(parsed.timestamp).toLocaleString()})`);
+        return {
+          sourceId: cacheKey,
+          timestamp: parsed.timestamp,
+          data: parsed.data,
+          source: 'cache',
+        };
+      }
     }
   } catch (e) {
     // 캐시 파싱 실패
@@ -185,16 +236,13 @@ export async function fetchAllData(lat, lng, radius = 550) {
  * @param {string} [specificKey] - 특정 키만 삭제. 미지정 시 전체 DSM 캐시 삭제
  */
 export function clearCache(specificKey) {
-  if (specificKey) {
-    localStorage.removeItem(CACHE_PREFIX + specificKey);
-    return;
-  }
-
-  // 전체 DSM 캐시 삭제
+  // specificKey 지정 시: 해당 cacheKey로 시작하는 모든 슬롯 삭제.
+  // 캐시 키에 URL 해시 접미사가 붙으므로 정확 일치가 아닌 접두사 매칭으로 삭제한다.
+  const matchPrefix = specificKey ? (CACHE_PREFIX + specificKey) : CACHE_PREFIX;
   const keysToRemove = [];
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
-    if (key && key.startsWith(CACHE_PREFIX)) {
+    if (key && key.startsWith(matchPrefix)) {
       keysToRemove.push(key);
     }
   }
