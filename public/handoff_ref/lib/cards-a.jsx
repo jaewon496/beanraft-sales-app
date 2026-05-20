@@ -195,6 +195,9 @@ function Card02({ body = {} }) {
   const femaleMonthly = femaleIncome > 0 ? Math.round(femaleIncome / 12) : 0;
   // 지역 평균 월소득 폴백 (소상공인365 GIS earnAmt) - 방문고객 성별 소득이 없을 때
   const regionMonthlyIncome = Number(bd.regionAvgMonthlyIncome) || 0;
+  // 거주 가구 통계 (오픈업 pop-rp) - 소득 데이터가 전혀 없을 때 최종 폴백
+  const totalHouseholds = Number(bd.openubTotalHh ?? bd.households) || 0;
+  const singleHhCount = Number(bd.openubSingleHh ?? bd.singleHousehold) || 0;
   const parseLifeStr = (s) => {
     if (!s || typeof s !== 'string') return null;
     const items = s.split(',').map(t => {
@@ -205,6 +208,8 @@ function Card02({ body = {} }) {
   };
   const femaleKw = parseLifeStr(bd.femaleLifestyle) || [];
   const maleKw = parseLifeStr(bd.maleLifestyle) || [];
+  // 라이프스타일 키워드: dataMapper 가 1인가구/아파트/연령/성비/세대구성/생활권으로 산출한 칩 배열
+  const lifestyleKw = Array.isArray(bd.lifestyleKeywords) ? bd.lifestyleKeywords.filter(Boolean) : [];
   // 라이프스타일 폴백: 배달 핫플레이스 남/여 키워드가 없을 때
   // 오픈업 세대구성(householdType) 또는 card2 파이프라인 lifestyle 텍스트에서 키워드 추출
   const lifeFallbackStr = bd.householdType || bd.lifestyle || '';
@@ -215,6 +220,8 @@ function Card02({ body = {} }) {
       return (m ? m[1] : t).trim();
     }).filter(Boolean).slice(0, 6);
   })();
+  // 재방문/신규 추정값 여부 (배달핫플레이스 직접 데이터가 아닌 거주안정성 추정)
+  const revisitEstimated = !!bd.revisitEstimated;
   return (
     <CardShell n="02" id="02"
       title="고객 분석"
@@ -223,8 +230,8 @@ function Card02({ body = {} }) {
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
         <StatTile id="c2.tile1" tone="blue"  label="주요 연령대"   value={topAgeDisplay} hero accent/>
         <StatTile id="c2.tile2" tone="lilac" label="성비 (여:남)" value={(femaleRatio + maleRatio) > 0 ? `${femaleRatio} : ${maleRatio}` : '-'}/>
-        <StatTile id="c2.tile3" tone="mint"  label="재방문율" value={regularPct > 0 ? String(regularPct) : '-'} unit={regularPct > 0 ? '%' : ''}/>
-        <StatTile id="c2.tile4" tone="cream" label="신규 비율" value={newCustomerPct > 0 ? String(newCustomerPct) : '-'} unit={newCustomerPct > 0 ? '%' : ''}/>
+        <StatTile id="c2.tile3" tone="mint"  label="재방문율" value={regularPct > 0 ? String(regularPct) : '-'} unit={regularPct > 0 ? '%' : ''} sub={regularPct > 0 && revisitEstimated ? '거주 안정성 기반 추정' : undefined}/>
+        <StatTile id="c2.tile4" tone="cream" label="신규 비율" value={newCustomerPct > 0 ? String(newCustomerPct) : '-'} unit={newCustomerPct > 0 ? '%' : ''} sub={newCustomerPct > 0 && revisitEstimated ? '거주 안정성 기반 추정' : undefined}/>
       </div>
 
       <div style={{display:"grid", gridTemplateColumns:"1.2fr 1fr", gap:16}}>
@@ -262,8 +269,19 @@ function Card02({ body = {} }) {
                 <span style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:500}}>만원</span>
                 <span style={{fontSize:12, color:"var(--matte-fg-4)", marginLeft:6}}>지역 평균 (소상공인365)</span>
               </div>
+            ) : (totalHouseholds > 0) ? (
+              <div style={{display:"flex", flexDirection:"column", gap:8}}>
+                <div style={{display:"flex", alignItems:"baseline", gap:8}}>
+                  <span style={{fontSize:24, fontWeight:700, fontVariantNumeric:"tabular-nums"}}>{totalHouseholds.toLocaleString()}</span>
+                  <span style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:500}}>가구</span>
+                  <span style={{fontSize:12, color:"var(--matte-fg-4)", marginLeft:6}}>상권 내 거주 가구</span>
+                </div>
+                {singleHhCount > 0 && (
+                  <div style={{fontSize:13, color:"var(--matte-fg-3)"}}>1인 가구 {singleHhCount.toLocaleString()}가구 ({Math.round(singleHhCount/totalHouseholds*100)}%)</div>
+                )}
+              </div>
             ) : (
-              <div style={{fontSize:13, color:"var(--matte-fg-4)"}}>지역 소득 데이터 미집계 구간</div>
+              <div style={{fontSize:13, color:"var(--matte-fg-4)"}}>거주 가구 통계 수집 중</div>
             )}
           </div>
         </div>
@@ -288,18 +306,25 @@ function Card02({ body = {} }) {
                 </window.DrStagger>
               </div>
             ))}
-            {femaleKw.length === 0 && maleKw.length === 0 && lifeFallbackKw.length > 0 && (
+            {femaleKw.length === 0 && maleKw.length === 0 && lifestyleKw.length > 0 && (
               <div style={{padding:"20px 22px", background:"rgba(255,255,255,0.03)", borderRadius:12, border:"1px solid var(--matte-line)"}}>
-                <div style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:500, marginBottom:14}}>고객 세대 구성</div>
+                <div style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:500, marginBottom:14}}>상권 생활 특성</div>
                 <window.DrStagger id="c2.chips2" delay={50} style={{display:"flex", gap:8, flexWrap:"wrap"}}>
-                  {lifeFallbackKw.map(k => (
+                  {lifestyleKw.map(k => (
                     <span key={k} style={{padding:"7px 14px", background:"rgba(255,255,255,0.06)", border:"1px solid var(--matte-line)", borderRadius:8, fontSize:14, color:"var(--matte-fg-2)", fontWeight:500}}>#{k}</span>
                   ))}
                 </window.DrStagger>
               </div>
             )}
-            {femaleKw.length === 0 && maleKw.length === 0 && lifeFallbackKw.length === 0 && (
-              <div style={{fontSize:13, color:"var(--matte-fg-4)", padding:"20px 0"}}>라이프스타일 특성 미집계 구간</div>
+            {femaleKw.length === 0 && maleKw.length === 0 && lifestyleKw.length === 0 && lifeFallbackKw.length > 0 && (
+              <div style={{padding:"20px 22px", background:"rgba(255,255,255,0.03)", borderRadius:12, border:"1px solid var(--matte-line)"}}>
+                <div style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:500, marginBottom:14}}>고객 세대 구성</div>
+                <window.DrStagger id="c2.chips3" delay={50} style={{display:"flex", gap:8, flexWrap:"wrap"}}>
+                  {lifeFallbackKw.map(k => (
+                    <span key={k} style={{padding:"7px 14px", background:"rgba(255,255,255,0.06)", border:"1px solid var(--matte-line)", borderRadius:8, fontSize:14, color:"var(--matte-fg-2)", fontWeight:500}}>#{k}</span>
+                  ))}
+                </window.DrStagger>
+              </div>
             )}
             <div style={{paddingTop:16, borderTop:"1px solid var(--matte-line)", display:"grid", gridTemplateColumns:"1fr 1fr", gap:14}}>
               <div>

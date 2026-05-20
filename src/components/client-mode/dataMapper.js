@@ -932,6 +932,109 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
         }
       }
 
+      // ── [고객분석 빈칸 보강] 평균소득 / 재방문·신규 / 라이프스타일 키워드 ──
+      // 원칙: 실제 수집된 데이터에서만 산출. 데이터 없으면 키 자체를 넣지 않는다.
+
+      // (A) 평균 소득 (월) — earnAmt GIS 폴백을 더 견고하게 재산출
+      // bd.regionAvgMonthlyIncome 이 위에서 못 채워졌으면 earnAmt rads 를 넓은 필드명으로 재시도
+      if (!bd.regionAvgMonthlyIncome && !bd.customerYrEarn) {
+        const _eRaw = apis.earnAmt?.data;
+        let _earnRows = null;
+        if (Array.isArray(_eRaw)) _earnRows = _eRaw;
+        else if (_eRaw && Array.isArray(_eRaw.rads)) _earnRows = _eRaw.rads;
+        else if (_eRaw && Array.isArray(_eRaw.data)) _earnRows = _eRaw.data;
+        else if (_eRaw && Array.isArray(_eRaw.list)) _earnRows = _eRaw.list;
+        if (Array.isArray(_earnRows) && _earnRows.length > 0) {
+          // 행별 소득 후보 필드를 폭넓게 탐색 (GIS Rads 응답 필드명 변형 대응)
+          const _earnVals = _earnRows.map(r => {
+            if (!r || typeof r !== 'object') return 0;
+            const cand = [r.wholEarnAmt, r.earnAmt, r.earnAmtVal, r.radsValue, r.value,
+              r.amt, r.val, r.avgEarnAmt, r.incomeAmt].find(v => v != null && v !== '');
+            const v = parseFloat(String(cand ?? '').replace(/[^\d.-]/g, ''));
+            return isFinite(v) ? v : 0;
+          }).filter(v => v > 0);
+          if (_earnVals.length > 0) {
+            const _avg = _earnVals.reduce((s, v) => s + v, 0) / _earnVals.length;
+            // 단위 정규화: 원/연 → 만원/월
+            let _monthly;
+            if (_avg >= 1e7) _monthly = Math.round(_avg / 1e4 / 12);       // 원 단위(연)
+            else if (_avg >= 1e5) _monthly = Math.round(_avg / 1e4);        // 원 단위(월)
+            else if (_avg >= 1000) _monthly = Math.round(_avg / 12);        // 만원 단위(연)
+            else _monthly = Math.round(_avg);                               // 만원 단위(월)
+            if (_monthly > 0) bd.regionAvgMonthlyIncome = _monthly;
+          }
+        }
+      }
+
+      // (B) 재방문율 / 신규 비율 — 배달핫플레이스 우선, 없으면 오픈업 pop-rp 거주 안정성 기반 추정
+      // deliveryHotplace 가 매핑 실패하면 재방문 직접 데이터가 없음 → 거주 비율로 단골 성향 추정
+      if (!bd.regular && !bd.newCustomer) {
+        const popRp = cd?.apis?.openubPopRp?.data;
+        const _apt = popRp ? Number(popRp.aptLiveRatio) || 0 : 0;
+        const _singleHh = (popRp ? Number(popRp.singleHouseholds) || 0 : 0) || bd.openubSingleHh || 0;
+        const _totalHh = (popRp ? Number(popRp.totalHouseholds) || 0 : 0) || bd.openubTotalHh || 0;
+        // 거주 안정성 지표: 아파트 거주 비율↑ = 정주(단골) 성향, 1인가구 비율↑ = 유동(신규) 성향
+        if (_totalHh > 0 && _singleHh > 0) {
+          const _singleRatio = (_singleHh / _totalHh) * 100;
+          // 비1인가구(가족·정주층) 비율을 단골 성향 핵심 지표로 사용
+          const _settled = 100 - _singleRatio;
+          // 아파트 거주비율은 있으면 가중 보정, 없으면 정주층 비율만 사용
+          let _regular = _apt > 0
+            ? Math.round(_settled * 0.6 + _apt * 0.4)
+            : Math.round(_settled);
+          _regular = Math.min(72, Math.max(28, _regular));
+          bd.regular = _regular;
+          bd.newCustomer = 100 - _regular;
+          bd.revisitEstimated = true; // 추정값 표기용 플래그
+        }
+      }
+
+      // (C) 라이프스타일 키워드 — body 에 이미 들어온 데이터로 칩 배열 생성
+      // 우선순위: 배달핫플레이스 남/여 키워드(별도) > 아래 통합 키워드
+      {
+        const _kw = [];
+        const _seen = new Set();
+        const _add = (s) => { const t = String(s || '').trim(); if (t && !_seen.has(t)) { _seen.add(t); _kw.push(t); } };
+        // 1인 가구 비율 (오픈업 pop-rp — body 에 이미 들어옴)
+        const _single = bd.openubSingleHh || 0;
+        const _total = bd.openubTotalHh || 0;
+        if (_single > 0 && _total > 0) {
+          const _sr = Math.round((_single / _total) * 100);
+          if (_sr >= 45) _add(`1인 가구 ${_sr}%`);
+          else if (_sr > 0) _add(`가구 다양 (1인 ${_sr}%)`);
+        }
+        // 아파트 거주 비율
+        if (bd.openubAptRatio) {
+          const _aptN = parseInt(String(bd.openubAptRatio).replace(/[^\d]/g, ''), 10) || 0;
+          if (_aptN >= 50) _add(`아파트 밀집 ${_aptN}%`);
+          else if (_aptN > 0) _add(`주거 혼합 (아파트 ${_aptN}%)`);
+        }
+        // 주요 연령대
+        if (bd.topAge) {
+          const _ageNum = (String(bd.topAge).match(/\d+/) || [])[0];
+          if (_ageNum) _add(`${_ageNum}대 중심`);
+        }
+        // 성비 기반 키워드
+        if (femaleRatio > maleRatio + 8) _add('여성 고객 우세');
+        else if (maleRatio > femaleRatio + 8) _add('남성 고객 우세');
+        else if (bd.genderRatio) _add('성비 균형');
+        // 오픈업 세대 구성 (single/married/withChild)
+        if (bd.householdType) {
+          String(bd.householdType).split(/[,/]/).forEach(seg => {
+            const m = seg.trim().match(/^(.+?)\s*([\d.]+)%$/);
+            if (m && parseFloat(m[2]) >= 30) {
+              const labelMap = { single: '1인 세대', married: '부부 세대', withChild: '자녀 동반 세대' };
+              _add(labelMap[m[1].trim()] || m[1].trim());
+            }
+          });
+        }
+        // 인근 핫플 행정동 (생활권 특성)
+        if (Array.isArray(bd.nearbyHjd) && bd.nearbyHjd.length > 0) {
+          _add(`${bd.nearbyHjd[0]} 생활권`);
+        }
+        if (_kw.length > 0) bd.lifestyleKeywords = _kw.slice(0, 6);
+      }
+
       return Object.keys(bd).length > 0 ? bd : { topAge: '-' };
     })(),
   };
