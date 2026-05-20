@@ -742,7 +742,8 @@ function Card06({ body = {} }) {
   return (
     <CardShell n="05" id="05"
       title="매출 분석"
-      sub="월평균 예상 매출">
+      sub="월평균 예상 매출"
+      date={null}>
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
         <StatTile id="c6.tile1" tone="blue"  label="월평균 매출"     value={monthly > 0 ? monthly.toLocaleString() : '-'} unit={monthly > 0 ? '만원' : ''} delta={prevYearRate ? String(Math.abs(Number(prevYearRate)).toFixed(1)) : undefined} deltaPositive={prevYearRate >= 0} hero accent/>
         <StatTile id="c6.tile2" tone="mint"  label="월 매출 건수"    value={dongSaleCnt > 0 ? dongSaleCnt.toLocaleString() : '-'} unit={dongSaleCnt > 0 ? '건' : ''}/>
