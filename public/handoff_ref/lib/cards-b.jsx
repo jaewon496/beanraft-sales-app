@@ -411,27 +411,34 @@ function Card10({ body = {} }) {
                   ]}/>
                 </div>
                 <div style={{flex:1, marginTop:14, paddingTop:14, borderTop:"1px solid var(--matte-line)", display:"flex", flexDirection:"column", justifyContent:"space-around", gap:10}}>
-                  {(kdAppUsePct > 0 || kdAgencyUsePct > 0) && (
-                    <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:12}}>
-                      <div>
-                        <div style={{fontSize:12, color:"var(--matte-fg-3)", marginBottom:4, fontWeight:500}}>배달앱 사용</div>
-                        <div style={{fontSize:20, fontWeight:700, color:"#4C7BE4", fontVariantNumeric:"tabular-nums", lineHeight:1.1}}>{kdAppUsePct}<span style={{fontSize:13, color:"var(--matte-fg-3)", fontWeight:500, marginLeft:2}}>%</span></div>
+                  {(kdAppUsePct > 0 || kdAgencyUsePct > 0) && (() => {
+                    const showApp = kdAppUsePct > 0;
+                    const showAgency = kdAgencyUsePct > 0;
+                    const cols = (showApp && showAgency) ? "1fr 1fr" : "1fr";
+                    return (
+                      <div style={{display:"grid", gridTemplateColumns:cols, gap:12}}>
+                        {showApp && (
+                          <div>
+                            <div style={{fontSize:12, color:"var(--matte-fg-3)", marginBottom:4, fontWeight:500}}>배달앱 사용</div>
+                            <div style={{fontSize:20, fontWeight:700, color:"#4C7BE4", fontVariantNumeric:"tabular-nums", lineHeight:1.1}}>{kdAppUsePct}<span style={{fontSize:13, color:"var(--matte-fg-3)", fontWeight:500, marginLeft:2}}>%</span></div>
+                          </div>
+                        )}
+                        {showAgency && (
+                          <div>
+                            <div style={{fontSize:12, color:"var(--matte-fg-3)", marginBottom:4, fontWeight:500}}>배달대행 사용</div>
+                            <div style={{fontSize:20, fontWeight:700, fontVariantNumeric:"tabular-nums", lineHeight:1.1}}>{kdAgencyUsePct}<span style={{fontSize:13, color:"var(--matte-fg-3)", fontWeight:500, marginLeft:2}}>%</span></div>
+                          </div>
+                        )}
                       </div>
-                      <div>
-                        <div style={{fontSize:12, color:"var(--matte-fg-3)", marginBottom:4, fontWeight:500}}>배달대행 사용</div>
-                        <div style={{fontSize:20, fontWeight:700, fontVariantNumeric:"tabular-nums", lineHeight:1.1}}>{kdAgencyUsePct}<span style={{fontSize:13, color:"var(--matte-fg-3)", fontWeight:500, marginLeft:2}}>%</span></div>
-                      </div>
-                    </div>
-                  )}
+                    );
+                  })()}
                   {kdSalesAvg > 0 && (
                     <div style={{paddingTop:10, borderTop:"1px solid var(--matte-line)", display:"flex", justifyContent:"space-between", alignItems:"baseline"}}>
                       <span style={{fontSize:13, color:"var(--matte-fg-3)", fontWeight:500}}>전국 카페 평균 월 매출</span>
                       <span style={{fontSize:17, fontWeight:700, fontVariantNumeric:"tabular-nums"}}>{kdSalesAvg.toLocaleString()}<span style={{fontSize:12, color:"var(--matte-fg-3)", fontWeight:500, marginLeft:3}}>만원</span></span>
                     </div>
                   )}
-                  {kdYear && (
-                    <div style={{fontSize:11, color:"var(--matte-fg-4)", textAlign:"right"}}>KOSIS {kdYear} 외식업체경영실태조사</div>
-                  )}
+                  <div style={{fontSize:11, color:"var(--matte-fg-4)", textAlign:"right"}}>{kdYear ? `KOSIS ${kdYear} 외식업체경영실태조사` : '출처: KOSIS 외식업체경영실태조사'}</div>
                 </div>
               </>
             ) : (
