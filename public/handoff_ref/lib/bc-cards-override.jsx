@@ -168,7 +168,7 @@ function BCCard02({ body: bodyProp }) {
   const newCustomerPct = Number(bodyData.newCustomer) || 0;
   const regularPct = Number(bodyData.regular) || 0;
   const weekdayPct = Number(body.weekdayPct) || 0;
-  const weekendPct = Number(body.weekendPct) || 0;
+  const weekendPct = (weekdayPct > 0 || Number(body.weekendPct) > 0) ? (100 - weekdayPct) : 0;
   const peakHour = body.peakHour || '-';
 
   const ageGroups = Array.isArray(chartData.ageGroups) && chartData.ageGroups.length > 0 ? chartData.ageGroups : [];
