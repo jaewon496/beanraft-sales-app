@@ -376,8 +376,8 @@ function Card10({ body = {} }) {
           </div>
         </div>
 
-        <div>
-          <div className="bc-box" style={{padding:24, marginBottom:14}}>
+        <div style={{display:"flex", flexDirection:"column", gap:14}}>
+          <div className="bc-box" style={{padding:24}}>
             <div style={{fontSize:18, fontWeight:700, marginBottom:18}}>운영 옵션별 월 비용</div>
             {kdMonthlyCost.length > 0 ? (
               <div style={{display:"flex", flexDirection:"column"}}>
@@ -396,12 +396,12 @@ function Card10({ body = {} }) {
             )}
           </div>
 
-          <div className="bc-box" style={{padding:18, display:"flex", flexDirection:"column"}}>
-            <div style={{fontSize:15, fontWeight:600, marginBottom:10}}>전국 카페 배달 운영</div>
+          <div className="bc-box" style={{padding:22, display:"flex", flexDirection:"column", flex:1, minHeight:0}}>
+            <div style={{fontSize:18, fontWeight:700, marginBottom:14}}>전국 카페 배달 운영</div>
             {kdActiveRatio != null ? (
               <>
-                <div style={{display:"flex", alignItems:"center", gap:16}}>
-                  <Donut id="c10.donut" size={160} thickness={18} segments={[
+                <div style={{display:"flex", alignItems:"center", justifyContent:"center", gap:20, paddingBlock:6}}>
+                  <Donut id="c10.donut" size={200} thickness={22} segments={[
                     {value:kdActiveRatio, color:"#4C7BE4", label:"운영"},
                     {value:kdInactiveRatio, color:"#FFFFFF", label:"미운영"},
                   ]} centerLabel={`${kdActiveRatio}%`} centerSub="배달 운영"/>
@@ -410,35 +410,35 @@ function Card10({ body = {} }) {
                     {value:kdInactiveRatio, color:"#FFFFFF", label:"미운영", text:`${kdInactiveRatio}%`},
                   ]}/>
                 </div>
-                <div style={{flex:1, marginTop:14, paddingTop:14, borderTop:"1px solid var(--matte-line)", display:"flex", flexDirection:"column", justifyContent:"space-around", gap:10}}>
+                <div style={{flex:1, marginTop:18, paddingTop:18, borderTop:"1px solid var(--matte-line)", display:"flex", flexDirection:"column", justifyContent:"space-around", gap:14, minHeight:0}}>
                   {(kdAppUsePct > 0 || kdAgencyUsePct > 0) && (() => {
                     const showApp = kdAppUsePct > 0;
                     const showAgency = kdAgencyUsePct > 0;
                     const cols = (showApp && showAgency) ? "1fr 1fr" : "1fr";
                     return (
-                      <div style={{display:"grid", gridTemplateColumns:cols, gap:12}}>
+                      <div style={{display:"grid", gridTemplateColumns:cols, gap:14}}>
                         {showApp && (
                           <div>
-                            <div style={{fontSize:12, color:"var(--matte-fg-3)", marginBottom:4, fontWeight:500}}>배달앱 사용</div>
-                            <div style={{fontSize:20, fontWeight:700, color:"#4C7BE4", fontVariantNumeric:"tabular-nums", lineHeight:1.1}}>{kdAppUsePct}<span style={{fontSize:13, color:"var(--matte-fg-3)", fontWeight:500, marginLeft:2}}>%</span></div>
+                            <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:6, fontWeight:500}}>배달앱 사용</div>
+                            <div style={{fontSize:26, fontWeight:700, color:"#4C7BE4", fontVariantNumeric:"tabular-nums", lineHeight:1.05, letterSpacing:"-0.01em"}}>{kdAppUsePct}<span style={{fontSize:15, color:"var(--matte-fg-3)", fontWeight:500, marginLeft:3}}>%</span></div>
                           </div>
                         )}
                         {showAgency && (
                           <div>
-                            <div style={{fontSize:12, color:"var(--matte-fg-3)", marginBottom:4, fontWeight:500}}>배달대행 사용</div>
-                            <div style={{fontSize:20, fontWeight:700, fontVariantNumeric:"tabular-nums", lineHeight:1.1}}>{kdAgencyUsePct}<span style={{fontSize:13, color:"var(--matte-fg-3)", fontWeight:500, marginLeft:2}}>%</span></div>
+                            <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:6, fontWeight:500}}>배달대행 사용</div>
+                            <div style={{fontSize:26, fontWeight:700, fontVariantNumeric:"tabular-nums", lineHeight:1.05, letterSpacing:"-0.01em"}}>{kdAgencyUsePct}<span style={{fontSize:15, color:"var(--matte-fg-3)", fontWeight:500, marginLeft:3}}>%</span></div>
                           </div>
                         )}
                       </div>
                     );
                   })()}
                   {kdSalesAvg > 0 && (
-                    <div style={{paddingTop:10, borderTop:"1px solid var(--matte-line)", display:"flex", justifyContent:"space-between", alignItems:"baseline"}}>
-                      <span style={{fontSize:13, color:"var(--matte-fg-3)", fontWeight:500}}>전국 카페 평균 월 매출</span>
-                      <span style={{fontSize:17, fontWeight:700, fontVariantNumeric:"tabular-nums"}}>{kdSalesAvg.toLocaleString()}<span style={{fontSize:12, color:"var(--matte-fg-3)", fontWeight:500, marginLeft:3}}>만원</span></span>
+                    <div style={{paddingTop:14, borderTop:"1px solid var(--matte-line)", display:"flex", justifyContent:"space-between", alignItems:"baseline"}}>
+                      <span style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:500}}>전국 카페 평균 월 매출</span>
+                      <span style={{fontSize:22, fontWeight:700, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{kdSalesAvg.toLocaleString()}<span style={{fontSize:13, color:"var(--matte-fg-3)", fontWeight:500, marginLeft:4}}>만원</span></span>
                     </div>
                   )}
-                  <div style={{fontSize:11, color:"var(--matte-fg-4)", textAlign:"right"}}>{kdYear ? `KOSIS ${kdYear} 외식업체경영실태조사` : '출처: KOSIS 외식업체경영실태조사'}</div>
+                  <div style={{fontSize:12, color:"var(--matte-fg-4)", textAlign:"right"}}>{kdYear ? `KOSIS ${kdYear} 외식업체경영실태조사` : '출처: KOSIS 외식업체경영실태조사'}</div>
                 </div>
               </>
             ) : (
