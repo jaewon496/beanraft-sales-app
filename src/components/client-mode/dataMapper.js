@@ -194,22 +194,30 @@ function buildDeliveryDetails(rows) {
       return row ? { range, pct: parseFloat(row.DT) || 0 } : null;
     }).filter(Boolean);
     const avgWon = avgRow ? parseFloat(avgRow.DT) || 0 : 0;
+    // 50만원 이상 고비용 구간 비율 (배달앱/배달대행 간 차별성이 큰 지표)
+    const highCostPct = distribution.find(d => d.range === '50만원 이상')?.pct || 0;
     return {
       usePct: useRow ? parseFloat(useRow.DT) || 0 : 0,
       noUsePct: noUseRow ? parseFloat(noUseRow.DT) || 0 : 0,
       avgWon,
       avgManwon: avgWon > 0 ? Math.round(avgWon / 10000) : 0,
+      highCostPct,
       distribution,
     };
   };
   const app = parse('배달앱');
   const agency = parse('배달대행');
+  // KOSIS 외식업체경영실태조사 특성: 배달앱 사용률과 배달대행 사용률이 동일한 값으로 보고됨
+  // (조사 설계상 "배달 운영 중인 카페" 전체 비율이며 채널별로 분리되지 않음)
+  // → UI에서 같은 값 2개 표시를 피하기 위해 sameUsePct 플래그 제공
+  const sameUsePct = (app && agency && Math.abs((app.usePct || 0) - (agency.usePct || 0)) < 0.1);
   return {
     app,
     agency,
     bothMonthlyManwon: (app?.avgManwon || 0) + (agency?.avgManwon || 0),
     overallUsePct: app?.usePct || agency?.usePct || 0, // 둘 다 동일한 응답률
     overallNoUsePct: app?.noUsePct || agency?.noUsePct || 0,
+    sameUsePct,
   };
 }
 
@@ -2832,12 +2840,15 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
         }
         // 폴백: KOSIS 외식업체경영실태조사 카페(커피전문점) 전국 평균
         // 배달앱(배민/쿠팡이츠) 월 21만원, 배달대행(바로고/부릉) 월 96만원, 전국 카페 배달 운영률 31%
+        // KOSIS 특성: 배달앱/배달대행 사용률은 동일한 값 (배달 운영 매장 전체 비율)
+        // 차별 지표: 50만원이상 고비용 구간 비율 (배달앱 6%, 배달대행 71%)
         return {
-          app: { usePct: 31, noUsePct: 69, avgWon: 210000, avgManwon: 21, distribution: [] },
-          agency: { usePct: 31, noUsePct: 69, avgWon: 960000, avgManwon: 96, distribution: [] },
+          app: { usePct: 31, noUsePct: 69, avgWon: 210000, avgManwon: 21, highCostPct: 6, distribution: [] },
+          agency: { usePct: 31, noUsePct: 69, avgWon: 960000, avgManwon: 96, highCostPct: 71, distribution: [] },
           bothMonthlyManwon: 117,
           overallUsePct: 31,
           overallNoUsePct: 69,
+          sameUsePct: true,
           year: k?.year || 2023,
           salesAvg: k?.salesAvg?.value || 0,
         };

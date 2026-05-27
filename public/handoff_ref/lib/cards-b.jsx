@@ -330,6 +330,11 @@ function Card10({ body = {} }) {
   const kdInactiveRatio = kdActiveRatio != null ? 100 - kdActiveRatio : null;
   const kdAppUsePct = kd ? Math.round(Number(kd.app?.usePct) || 0) : 0;
   const kdAgencyUsePct = kd ? Math.round(Number(kd.agency?.usePct) || 0) : 0;
+  // KOSIS 특성: 배달앱/배달대행 사용률은 동일 값 (배달 운영 매장 전체 비율)
+  // 같은 값 두 번 표시를 피하기 위해 50만원 이상 고비용 운영 비율로 대체 (배달앱 6% vs 배달대행 71%로 차별성 큼)
+  const kdSameUsePct = kd?.sameUsePct === true || (kdAppUsePct > 0 && kdAppUsePct === kdAgencyUsePct);
+  const kdAppHighCostPct = kd ? Math.round(Number(kd.app?.highCostPct) || 0) : 0;
+  const kdAgencyHighCostPct = kd ? Math.round(Number(kd.agency?.highCostPct) || 0) : 0;
   const kdSalesAvg = kd ? Math.round(Number(kd.salesAvg) || 0) : 0;
   const kdYear = kd?.year || '';
   const kdMonthlyCost = (() => {
@@ -410,8 +415,28 @@ function Card10({ body = {} }) {
                     {value:kdInactiveRatio, color:"#FFFFFF", label:"미운영", text:`${kdInactiveRatio}%`},
                   ]}/>
                 </div>
-                <div style={{flex:1, marginTop:18, paddingTop:18, borderTop:"1px solid var(--matte-line)", display:"flex", flexDirection:"column", justifyContent:"space-around", gap:14, minHeight:0}}>
+                <div style={{flex:1, marginTop:18, paddingTop:18, borderTop:"1px solid var(--matte-line)", display:"flex", flexDirection:"column", justifyContent:"space-around", gap:16, minHeight:0}}>
                   {(kdAppUsePct > 0 || kdAgencyUsePct > 0) && (() => {
+                    // KOSIS 특성: 두 사용률이 같으면 (배달 운영 매장 전체 비율 동일 보고)
+                    // → "월 비용 50만원 이상" 고비용 운영 비율로 대체 (배달앱 6% vs 배달대행 71%로 차별성 명확)
+                    if (kdSameUsePct && (kdAppHighCostPct > 0 || kdAgencyHighCostPct > 0)) {
+                      return (
+                        <div>
+                          <div style={{fontSize:12, color:"var(--matte-fg-4)", marginBottom:10, fontWeight:500, letterSpacing:"-0.005em"}}>월 50만원 이상 고비용 운영 비율</div>
+                          <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:14}}>
+                            <div>
+                              <div style={{fontSize:16, color:"var(--matte-fg-3)", marginBottom:8, fontWeight:500}}>배달앱</div>
+                              <div style={{fontSize:40, fontWeight:700, color:"#4C7BE4", fontVariantNumeric:"tabular-nums", lineHeight:1.05, letterSpacing:"-0.01em"}}>{kdAppHighCostPct}<span style={{fontSize:20, color:"var(--matte-fg-3)", fontWeight:500, marginLeft:4}}>%</span></div>
+                            </div>
+                            <div>
+                              <div style={{fontSize:16, color:"var(--matte-fg-3)", marginBottom:8, fontWeight:500}}>배달대행</div>
+                              <div style={{fontSize:40, fontWeight:700, fontVariantNumeric:"tabular-nums", lineHeight:1.05, letterSpacing:"-0.01em"}}>{kdAgencyHighCostPct}<span style={{fontSize:20, color:"var(--matte-fg-3)", fontWeight:500, marginLeft:4}}>%</span></div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+                    // KOSIS가 실제로 다른 값을 줄 경우(향후 개정 대비): 기존 방식으로 사용률 표시
                     const showApp = kdAppUsePct > 0;
                     const showAgency = kdAgencyUsePct > 0;
                     const cols = (showApp && showAgency) ? "1fr 1fr" : "1fr";
@@ -419,23 +444,23 @@ function Card10({ body = {} }) {
                       <div style={{display:"grid", gridTemplateColumns:cols, gap:14}}>
                         {showApp && (
                           <div>
-                            <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:6, fontWeight:500}}>배달앱 사용</div>
-                            <div style={{fontSize:26, fontWeight:700, color:"#4C7BE4", fontVariantNumeric:"tabular-nums", lineHeight:1.05, letterSpacing:"-0.01em"}}>{kdAppUsePct}<span style={{fontSize:15, color:"var(--matte-fg-3)", fontWeight:500, marginLeft:3}}>%</span></div>
+                            <div style={{fontSize:16, color:"var(--matte-fg-3)", marginBottom:8, fontWeight:500}}>배달앱 사용</div>
+                            <div style={{fontSize:40, fontWeight:700, color:"#4C7BE4", fontVariantNumeric:"tabular-nums", lineHeight:1.05, letterSpacing:"-0.01em"}}>{kdAppUsePct}<span style={{fontSize:20, color:"var(--matte-fg-3)", fontWeight:500, marginLeft:4}}>%</span></div>
                           </div>
                         )}
                         {showAgency && (
                           <div>
-                            <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:6, fontWeight:500}}>배달대행 사용</div>
-                            <div style={{fontSize:26, fontWeight:700, fontVariantNumeric:"tabular-nums", lineHeight:1.05, letterSpacing:"-0.01em"}}>{kdAgencyUsePct}<span style={{fontSize:15, color:"var(--matte-fg-3)", fontWeight:500, marginLeft:3}}>%</span></div>
+                            <div style={{fontSize:16, color:"var(--matte-fg-3)", marginBottom:8, fontWeight:500}}>배달대행 사용</div>
+                            <div style={{fontSize:40, fontWeight:700, fontVariantNumeric:"tabular-nums", lineHeight:1.05, letterSpacing:"-0.01em"}}>{kdAgencyUsePct}<span style={{fontSize:20, color:"var(--matte-fg-3)", fontWeight:500, marginLeft:4}}>%</span></div>
                           </div>
                         )}
                       </div>
                     );
                   })()}
                   {kdSalesAvg > 0 && (
-                    <div style={{paddingTop:14, borderTop:"1px solid var(--matte-line)", display:"flex", justifyContent:"space-between", alignItems:"baseline"}}>
-                      <span style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:500}}>전국 카페 평균 월 매출</span>
-                      <span style={{fontSize:22, fontWeight:700, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{kdSalesAvg.toLocaleString()}<span style={{fontSize:13, color:"var(--matte-fg-3)", fontWeight:500, marginLeft:4}}>만원</span></span>
+                    <div style={{paddingTop:16, borderTop:"1px solid var(--matte-line)", display:"flex", justifyContent:"space-between", alignItems:"baseline"}}>
+                      <span style={{fontSize:16, color:"var(--matte-fg-3)", fontWeight:500}}>전국 카페 평균 월 매출</span>
+                      <span style={{fontSize:26, fontWeight:700, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{kdSalesAvg.toLocaleString()}<span style={{fontSize:15, color:"var(--matte-fg-3)", fontWeight:500, marginLeft:4}}>만원</span></span>
                     </div>
                   )}
                 </div>
