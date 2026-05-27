@@ -4277,14 +4277,26 @@ export default function UnifiedLayout({
   useEffect(() => {
     if (!resultsReady) return;
     const handler = (ev) => {
-      if (ev?.data && ev.data.type === 'bc:research') {
+      if (!ev?.data) return;
+      if (ev.data.type === 'bc:research') {
         // 영업관리 검색 화면으로 복귀 시그널
         try { window.dispatchEvent(new CustomEvent('bc:research')); } catch (_) {}
+      } else if (ev.data.type === 'bc:search') {
+        // iframe 검색 모달에서 '분석 시작' → 실제 새 분석 실행
+        const addr = typeof ev.data.address === 'string' ? ev.data.address.trim() : '';
+        if (!addr) return;
+        const rad = Number(ev.data.radius);
+        if (typeof window.__bcDoSearch === 'function') {
+          window.__bcDoSearch(addr, Number.isFinite(rad) && rad > 0 ? rad : undefined);
+        } else {
+          // 폴백: onSearch prop 직접 호출
+          try { onSearch(addr, Number.isFinite(rad) && rad > 0 ? rad : radius); } catch (_) {}
+        }
       }
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [resultsReady]);
+  }, [resultsReady, onSearch, radius]);
 
   // ── Card navigation state (toss-style one-card-per-viewport) ──
   const [activeCardIndex, setActiveCardIndex] = useState(0);
@@ -4752,10 +4764,16 @@ export default function UnifiedLayout({
         const res = await fetch(`/api/kakao-proxy?type=keyword&query=${encodeURIComponent(query)}&size=5`, { signal: AbortSignal.timeout(3000) });
         if (res.ok) {
           const data = await res.json();
-          setKakaoSuggestions((data.documents || []).map(d => ({
-            place_name: d.place_name,
-            address_name: d.address_name || d.road_address_name || '',
-          })));
+          setKakaoSuggestions((data.documents || []).map(d => {
+            const _lat = parseFloat(d.y);
+            const _lng = parseFloat(d.x);
+            const _coordsValid = !isNaN(_lat) && !isNaN(_lng) && _lat > 33 && _lat < 39 && _lng > 124 && _lng < 132;
+            return {
+              place_name: d.place_name,
+              address_name: d.address_name || d.road_address_name || '',
+              coords: _coordsValid ? { lat: _lat, lng: _lng } : null,
+            };
+          }));
         }
       } catch {
         // ignore timeout/network errors
@@ -4773,7 +4791,7 @@ export default function UnifiedLayout({
       .slice(0, 4);
     return [
       ...spots.map(s => ({ type: 'spot', label: s, sub: '' })),
-      ...kakao.map(k => ({ type: 'kakao', label: k.place_name, sub: k.address_name })),
+      ...kakao.map(k => ({ type: 'kakao', label: k.place_name, sub: k.address_name, coords: k.coords || null })),
     ].slice(0, 6);
   })();
 
@@ -4788,7 +4806,7 @@ export default function UnifiedLayout({
   // 역/출구 패턴 감지 → "XX역 XX호선 X번출구" 전체로 카카오 키워드 검색
   // → 원천 보고서와 0m 오차 좌표 획득
   // [2026-05-19] 2자리 출구(예: 14번)도 정확히 잡히도록 size=15 + 출구번호 매칭 우선 로직 도입
-  const handleSuggestionClick = useCallback((label, originalLabel) => {
+  const handleSuggestionClick = useCallback((label, originalLabel, suggestionCoords) => {
     setAddress(label);
     setAutoCompleteOpen(false);
     setKakaoSuggestions([]);
@@ -4832,7 +4850,17 @@ export default function UnifiedLayout({
         onSearch(label, radius);
       })();
     } else {
-      onSearch(label, radius);
+      // 비역(도로명·상권명·교차로 등) — 자동완성 항목이 들고 있는 카카오 좌표를 그대로 POI 좌표로 전달
+      // 좌표가 없거나 무효면 3번째 인자 생략 → searchSalesModeRegion 의 resolvePOICoords 폴백이 그대로 동작
+      const _sc = suggestionCoords;
+      if (_sc && typeof _sc.lat === 'number' && typeof _sc.lng === 'number'
+          && !isNaN(_sc.lat) && !isNaN(_sc.lng)
+          && _sc.lat > 33 && _sc.lat < 39 && _sc.lng > 124 && _sc.lng < 132) {
+        console.log('[POI-FIX] 자동완성 비역 패턴, 카카오 좌표 전달:', label, _sc.lat, _sc.lng);
+        onSearch(label, radius, { poiCoords: { lat: _sc.lat, lng: _sc.lng } });
+      } else {
+        onSearch(label, radius);
+      }
     }
   }, [onSearch, radius]);
 
@@ -6286,15 +6314,24 @@ export default function UnifiedLayout({
         <motion.div
           initial={{ clipPath: (!resultsReady && !salesModeLoading) ? 'circle(150% at 50% 50%)' : 'circle(0% at 50% 50%)' }}
           animate={{ clipPath: mapRevealed ? 'circle(150% at 50% 50%)' : 'circle(0% at 50% 50%)' }}
-          transition={{ duration: MAP_WIPE_DURATION, delay: MAP_WIPE_DELAY, ease: [0.22, 1, 0.36, 1] }}
-          style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column' }}
+          transition={{ duration: MAP_WIPE_DURATION, delay: MAP_WIPE_DELAY, ease: [0.16, 1, 0.3, 1] }}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            willChange: 'clip-path',
+            transform: 'translateZ(0)',
+            backfaceVisibility: 'hidden',
+            WebkitBackfaceVisibility: 'hidden',
+          }}
         >
           {/* Search input */}
           <motion.div
             initial={{ opacity: (!resultsReady && !salesModeLoading) ? 1 : 0, y: (!resultsReady && !salesModeLoading) ? 0 : -10 }}
             animate={{ opacity: mapRevealed ? 1 : 0, y: mapRevealed ? 0 : -10 }}
-            transition={{ duration: CONTENT_FADE_DURATION, delay: (!resultsReady && !salesModeLoading) ? 0 : MAP_WIPE_DELAY + INPUT_APPEAR_DELAY }}
-            style={{ padding: '20px 20px 0', flexShrink: 0 }}
+            transition={{ duration: CONTENT_FADE_DURATION, delay: (!resultsReady && !salesModeLoading) ? 0 : MAP_WIPE_DELAY + INPUT_APPEAR_DELAY, ease: [0.16, 1, 0.3, 1] }}
+            style={{ padding: '20px 20px 0', flexShrink: 0, willChange: 'transform, opacity' }}
           >
             <div style={{ position: 'relative' }}>
               <div style={{
@@ -6358,7 +6395,7 @@ export default function UnifiedLayout({
                   {autoCompleteSuggestions.map((item, i) => (
                     <div
                       key={`${item.type}-${i}`}
-                      onMouseDown={(e) => { e.preventDefault(); handleSuggestionClick(item.type === 'kakao' ? (item.sub || item.label) : item.label, item.label); }}
+                      onMouseDown={(e) => { e.preventDefault(); handleSuggestionClick(item.type === 'kakao' ? (item.sub || item.label) : item.label, item.label, item.coords); }}
                       style={{
                         padding: '10px 14px', cursor: 'pointer', fontSize: 13,
                         color: COLORS.white,
@@ -6384,8 +6421,8 @@ export default function UnifiedLayout({
           <motion.div
             initial={{ opacity: (!resultsReady && !salesModeLoading) ? 1 : 0, y: (!resultsReady && !salesModeLoading) ? 0 : 8 }}
             animate={{ opacity: mapRevealed ? 1 : 0, y: mapRevealed ? 0 : 8 }}
-            transition={{ duration: CONTENT_FADE_DURATION, delay: (!resultsReady && !salesModeLoading) ? 0 : MAP_WIPE_DELAY + SLIDER_APPEAR_DELAY }}
-            style={{ padding: '14px 20px 0', flexShrink: 0 }}
+            transition={{ duration: CONTENT_FADE_DURATION, delay: (!resultsReady && !salesModeLoading) ? 0 : MAP_WIPE_DELAY + SLIDER_APPEAR_DELAY, ease: [0.16, 1, 0.3, 1] }}
+            style={{ padding: '14px 20px 0', flexShrink: 0, willChange: 'transform, opacity' }}
           >
             <RadiusSlider value={radius} onChange={setRadius} />
           </motion.div>

@@ -355,13 +355,17 @@ export default function EntryScreen({
               opacity: isClosingOrDone ? 0 : 1,
               scale: isClosingOrDone ? 0.9 : 1,
             }}
-            transition={{ duration: isClosingOrDone ? 0.3 : 0.8 }}
+            transition={{ duration: isClosingOrDone ? 0.3 : 0.8, ease: [0.16, 1, 0.3, 1] }}
             style={{
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               gap: 40,
               pointerEvents: contentVisible ? 'auto' : 'none',
+              willChange: 'transform, opacity',
+              transform: 'translateZ(0)',
+              backfaceVisibility: 'hidden',
+              WebkitBackfaceVisibility: 'hidden',
             }}
           >
             <div style={{ overflow: 'hidden', height: 126, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -396,8 +400,8 @@ export default function EntryScreen({
           opacity: (isClosingOrDone || phase === 'init') ? 0 : 1,
         }}
         transition={{
-          y: { duration: isClosingOrDone ? CLOSING_DURATION : TIMING.entryLineExpand / 1000, ease: [0.22, 1, 0.36, 1] },
-          opacity: { duration: 0.8 },
+          y: { duration: isClosingOrDone ? CLOSING_DURATION : TIMING.entryLineExpand / 1000, ease: [0.16, 1, 0.3, 1] },
+          opacity: { duration: 0.6, ease: [0.16, 1, 0.3, 1] },
         }}
         style={{
           position: 'fixed',
@@ -411,6 +415,10 @@ export default function EntryScreen({
           background: COLORS.white,
           borderRadius: LINE_HEIGHT,
           boxShadow: `0 0 ${LINE_GLOW_SPREAD}px rgba(255,255,255,0.6)`,
+          willChange: 'transform, opacity',
+          transform: 'translateZ(0)',
+          backfaceVisibility: 'hidden',
+          WebkitBackfaceVisibility: 'hidden',
         }}
       />
 
@@ -422,8 +430,8 @@ export default function EntryScreen({
           opacity: (isClosingOrDone || phase === 'init') ? 0 : 1,
         }}
         transition={{
-          y: { duration: isClosingOrDone ? CLOSING_DURATION : TIMING.entryLineExpand / 1000, ease: [0.22, 1, 0.36, 1] },
-          opacity: { duration: 0.8 },
+          y: { duration: isClosingOrDone ? CLOSING_DURATION : TIMING.entryLineExpand / 1000, ease: [0.16, 1, 0.3, 1] },
+          opacity: { duration: 0.6, ease: [0.16, 1, 0.3, 1] },
         }}
         style={{
           position: 'fixed',
@@ -437,6 +445,10 @@ export default function EntryScreen({
           background: COLORS.white,
           borderRadius: LINE_HEIGHT,
           boxShadow: `0 0 ${LINE_GLOW_SPREAD}px rgba(255,255,255,0.6)`,
+          willChange: 'transform, opacity',
+          transform: 'translateZ(0)',
+          backfaceVisibility: 'hidden',
+          WebkitBackfaceVisibility: 'hidden',
         }}
       />
 
@@ -446,7 +458,7 @@ export default function EntryScreen({
         animate={{
           opacity: isClosingOrDone ? 0 : 0.4,
         }}
-        transition={{ duration: 0.8, delay: !isClosingOrDone ? 0.3 : 0 }}
+        transition={{ duration: 0.8, delay: !isClosingOrDone ? 0.3 : 0, ease: [0.16, 1, 0.3, 1] }}
         style={{
           position: 'fixed',
           left: '50%',

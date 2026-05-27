@@ -69,6 +69,7 @@ const BLACKOUT_DURATION = 0.6;
 const GPU_LAYER = {
   backfaceVisibility: 'hidden',
   WebkitBackfaceVisibility: 'hidden',
+  transform: 'translateZ(0)',
 };
 
 export default function LoadingScreen({ progress = 0, onComplete, onGoHomepage, onSearch, onCancel }) {
@@ -212,7 +213,7 @@ export default function LoadingScreen({ progress = 0, onComplete, onGoHomepage, 
         }}
         initial={{ opacity: 0 }}
         animate={{ opacity: contentVisible ? 0.85 : 0 }}
-        transition={{ duration: 0.8, delay: contentVisible ? 0.5 : 0 }}
+        transition={{ duration: 0.6, delay: contentVisible ? 0.5 : 0, ease: [0.16, 1, 0.3, 1] }}
         className="bc-loading-research"
         style={{
           position: 'fixed',
@@ -242,8 +243,8 @@ export default function LoadingScreen({ progress = 0, onComplete, onGoHomepage, 
           opacity: isClosing ? 0 : 1,
         }}
         transition={{
-          y: { duration: isClosing ? CLOSING_DURATION : LINE_EXPAND_DURATION, ease: [0.22, 1, 0.36, 1] },
-          opacity: { duration: 0.8 },
+          y: { duration: isClosing ? CLOSING_DURATION : LINE_EXPAND_DURATION, ease: [0.16, 1, 0.3, 1] },
+          opacity: { duration: 0.6, ease: [0.16, 1, 0.3, 1] },
         }}
         style={{
           position: 'fixed',
@@ -257,7 +258,7 @@ export default function LoadingScreen({ progress = 0, onComplete, onGoHomepage, 
           background: COLORS.white,
           borderRadius: LINE_HEIGHT,
           boxShadow: `0 0 ${LINE_GLOW_SPREAD}px rgba(255,255,255,0.6)`,
-          willChange: 'transform',
+          willChange: 'transform, opacity',
           ...GPU_LAYER,
         }}
       />
@@ -270,8 +271,8 @@ export default function LoadingScreen({ progress = 0, onComplete, onGoHomepage, 
           opacity: isClosing ? 0 : 1,
         }}
         transition={{
-          y: { duration: isClosing ? CLOSING_DURATION : LINE_EXPAND_DURATION, ease: [0.22, 1, 0.36, 1] },
-          opacity: { duration: 0.8 },
+          y: { duration: isClosing ? CLOSING_DURATION : LINE_EXPAND_DURATION, ease: [0.16, 1, 0.3, 1] },
+          opacity: { duration: 0.6, ease: [0.16, 1, 0.3, 1] },
         }}
         style={{
           position: 'fixed',
@@ -285,7 +286,7 @@ export default function LoadingScreen({ progress = 0, onComplete, onGoHomepage, 
           background: COLORS.white,
           borderRadius: LINE_HEIGHT,
           boxShadow: `0 0 ${LINE_GLOW_SPREAD}px rgba(255,255,255,0.6)`,
-          willChange: 'transform',
+          willChange: 'transform, opacity',
           ...GPU_LAYER,
         }}
       />
@@ -306,12 +307,13 @@ export default function LoadingScreen({ progress = 0, onComplete, onGoHomepage, 
             opacity: contentVisible ? 1 : 0,
             scale: isClosing ? 0.9 : 1,
           }}
-          transition={{ duration: isClosing ? 0.3 : 0.8, delay: contentVisible && !isClosing ? 0.4 : 0 }}
+          transition={{ duration: isClosing ? 0.3 : 0.7, delay: contentVisible && !isClosing ? 0.4 : 0, ease: [0.16, 1, 0.3, 1] }}
           style={{
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             gap: 40,
+            willChange: 'transform, opacity',
             ...GPU_LAYER,
           }}
         >
@@ -436,7 +438,7 @@ export default function LoadingScreen({ progress = 0, onComplete, onGoHomepage, 
       <motion.span
         initial={{ opacity: 0 }}
         animate={{ opacity: contentVisible ? 0.4 : 0 }}
-        transition={{ duration: 0.8, delay: contentVisible ? 0.6 : 0 }}
+        transition={{ duration: 0.6, delay: contentVisible ? 0.6 : 0, ease: [0.16, 1, 0.3, 1] }}
         style={{
           position: 'fixed',
           left: '50%',

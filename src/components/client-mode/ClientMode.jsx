@@ -23,8 +23,15 @@ const PhaseWrapper = ({ children, phaseKey }) => (
     initial={{ opacity: 0 }}
     animate={{ opacity: 1 }}
     exit={{ opacity: 0 }}
-    transition={{ duration: 0.4 }}
-    style={{ position: 'absolute', inset: 0 }}
+    transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+    style={{
+      position: 'absolute',
+      inset: 0,
+      willChange: 'opacity',
+      transform: 'translateZ(0)',
+      backfaceVisibility: 'hidden',
+      WebkitBackfaceVisibility: 'hidden',
+    }}
   >
     {children}
   </motion.div>
@@ -98,7 +105,7 @@ export default function ClientMode({
     }
   }, []);
 
-  const handleSearch = useCallback((address, radius) => {
+  const handleSearch = useCallback((address, radius, options) => {
     setSearchAddress(address);
     if (radius != null) setSearchRadius(radius);
     setPhase(PHASE.LOADING);
@@ -108,7 +115,12 @@ export default function ClientMode({
     // If real search function is provided, use it; otherwise fall back to simulated loading
     if (onSearchRegion) {
       // onSearchRegion 내부에서 기존 AbortController가 있으면 abort + 새 분석 시작
-      onSearchRegion(address);
+      // options(poiCoords 등)가 있으면 그대로 전달 — 자동완성에서 받은 정확 좌표 보존
+      if (options) {
+        onSearchRegion(address, options);
+      } else {
+        onSearchRegion(address);
+      }
     } else {
       startLoading(address);
     }
@@ -128,7 +140,7 @@ export default function ClientMode({
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    window.__bcDoSearch = (address, radius) => {
+    window.__bcDoSearch = (address, radius, options) => {
       if (typeof address !== 'string' || !address.trim()) {
         console.warn('[__bcDoSearch] address(문자열) 필수');
         return false;
@@ -141,8 +153,8 @@ export default function ClientMode({
       h.stopLoading?.();
       // 홈페이지 패널 닫기 (있으면)
       setIsHomepageOpen(false);
-      // 항상 새 검색으로 처음부터 진입
-      h.handleSearch?.(address.trim(), radius);
+      // 항상 새 검색으로 처음부터 진입 (options: poiCoords 등 그대로 전달)
+      h.handleSearch?.(address.trim(), radius, options);
       return true;
     };
 
