@@ -85,7 +85,10 @@ function loadNaverMapSDK() {
 }
 
 // ─── Animation Constants ───
-const PANEL_SPRING = { type: 'spring', stiffness: 80, damping: 18, mass: 1.2 };
+// [2026-05-28] PANEL_SPRING은 더 이상 width 애니메이션에 쓰지 않는다.
+//   width는 layout-trigger property라 매 프레임 reflow 발생 → frame drop.
+//   대신 width는 CSS로 즉시 적용하고, opacity만 framer로 페이드한다.
+const PANEL_FADE = { duration: 0.5, ease: [0.22, 1, 0.36, 1] };
 const MAP_WIPE_DURATION = 1.2;
 const MAP_WIPE_DELAY = 0.3;
 const INPUT_APPEAR_DELAY = 0.2;
@@ -4250,6 +4253,20 @@ export default function UnifiedLayout({
 
   // iframe → 시안 데이터 푸시
   const handoffIframeRef = useRef(null);
+  // [2026-05-28] iframe 마운트 지연:
+  //   결과 화면 진입 시 카드 모션(opacity+x 슬라이드) 500ms와 iframe src 로딩이
+  //   동시에 시작되면 메인 스레드가 막혀 frame drop이 발생한다.
+  //   resultsReady가 true가 된 직후 한 차례 모션 프레임을 보낸 뒤 iframe을 마운트한다.
+  const [iframeReady, setIframeReady] = useState(false);
+  useEffect(() => {
+    if (!resultsReady) {
+      setIframeReady(false);
+      return;
+    }
+    // 카드 진입 모션(0.5s) 시작 직후 한 프레임만 양보. 약간 더 여유 둠.
+    const id = setTimeout(() => setIframeReady(true), 80);
+    return () => clearTimeout(id);
+  }, [resultsReady]);
   // [2026-05-19] 검색 주소가 시안 TopBar 기본값("강남역 1번 출구")으로 덮이지 않도록
   // collectedData / searchAddress에서 실제 주소를 추출해 iframe으로 함께 푸시한다.
   const bcSearchAddress = useMemo(() => {
@@ -6271,15 +6288,19 @@ export default function UnifiedLayout({
         }}
       />
 
-      {/* ══════ LEFT PANEL (Map + Search) ══════ */}
+      {/* ══════ LEFT PANEL (Map + Search) ══════
+          [2026-05-28] width 애니메이션 제거 (layout-trigger property라 frame drop 유발).
+          width는 inline style로 즉시 적용하고, framer는 opacity만 페이드.
+          최초 마운트 시 flash 방지 → initial opacity 0 명시. */}
       <motion.div
-        initial={{ width: (!resultsReady && !salesModeLoading) ? leftWidth : 0, opacity: (!resultsReady && !salesModeLoading) ? 1 : 0 }}
-        animate={{ width: leftWidth, opacity: 1 }}
-        transition={PANEL_SPRING}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={PANEL_FADE}
         onAnimationComplete={handlePanelAnimComplete}
         style={{
           position: 'relative',
           zIndex: 1,
+          width: leftWidth,
           height: '100%',
           background: resultsReady ? 'transparent' : 'rgba(0,0,0,0.5)',
           backdropFilter: resultsReady ? 'none' : `blur(${BLUR.cardBackdrop}px)`,
@@ -6289,6 +6310,10 @@ export default function UnifiedLayout({
           display: 'flex',
           flexDirection: 'column',
           borderRight: resultsReady ? `1px solid rgba(255,255,255,0.1)` : 'none',
+          willChange: 'opacity',
+          transform: 'translateZ(0)',
+          backfaceVisibility: 'hidden',
+          WebkitBackfaceVisibility: 'hidden',
         }}
         className={'unified-left-panel' + (resultsReady ? ' bc-sidebar-wrap' : '')}
       >
@@ -6679,21 +6704,28 @@ export default function UnifiedLayout({
                    public/handoff_ref/index.html을 iframe으로 띄움.
                    bcCardsBodies(useMemo)가 시안 14개 카드 body를 만들고
                    useEffect가 iframe.contentWindow.__BC_DATA__에 푸시 + __bcRender 호출.
-                   시안 내 우리 카드(window.Card01~14)는 bc-cards-override.jsx에서 덮어쓰기됨. */
-                <iframe
-                  ref={handoffIframeRef}
-                  src="/handoff_ref/index.html"
-                  title="빈크래프트 결과 리포트"
-                  style={{ width: '100%', height: '100%', border: 'none', display: 'block', background: '#0a0a0a' }}
-                  onLoad={() => {
-                    const win = handoffIframeRef.current?.contentWindow;
-                    if (!win) return;
-                    try {
-                      win.__BC_DATA__ = { cards: bcCardsBodiesSwapped, address: bcSearchAddress, radius };
-                      if (typeof win.__bcRender === 'function') win.__bcRender();
-                    } catch (_) {}
-                  }}
-                />
+                   시안 내 우리 카드(window.Card01~14)는 bc-cards-override.jsx에서 덮어쓰기됨.
+                   [2026-05-28] iframeReady 가드: 카드 진입 모션과 iframe 로딩 충돌 방지.
+                   진입 모션 첫 프레임 양보 후 마운트 → 메인 스레드 frame drop 회피. */
+                iframeReady ? (
+                  <iframe
+                    ref={handoffIframeRef}
+                    src="/handoff_ref/index.html"
+                    title="빈크래프트 결과 리포트"
+                    loading="lazy"
+                    style={{ width: '100%', height: '100%', border: 'none', display: 'block', background: '#0a0a0a' }}
+                    onLoad={() => {
+                      const win = handoffIframeRef.current?.contentWindow;
+                      if (!win) return;
+                      try {
+                        win.__BC_DATA__ = { cards: bcCardsBodiesSwapped, address: bcSearchAddress, radius };
+                        if (typeof win.__bcRender === 'function') win.__bcRender();
+                      } catch (_) {}
+                    }}
+                  />
+                ) : (
+                  <div style={{ width: '100%', height: '100%', background: '#0a0a0a' }} />
+                )
               )}
               {false && (
                 <>

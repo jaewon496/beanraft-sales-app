@@ -33,18 +33,24 @@ function HoverSlideButton({ onClick, label, hoverLabel }) {
       }}
     >
       <motion.span
+        initial={{ x: 0, opacity: 1 }}
         animate={{ x: isHovered ? -60 : 0, opacity: isHovered ? 0 : 1 }}
         transition={{ duration: TEXT_SLIDE_DURATION }}
-        style={{ display: 'block', color: COLORS.white, fontSize: 14, fontWeight: 500, letterSpacing: '0.05em', whiteSpace: 'nowrap' }}
+        style={{
+          display: 'block', color: COLORS.white, fontSize: 14, fontWeight: 500, letterSpacing: '0.05em', whiteSpace: 'nowrap',
+          willChange: 'transform, opacity', transform: 'translateZ(0)', backfaceVisibility: 'hidden',
+        }}
       >
         {label}
       </motion.span>
       <motion.span
+        initial={{ x: 60, opacity: 0 }}
         animate={{ x: isHovered ? 0 : 60, opacity: isHovered ? 1 : 0 }}
         transition={{ duration: TEXT_SLIDE_DURATION }}
         style={{
           position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
           gap: 6, color: COLORS.white, fontSize: 14, fontWeight: 600, letterSpacing: '0.05em', whiteSpace: 'nowrap',
+          willChange: 'transform, opacity', transform: 'translateZ(0)', backfaceVisibility: 'hidden',
         }}
       >
         {hoverLabel}
