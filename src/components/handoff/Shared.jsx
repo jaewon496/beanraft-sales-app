@@ -212,7 +212,6 @@ export function CardShell({ n, title, sub, date = "2026.05.13", sources = [], he
         </div>
         <div style={{display:"flex", alignItems:"center", gap:12}}>
           {headerRight}
-          {date && <div className="bc-card__date">{date} 기준</div>}
         </div>
       </header>
       <div className="bc-card__body">
