@@ -37,8 +37,10 @@ function Card01({ body = {} }) {
   const indiePct = donutTotal > 0 ? Math.round((individual / donutTotal) * 100) : 0;
   const franPct = donutTotal > 0 ? Math.round((franchise / donutTotal) * 100) : 0;
   const bakPct = donutTotal > 0 ? Math.max(0, 100 - indiePct - franPct) : 0;
+  // [2026-05-21] rentSeries(marketRentSeries.series)는 이미 '만원/평' 단위 → /10000 금지.
+  // 기존 /10000 때문에 값이 전부 0으로 깎여 추이 그래프가 평탄 폴백([rentPerPyeong]x2)으로 빠지던 버그 수정.
   const rentSeriesRaw = (Array.isArray(body.rentSeries) && body.rentSeries.length > 0)
-    ? body.rentSeries.map(s => Math.round((Number(s?.value) || 0) / 10000)).filter(v => v > 0)
+    ? body.rentSeries.map(s => Math.round(Number(s?.value) || 0)).filter(v => v > 0)
     : [];
   // [2026-05-19] 임계값 완화: 1개라도 있으면 표시 (단일값은 동일값 복제로 평탄 라인)
   const rentSeries = rentSeriesRaw.length >= 2
@@ -326,14 +328,14 @@ function Card02({ body = {} }) {
                 </window.DrStagger>
               </div>
             )}
-            <div style={{paddingTop:16, borderTop:"1px solid var(--matte-line)", display:"grid", gridTemplateColumns:"1fr 1fr", gap:14}}>
+            <div style={{paddingTop:16, borderTop:"1px solid var(--matte-line)", display:"flex", flexDirection:"column", gap:18}}>
               <div>
-                <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:6, fontWeight:500}}>주중 vs 주말</div>
-                <div style={{fontSize:18, fontWeight:700, fontVariantNumeric:"tabular-nums"}}>{(weekdayPct + weekendPct) > 0 ? `${Math.round(weekdayPct)} : ${Math.round(weekendPct)}` : '-'}</div>
+                <div style={{fontSize:15, color:"var(--matte-fg-3)", marginBottom:10, fontWeight:500}}>주중 vs 주말</div>
+                <div style={{fontSize:36, fontWeight:700, fontVariantNumeric:"tabular-nums", lineHeight:1.1}}>{(weekdayPct + weekendPct) > 0 ? `${Math.round(weekdayPct)} : ${Math.round(weekendPct)}` : '-'}</div>
               </div>
               <div>
-                <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:6, fontWeight:500}}>피크 시간대</div>
-                <div style={{fontSize:18, fontWeight:700, fontVariantNumeric:"tabular-nums", color:"#4C7BE4"}}>{peakHour}</div>
+                <div style={{fontSize:15, color:"var(--matte-fg-3)", marginBottom:10, fontWeight:500}}>피크 시간대</div>
+                <div style={{fontSize:36, fontWeight:700, fontVariantNumeric:"tabular-nums", color:"#4C7BE4", lineHeight:1.1}}>{peakHour}</div>
               </div>
             </div>
           </div>

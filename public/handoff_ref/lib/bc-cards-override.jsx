@@ -257,18 +257,18 @@ function BCCard02({ body: bodyProp }) {
             {(maleKw.length === 0 && femaleKw.length === 0) && (
               <div style={{fontSize:13, color:"var(--matte-fg-4)", padding:"20px"}}>라이프스타일 데이터 수집 중</div>
             )}
-            <div style={{paddingTop:16, borderTop:"1px solid var(--matte-line)", display:"grid", gridTemplateColumns:"1fr 1fr", gap:14}}>
+            <div style={{paddingTop:16, borderTop:"1px solid var(--matte-line)", display:"flex", flexDirection:"column", gap:18}}>
               <div>
-                <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:6, fontWeight:500}}>주중 vs 주말</div>
-                <div style={{fontSize:18, fontWeight:700, fontVariantNumeric:"tabular-nums"}}>
+                <div style={{fontSize:15, color:"var(--matte-fg-3)", marginBottom:10, fontWeight:500}}>주중 vs 주말</div>
+                <div style={{fontSize:36, fontWeight:700, fontVariantNumeric:"tabular-nums", lineHeight:1.1}}>
                   {weekdayPct > 0 || weekendPct > 0
-                    ? <>{Math.round(weekdayPct)} <span style={{fontSize:13, color:"var(--matte-fg-3)", fontWeight:500}}>:</span> {Math.round(weekendPct)}</>
+                    ? <>{Math.round(weekdayPct)} <span style={{fontSize:22, color:"var(--matte-fg-3)", fontWeight:500}}>:</span> {Math.round(weekendPct)}</>
                     : '-'}
                 </div>
               </div>
               <div>
-                <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:6, fontWeight:500}}>피크 시간대</div>
-                <div style={{fontSize:18, fontWeight:700, fontVariantNumeric:"tabular-nums", color:"#4C7BE4"}}>{peakHour !== '-' ? peakHour : '-'}</div>
+                <div style={{fontSize:15, color:"var(--matte-fg-3)", marginBottom:10, fontWeight:500}}>피크 시간대</div>
+                <div style={{fontSize:36, fontWeight:700, fontVariantNumeric:"tabular-nums", color:"#4C7BE4", lineHeight:1.1}}>{peakHour !== '-' ? peakHour : '-'}</div>
               </div>
             </div>
           </div>
