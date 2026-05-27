@@ -380,18 +380,7 @@ const Card01MarketReport = ({
             >
               {cardNumber} {title}
             </h2>
-            {date && (
-              <span
-                style={{
-                  fontSize: 11,
-                  color: COLORS.textMuted,
-                  whiteSpace: 'nowrap',
-                  marginLeft: 'auto',
-                }}
-              >
-                {date}
-              </span>
-            )}
+            {/* date 표시 제거 (사용자 요청) */}
           </div>
           {subtitle && (
             <span style={{ fontSize: 14, color: '#B8B8B8', fontWeight: 400, fontFamily: 'Pretendard, sans-serif' }}>

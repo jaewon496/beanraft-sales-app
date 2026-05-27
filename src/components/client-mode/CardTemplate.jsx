@@ -139,11 +139,7 @@ const CardTemplate = ({
             flexShrink: 0,
           }}
         >
-          {date && (
-            <span style={{ fontSize: 11, color: COLORS.textMuted, whiteSpace: 'nowrap' }}>
-              {date}
-            </span>
-          )}
+          {/* date 표시 제거 (사용자 요청) */}
           {/* 출처는 카드 최하단에만 표시 */}
         </div>
       </div>

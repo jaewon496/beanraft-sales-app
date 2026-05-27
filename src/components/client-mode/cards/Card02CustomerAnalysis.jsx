@@ -315,19 +315,7 @@ const Card02CustomerAnalysis = ({
             >
               {cardNumber} {title}
             </h2>
-            {date && (
-              <span
-                style={{
-                  fontSize: 11,
-                  color: 'rgba(255,255,255,0.45)',
-                  whiteSpace: 'nowrap',
-                  marginLeft: 'auto',
-                  fontFamily: 'Pretendard, sans-serif',
-                }}
-              >
-                {date}
-              </span>
-            )}
+            {/* date 표시 제거 (사용자 요청) */}
           </div>
           {subtitle && (
             <p
