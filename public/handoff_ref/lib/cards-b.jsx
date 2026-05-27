@@ -438,7 +438,6 @@ function Card10({ body = {} }) {
                       <span style={{fontSize:22, fontWeight:700, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{kdSalesAvg.toLocaleString()}<span style={{fontSize:13, color:"var(--matte-fg-3)", fontWeight:500, marginLeft:4}}>만원</span></span>
                     </div>
                   )}
-                  <div style={{fontSize:12, color:"var(--matte-fg-4)", textAlign:"right"}}>{kdYear ? `KOSIS ${kdYear} 외식업체경영실태조사` : '출처: KOSIS 외식업체경영실태조사'}</div>
                 </div>
               </>
             ) : (
