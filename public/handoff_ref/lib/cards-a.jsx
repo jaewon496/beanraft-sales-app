@@ -158,8 +158,9 @@ function Card02({ body = {} }) {
   const femaleRatio = Number(body.femaleRatio ?? bd.female ?? cd.female) || 0;
   const regularPct = Number(bd.regular) || 0;
   const newCustomerPct = Number(bd.newCustomer) || 0;
-  const weekdayPct = Number(body.weekdayPct ?? bd.weekdayPct ?? cd.weekdayPct) || 0;
-  const weekendPct = Number(body.weekendPct ?? bd.weekendPct ?? cd.weekendPct) || 0;
+  const weekdayPct = Math.round(Number(body.weekdayPct ?? bd.weekdayPct ?? cd.weekdayPct) || 0);
+  const _weekendRaw = Number(body.weekendPct ?? bd.weekendPct ?? cd.weekendPct) || 0;
+  const weekendPct = (weekdayPct > 0 || _weekendRaw > 0) ? (100 - weekdayPct) : 0;
   const peakHour = body.peakHour || bd.peakHour || cd.peakHour || '-';
   const ageGroups = (Array.isArray(cd.ageGroups) && cd.ageGroups.length > 0)
     ? cd.ageGroups.map(g => ({ l: g?.name || '-', v: Number(g?.pct) || 0, t: `${Number(g?.pct) || 0}%` }))
@@ -331,7 +332,7 @@ function Card02({ body = {} }) {
             <div style={{paddingTop:16, borderTop:"1px solid var(--matte-line)", display:"flex", flexDirection:"column", gap:18}}>
               <div>
                 <div style={{fontSize:15, color:"var(--matte-fg-3)", marginBottom:10, fontWeight:500}}>주중 vs 주말</div>
-                <div style={{fontSize:36, fontWeight:700, fontVariantNumeric:"tabular-nums", lineHeight:1.1}}>{(weekdayPct + weekendPct) > 0 ? `${Math.round(weekdayPct)} : ${Math.round(weekendPct)}` : '-'}</div>
+                <div style={{fontSize:36, fontWeight:700, fontVariantNumeric:"tabular-nums", lineHeight:1.1}}>{(weekdayPct + weekendPct) > 0 ? `${weekdayPct} : ${weekendPct}` : '-'}</div>
               </div>
               <div>
                 <div style={{fontSize:15, color:"var(--matte-fg-3)", marginBottom:10, fontWeight:500}}>피크 시간대</div>
