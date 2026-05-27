@@ -328,6 +328,10 @@ function Card10({ body = {} }) {
   const kd = bd.kosisDelivery || null;
   const kdActiveRatio = kd ? Math.round(Number(kd.overallUsePct) || 0) : null;
   const kdInactiveRatio = kdActiveRatio != null ? 100 - kdActiveRatio : null;
+  const kdAppUsePct = kd ? Math.round(Number(kd.app?.usePct) || 0) : 0;
+  const kdAgencyUsePct = kd ? Math.round(Number(kd.agency?.usePct) || 0) : 0;
+  const kdSalesAvg = kd ? Math.round(Number(kd.salesAvg) || 0) : 0;
+  const kdYear = kd?.year || '';
   const kdMonthlyCost = (() => {
     if (!kd) return [];
     const items = [];
@@ -392,19 +396,44 @@ function Card10({ body = {} }) {
             )}
           </div>
 
-          <div className="bc-box" style={{padding:18}}>
+          <div className="bc-box" style={{padding:18, display:"flex", flexDirection:"column"}}>
             <div style={{fontSize:15, fontWeight:600, marginBottom:10}}>전국 카페 배달 운영</div>
             {kdActiveRatio != null ? (
-              <div style={{display:"flex", alignItems:"center", gap:16}}>
-                <Donut id="c10.donut" size={180} thickness={20} segments={[
-                  {value:kdActiveRatio, color:"#4C7BE4", label:"운영"},
-                  {value:kdInactiveRatio, color:"#FFFFFF", label:"미운영"},
-                ]} centerLabel={`${kdActiveRatio}%`} centerSub="배달 운영"/>
-                <DonutLegend segments={[
-                  {value:kdActiveRatio, color:"#4C7BE4", label:"운영", text:`${kdActiveRatio}%`},
-                  {value:kdInactiveRatio, color:"#FFFFFF", label:"미운영", text:`${kdInactiveRatio}%`},
-                ]}/>
-              </div>
+              <>
+                <div style={{display:"flex", alignItems:"center", gap:16}}>
+                  <Donut id="c10.donut" size={160} thickness={18} segments={[
+                    {value:kdActiveRatio, color:"#4C7BE4", label:"운영"},
+                    {value:kdInactiveRatio, color:"#FFFFFF", label:"미운영"},
+                  ]} centerLabel={`${kdActiveRatio}%`} centerSub="배달 운영"/>
+                  <DonutLegend segments={[
+                    {value:kdActiveRatio, color:"#4C7BE4", label:"운영", text:`${kdActiveRatio}%`},
+                    {value:kdInactiveRatio, color:"#FFFFFF", label:"미운영", text:`${kdInactiveRatio}%`},
+                  ]}/>
+                </div>
+                <div style={{flex:1, marginTop:14, paddingTop:14, borderTop:"1px solid var(--matte-line)", display:"flex", flexDirection:"column", justifyContent:"space-around", gap:10}}>
+                  {(kdAppUsePct > 0 || kdAgencyUsePct > 0) && (
+                    <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:12}}>
+                      <div>
+                        <div style={{fontSize:12, color:"var(--matte-fg-3)", marginBottom:4, fontWeight:500}}>배달앱 사용</div>
+                        <div style={{fontSize:20, fontWeight:700, color:"#4C7BE4", fontVariantNumeric:"tabular-nums", lineHeight:1.1}}>{kdAppUsePct}<span style={{fontSize:13, color:"var(--matte-fg-3)", fontWeight:500, marginLeft:2}}>%</span></div>
+                      </div>
+                      <div>
+                        <div style={{fontSize:12, color:"var(--matte-fg-3)", marginBottom:4, fontWeight:500}}>배달대행 사용</div>
+                        <div style={{fontSize:20, fontWeight:700, fontVariantNumeric:"tabular-nums", lineHeight:1.1}}>{kdAgencyUsePct}<span style={{fontSize:13, color:"var(--matte-fg-3)", fontWeight:500, marginLeft:2}}>%</span></div>
+                      </div>
+                    </div>
+                  )}
+                  {kdSalesAvg > 0 && (
+                    <div style={{paddingTop:10, borderTop:"1px solid var(--matte-line)", display:"flex", justifyContent:"space-between", alignItems:"baseline"}}>
+                      <span style={{fontSize:13, color:"var(--matte-fg-3)", fontWeight:500}}>전국 카페 평균 월 매출</span>
+                      <span style={{fontSize:17, fontWeight:700, fontVariantNumeric:"tabular-nums"}}>{kdSalesAvg.toLocaleString()}<span style={{fontSize:12, color:"var(--matte-fg-3)", fontWeight:500, marginLeft:3}}>만원</span></span>
+                    </div>
+                  )}
+                  {kdYear && (
+                    <div style={{fontSize:11, color:"var(--matte-fg-4)", textAlign:"right"}}>KOSIS {kdYear} 외식업체경영실태조사</div>
+                  )}
+                </div>
+              </>
             ) : (
               <div style={{fontSize:13, color:"var(--matte-fg-4)", padding:"30px 0", textAlign:"center"}}>배달 운영 비중 수집 중</div>
             )}
