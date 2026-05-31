@@ -5250,7 +5250,9 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       cusObs.push(`최다 요일은 ${_cus.peakDay}${pct}입니다`);
     }
     if (_cus.weekendVsWeekdayRatio) cusObs.push(`주중·주말 분포는 ${_cus.weekendVsWeekdayRatio}입니다`);
-    if (typeof _cus.openubAptRatio === 'number' && isFinite(_cus.openubAptRatio)) cusObs.push(`거주 형태 중 아파트 비중이 ${Math.round(_cus.openubAptRatio)}%입니다`);
+    // openubAptRatio는 "70.09%" 문자열이라 typeof==='number' 가드가 항상 false였음 → parseFloat로 파싱
+    const _aptRatioNum = Math.round(parseFloat(String(_cus.openubAptRatio)) || 0);
+    if (_aptRatioNum > 0) cusObs.push(`거주 형태 중 아파트 비중이 ${_aptRatioNum}%입니다`);
     if (_cus.maleLifestyle) cusObs.push(`라이프스타일은 ${_cus.maleLifestyle} 중심입니다`);
     // 경쟁 (Card 4 + Card 13 통합) - Card 13 화면 표시값과 일치
     const _cmp = c14Competition;
