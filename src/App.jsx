@@ -6308,6 +6308,7 @@ const getCoordToDongCd = async (lat, lng) => {
     // 카카오 행정동 이름 추출
     let kakaoDongName = null;
     let kakaoDongFullAddress = null;
+    let kakaoDongCode = null; // H타입 행정동코드 (10자리). 소상공인365 실패 시 폴백용
     if (kakaoRegionRes?.ok) {
       try {
         const kakaoRegionData = await kakaoRegionRes.json();
@@ -6316,6 +6317,7 @@ const getCoordToDongCd = async (lat, lng) => {
         if (hDoc) {
           kakaoDongName = hDoc.region_3depth_name; // 예: "역삼1동"
           kakaoDongFullAddress = `${hDoc.region_1depth_name} ${hDoc.region_2depth_name} ${hDoc.region_3depth_name}`; // 예: "서울특별시 강남구 역삼1동"
+          kakaoDongCode = hDoc.code || hDoc.region_code || null; // 카카오 표준: H타입 code = 10자리 행정동코드
           console.log(`[카카오 행정동] ${kakaoDongFullAddress}`);
         }
       } catch (e) { /* 카카오 파싱 실패 무시 */ }
@@ -6375,9 +6377,24 @@ const getCoordToDongCd = async (lat, lng) => {
       }
     }
 
-    // 소상공인365 실패 시 카카오 결과만으로는 dongCd를 알 수 없으므로 null 반환
+    // 소상공인365 실패 → 카카오 coord2regioncode 행정동코드로 폴백 (일반주소 검색 데이터 누락 수정)
+    if (kakaoDongCode) {
+      const norm = normalizeDongCode(kakaoDongCode);
+      if (norm.valid) {
+        console.log('[행정동] 소상공인365 실패 → 카카오 폴백:', kakaoDongName, kakaoDongCode);
+        return {
+          dongCd: norm.code10 || norm.code8,      // 기존 호환성 유지 (코드 문자열)
+          dongCode8: norm.code8,                  // 8자리 (비즈맵 등)
+          dongCode10: norm.code10,                // 10자리 (행안부 표준)
+          dongNm: kakaoDongName,
+          admdstCdNm: kakaoDongFullAddress || kakaoDongName,
+          fullAddress: kakaoDongFullAddress || kakaoDongName,
+          nearbyDongs: []                         // 소상공인365 전용 → 폴백 시 빈 배열 (인접동 합산 자동 스킵)
+        };
+      }
+    }
     if (kakaoDongName) {
-      console.log(`[행정동] 소상공인365 실패, 카카오 동명만 확보: ${kakaoDongName} (dongCd 없어 null 반환)`);
+      console.log(`[행정동] 소상공인365 실패, 카카오 동명만 확보: ${kakaoDongName} (행정동코드 없어 null 반환)`);
     }
   } catch (e) {
     console.error('좌표→행정동 변환 실패:', e);
