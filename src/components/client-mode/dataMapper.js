@@ -3316,7 +3316,12 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   // 우리가 모은 데이터(소상공인 매출, LOCALDATA, 카페 수, 임대료)로 직접 계산
   // ─────────────────────────────────────────────────
   // 자체 데이터 추출 (모두 이미 dataMapper 위쪽에서 정의됨)
-  const _selfCafeSales = (typeof cafeSales === 'number' && cafeSales > 0) ? cafeSales : 0;     // 카페 월매출 (만원, 소상공인)
+  // [2026-05-31] 카페 월매출(만원). 비수도권은 salesAvg '카페'행이 비어 cafeSales=0 → 비용부담 축이 0점으로
+  //   붕괴(대구 동성로 사례). 동일 스코프의 지역 폴백으로 보강: 동 평균매출(dongAvg) → 비즈맵 점포당평균.
+  //   ★0일 때만 채움. 수도권 실데이터(cafeSales>0)는 그대로 → 회귀 없음★
+  const _selfCafeSales = (typeof cafeSales === 'number' && cafeSales > 0) ? cafeSales
+    : (typeof dongAvg === 'number' && dongAvg > 0) ? dongAvg
+    : (Number(cd.nicebizmapStats?.perStoreAvg) > 0 ? Math.round(Number(cd.nicebizmapStats.perStoreAvg)) : 0);  // 카페 월매출 (만원)
   const _selfTotalCafes = totalCafes || 0;                                                       // 카페 수 (오픈업+카카오)
   const _selfDailyPop = (typeof dailyPop === 'number' && dailyPop > 0) ? dailyPop : 0;          // 일평균 유동인구
   const _selfFranchRatio = franchRatio || 0;                                                     // 프랜차이즈 비율 (%)
