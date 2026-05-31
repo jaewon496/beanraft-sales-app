@@ -4414,6 +4414,7 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   const stcarRaw2 = apis.stcarSttus?.data;
   const stcarData = Array.isArray(stcarRaw2) ? stcarRaw2 : (Array.isArray(stcarRaw2?.data) ? stcarRaw2.data : null);
   let survivalRate1y = 0;
+  let _stcarSurvival1y = 0;  // [2026-05-31] stcar 실데이터 계산값만 별도 보존 (survivalIsRegional 판정용 — AI 베낀값 오염 방지). 선언 누락 버그 수정.
   let openCnt = newOpenCount || 0;
   let closeCnt = 0;
   let netChg = 0;
@@ -4426,7 +4427,8 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     const total = stcarData.reduce((s, d) => s + (d?.stcnt || d?.storCnt || d?.storCo || 0), 0);
     const year1 = stcarData.find(d => (d?.yy || d?.year || d?.stcarNm || '').includes('1'));
     if (total > 0 && year1) {
-      survivalRate1y = Math.round(((year1.stcnt || year1.storCnt || year1.storCo || 0) / total) * 100);
+      _stcarSurvival1y = Math.round(((year1.stcnt || year1.storCnt || year1.storCo || 0) / total) * 100);
+      survivalRate1y = _stcarSurvival1y;
     }
     stcarLabels = stcarData.slice(0, 7).map(d => (d.stcarNm || d.stcarRange || d.yy || '').substring(0, 4));
     stcarValues = stcarData.slice(0, 7).map(d => d.storCo || d.stcnt || d.storCnt || 0);
