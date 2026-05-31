@@ -82,9 +82,12 @@ function fetchJson(url, timeoutMs = 12000) {
       timeout: timeoutMs,
       rejectUnauthorized: false,
     }, (res) => {
-      let body = '';
-      res.on('data', c => body += c);
+      // [버그 수정] 청크를 문자열로 += 누적하면 한글(UTF-8 멀티바이트)이 청크 경계에서 깨짐.
+      // 다른 프록시(store-radius/sbiz/nicebizmap 등)와 동일하게 Buffer로 모은 뒤 UTF-8 디코드.
+      const chunks = [];
+      res.on('data', c => chunks.push(c));
       res.on('end', () => {
+        const body = Buffer.concat(chunks).toString('utf-8');
         try {
           const cleaned = body.replace(/^﻿/, '').trim();
           resolve(JSON.parse(cleaned));
