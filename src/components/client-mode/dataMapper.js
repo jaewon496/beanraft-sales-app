@@ -1013,7 +1013,9 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
         }
         // 아파트 거주 비율
         if (bd.openubAptRatio) {
-          const _aptN = parseInt(String(bd.openubAptRatio).replace(/[^\d]/g, ''), 10) || 0;
+          // [버그 수정] replace(/[^\d]/g,'')는 소수점도 지워서 "70.09%"→7009 로 자릿수 깨짐.
+          // parseFloat로 소수점 살려 파싱 후 반올림.
+          const _aptN = Math.round(parseFloat(String(bd.openubAptRatio)) || 0);
           if (_aptN >= 50) _add(`아파트 밀집 ${_aptN}%`);
           else if (_aptN > 0) _add(`주거 혼합 (아파트 ${_aptN}%)`);
         }
