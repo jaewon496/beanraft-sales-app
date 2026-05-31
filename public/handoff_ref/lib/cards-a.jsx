@@ -360,6 +360,10 @@ function Card03({ body = {} }) {
   const surv1y = Number(bd.survivalRate1y) || 0;
   const surv3y = Number(bd.survivalRate3y) || 0;
   const surv5y = Number(bd.survivalRate5y) || 0;
+  // [2026-05-31] 생존율이 지역 실데이터인지 전국 고정폴백(65/39/28)인지 구분.
+  // false(전국폴백)일 때만 작은 회색 글씨로 "전국 평균 추정" 표기 (수도권 실데이터는 무표기).
+  // 키가 없는 구버전 데이터는 true로 간주해 라벨 미표시 (회귀 방지).
+  const survRegional = bd.survivalIsRegional !== false;
   const cafesNow = Number(bd.cafesNow) || 0;
   const cafes5yAgo = Number(bd.cafes5yAgo) || 0;
   const change5y = Number(bd.cafes5yChangeRate) || 0;
@@ -387,7 +391,10 @@ function Card03({ body = {} }) {
       <div style={{display:"grid", gridTemplateColumns:"1.2fr 1fr", gap:16}}>
         {/* 생존율 + 5년전/지금 비교 */}
         <div className="bc-box" style={{padding:24}}>
-          <div style={{fontSize:16, fontWeight:600, marginBottom:18}}>생존율</div>
+          <div style={{display:"flex", alignItems:"baseline", gap:8, marginBottom:18}}>
+            <div style={{fontSize:16, fontWeight:600}}>생존율</div>
+            {!survRegional && <span style={{fontSize:12, color:"var(--matte-fg-4)", fontWeight:500}}>전국 평균 추정</span>}
+          </div>
           <div style={{display:"flex", flexDirection:"column", gap:14}}>
             <BarRow id="c3.g1" label="1년 생존" value={surv1y} max={100} suffix="%"/>
             <BarRow id="c3.g3" label="3년 생존" value={surv3y} max={100} suffix="%" accent/>
