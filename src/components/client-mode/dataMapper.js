@@ -4795,7 +4795,7 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       //   전국 고정폴백(65/39/28)인지 구분. ★AI값(marketSurvival.year*)은 프롬프트 예시를 베끼는 경우가
       //   많아 신뢰 불가 → 제외★. 오직 stcarSttus(survivalRate1y) 또는 _calcSurvivalRate(_selfSurvival*)만 인정.
       //   라벨 정직화("전국 평균(추정)" 표기)에 사용.
-      survivalIsRegional: !!(survivalRate1y || _selfSurvival1y > 0 || _selfSurvival3y > 0 || _selfSurvival5y > 0),
+      survivalIsRegional: !!(_stcarSurvival1y > 0 || _selfSurvival1y > 0 || _selfSurvival3y > 0 || _selfSurvival5y > 0),
       survivalRate1y: survivalRate1y || _selfSurvival1y || 65,
       survivalRate3y: (() => {
         const v = aiData?.marketSurvival?.year3;
