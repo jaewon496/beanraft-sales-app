@@ -4786,6 +4786,11 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       survivalInsight: aiData?.marketSurvival?.insight || null,
       // [2026-05-12] 생존율 폴백: LD/소상공인 0이면 전국 평균 (KOSIS 기업생존율 전산업 추정치)
       // 1년 65% / 3년 39% / 5년 28% (중기부 2023 카페 통계 기준)
+      // [2026-05-31] survivalIsRegional: 지역 실데이터(소상공인 stcarSttus 또는 LOCALDATA 인허가 계산)인지
+      //   전국 고정폴백(65/39/28)인지 구분. ★AI값(marketSurvival.year*)은 프롬프트 예시를 베끼는 경우가
+      //   많아 신뢰 불가 → 제외★. 오직 stcarSttus(survivalRate1y) 또는 _calcSurvivalRate(_selfSurvival*)만 인정.
+      //   라벨 정직화("전국 평균(추정)" 표기)에 사용.
+      survivalIsRegional: !!(survivalRate1y || _selfSurvival1y > 0 || _selfSurvival3y > 0 || _selfSurvival5y > 0),
       survivalRate1y: survivalRate1y || _selfSurvival1y || 65,
       survivalRate3y: (() => {
         const v = aiData?.marketSurvival?.year3;
