@@ -2,9 +2,14 @@
 <html lang="ko">
 <head>
   <!-- PWA 서비스워커/캐시 초기화 (React 로드 전 실행) -->
+  <!-- [2026-06-01] 캐시 무효화를 "버전 연동"으로 변경: 고정 플래그(bc_sw_reset_v2)는 한 번 박히면
+       이후 새 배포가 와도 옛 SW/캐시가 남아 구버전 화면이 뜨던 근본 버그. __BUILD_VERSION__은
+       빌드 시 git hash로 치환되어, 배포마다 값이 달라지므로 새 버전을 받으면 자동으로 캐시를 비운다. -->
   <script>
   (function() {
-    if (!localStorage.getItem('bc_sw_reset_v2')) {
+    var BUILD_VER = '__BUILD_VERSION__';
+    var saved = localStorage.getItem('bc_build_ver');
+    if (saved !== BUILD_VER) {
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistrations().then(function(regs) {
           regs.forEach(function(r) { r.unregister(); });
@@ -15,8 +20,9 @@
           names.forEach(function(n) { caches.delete(n); });
         });
       }
-      localStorage.setItem('bc_sw_reset_v2', '1');
-      setTimeout(function() { location.reload(true); }, 500);
+      localStorage.setItem('bc_build_ver', BUILD_VER);
+      // 첫 방문(saved=null)이 아니라 "버전이 바뀐 재방문"일 때만 강제 새로고침 (옛 자산 즉시 폐기)
+      if (saved) { setTimeout(function() { location.reload(true); }, 500); }
     }
   })();
   </script>

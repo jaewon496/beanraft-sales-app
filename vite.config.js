@@ -10,21 +10,37 @@ const __require = createRequire(import.meta.url)
 const __filename_local = fileURLToPath(import.meta.url)
 const __dirname_local = path.dirname(__filename_local)
 
-// 빌드 시 sw.js의 CACHE_VERSION을 타임스탬프로 자동 교체하는 플러그인
+// 빌드 시 sw.js의 CACHE_VERSION 자동 교체 + index.html의 __BUILD_VERSION__ 치환 플러그인
+// [2026-06-01] index.html 처리 추가: 고정 캐시플래그(bc_sw_reset_v2)가 한 번 박히면
+//   새 배포가 와도 옛 캐시가 남아 구버전 화면이 뜨던 버그 → 빌드마다 버전 토큰 치환으로 자동 무효화.
 function swVersionPlugin() {
   return {
     name: 'sw-version-stamp',
     writeBundle() {
-      const swPath = path.resolve(__dirname, 'dist', 'sw.js')
+      // 동일 buildVersion을 sw.js와 index.html에 함께 사용 (일관성)
+      const buildVersion = Date.now()
+
+      // 1) dist/sw.js의 CACHE_VERSION 교체
+      const swPath = path.resolve(__dirname_local, 'dist', 'sw.js')
       if (fs.existsSync(swPath)) {
         let content = fs.readFileSync(swPath, 'utf-8')
-        const buildVersion = Date.now()
         content = content.replace(
-          /const CACHE_VERSION = \d+;/,
+          /const CACHE_VERSION = [^;]+;/,
           `const CACHE_VERSION = ${buildVersion};`
         )
         fs.writeFileSync(swPath, content, 'utf-8')
-        console.log(`[sw-version-stamp] CACHE_VERSION → ${buildVersion}`)
+        console.log(`[sw-version-stamp] sw.js CACHE_VERSION → ${buildVersion}`)
+      }
+
+      // 2) dist/index.html의 __BUILD_VERSION__ 토큰 치환 (배포마다 캐시 자동 무효화)
+      const htmlPath = path.resolve(__dirname_local, 'dist', 'index.html')
+      if (fs.existsSync(htmlPath)) {
+        let html = fs.readFileSync(htmlPath, 'utf-8')
+        if (html.includes('__BUILD_VERSION__')) {
+          html = html.split('__BUILD_VERSION__').join(String(buildVersion))
+          fs.writeFileSync(htmlPath, html, 'utf-8')
+          console.log(`[sw-version-stamp] index.html __BUILD_VERSION__ → ${buildVersion}`)
+        }
       }
     }
   }
