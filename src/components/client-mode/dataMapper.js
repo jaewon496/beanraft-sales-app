@@ -2915,15 +2915,19 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   const blogMentions = apis.naverBlog?.total || 0;
 
   // 감성 분석 (sentiment 객체 → 긍정 % 산출)
+  // [정직화] 데이터 없으면 기본값 72(가짜) 대신 null → 카드/차트에서 '-' 또는 미표시 처리
   const _sent = snsTrend.sentiment;
-  let sentimentPos = 72;
+  let sentimentPos = null;
   let sentimentObj = null;
   if (_sent && typeof _sent === 'object') {
     const p = Number(_sent.positive) || 0;
     const n = Number(_sent.negative) || 0;
-    if (p + n > 0) sentimentPos = Math.round((p / (p + n)) * 100);
-    sentimentObj = { positive: sentimentPos, negative: 100 - sentimentPos };
+    if (p + n > 0) {
+      sentimentPos = Math.round((p / (p + n)) * 100);
+      sentimentObj = { positive: sentimentPos, negative: 100 - sentimentPos };
+    }
   }
+  const hasSentiment = sentimentPos != null;
 
   // 워드클라우드용 keywords 배열 ({ text, weight } 형태)
   const wcKeywords = popularKeywords.map((t, i) => ({
@@ -2944,7 +2948,10 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
         : ''),
     chartType: 'wordCloud',
     metaInfo: 'SNS',
-    chartData: wcKeywords.length > 0 ? { keywords: wcKeywords, sentimentPos } : null,
+    // 감성값 없으면 sentimentPos 키 자체를 빼서 차트가 0/100 가짜 분할을 그리지 않게 함
+    chartData: wcKeywords.length > 0
+      ? (hasSentiment ? { keywords: wcKeywords, sentimentPos } : { keywords: wcKeywords })
+      : null,
     // [v24] bodyData에서 summary(중복), sentiment(빈 자리), instagramPosts(의미 없음) 제거
     bodyData: {
       searchIntents,
@@ -2953,8 +2960,9 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       topShops,
       blogMentions: blogMentions || null,
       // [Card 11 디렉터 연동] 긍정/부정 비율 - 디렉터 발화에 활용
-      positiveRatio: sentimentPos,
-      negativeRatio: 100 - sentimentPos,
+      // 감성 데이터 없으면 둘 다 null → 카드 가드(>0 ? 값 : '-')에서 긍정·부정 모두 '-'
+      positiveRatio: hasSentiment ? sentimentPos : null,
+      negativeRatio: hasSentiment ? (100 - sentimentPos) : null,
       sentimentObj,
     },
     tag: 'SNS',
@@ -3152,24 +3160,26 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
 
   // -- 나이스비즈맵 통계 (nicebizmapStats: 점포당 매출, 시장 규모) --
   const nbmStatsCompet = cd.nicebizmapStats;
-  let perStoreSales = nbmStatsCompet?.perStoreAvg ? formatKoreanNumber(nbmStatsCompet.perStoreAvg) + '원' : '-';
+  // perStoreSalesNum = 점포당 매출 '원' 단위 원본 숫자 (한글 문자열 재파싱 금지용)
+  let perStoreSalesNum = Number(nbmStatsCompet?.perStoreAvg) > 0 ? Number(nbmStatsCompet.perStoreAvg) : 0;
+  let perStoreSales = perStoreSalesNum > 0 ? formatKoreanNumber(perStoreSalesNum) + '원' : '-';
   let competMarketSize = nbmStatsCompet?.marketSize ? formatKoreanNumber(nbmStatsCompet.marketSize) + '원' : '-';
   const nbmStoreCnt = nbmStatsCompet?.storeCnt || 0;
   // fallback: openubSales로 점포당 매출 보충
   if (perStoreSales === '-') {
     const oubSales = apis.openubSales?.data;
     if (oubSales?.avgMonthlySales) {
+      perStoreSalesNum = Number(oubSales.avgMonthlySales) || 0;
       perStoreSales = formatKoreanNumber(oubSales.avgMonthlySales) + '원';
     } else if (oubSales?.avgSales) {
+      perStoreSalesNum = Number(oubSales.avgSales) || 0;
       perStoreSales = formatKoreanNumber(oubSales.avgSales) + '원';
     }
   }
-  // fallback: 점포당 매출 * 카페수 = 시장 규모 추정
-  if (competMarketSize === '-' && perStoreSales !== '-' && totalCafes > 0) {
-    const perStoreNum = parseFloat(perStoreSales.replace(/[^0-9]/g, ''));
-    if (perStoreNum > 0) {
-      competMarketSize = formatKoreanNumber(perStoreNum * totalCafes * 10000) + '원';
-    }
+  // fallback: 점포당 매출(원) * 카페수 = 시장 규모 추정
+  // ※ 한글단위 문자열을 재파싱하지 않고 원본 '원' 숫자(perStoreSalesNum)를 직접 사용 (자릿수 붕괴 방지)
+  if (competMarketSize === '-' && perStoreSalesNum > 0 && totalCafes > 0) {
+    competMarketSize = formatKoreanNumber(perStoreSalesNum * totalCafes) + '원';
   }
 
   // -- 밀집도 종합 요약 --

@@ -1348,8 +1348,10 @@ const ChartWordCloud = ({ data }) => {
     return null;
   }
   const displayCount = Math.min(keywords.length, 20);
-  const sentimentPos = hasData && data.sentimentPos != null ? data.sentimentPos : 72;
-  const sentimentNeg = 100 - sentimentPos;
+  // 감성값 없으면 null 유지 -> 가짜 72/28 막대 대신 막대 자체를 숨김
+  const sentimentPos = hasData && data.sentimentPos != null ? data.sentimentPos : null;
+  const sentimentNeg = sentimentPos != null ? 100 - sentimentPos : null;
+  const hasSentiment = sentimentPos != null;
 
   // Generate scattered positions for up to 20 keywords
   const positions = [
@@ -1400,11 +1402,15 @@ const ChartWordCloud = ({ data }) => {
           >{kw.text}</text>
         );
       })}
-      <rect x={40} y={118} width={260} height={7} rx={3.5} fill={COLORS.graphBgBar} />
-      <rect x={40} y={118} width={260 * sentimentPos / 100} height={7} rx={3.5} fill="rgba(52,199,89,0.7)" />
-      <rect x={40 + 260 * sentimentPos / 100} y={118} width={260 * sentimentNeg / 100} height={7} rx={3.5} fill="rgba(255,69,58,0.5)" />
-      <text x={40} y={138} fill="rgba(52,199,89,0.8)" fontSize={7} fontWeight={600} fontFamily="'Pretendard', -apple-system, sans-serif">{'\uAE0D\uC815'} {sentimentPos}%</text>
-      <text x={300} y={138} textAnchor="end" fill="rgba(255,69,58,0.7)" fontSize={7} fontWeight={600} fontFamily="'Pretendard', -apple-system, sans-serif">{'\uBD80\uC815'} {sentimentNeg}%</text>
+      {hasSentiment && (
+        <>
+          <rect x={40} y={118} width={260} height={7} rx={3.5} fill={COLORS.graphBgBar} />
+          <rect x={40} y={118} width={260 * sentimentPos / 100} height={7} rx={3.5} fill="rgba(52,199,89,0.7)" />
+          <rect x={40 + 260 * sentimentPos / 100} y={118} width={260 * sentimentNeg / 100} height={7} rx={3.5} fill="rgba(255,69,58,0.5)" />
+          <text x={40} y={138} fill="rgba(52,199,89,0.8)" fontSize={7} fontWeight={600} fontFamily="'Pretendard', -apple-system, sans-serif">{'\uAE0D\uC815'} {sentimentPos}%</text>
+          <text x={300} y={138} textAnchor="end" fill="rgba(255,69,58,0.7)" fontSize={7} fontWeight={600} fontFamily="'Pretendard', -apple-system, sans-serif">{'\uBD80\uC815'} {sentimentNeg}%</text>
+        </>
+      )}
     </svg>
   );
 };
