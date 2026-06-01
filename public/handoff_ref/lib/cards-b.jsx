@@ -485,7 +485,7 @@ function Card11({ body = {} }) {
   const negativePct = Number(bd.negativeRatio) || (positivePct > 0 ? 100 - positivePct : 0);
   const blogMentions = Number(bd.blogMentions) || 0;
   const kwArr = Array.isArray(bd.keywords) && bd.keywords.length > 0
-    ? bd.keywords.slice(0, 12).map((k, i) => [k, Math.max(11, 28 - i * 1.5)])
+    ? bd.keywords.slice(0, 12).map((k, i) => [k, Math.max(16, 34 - i * 1.6)])
     : [];
   const intents = Array.isArray(bd.searchIntents) && bd.searchIntents.length > 0 ? bd.searchIntents.slice(0, 7) : [];
   const negKw = Array.isArray(bd.negativeKeywords) && bd.negativeKeywords.length > 0 ? bd.negativeKeywords.slice(0, 5) : [];
@@ -504,30 +504,30 @@ function Card11({ body = {} }) {
       </div>
 
       <div style={{display:"grid", gridTemplateColumns:"1.3fr 1fr", gap:16, alignItems:"stretch"}}>
-        <div className="bc-box" style={{padding:18, display:"flex", flexDirection:"column"}}>
-          <div style={{fontSize:15, fontWeight:600, marginBottom:12}}>SNS 키워드 클라우드</div>
+        <div className="bc-box" style={{padding:20, display:"flex", flexDirection:"column"}}>
+          <div style={{fontSize:15, fontWeight:600, marginBottom:12, flexShrink:0}}>SNS 키워드 클라우드</div>
           {kwArr.length > 0 ? (
-            <window.DrStagger id="c11.cloud" delay={60} style={{display:"flex", flexWrap:"wrap", gap:10, alignItems:"baseline", padding:"8px 0"}}>
+            <window.DrStagger id="c11.cloud" delay={60} style={{flex:1, display:"flex", flexWrap:"wrap", gap:"14px 18px", alignItems:"baseline", alignContent:"center", padding:"16px 0"}}>
               {kwArr.map(([k, s], i) => (
-                <span key={i} style={{fontSize:s, color: s>=20 ? "#FFFFFF" : s>=14 ? "#C9C9C9" : "#A3A3A3", fontWeight: s>18 ? 700 : 600, lineHeight:1.1}}>#{k}</span>
+                <span key={i} style={{fontSize:s, color: s>=26 ? "#FFFFFF" : s>=20 ? "#C9C9C9" : "#A3A3A3", fontWeight: s>22 ? 700 : 600, lineHeight:1.25}}>#{k}</span>
               ))}
             </window.DrStagger>
           ) : (
-            <div style={{fontSize:13, color:"var(--matte-fg-4)", padding:"30px 0"}}>SNS 키워드 데이터 수집 중</div>
+            <div style={{flex:1, display:"flex", alignItems:"center", fontSize:13, color:"var(--matte-fg-4)", padding:"30px 0"}}>SNS 키워드 데이터 수집 중</div>
           )}
 
-          <div style={{marginTop:14, paddingTop:14, borderTop:"1px solid var(--line)"}}>
-            <div style={{fontSize:15, color:"var(--fg-3)", marginBottom:8, fontWeight:600}}>검색 유입 경로</div>
+          <div style={{marginTop:18, paddingTop:18, borderTop:"1px solid var(--line)", flexShrink:0}}>
+            <div style={{fontSize:15, color:"var(--fg-3)", marginBottom:10, fontWeight:600}}>검색 유입 경로</div>
             {intents.length > 0 ? (
-              <div style={{display:"flex", flexWrap:"wrap", gap:6, marginBottom:14}}>
+              <div style={{display:"flex", flexWrap:"wrap", gap:8, marginBottom:20}}>
                 {intents.map(k => <span key={k} className="bc-pill">{k}</span>)}
               </div>
             ) : (
-              <div style={{fontSize:13, color:"var(--matte-fg-4)", marginBottom:14}}>검색 유입 데이터 수집 중</div>
+              <div style={{fontSize:13, color:"var(--matte-fg-4)", marginBottom:20}}>검색 유입 데이터 수집 중</div>
             )}
-            <div style={{fontSize:15, color:"var(--fg-3)", marginBottom:8, fontWeight:600}}>주의 키워드</div>
+            <div style={{fontSize:15, color:"var(--fg-3)", marginBottom:10, fontWeight:600}}>주의 키워드</div>
             {negKw.length > 0 ? (
-              <div style={{display:"flex", gap:6, flexWrap:"wrap"}}>
+              <div style={{display:"flex", gap:8, flexWrap:"wrap"}}>
                 {negKw.map(k => <span key={k} className="bc-pill">{k}</span>)}
               </div>
             ) : (
