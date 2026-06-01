@@ -4551,10 +4551,7 @@ export default function UnifiedLayout({
           center, zoom: 15,
           zoomControl: true,
           zoomControlOptions: { position: window.naver.maps.Position.TOP_RIGHT },
-          logoControl: false, mapDataControl: false, scaleControl: false,
-          // 줌 시 모든 HTML 오버레이 마커를 프레임마다 스케일 애니메이션하면 버벅임 →
-          // 오버레이 줌 효과 비활성화(마커는 줌 종료 위치로 즉시 이동). 마커 생성/색상/거리 로직과 무관.
-          overlayZoomEffect: null
+          logoControl: false, mapDataControl: false, scaleControl: false
         });
         if (!map) return;
         cafeMapRef.current = map;
