@@ -4454,7 +4454,6 @@ export default function UnifiedLayout({
   const cafeMapMarkersRef = useRef([]);
   const cafeMapInfoWindowRef = useRef(null);
   const cafeMapAnimFrameRef = useRef(null);
-  const cafeMapResizeObserverRef = useRef(null);
   const [cafeMapLoading, setCafeMapLoading] = useState(false);
   const [cafeMapError, setCafeMapError] = useState(false);
   const [cafeMapRetryTick, setCafeMapRetryTick] = useState(0);
@@ -4555,24 +4554,17 @@ export default function UnifiedLayout({
         });
         if (!map) return;
         cafeMapRef.current = map;
-        // 컨테이너(모달) 크기가 바뀌어도 지도가 작은 타일로 남지 않도록 resize 트리거
-        try {
-          if (typeof ResizeObserver !== 'undefined') {
-            const cafeMapRO = new ResizeObserver(() => {
-              if (window.naver?.maps?.Event && cafeMapRef.current) {
-                window.naver.maps.Event.trigger(cafeMapRef.current, 'resize');
-              }
-            });
-            cafeMapRO.observe(container);
-            cafeMapResizeObserverRef.current = cafeMapRO;
-          }
-        } catch (e) {}
-        // 모달이 큰 크기로 펼쳐진 직후 1회 강제 resize (초기 펼침 시 타일 보정)
-        setTimeout(() => {
+        // 모달이 큰 크기로 펼쳐진 직후 "열린 직후"에만 고정 시점 1회성 resize로 타일을 꽉 채움.
+        // (ResizeObserver 같은 지속 감시는 줌 도중 마커를 재투영시켜 사라지게 하므로 절대 쓰지 않는다.)
+        // 모달 열림 애니메이션이 60ms보다 길 수 있어 60ms/300ms/700ms 세 시점에서 각각 1회씩만 트리거.
+        const fillResizeAt = (ms) => setTimeout(() => {
           if (window.naver?.maps?.Event && cafeMapRef.current) {
             try { window.naver.maps.Event.trigger(cafeMapRef.current, 'resize'); } catch (e) {}
           }
-        }, 60);
+        }, ms);
+        fillResizeAt(60);
+        fillResizeAt(300);
+        fillResizeAt(700);
         window.naver.maps.Event.addListener(map, 'click', () => {
           if (cafeMapInfoWindowRef.current) try { cafeMapInfoWindowRef.current.close(); } catch (e) {}
         });
@@ -4639,7 +4631,6 @@ export default function UnifiedLayout({
       clearTimeout(timer);
       try {
         if(cafeMapAnimFrameRef.current){cancelAnimationFrame(cafeMapAnimFrameRef.current);cafeMapAnimFrameRef.current=null;}
-        if(cafeMapResizeObserverRef.current){try{cafeMapResizeObserverRef.current.disconnect();}catch(e){}cafeMapResizeObserverRef.current=null;}
         if(cafeMapInfoWindowRef.current){try{cafeMapInfoWindowRef.current.close();}catch(e){}cafeMapInfoWindowRef.current=null;}
         cafeMapMarkersRef.current.forEach(item=>{try{const m=item?.marker||item;if(m&&typeof m.setMap==='function')m.setMap(null);}catch(e){}});
         cafeMapMarkersRef.current=[];
