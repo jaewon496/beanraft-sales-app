@@ -4454,6 +4454,7 @@ export default function UnifiedLayout({
   const cafeMapMarkersRef = useRef([]);
   const cafeMapInfoWindowRef = useRef(null);
   const cafeMapAnimFrameRef = useRef(null);
+  const cafeMapResizeObserverRef = useRef(null);
   const [cafeMapLoading, setCafeMapLoading] = useState(false);
   const [cafeMapError, setCafeMapError] = useState(false);
   const [cafeMapRetryTick, setCafeMapRetryTick] = useState(0);
@@ -4550,10 +4551,31 @@ export default function UnifiedLayout({
           center, zoom: 15,
           zoomControl: true,
           zoomControlOptions: { position: window.naver.maps.Position.TOP_RIGHT },
-          logoControl: false, mapDataControl: false, scaleControl: false
+          logoControl: false, mapDataControl: false, scaleControl: false,
+          // 줌 시 모든 HTML 오버레이 마커를 프레임마다 스케일 애니메이션하면 버벅임 →
+          // 오버레이 줌 효과 비활성화(마커는 줌 종료 위치로 즉시 이동). 마커 생성/색상/거리 로직과 무관.
+          overlayZoomEffect: null
         });
         if (!map) return;
         cafeMapRef.current = map;
+        // 컨테이너(모달) 크기가 바뀌어도 지도가 작은 타일로 남지 않도록 resize 트리거
+        try {
+          if (typeof ResizeObserver !== 'undefined') {
+            const cafeMapRO = new ResizeObserver(() => {
+              if (window.naver?.maps?.Event && cafeMapRef.current) {
+                window.naver.maps.Event.trigger(cafeMapRef.current, 'resize');
+              }
+            });
+            cafeMapRO.observe(container);
+            cafeMapResizeObserverRef.current = cafeMapRO;
+          }
+        } catch (e) {}
+        // 모달이 큰 크기로 펼쳐진 직후 1회 강제 resize (초기 펼침 시 타일 보정)
+        setTimeout(() => {
+          if (window.naver?.maps?.Event && cafeMapRef.current) {
+            try { window.naver.maps.Event.trigger(cafeMapRef.current, 'resize'); } catch (e) {}
+          }
+        }, 60);
         window.naver.maps.Event.addListener(map, 'click', () => {
           if (cafeMapInfoWindowRef.current) try { cafeMapInfoWindowRef.current.close(); } catch (e) {}
         });
@@ -4620,6 +4642,7 @@ export default function UnifiedLayout({
       clearTimeout(timer);
       try {
         if(cafeMapAnimFrameRef.current){cancelAnimationFrame(cafeMapAnimFrameRef.current);cafeMapAnimFrameRef.current=null;}
+        if(cafeMapResizeObserverRef.current){try{cafeMapResizeObserverRef.current.disconnect();}catch(e){}cafeMapResizeObserverRef.current=null;}
         if(cafeMapInfoWindowRef.current){try{cafeMapInfoWindowRef.current.close();}catch(e){}cafeMapInfoWindowRef.current=null;}
         cafeMapMarkersRef.current.forEach(item=>{try{const m=item?.marker||item;if(m&&typeof m.setMap==='function')m.setMap(null);}catch(e){}});
         cafeMapMarkersRef.current=[];
@@ -4992,7 +5015,7 @@ export default function UnifiedLayout({
               transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
               onClick={e => e.stopPropagation()}
               style={{
-                width: '90vw', maxWidth: 600, height: '70vh',
+                width: 'min(1040px, 92vw)', maxWidth: 'min(1040px, 92vw)', height: '85vh', maxHeight: '85vh',
                 background: '#000000', borderRadius: 16,
                 display: 'flex', flexDirection: 'column', overflow: 'hidden',
                 boxShadow: '0 16px 48px rgba(0,0,0,0.4)',
