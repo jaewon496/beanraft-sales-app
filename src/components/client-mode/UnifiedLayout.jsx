@@ -5122,7 +5122,7 @@ export default function UnifiedLayout({
                       <span style={{ fontSize: 18, fontWeight: 700, color: '#3B82F6', letterSpacing: '-0.01em' }}>{radiusLabel}</span>
                     </div>
                     <input
-                      type="range" min={100} max={2000} step={50} value={cafeMapRadius}
+                      type="range" min={100} max={500} step={50} value={cafeMapRadius}
                       onChange={e => handleCafeMapRadiusChange(Number(e.target.value))}
                       className="cafe-map-range"
                       style={{
@@ -5133,7 +5133,7 @@ export default function UnifiedLayout({
                     />
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
                       <span style={{ fontSize: 11, color: '#B8B8B8', opacity: 0.6 }}>100m</span>
-                      <span style={{ fontSize: 11, color: '#B8B8B8', opacity: 0.6 }}>2km</span>
+                      <span style={{ fontSize: 11, color: '#B8B8B8', opacity: 0.6 }}>500m</span>
                     </div>
                   </div>
                   {/* ───────── Filter Bar: count + chips ───────── */}
