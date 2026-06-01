@@ -468,9 +468,6 @@
               <path d="M 3 3 L 15 15 M 15 3 L 3 15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
             </svg>
           </button>
-
-          {/* 하단 출처 + 안내 */}
-          <FooterBar/>
         </div>
       </div>
     );
@@ -480,13 +477,16 @@
      트리거 버튼 — Card01 헤더 우측에 배치
      ────────────────────────────────────────────── */
   function MapTriggerButton() {
-    const [open, setOpen] = useState(false);
+    // 부모(영업관리 앱)의 진짜 네이버 지도를 연다 (가짜 placeholder 지도 제거)
+    const openRealMap = () => {
+      try { window.parent.postMessage({ type: "bc:map" }, "*"); } catch (e) {}
+    };
     return (
       <>
         <button
           type="button"
           className="bc-map-trigger-btn"
-          onClick={() => setOpen(true)}
+          onClick={openRealMap}
           style={{
             display:"inline-flex", alignItems:"center", gap:8,
             background:"rgba(255,255,255,0.04)",
@@ -511,7 +511,6 @@
           </svg>
           지도로 보기
         </button>
-        <MapModal open={open} onClose={() => setOpen(false)}/>
       </>
     );
   }

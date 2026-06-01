@@ -96,6 +96,12 @@
 
     /* 키보드 네비게이션 */
     const onKeyDown = (e) => {
+      if (e.key === "Enter") {
+        // Enter = 실제 제출 (추천이 있으면 강조 항목, 없으면 입력 주소 그대로)
+        e.preventDefault();
+        handleSubmit();
+        return;
+      }
       if (!matches.length) return;
       if (e.key === "ArrowDown") {
         e.preventDefault();
@@ -103,10 +109,6 @@
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
         setHighlight(h => (h - 1 + matches.length) % matches.length);
-      } else if (e.key === "Enter") {
-        e.preventDefault();
-        const pick = matches[highlight];
-        if (pick) handleSelect(pick);
       }
     };
 
@@ -116,17 +118,16 @@
     };
 
     const handleSubmit = () => {
-      const target = selected || (matches[highlight] || POI_DATASET.find(p => p.name === query.trim()));
-      if (!target) return;
-      setLoading(true);
-      writeRecent({ name: target.name, radius });
-      // 분석 진행 시뮬레이션
-      setTimeout(() => {
-        setLoading(false);
-        onClose?.();
-        // 페이지 상단 스크롤로 결과 새로 봤다는 인상
-        window.scrollTo({ top: 0, behavior: "smooth" });
-      }, 1400);
+      // 입력 주소(추천 선택 우선, 없으면 직접 입력값) 확정
+      const target = selected || matches[highlight] || POI_DATASET.find(p => p.name === query.trim());
+      const addr = (target?.name || query).trim();
+      if (!addr) return;
+      writeRecent({ name: addr, radius });
+      // 부모(영업관리 앱)로 실제 검색 신호 전송 → window.__bcDoSearch(addr, radius)
+      try {
+        window.parent.postMessage({ type: "bc:search", address: addr, radius }, "*");
+      } catch (e) {}
+      onClose?.();
     };
 
     const handleRecentClick = (r) => {
@@ -138,7 +139,8 @@
 
     if (!open) return null;
 
-    const canSubmit = !!(selected || matches.length > 0 || POI_DATASET.find(p => p.name === query.trim()));
+    // 추천 선택/일치 항목이 있거나, 사용자가 직접 친 주소가 있으면 제출 가능
+    const canSubmit = !!(selected || matches.length > 0 || query.trim());
 
     return (
       <div
@@ -406,18 +408,7 @@
             justifyContent:"space-between",
             gap:14,
           }}>
-            <div style={{fontSize:12, color:"#6a6a6a", letterSpacing:"-0.005em"}}>
-              <kbd style={{
-                background:"rgba(255,255,255,0.06)",
-                border:"1px solid rgba(255,255,255,0.10)",
-                borderRadius:4,
-                padding:"2px 6px",
-                fontSize:11,
-                fontFamily:"inherit",
-                marginRight:6,
-              }}>Enter</kbd>
-              로 빠른 분석
-            </div>
+            <div aria-hidden="true"></div>
             <button
               onClick={handleSubmit}
               disabled={!canSubmit || loading}

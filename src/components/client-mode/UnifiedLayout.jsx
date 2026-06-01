@@ -4315,6 +4315,9 @@ export default function UnifiedLayout({
           // 폴백: onSearch prop 직접 호출
           try { onSearch(addr, Number.isFinite(rad) && rad > 0 ? rad : radius); } catch (_) {}
         }
+      } else if (ev.data.type === 'bc:map') {
+        // iframe 카드의 '지도로 보기' → 부모의 진짜 네이버 지도 오버레이 열기
+        setShowCafeMap(true);
       }
     };
     window.addEventListener('message', handler);
