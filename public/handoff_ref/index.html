@@ -517,14 +517,9 @@
       confirmBtn.textContent = "저장 중… (" + done + "/" + total + ")";
     }
 
-    // 카드 1장 캡처를 타임아웃과 경쟁시킨다. 제한시간을 넘기면 reject → 그 카드는 건너뛴다.
-    // (html2canvas 는 이미지/지도/외부 리소스 로드 대기 중 throw 하지 않고 멈추기만 하므로 race 가 필요)
-    // 이벤트 루프는 살아 있으므로 setTimeout 은 반드시 발화한다 → 워치독이 확실히 동작한다.
-    // 정상이지만 데이터가 많아 느린 카드가 잘못 스킵되지 않도록 충분히 크게 둔다.
-    var CARD_TIMEOUT_MS = 150000;
-
     // html2canvas 가 캡처 도중 멈추면, 복제 작업용으로 body 끝에 붙여둔 iframe/컨테이너가
-    //   문서에 남아 다음 카드 캡처를 방해할 수 있다 → 잔여 흔적을 모두 제거한다.
+    //   문서에 남아 다음 캡처를 방해할 수 있다 → 잔여 흔적을 모두 제거한다.
+    //   (워치독 타임아웃은 이제 컨테이너 1회 캡처에만 붙는다 → runCapture 내부 captureContainerOnce 참고)
     function purgeHtml2canvasArtifacts(){
       try {
         var sel = 'iframe.html2canvas-container,' +
@@ -550,21 +545,6 @@
           }
         }
       } catch(_){}
-    }
-
-    // 캡처 1회를 워치독(타임아웃)과 경쟁. 타임아웃이면 잔여 클론을 정리한 뒤 reject.
-    function captureWithTimeout(el, opts){
-      var t, settled = false;
-      var timeoutP = new Promise(function(_, reject){
-        t = setTimeout(function(){
-          settled = true;
-          purgeHtml2canvasArtifacts();   // 멈춘 채 남은 클론 iframe 즉시 정리
-          reject(new Error("card-timeout"));
-        }, CARD_TIMEOUT_MS);
-      });
-      return Promise.race([ window.html2canvas(el, opts), timeoutP ])
-        .then(function(canvas){ clearTimeout(t); return canvas; })
-        .catch(function(err){ clearTimeout(t); if (settled) purgeHtml2canvasArtifacts(); throw err; });
     }
 
     function openModal(){
@@ -594,6 +574,38 @@
 
     confirmBtn.addEventListener("click", function(){ runCapture(); });
 
+    // ── 새 캡처 방식: 14개 카드를 감싸는 공통 컨테이너를 "단 한 번"만 html2canvas 로 뜬 뒤,
+    //    그 큰 캔버스를 카드 경계로 잘라 카드당 1페이지 PDF 를 만든다.
+    //    (이전엔 카드마다 따로 떠서 폰트/스타일/리소스를 14번 다시 로드 → 5~10분.
+    //     이제 캡처 1회로 끝나 훨씬 빠르다.)
+
+    // 모든 [data-card] 의 공통 조상(LCA)을 계산한다.
+    //   대개 .bc-scroll 한 개지만, DOM 이 바뀌어도 안전하도록 직접 가장 가까운 공통 부모를 찾는다.
+    function findCommonContainer(els){
+      if (!els || els.length === 0) return null;
+      if (els.length === 1) return els[0].parentNode || els[0];
+      // 첫 요소의 조상 사슬(자기 자신 포함, 위로 document 까지)
+      var chain = [];
+      var p = els[0];
+      while (p){ chain.push(p); p = p.parentNode; }
+      // 나머지 요소들에 대해, chain 에서 그 요소를 포함하는 가장 깊은(=인덱스 작은) 노드로 좁힌다.
+      var lcaIdx = 0; // chain[0] = els[0] 자신
+      for (var i = 1; i < els.length; i++){
+        var node = els[i];
+        var idx = -1;
+        // node 의 조상을 위로 올라가며 chain 안에서 처음 만나는 지점
+        var q = node;
+        while (q){
+          var pos = chain.indexOf(q);
+          if (pos !== -1){ idx = pos; break; }
+          q = q.parentNode;
+        }
+        if (idx === -1) return document.body; // 공통 조상이 없으면(이론상) body 폴백
+        if (idx > lcaIdx) lcaIdx = idx;       // 더 위(더 큰 인덱스)로 끌어올림
+      }
+      return chain[lcaIdx] || document.body;
+    }
+
     function runCapture(){
       if (busy) return;
       if (!libsReady()){
@@ -614,15 +626,13 @@
       overlay.classList.add("bc-cap-hidden");
 
       var JsPDF = getJsPDF();
-      // 페이지 크기를 A4 로 고정하지 않는다. 카드(canvas)마다 자기 비율 그대로의
+      // 페이지 크기를 A4 로 고정하지 않는다. 카드(잘라낸 캔버스)마다 자기 비율 그대로의
       //   맞춤 페이지를 만들어 이미지를 페이지 가득 그린다 → 찌그러짐/왜곡 없음.
-      //   pdf 는 첫 카드를 캡처한 뒤(=첫 페이지 크기를 알게 된 뒤) 생성한다.
       var pdf = null;
       var bg = "#0a0a0a";   // 리포트 다크 배경
-      var skipped = [];     // 시간 초과/실패로 제외된 카드 라벨
       var pageCount = 0;
 
-      // 캡처된 canvas 1장을 그 비율 그대로 PDF 1페이지로 추가
+      // 잘라낸 canvas 1장을 그 비율 그대로 PDF 1페이지로 추가
       function addImagePage(canvas){
         var imgW = canvas.width, imgH = canvas.height;
         if (!imgW || !imgH) return false;
@@ -640,35 +650,8 @@
         return true;
       }
 
-      // 두 번 다 실패한 카드는 빈 페이지가 아니라 "캡처 실패" 안내 페이지를 한 장 넣는다.
-      //   (전체 흐름이 14/14 까지 진행되도록 → 페이지 수와 카드 순서가 어긋나지 않게)
-      function addPlaceholderPage(label){
-        // 일반적인 카드 비율(세로)로 안내 페이지를 만든다
-        var W = 900, H = 1200;
-        if (!pdf){
-          pdf = new JsPDF({ unit:"px", format:[W, H], orientation:"portrait", compress:true });
-        } else {
-          pdf.addPage([W, H], "portrait");
-        }
-        pdf.setFillColor(bg);
-        pdf.rect(0, 0, W, H, "F");
-        pdf.setTextColor(236, 236, 239);     // #ECECEF
-        pdf.setFontSize(22);
-        try { pdf.text("이 페이지는 캡처에 실패했습니다", W/2, H/2 - 16, { align:"center" }); } catch(_){
-          pdf.text("이 페이지는 캡처에 실패했습니다", W/2, H/2 - 16);
-        }
-        pdf.setFontSize(15);
-        pdf.setTextColor(154, 154, 163);     // #9A9AA3
-        var name = "(" + (label || "카드") + ")";
-        try { pdf.text(name, W/2, H/2 + 18, { align:"center" }); } catch(_){
-          pdf.text(name, W/2, H/2 + 18);
-        }
-        pageCount++;
-        return true;
-      }
-
-      // 카드 1장 캡처 옵션 생성 (재시도 때 scale 만 낮춰 재사용한다).
-      //   captureEl = 캡처 대상(원본, 화면에 떠 있는 카드), captureScale = 렌더 배율
+      // 캡처 대상(컨테이너) 1회용 html2canvas 옵션. (scale 만 재시도 때 낮춰 재사용)
+      //   captureEl = 캡처 대상(원본, 화면에 떠 있는 공통 컨테이너), captureScale = 렌더 배율
       function buildOpts(captureEl, captureScale){
         return {
           backgroundColor: bg,
@@ -696,6 +679,7 @@
           //      html2canvas 의 복제 문서에서는 변수가 풀리지 않아 글자가 어둡게 깨진다.
           //      원본(화면) 요소 → 복제본 요소를 같은 DOM 순서로 짝지어
           //      getComputedStyle 의 color/배경/테두리(+SVG fill/stroke)를 그대로 복사한다.
+          //      이제 captureEl = 공통 컨테이너이므로, 한 번의 onclone 으로 14개 카드 전부의 색이 복사된다.
           //   ※ 복제본의 스타일시트/스크립트는 제거하지 않는다(레이아웃 유지에 필수).
           onclone: function(clonedDoc, clonedEl){
             try {
@@ -708,9 +692,9 @@
               (clonedDoc.head || clonedDoc.documentElement).appendChild(stop);
             } catch(_){}
 
-            // [color-fix] 원본 카드(화면)와 그 복제본을 찾아 색을 1:1 로 옮긴다.
+            // [color-fix] 원본 컨테이너(화면)와 그 복제본을 찾아 색을 1:1 로 옮긴다.
             try {
-              var origRoot = captureEl; // 캡처 대상(원본, 화면에 떠 있는 카드)
+              var origRoot = captureEl; // 캡처 대상(원본, 화면에 떠 있는 공통 컨테이너)
               // 복제 루트: html2canvas 가 넘겨준 clonedEl 우선, 없으면 data-card 로 매칭.
               var cloneRoot = clonedEl;
               if (!cloneRoot || cloneRoot.nodeType !== 1){
@@ -786,7 +770,7 @@
         overlay.classList.remove("bc-cap-hidden");
         setBusy(false);
         hideProgress();
-        // 성공한 카드가 한 장도 없으면 다운로드 없이 오류만 표시
+        // 성공한 페이지가 한 장도 없으면 다운로드 없이 오류만 표시
         if (pageCount === 0 || !pdf){
           showErr("캡처에 실패했습니다. 다시 시도해 주세요.");
           return;
@@ -818,85 +802,139 @@
           return;
         }
 
-        if (skipped.length > 0){
-          showErr("일부 카드는 시간 초과로 제외되었습니다: " + skipped.join(", "));
-        } else {
-          overlay.classList.remove("open");
-        }
+        overlay.classList.remove("open");
       }
 
-      var total = selected.length;
-      var i = 0;
-      function step(){
-        if (i >= total){ finish(); return; }
-        var card = selected[i];
-        var el = card.el;
-        var pct = Math.round((i / total) * 100);
-        setProgress(pct, "PDF 만드는 중… " + pct + "%");
-        // 버튼에도 진행 상황 표시 (카드 캡처 시작 전에 갱신 → 멈춘 듯 보이지 않게)
-        setBusyProgress(i + 1, total);
+      // 큰 캔버스(big)를 받아 선택된 카드들을 경계로 잘라 페이지로 채운다.
+      //   effScale = big 캔버스가 실제로 떠진 배율 (컨테이너 좌표 → 캔버스 픽셀 변환에 사용)
+      function sliceAndBuild(big, container, effScale){
+        // 컨테이너 기준 좌표 계산용 기준점 (스크롤 보정 포함: getBoundingClientRect 는 뷰포트 기준이라
+        //   컨테이너/카드 모두 동일 뷰포트 기준이므로 그 차이(rel)만 쓰면 스크롤 영향은 상쇄된다)
+        var contRect = container.getBoundingClientRect();
+        var bigW = big.width;     // = round(container 가시폭 * effScale) 수준
+        var bigH = big.height;
 
-        if (!el || !document.body.contains(el)){
-          skipped.push(card.label); i++; step(); return;
+        var total = selected.length;
+        for (var i = 0; i < total; i++){
+          var card = selected[i];
+          var el = card.el;
+
+          var pct = Math.round((i / total) * 100);
+          setProgress(pct, "저장 중… (" + (i + 1) + "/" + total + ")");
+          setBusyProgress(i + 1, total);
+
+          if (!el || !document.body.contains(el)) continue;
+
+          var r = el.getBoundingClientRect();
+          // 카드의 실제 bounding box(margin 제외) 기준 상대좌표
+          var relTop = r.top - contRect.top;     // 컨테이너 상단 기준 카드 상단
+          var srcY = Math.round(relTop * effScale);
+          var srcH = Math.round(r.height * effScale);
+
+          // 캔버스 경계로 클램프 (잘림/오버런 방지)
+          if (srcY < 0) { srcH += srcY; srcY = 0; }
+          if (srcY > bigH) continue;
+          if (srcY + srcH > bigH) srcH = bigH - srcY;
+          if (srcH <= 0) continue;
+
+          // 카드용 임시 캔버스: 폭=큰 캔버스 폭 전체, 높이=srcH
+          var tmp = document.createElement("canvas");
+          tmp.width = bigW;
+          tmp.height = srcH;
+          var ctx = tmp.getContext("2d");
+          // 배경 먼저 채워 투명/검정 줄 방지
+          ctx.fillStyle = bg;
+          ctx.fillRect(0, 0, bigW, srcH);
+          // big 의 [0, srcY] ~ [bigW, srcY+srcH] 영역을 그대로 복사
+          ctx.drawImage(big, 0, srcY, bigW, srcH, 0, 0, bigW, srcH);
+
+          addImagePage(tmp);
+          // 임시 캔버스 메모리 회수 힌트
+          tmp.width = tmp.height = 0;
         }
-        // 차트/지도 lazy 렌더 안정화를 위해 한 박자 양보
-        try { el.scrollIntoView({ block:"start", behavior:"auto" }); } catch(_){}
+        finish();
+      }
 
-        // 보고서는 비동기(Babel) 렌더 + 카운트업/지연 차트가 있으므로,
-        //   화면에 들인 뒤 충분히 안정화될 때까지 잠깐 기다린 후 캡처한다.
-        //   [2중 안전장치]
-        //     1차 시도: 원래 화질(scale 1.5~2)로 캡처 (12초 워치독)
-        //     1차 타임아웃/실패 → 잔여 클론 정리 후 scale 1.0 으로 한 번 더 재시도
-        //     2차도 실패 → "캡처 실패" 안내 페이지 한 장 추가하고 계속
-        //   어떤 경우에도 루프는 멈추지 않고 다음 카드로 진행 → 14/14 도달 → pdf.save 보장
-        var firstScale = Math.min(2, window.devicePixelRatio || 1.5);
-        var retryScale = 1.0;
+      // ── 큰 컨테이너를 단 한 번만 캡처 → 워치독(타임아웃)과 경쟁 → 실패 시 scale 낮춰 1회 재시도 ──
+      var CONTAINER_TIMEOUT_MS = 60000;
+      var maxH = 30000;   // 캔버스 높이 한계: 이걸 넘으면 일부 브라우저에서 캡처 실패
+      var baseScale = Math.min(2, window.devicePixelRatio || 1.5);
 
-        // 다음 카드로 넘어가기 (진행 카운터는 step() 시작부에서 갱신됨)
-        function advance(){ i++; wait(0).then(step); }
+      // 1회 캡처: 컨테이너 높이에 따라 scale 을 자동으로 낮춰 캔버스 높이가 maxH 이하가 되게 한다.
+      function captureContainerOnce(container, scaleCap, label){
+        var sh = container.scrollHeight || container.getBoundingClientRect().height || 1;
+        var effScale = Math.min(scaleCap, maxH / sh);
+        if (!isFinite(effScale) || effScale <= 0) effScale = scaleCap;
+        try { console.log("[CAP] capture container", label, "scrollH=", sh, "effScale=", effScale.toFixed(3)); } catch(_){}
 
-        // 한 번 캡처 시도. 성공하면 onOk(canvas), 실패하면 onFail(err)
-        function tryCapture(scale, onOk, onFail){
-          captureWithTimeout(el, buildOpts(el, scale))
-            .then(function(canvas){ onOk(canvas); })
-            .catch(function(err){ onFail(err); });
-        }
-
-        wait(500).then(function(){
-          // 1차 시도
-          tryCapture(firstScale, function(canvas){
-            if (addImagePage(canvas)){ advance(); return; }
-            // 캔버스가 비어 있으면(0×0) 재시도로
-            firstFailed(new Error("empty-canvas"));
-          }, firstFailed);
-
-          // 1차 실패 처리 → 잔여 클론 정리 후 scale 1.0 재시도
-          function firstFailed(err){
-            if (window.console && console.warn) console.warn("[캡처 1차 실패→재시도]", card.label, err);
-            purgeHtml2canvasArtifacts();   // 멈춘 채 남은 클론/iframe 제거 → 다음 시도 보호
-            // 재시도 전 잠깐 양보 (DOM 정리 반영)
-            wait(120).then(function(){
-              tryCapture(retryScale, function(canvas){
-                if (addImagePage(canvas)){ advance(); return; }
-                secondFailed(new Error("empty-canvas-retry"));
-              }, secondFailed);
-            });
-          }
-
-          // 2차(재시도)도 실패 → 안내 placeholder 페이지 한 장 추가하고 계속
-          function secondFailed(err){
-            if (window.console && console.warn) console.warn("[캡처 건너뜀→안내페이지]", card.label, err);
+        var t, timedOut = false;
+        var timeoutP = new Promise(function(_, reject){
+          t = setTimeout(function(){
+            timedOut = true;
             purgeHtml2canvasArtifacts();
-            skipped.push(card.label);
-            addPlaceholderPage(card.label);   // 빈 페이지 대신 "캡처 실패" 안내 한 장
-            advance();
-          }
+            reject(new Error("container-timeout"));
+          }, CONTAINER_TIMEOUT_MS);
+        });
+        var capP = window.html2canvas(container, buildOpts(container, effScale));
+        return Promise.race([ capP, timeoutP ]).then(function(canvas){
+          clearTimeout(t);
+          return { canvas: canvas, effScale: effScale };
+        }).catch(function(err){
+          clearTimeout(t);
+          if (timedOut) purgeHtml2canvasArtifacts();
+          throw err;
         });
       }
+
+      function failHard(){
+        purgeHtml2canvasArtifacts();
+        btn.classList.remove("bc-cap-hidden");
+        overlay.classList.remove("bc-cap-hidden");
+        setBusy(false);
+        hideProgress();
+        showErr("캡처에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      }
+
+      function startCaptureFlow(){
+        var els = selected.map(function(c){ return c.el; }).filter(Boolean);
+        var container = findCommonContainer(els);
+        if (!container){ failHard(); return; }
+        try { console.log("[CAP] common container =", container.className || container.tagName); } catch(_){}
+
+        // 잘라낼 좌표가 정확하도록 컨테이너 맨 위로 스크롤(보정은 rel 차이로 상쇄되지만 안전하게)
+        try { container.scrollTo ? container.scrollTo({top:0, behavior:"auto"}) : (container.scrollTop = 0); } catch(_){}
+
+        setProgress(5, "캡처 준비 중…");
+        // 안정화를 위해 한 박자 양보 (비동기 Babel 렌더/지연 차트)
+        wait(500).then(function(){
+          setProgress(15, "캡처 중…");
+          captureContainerOnce(container, baseScale, "1차").then(function(res){
+            if (!res.canvas || !res.canvas.width || !res.canvas.height){
+              throw new Error("empty-container-canvas");
+            }
+            sliceAndBuild(res.canvas, container, res.effScale);
+          }).catch(function(err){
+            if (window.console && console.warn) console.warn("[CAP 컨테이너 1차 실패→재시도]", err);
+            purgeHtml2canvasArtifacts();
+            // scale 더 낮춰 1회 재시도 (절반)
+            wait(150).then(function(){
+              captureContainerOnce(container, Math.max(1, baseScale * 0.6), "재시도").then(function(res2){
+                if (!res2.canvas || !res2.canvas.width || !res2.canvas.height){
+                  throw new Error("empty-container-canvas-retry");
+                }
+                sliceAndBuild(res2.canvas, container, res2.effScale);
+              }).catch(function(err2){
+                if (window.console && console.warn) console.warn("[CAP 컨테이너 재시도도 실패]", err2);
+                failHard();
+              });
+            });
+          });
+        });
+      }
+
       // 웹폰트가 다 준비된 뒤 캡처를 시작한다 (폰트 미로딩으로 글자가 비거나 깨지는 것 방지).
-      //   루프 전체에 한 번만 기다린다.
       var fontsReady = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
-      Promise.resolve(fontsReady).then(step, step);
+      Promise.resolve(fontsReady).then(startCaptureFlow, startCaptureFlow);
     }
   })();
   </script>
