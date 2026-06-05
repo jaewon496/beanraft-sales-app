@@ -658,15 +658,31 @@
       }
 
       // 캡처 대상(컨테이너) 1회용 html2canvas-pro 옵션. (scale 만 재시도 때 낮춰 재사용)
-      //   captureEl = 캡처 대상 컨테이너, captureScale = 렌더 배율.
-      //   ※ onclone 에서 애니메이션/트랜지션 비활성 스타일을 주입하지 않는다.
-      //      카드1 도넛("카페 비율")은 색 아크를 CSS 애니메이션(stroke-dashoffset)으로 그리는데,
-      //      애니메이션을 끄면 복제본이 시작상태(빈 회색 트랙)로 되돌아가 색 아크가 사라진다.
-      //      캡처는 렌더 수 초 뒤에 일어나 애니메이션이 이미 끝나 있으므로, 끄지 않아도 최종상태가 잡힌다.
-      //      html2canvas-pro 는 색을 알아서 정확히 그린다(도넛 파란 아크/AI 시그널 글자 확인) — 그게 빠름의 핵심.
+      //   captureEl = 캡처 대상 컨테이너(원본), captureScale = 렌더 배율.
+      //
+      //   ※ onclone 에서 "두 가지"를 함께 한다. (라이브 PDF 검수로 확정된 트레이드오프)
+      //     (1) 애니메이션/트랜지션 끄기:
+      //         AI 종합(카드14)의 긍정/부정 시그널 박스는 페이드인(opacity 0→1) 애니메이션이라,
+      //         복제본에서 애니메이션을 끄지 않으면 캡처 시점에 opacity:0(빈 칸)으로 잡힌다.
+      //         그래서 복제 문서에 animation/transition:none 을 주입해 최종상태(opacity:1)로 고정한다.
+      //     (2) SVG 차트의 최종 stroke/fill 복사:
+      //         카드1 도넛("카페 비율")·카드10 반원 게이지의 색 아크는 stroke-dashoffset 애니메이션으로 그린다.
+      //         애니메이션을 끄면(=위 (1)) 복제본 아크가 시작상태(회색 트랙)로 되돌아가 색이 사라진다.
+      //         이를 막으려고, 원본의 라이브 최종값(getComputedStyle: stroke/strokeDasharray/
+      //         strokeDashoffset/fill/strokeWidth/opacity)을 복제 도형에 inline 으로 박아 색 아크를 고정한다.
+      //         → SVG 도형(circle/path/ellipse/rect/line/polyline/polygon)만 순회하므로 빠르다.
+      //           (절대 "모든 요소" 로 확대 금지 — 과거 150초짜리 회귀의 원인.)
+      //   ※ 원본 컨테이너 참조: buildOpts 의 인자 captureEl 이 곧 원본 컨테이너다(클로저로 onclone 에서 사용).
+      //     clonedEl 은 captureEl 의 복제본(html2canvas onclone 시그니처: onclone(clonedDoc, clonedEl)).
       //   ※ [중요] .bc-scroll 은 overflow-y:auto 인 스크롤 컨테이너라, getBoundingClientRect().height 는
       //      "보이는 뷰포트 높이"뿐이다. 14장 전체를 떠야 하므로 width/height 를 scrollWidth/scrollHeight 로
       //      명시 지정한다.
+
+      // onclone 에서 색 아크 복원에 쓸 SVG 도형 셀렉터 (도형 요소만 — 전체 요소 순회 금지).
+      var SVG_SHAPE_SEL = "circle,path,ellipse,rect,line,polyline,polygon";
+      // 원본 도형 → 복제 도형으로 옮길, 애니메이션이 끝난 최종 표현 속성들.
+      var SVG_COPY_PROPS = ["stroke", "strokeDasharray", "strokeDashoffset", "fill", "strokeWidth", "opacity"];
+
       function buildOpts(captureEl, captureScale){
         var fullW = (captureEl && (captureEl.scrollWidth || captureEl.getBoundingClientRect().width)) || 0;
         var fullH = (captureEl && (captureEl.scrollHeight || captureEl.getBoundingClientRect().height)) || 0;
@@ -676,7 +692,54 @@
           width: fullW,
           height: fullH,
           useCORS: true,
-          logging: false
+          logging: false,
+          // 원본 컨테이너(captureEl)는 클로저로 캡처되어 여기서 그대로 쓴다.
+          onclone: function(clonedDoc, clonedEl){
+            try {
+              // (1) 복제 문서 전체의 애니메이션/트랜지션을 끈다 → 페이드인 요소(시그널)를 최종상태로.
+              try {
+                var st = clonedDoc.createElement("style");
+                st.setAttribute("data-bc-cap-disable-anim", "1");
+                st.appendChild(clonedDoc.createTextNode(
+                  "*{animation:none !important;transition:none !important;animation-duration:0s !important;}"
+                ));
+                (clonedDoc.head || clonedDoc.documentElement || clonedEl).appendChild(st);
+              } catch (e1) {
+                try { if (window.console && console.warn) console.warn("[CAP onclone disable-anim 실패]", e1); } catch(_){}
+              }
+
+              // (2) 원본 SVG 도형의 라이브 최종 stroke/fill 값을 복제 도형에 inline 으로 복사.
+              //     원본 컨테이너(captureEl)와 복제 루트(clonedEl)에서 같은 셀렉터로 도형을 뽑아 인덱스 매칭.
+              try {
+                var origRoot = captureEl;
+                if (origRoot && clonedEl) {
+                  var win = (origRoot.ownerDocument && origRoot.ownerDocument.defaultView) || window;
+                  var origShapes  = origRoot.querySelectorAll(SVG_SHAPE_SEL);
+                  var cloneShapes = clonedEl.querySelectorAll(SVG_SHAPE_SEL);
+                  var n = Math.min(origShapes.length, cloneShapes.length);
+                  for (var i = 0; i < n; i++) {
+                    var os = origShapes[i], cs = cloneShapes[i];
+                    if (!os || !cs) continue;
+                    var cssOrig;
+                    try { cssOrig = win.getComputedStyle(os); } catch(_){ cssOrig = null; }
+                    if (!cssOrig) continue;
+                    for (var k = 0; k < SVG_COPY_PROPS.length; k++) {
+                      var prop = SVG_COPY_PROPS[k];
+                      var val = cssOrig[prop];
+                      // 값이 있을 때만 박는다 (빈 문자열/null/"none" 의 stroke 등은 건너뜀은 아래에서 처리)
+                      if (val === undefined || val === null || val === "") continue;
+                      // "none" 인 fill/stroke 는 원본 의도이므로 그대로 박는다(색 아크 트랙이 fill:none 인 경우 등).
+                      try { cs.style[prop] = val; } catch(_){}
+                    }
+                  }
+                }
+              } catch (e2) {
+                try { if (window.console && console.warn) console.warn("[CAP onclone SVG 복사 실패]", e2); } catch(_){}
+              }
+            } catch (eAll) {
+              try { if (window.console && console.warn) console.warn("[CAP onclone 전체 실패]", eAll); } catch(_){}
+            }
+          }
         };
       }
 
