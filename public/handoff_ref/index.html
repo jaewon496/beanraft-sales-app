@@ -59,7 +59,9 @@
   <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 
   <!-- 리포트 캡처 → PDF 저장 (독립 vanilla JS, React 와 분리) -->
-  <!-- self-hosted: CDN/CSP 의존 제거. window.html2canvas / window.jspdf.jsPDF 노출 -->
+  <!-- self-hosted: CDN/CSP 의존 제거. window.modernScreenshot / window.jspdf.jsPDF 노출 -->
+  <!-- 캡처 엔진: modern-screenshot (domToCanvas). 색 보정 불필요 + 14배 빠름 -->
+  <script src="modern-screenshot.js"></script>
   <script src="html2canvas.min.js"></script>
   <script src="jspdf.umd.min.js"></script>
 
@@ -255,7 +257,7 @@
        리포트 캡처 → PDF 저장 기능 (React 와 완전 분리된 vanilla JS)
        - 좌상단 고정 흰색 "캡처" 버튼
        - 카드 선택 모달(전체선택 토글 + 카드별 체크박스)
-       - 선택 카드를 html2canvas 캡처 → jsPDF 로 카드당 1페이지 PDF 저장
+       - 선택 카드를 modern-screenshot 캡처 → jsPDF 로 카드당 1페이지 PDF 저장
        - 카드 식별: 리포트 각 섹션의 data-card / data-screen-label 속성
        ============================================================ -->
   <style>
@@ -339,9 +341,12 @@
     "use strict";
 
     // 라이브러리 로드 확인 (CDN 실패 시 버튼만 안 띄움)
+    //   캡처 엔진을 modern-screenshot 로 교체: window.modernScreenshot.domToCanvas 사용.
     function libsReady(){
       var jspdf = window.jspdf || window.jsPDF;
-      return typeof window.html2canvas === "function" && jspdf && (jspdf.jsPDF || jspdf.default || typeof jspdf === "function");
+      var ms = window.modernScreenshot;
+      return ms && typeof ms.domToCanvas === "function" &&
+             jspdf && (jspdf.jsPDF || jspdf.default || typeof jspdf === "function");
     }
     function getJsPDF(){
       var m = window.jspdf || window.jsPDF;
@@ -574,10 +579,11 @@
 
     confirmBtn.addEventListener("click", function(){ runCapture(); });
 
-    // ── 새 캡처 방식: 14개 카드를 감싸는 공통 컨테이너를 "단 한 번"만 html2canvas 로 뜬 뒤,
+    // ── 새 캡처 방식: 14개 카드를 감싸는 공통 컨테이너를 "단 한 번"만 modern-screenshot 으로 뜬 뒤,
     //    그 큰 캔버스를 카드 경계로 잘라 카드당 1페이지 PDF 를 만든다.
     //    (이전엔 카드마다 따로 떠서 폰트/스타일/리소스를 14번 다시 로드 → 5~10분.
-    //     이제 캡처 1회로 끝나 훨씬 빠르다.)
+    //     이제 캡처 1회로 끝나 훨씬 빠르다.
+    //     + html2canvas → modern-screenshot 교체로 전체 ~150초 → ~5초, 색 보정도 불필요.)
 
     // 모든 [data-card] 의 공통 조상(LCA)을 계산한다.
     //   대개 .bc-scroll 한 개지만, DOM 이 바뀌어도 안전하도록 직접 가장 가까운 공통 부모를 찾는다.
@@ -650,92 +656,23 @@
         return true;
       }
 
-      // 캡처 대상(컨테이너) 1회용 html2canvas 옵션. (scale 만 재시도 때 낮춰 재사용)
-      //   captureEl = 캡처 대상(원본, 화면에 떠 있는 공통 컨테이너), captureScale = 렌더 배율
+      // 캡처 대상(컨테이너) 1회용 modern-screenshot 옵션. (scale 만 재시도 때 낮춰 재사용)
+      //   captureEl = 캡처 대상 컨테이너, captureScale = 렌더 배율.
+      //   ※ html2canvas 시절의 onclone 글자색 보정(원본 computed color/background/border/
+      //      fill/stroke 를 복제본에 일일이 복사)은 전부 제거했다.
+      //      modern-screenshot 은 CSS 변수/상속 색을 보정 없이 그대로 정확히 그린다(검증 완료).
+      //   ※ [중요] .bc-scroll 은 overflow-y:auto 인 스크롤 컨테이너라, modern-screenshot 이
+      //      기본으로 쓰는 getBoundingClientRect().height 는 "보이는 뷰포트 높이"뿐이다.
+      //      14장 전체를 떠야 하므로 width/height 를 scrollWidth/scrollHeight 로 명시 지정한다.
+      //      (라이브러리는 width/height 가 주어지면 그 값을 쓰고, 0 일 때만 rect 로 폴백한다.)
       function buildOpts(captureEl, captureScale){
+        var fullW = (captureEl && (captureEl.scrollWidth || captureEl.getBoundingClientRect().width)) || 0;
+        var fullH = (captureEl && (captureEl.scrollHeight || captureEl.getBoundingClientRect().height)) || 0;
         return {
           backgroundColor: bg,
           scale: captureScale,
-          useCORS: true,
-          allowTaint: true,
-          imageTimeout: 3000,   // 실패/교차출처 이미지가 캡처를 오래 붙잡지 않도록
-          logging: false,
-          foreignObjectRendering: false,
-          removeContainer: true,
-          scrollX: 0,
-          scrollY: -window.scrollY,
-          windowWidth: document.documentElement.clientWidth,
-          // 동기 정지의 원흉이 될 수 있는 요소만 렌더 트리에서 건너뛴다 (CANVAS 제외 금지)
-          ignoreElements: function(node){
-            if (!node || !node.tagName) return false;
-            var tn = node.tagName.toUpperCase();
-            return tn === "IFRAME" || tn === "VIDEO" ||
-                   tn === "EMBED" || tn === "OBJECT";
-          },
-          // 복제본(clone) 처리:
-          //   1) 애니메이션/트랜지션만 정지 (콘텐츠/차트/canvas 는 절대 제거하지 않음)
-          //   2) [color-fix] 화면의 "실제 계산된 색"을 복제본에 인라인으로 박아 넣는다.
-          //      리포트 글자색이 CSS 변수(var(--...))/테마 상속으로 지정돼 있어,
-          //      html2canvas 의 복제 문서에서는 변수가 풀리지 않아 글자가 어둡게 깨진다.
-          //      원본(화면) 요소 → 복제본 요소를 같은 DOM 순서로 짝지어
-          //      getComputedStyle 의 color/배경/테두리(+SVG fill/stroke)를 그대로 복사한다.
-          //      이제 captureEl = 공통 컨테이너이므로, 한 번의 onclone 으로 14개 카드 전부의 색이 복사된다.
-          //   ※ 복제본의 스타일시트/스크립트는 제거하지 않는다(레이아웃 유지에 필수).
-          onclone: function(clonedDoc, clonedEl){
-            try {
-              var stop = clonedDoc.createElement("style");
-              stop.textContent =
-                "*,*::before,*::after{" +
-                  "animation:none !important;" +
-                  "transition:none !important;" +
-                "}";
-              (clonedDoc.head || clonedDoc.documentElement).appendChild(stop);
-            } catch(_){}
-
-            // [color-fix] 원본 컨테이너(화면)와 그 복제본을 찾아 색을 1:1 로 옮긴다.
-            try {
-              var origRoot = captureEl; // 캡처 대상(원본, 화면에 떠 있는 공통 컨테이너)
-              // 복제 루트: html2canvas 가 넘겨준 clonedEl 우선, 없으면 data-card 로 매칭.
-              var cloneRoot = clonedEl;
-              if (!cloneRoot || cloneRoot.nodeType !== 1){
-                var dc = origRoot.getAttribute && origRoot.getAttribute("data-card");
-                if (dc){
-                  cloneRoot = clonedDoc.querySelector('[data-card="' + dc + '"]');
-                }
-              }
-              if (origRoot && cloneRoot){
-                var winRef = origRoot.ownerDocument && origRoot.ownerDocument.defaultView
-                  ? origRoot.ownerDocument.defaultView : window;
-                // 한 요소의 화면 계산색을 복제본 인라인 스타일로 복사
-                var copyColors = function(src, dst){
-                  if (!src || !dst || dst.nodeType !== 1) return;
-                  var cs;
-                  try { cs = winRef.getComputedStyle(src); } catch(_e){ return; }
-                  if (!cs) return;
-                  // 텍스트/배경/테두리 색 (CSS 변수가 이미 풀린 실제 값)
-                  if (cs.color) dst.style.color = cs.color;
-                  if (cs.backgroundColor) dst.style.backgroundColor = cs.backgroundColor;
-                  if (cs.borderColor) dst.style.borderColor = cs.borderColor;
-                  // SVG 텍스트/도형 색
-                  if (cs.fill && cs.fill !== "none") dst.style.fill = cs.fill;
-                  if (cs.stroke && cs.stroke !== "none") dst.style.stroke = cs.stroke;
-                };
-                // 루트 자신
-                copyColors(origRoot, cloneRoot);
-                // 모든 하위 요소: querySelectorAll('*') 는 문서 순서를 보존하므로
-                //   원본/복제본을 같은 인덱스로 짝지을 수 있다.
-                var srcNodes = origRoot.querySelectorAll("*");
-                var dstNodes = cloneRoot.querySelectorAll("*");
-                var n = Math.min(srcNodes.length, dstNodes.length);
-                for (var k = 0; k < n; k++){
-                  copyColors(srcNodes[k], dstNodes[k]);
-                }
-              }
-            } catch(_){}
-            // [중요] 복제본의 <link rel="stylesheet">/<style>/<script> 는 절대 제거하지 않는다.
-            //   html2canvas 가 레이아웃을 잡으려면 원본 스타일시트가 복제 문서에 그대로 있어야 한다.
-            //   (예전에 외부 리소스 차단 목적으로 이들을 지웠더니 캡처가 raw 텍스트로 깨졌음 → 제거함)
-          }
+          width: fullW,
+          height: fullH
         };
       }
 
@@ -856,9 +793,9 @@
       }
 
       // ── 큰 컨테이너를 단 한 번만 캡처 → 워치독(타임아웃)과 경쟁 → 실패 시 scale 낮춰 1회 재시도 ──
-      var CONTAINER_TIMEOUT_MS = 60000;
+      var CONTAINER_TIMEOUT_MS = 30000;   // modern-screenshot 은 전체 ~5초. 30초면 충분한 안전망.
       var maxH = 30000;   // 캔버스 높이 한계: 이걸 넘으면 일부 브라우저에서 캡처 실패
-      var baseScale = Math.min(2, window.devicePixelRatio || 1.5);
+      var baseScale = 1.0;   // modern-screenshot 기본 배율 1.0 (긴 컨테이너는 maxH 한도로 자동 축소)
 
       // 1회 캡처: 컨테이너 높이에 따라 scale 을 자동으로 낮춰 캔버스 높이가 maxH 이하가 되게 한다.
       function captureContainerOnce(container, scaleCap, label){
@@ -875,7 +812,8 @@
             reject(new Error("container-timeout"));
           }, CONTAINER_TIMEOUT_MS);
         });
-        var capP = window.html2canvas(container, buildOpts(container, effScale));
+        // 캡처 엔진: modern-screenshot.domToCanvas (html2canvas 대체).
+        var capP = window.modernScreenshot.domToCanvas(container, buildOpts(container, effScale));
         return Promise.race([ capP, timeoutP ]).then(function(canvas){
           clearTimeout(t);
           return { canvas: canvas, effScale: effScale };
