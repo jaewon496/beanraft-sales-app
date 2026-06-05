@@ -518,16 +518,52 @@
     }
 
     // 카드 1장 캡처를 타임아웃과 경쟁시킨다. 제한시간을 넘기면 reject → 그 카드는 건너뛴다.
-    // (html2canvas 는 이미지/지도 로드 대기 중 throw 하지 않고 멈추기만 하므로 race 가 필요)
-    var CARD_TIMEOUT_MS = 8000;
+    // (html2canvas 는 이미지/지도/외부 리소스 로드 대기 중 throw 하지 않고 멈추기만 하므로 race 가 필요)
+    // 이벤트 루프는 살아 있으므로 setTimeout 은 반드시 발화한다 → 워치독이 확실히 동작한다.
+    var CARD_TIMEOUT_MS = 12000;
+
+    // html2canvas 가 캡처 도중 멈추면, 복제 작업용으로 body 끝에 붙여둔 iframe/컨테이너가
+    //   문서에 남아 다음 카드 캡처를 방해할 수 있다 → 잔여 흔적을 모두 제거한다.
+    function purgeHtml2canvasArtifacts(){
+      try {
+        var sel = 'iframe.html2canvas-container,' +
+                  '[data-html2canvas-clone],' +
+                  '[data-html2canvas-ignore],' +
+                  'iframe[style*="-10000px"]';
+        var nodes = document.querySelectorAll(sel);
+        for (var i = 0; i < nodes.length; i++){
+          var n = nodes[i];
+          // 캡처 버튼/모달은 data-html2canvas-ignore 없이도 보호 (혹시 모를 오매칭 방지)
+          if (n === btn || n === overlay) continue;
+          if (n.parentNode) n.parentNode.removeChild(n);
+        }
+        // 클래스명이 바뀐 버전 대비: 화면 밖(-10000px)으로 밀어둔 떠돌이 iframe 정리
+        var iframes = document.querySelectorAll("iframe");
+        for (var j = 0; j < iframes.length; j++){
+          var f = iframes[j];
+          var st = (f.getAttribute("style") || "");
+          var cls = (f.className || "");
+          if ((cls.indexOf("html2canvas") !== -1) ||
+              (st.indexOf("-10000px") !== -1 && f.getAttribute("data-bc-keep") == null)){
+            if (f.parentNode) f.parentNode.removeChild(f);
+          }
+        }
+      } catch(_){}
+    }
+
+    // 캡처 1회를 워치독(타임아웃)과 경쟁. 타임아웃이면 잔여 클론을 정리한 뒤 reject.
     function captureWithTimeout(el, opts){
-      var t;
+      var t, settled = false;
       var timeoutP = new Promise(function(_, reject){
-        t = setTimeout(function(){ reject(new Error("card-timeout")); }, CARD_TIMEOUT_MS);
+        t = setTimeout(function(){
+          settled = true;
+          purgeHtml2canvasArtifacts();   // 멈춘 채 남은 클론 iframe 즉시 정리
+          reject(new Error("card-timeout"));
+        }, CARD_TIMEOUT_MS);
       });
       return Promise.race([ window.html2canvas(el, opts), timeoutP ])
         .then(function(canvas){ clearTimeout(t); return canvas; })
-        .catch(function(err){ clearTimeout(t); throw err; });
+        .catch(function(err){ clearTimeout(t); if (settled) purgeHtml2canvasArtifacts(); throw err; });
     }
 
     function openModal(){
@@ -585,6 +621,160 @@
       var skipped = [];     // 시간 초과/실패로 제외된 카드 라벨
       var pageCount = 0;
 
+      // 캡처된 canvas 1장을 그 비율 그대로 PDF 1페이지로 추가
+      function addImagePage(canvas){
+        var imgW = canvas.width, imgH = canvas.height;
+        if (!imgW || !imgH) return false;
+        var orient = imgW >= imgH ? "landscape" : "portrait";
+        if (!pdf){
+          pdf = new JsPDF({ unit:"px", format:[imgW, imgH], orientation:orient, compress:true });
+        } else {
+          pdf.addPage([imgW, imgH], orient);
+        }
+        pdf.setFillColor(bg);
+        pdf.rect(0, 0, imgW, imgH, "F");
+        var imgData = canvas.toDataURL("image/jpeg", 0.92);
+        pdf.addImage(imgData, "JPEG", 0, 0, imgW, imgH, undefined, "FAST");
+        pageCount++;
+        return true;
+      }
+
+      // 두 번 다 실패한 카드는 빈 페이지가 아니라 "캡처 실패" 안내 페이지를 한 장 넣는다.
+      //   (전체 흐름이 14/14 까지 진행되도록 → 페이지 수와 카드 순서가 어긋나지 않게)
+      function addPlaceholderPage(label){
+        // 일반적인 카드 비율(세로)로 안내 페이지를 만든다
+        var W = 900, H = 1200;
+        if (!pdf){
+          pdf = new JsPDF({ unit:"px", format:[W, H], orientation:"portrait", compress:true });
+        } else {
+          pdf.addPage([W, H], "portrait");
+        }
+        pdf.setFillColor(bg);
+        pdf.rect(0, 0, W, H, "F");
+        pdf.setTextColor(236, 236, 239);     // #ECECEF
+        pdf.setFontSize(22);
+        try { pdf.text("이 페이지는 캡처에 실패했습니다", W/2, H/2 - 16, { align:"center" }); } catch(_){
+          pdf.text("이 페이지는 캡처에 실패했습니다", W/2, H/2 - 16);
+        }
+        pdf.setFontSize(15);
+        pdf.setTextColor(154, 154, 163);     // #9A9AA3
+        var name = "(" + (label || "카드") + ")";
+        try { pdf.text(name, W/2, H/2 + 18, { align:"center" }); } catch(_){
+          pdf.text(name, W/2, H/2 + 18);
+        }
+        pageCount++;
+        return true;
+      }
+
+      // 카드 1장 캡처 옵션 생성 (재시도 때 scale 만 낮춰 재사용한다).
+      //   captureEl = 캡처 대상(원본, 화면에 떠 있는 카드), captureScale = 렌더 배율
+      function buildOpts(captureEl, captureScale){
+        return {
+          backgroundColor: bg,
+          scale: captureScale,
+          useCORS: true,
+          allowTaint: true,
+          imageTimeout: 3000,   // 실패/교차출처 이미지가 캡처를 오래 붙잡지 않도록
+          logging: false,
+          foreignObjectRendering: false,
+          removeContainer: true,
+          scrollX: 0,
+          scrollY: -window.scrollY,
+          windowWidth: document.documentElement.clientWidth,
+          // 동기 정지의 원흉이 될 수 있는 요소만 렌더 트리에서 건너뛴다 (CANVAS 제외 금지)
+          ignoreElements: function(node){
+            if (!node || !node.tagName) return false;
+            var tn = node.tagName.toUpperCase();
+            return tn === "IFRAME" || tn === "VIDEO" ||
+                   tn === "EMBED" || tn === "OBJECT";
+          },
+          // 복제본(clone) 처리:
+          //   1) 애니메이션/트랜지션만 정지 (콘텐츠/차트/canvas 는 절대 제거하지 않음)
+          //   2) [color-fix] 화면의 "실제 계산된 색"을 복제본에 인라인으로 박아 넣는다.
+          //      리포트 글자색이 CSS 변수(var(--...))/테마 상속으로 지정돼 있어,
+          //      html2canvas 의 복제 문서에서는 변수가 풀리지 않아 글자가 어둡게 깨진다.
+          //      원본(화면) 요소 → 복제본 요소를 같은 DOM 순서로 짝지어
+          //      getComputedStyle 의 color/배경/테두리(+SVG fill/stroke)를 그대로 복사한다.
+          //   3) [no-external] 복제 문서의 외부 리소스 로딩 요소(외부 CSS/폰트/스크립트)를 제거한다.
+          //      색은 위에서 이미 복사하므로 외부 CSS/폰트를 다시 불러올 필요가 없고,
+          //      클론 iframe 이 외부 요청을 기다리다 영영 멈추는 것을 막는다(=멈춤 원인 차단).
+          onclone: function(clonedDoc, clonedEl){
+            try {
+              var stop = clonedDoc.createElement("style");
+              stop.textContent =
+                "*,*::before,*::after{" +
+                  "animation:none !important;" +
+                  "transition:none !important;" +
+                "}";
+              (clonedDoc.head || clonedDoc.documentElement).appendChild(stop);
+            } catch(_){}
+
+            // [color-fix] 원본 카드(화면)와 그 복제본을 찾아 색을 1:1 로 옮긴다.
+            try {
+              var origRoot = captureEl; // 캡처 대상(원본, 화면에 떠 있는 카드)
+              // 복제 루트: html2canvas 가 넘겨준 clonedEl 우선, 없으면 data-card 로 매칭.
+              var cloneRoot = clonedEl;
+              if (!cloneRoot || cloneRoot.nodeType !== 1){
+                var dc = origRoot.getAttribute && origRoot.getAttribute("data-card");
+                if (dc){
+                  cloneRoot = clonedDoc.querySelector('[data-card="' + dc + '"]');
+                }
+              }
+              if (origRoot && cloneRoot){
+                var winRef = origRoot.ownerDocument && origRoot.ownerDocument.defaultView
+                  ? origRoot.ownerDocument.defaultView : window;
+                // 한 요소의 화면 계산색을 복제본 인라인 스타일로 복사
+                var copyColors = function(src, dst){
+                  if (!src || !dst || dst.nodeType !== 1) return;
+                  var cs;
+                  try { cs = winRef.getComputedStyle(src); } catch(_e){ return; }
+                  if (!cs) return;
+                  // 텍스트/배경/테두리 색 (CSS 변수가 이미 풀린 실제 값)
+                  if (cs.color) dst.style.color = cs.color;
+                  if (cs.backgroundColor) dst.style.backgroundColor = cs.backgroundColor;
+                  if (cs.borderColor) dst.style.borderColor = cs.borderColor;
+                  // SVG 텍스트/도형 색
+                  if (cs.fill && cs.fill !== "none") dst.style.fill = cs.fill;
+                  if (cs.stroke && cs.stroke !== "none") dst.style.stroke = cs.stroke;
+                };
+                // 루트 자신
+                copyColors(origRoot, cloneRoot);
+                // 모든 하위 요소: querySelectorAll('*') 는 문서 순서를 보존하므로
+                //   원본/복제본을 같은 인덱스로 짝지을 수 있다.
+                var srcNodes = origRoot.querySelectorAll("*");
+                var dstNodes = cloneRoot.querySelectorAll("*");
+                var n = Math.min(srcNodes.length, dstNodes.length);
+                for (var k = 0; k < n; k++){
+                  copyColors(srcNodes[k], dstNodes[k]);
+                }
+              }
+            } catch(_){}
+
+            // [no-external] 복제 문서에서 외부 리소스를 불러오는 요소를 모두 제거한다.
+            //   → 클론 iframe 이 외부 CSS/폰트/스크립트 응답을 기다리다 멈추는 것을 차단.
+            //   (computed 색/스타일은 위에서 이미 인라인으로 박아 넣었으므로 표시에 영향 없음)
+            try {
+              var kill = clonedDoc.querySelectorAll(
+                'link[rel="stylesheet"],' +
+                'link[rel="preload"],' +
+                'link[rel="prefetch"],' +
+                'link[rel="dns-prefetch"],' +
+                'link[rel="preconnect"],' +
+                'link[as="font"],' +
+                'link[as="style"],' +
+                'link[type="text/css"],' +
+                'script[src],' +
+                'script'
+              );
+              for (var x = 0; x < kill.length; x++){
+                var node = kill[x];
+                if (node && node.parentNode) node.parentNode.removeChild(node);
+              }
+            } catch(_){}
+          }
+        };
+      }
+
       function finish(){
         btn.classList.remove("bc-cap-hidden");
         overlay.classList.remove("bc-cap-hidden");
@@ -623,117 +813,53 @@
 
         // 보고서는 비동기(Babel) 렌더 + 카운트업/지연 차트가 있으므로,
         //   화면에 들인 뒤 충분히 안정화될 때까지 잠깐 기다린 후 캡처한다.
+        //   [2중 안전장치]
+        //     1차 시도: 원래 화질(scale 1.5~2)로 캡처 (12초 워치독)
+        //     1차 타임아웃/실패 → 잔여 클론 정리 후 scale 1.0 으로 한 번 더 재시도
+        //     2차도 실패 → "캡처 실패" 안내 페이지 한 장 추가하고 계속
+        //   어떤 경우에도 루프는 멈추지 않고 다음 카드로 진행 → 14/14 도달 → pdf.save 보장
+        var firstScale = Math.min(2, window.devicePixelRatio || 1.5);
+        var retryScale = 1.0;
+
+        // 다음 카드로 넘어가기 (진행 카운터는 step() 시작부에서 갱신됨)
+        function advance(){ i++; wait(0).then(step); }
+
+        // 한 번 캡처 시도. 성공하면 onOk(canvas), 실패하면 onFail(err)
+        function tryCapture(scale, onOk, onFail){
+          captureWithTimeout(el, buildOpts(el, scale))
+            .then(function(canvas){ onOk(canvas); })
+            .catch(function(err){ onFail(err); });
+        }
+
         wait(500).then(function(){
-          // 각 카드 캡처를 8초 타임아웃과 경쟁시킨다 → 이미지/지도가 안 떠도 절대 멈추지 않음
-          // [robust-capture] iframe/video/embed/object 만 캡처 대상에서 제외한다.
-          //   이들은 html2canvas 가 메인 스레드를 동기적으로 붙잡고 멈출 수 있다.
-          //   CANVAS(차트)는 절대 제외하지 않는다 → 제외하면 차트가 통째로 빈칸이 된다.
-          return captureWithTimeout(el, {
-            backgroundColor: bg,
-            scale: Math.min(2, window.devicePixelRatio || 1.5),
-            useCORS: true,
-            allowTaint: true,
-            imageTimeout: 2000,   // 실패/교차출처 이미지가 캡처를 오래 붙잡지 않도록
-            logging: false,
-            foreignObjectRendering: false,
-            removeContainer: true,
-            scrollX: 0,
-            scrollY: -window.scrollY,
-            windowWidth: document.documentElement.clientWidth,
-            // 동기 정지의 원흉이 될 수 있는 요소만 렌더 트리에서 건너뛴다 (CANVAS 제외 금지)
-            ignoreElements: function(node){
-              if (!node || !node.tagName) return false;
-              var tn = node.tagName.toUpperCase();
-              return tn === "IFRAME" || tn === "VIDEO" ||
-                     tn === "EMBED" || tn === "OBJECT";
-            },
-            // 복제본(clone) 처리:
-            //   1) 애니메이션/트랜지션만 정지 (콘텐츠/차트/canvas 는 절대 제거하지 않음)
-            //   2) [color-fix] 화면의 "실제 계산된 색"을 복제본에 인라인으로 박아 넣는다.
-            //      리포트 글자색이 CSS 변수(var(--...))/테마 상속으로 지정돼 있어,
-            //      html2canvas 의 복제 문서에서는 변수가 풀리지 않아 글자가 어둡게 깨진다.
-            //      원본(화면) 요소 → 복제본 요소를 같은 DOM 순서로 짝지어
-            //      getComputedStyle 의 color/배경/테두리(+SVG fill/stroke)를 그대로 복사한다.
-            onclone: function(clonedDoc, clonedEl){
-              try {
-                var stop = clonedDoc.createElement("style");
-                stop.textContent =
-                  "*,*::before,*::after{" +
-                    "animation:none !important;" +
-                    "transition:none !important;" +
-                  "}";
-                (clonedDoc.head || clonedDoc.documentElement).appendChild(stop);
-              } catch(_){}
+          // 1차 시도
+          tryCapture(firstScale, function(canvas){
+            if (addImagePage(canvas)){ advance(); return; }
+            // 캔버스가 비어 있으면(0×0) 재시도로
+            firstFailed(new Error("empty-canvas"));
+          }, firstFailed);
 
-              // [color-fix] 원본 카드(화면)와 그 복제본을 찾아 색을 1:1 로 옮긴다.
-              try {
-                var origRoot = el; // 캡처 대상(원본, 화면에 떠 있는 카드)
-                // 복제 루트: html2canvas 가 넘겨준 clonedEl 우선, 없으면 data-card 로 매칭.
-                var cloneRoot = clonedEl;
-                if (!cloneRoot || cloneRoot.nodeType !== 1){
-                  var dc = origRoot.getAttribute && origRoot.getAttribute("data-card");
-                  if (dc){
-                    cloneRoot = clonedDoc.querySelector('[data-card="' + dc + '"]');
-                  }
-                }
-                if (origRoot && cloneRoot){
-                  var winRef = origRoot.ownerDocument && origRoot.ownerDocument.defaultView
-                    ? origRoot.ownerDocument.defaultView : window;
-                  // 한 요소의 화면 계산색을 복제본 인라인 스타일로 복사
-                  var copyColors = function(src, dst){
-                    if (!src || !dst || dst.nodeType !== 1) return;
-                    var cs;
-                    try { cs = winRef.getComputedStyle(src); } catch(_e){ return; }
-                    if (!cs) return;
-                    // 텍스트/배경/테두리 색 (CSS 변수가 이미 풀린 실제 값)
-                    if (cs.color) dst.style.color = cs.color;
-                    if (cs.backgroundColor) dst.style.backgroundColor = cs.backgroundColor;
-                    if (cs.borderColor) dst.style.borderColor = cs.borderColor;
-                    // SVG 텍스트/도형 색
-                    if (cs.fill && cs.fill !== "none") dst.style.fill = cs.fill;
-                    if (cs.stroke && cs.stroke !== "none") dst.style.stroke = cs.stroke;
-                  };
-                  // 루트 자신
-                  copyColors(origRoot, cloneRoot);
-                  // 모든 하위 요소: querySelectorAll('*') 는 문서 순서를 보존하므로
-                  //   원본/복제본을 같은 인덱스로 짝지을 수 있다.
-                  var srcNodes = origRoot.querySelectorAll("*");
-                  var dstNodes = cloneRoot.querySelectorAll("*");
-                  var n = Math.min(srcNodes.length, dstNodes.length);
-                  for (var k = 0; k < n; k++){
-                    copyColors(srcNodes[k], dstNodes[k]);
-                  }
-                }
-              } catch(_){}
-            }
-          });
-        }).then(function(canvas){
-          var imgW = canvas.width, imgH = canvas.height;
-          if (!imgW || !imgH){ skipped.push(card.label); i++; return wait(0).then(step); }
-
-          // 이 카드 캔버스의 픽셀 크기를 그대로 페이지 크기로 쓴다 (단위: px).
-          //   비율이 카드와 100% 같으므로 이미지를 페이지 가득 그려도 왜곡이 없다.
-          var orient = imgW >= imgH ? "landscape" : "portrait";
-          if (!pdf){
-            // 첫 페이지: 이 카드 크기로 문서를 생성
-            pdf = new JsPDF({ unit:"px", format:[imgW, imgH], orientation:orient, compress:true });
-          } else {
-            // 이후 페이지: 각 카드 크기에 맞춘 맞춤 페이지를 추가
-            pdf.addPage([imgW, imgH], orient);
+          // 1차 실패 처리 → 잔여 클론 정리 후 scale 1.0 재시도
+          function firstFailed(err){
+            if (window.console && console.warn) console.warn("[캡처 1차 실패→재시도]", card.label, err);
+            purgeHtml2canvasArtifacts();   // 멈춘 채 남은 클론/iframe 제거 → 다음 시도 보호
+            // 재시도 전 잠깐 양보 (DOM 정리 반영)
+            wait(120).then(function(){
+              tryCapture(retryScale, function(canvas){
+                if (addImagePage(canvas)){ advance(); return; }
+                secondFailed(new Error("empty-canvas-retry"));
+              }, secondFailed);
+            });
           }
-          pdf.setFillColor(bg);
-          pdf.rect(0, 0, imgW, imgH, "F");
-          var imgData = canvas.toDataURL("image/jpeg", 0.92);
-          pdf.addImage(imgData, "JPEG", 0, 0, imgW, imgH, undefined, "FAST");
-          pageCount++;
-          i++;
-          return wait(0).then(step);
-        }).catch(function(err){
-          // 타임아웃/지도/캔버스/iframe 등으로 캡처 실패 → 그 카드만 건너뛰고 다음으로 계속
-          if (window.console && console.warn) console.warn("[캡처 건너뜀]", card.label, err);
-          skipped.push(card.label);
-          i++;
-          wait(0).then(step);
+
+          // 2차(재시도)도 실패 → 안내 placeholder 페이지 한 장 추가하고 계속
+          function secondFailed(err){
+            if (window.console && console.warn) console.warn("[캡처 건너뜀→안내페이지]", card.label, err);
+            purgeHtml2canvasArtifacts();
+            skipped.push(card.label);
+            addPlaceholderPage(card.label);   // 빈 페이지 대신 "캡처 실패" 안내 한 장
+            advance();
+          }
         });
       }
       // 웹폰트가 다 준비된 뒤 캡처를 시작한다 (폰트 미로딩으로 글자가 비거나 깨지는 것 방지).
