@@ -59,10 +59,13 @@
   <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 
   <!-- 리포트 캡처 → PDF 저장 (독립 vanilla JS, React 와 분리) -->
-  <!-- self-hosted: CDN/CSP 의존 제거. window.modernScreenshot / window.jspdf.jsPDF 노출 -->
-  <!-- 캡처 엔진: modern-screenshot (domToCanvas). 색 보정 불필요 + 14배 빠름 -->
+  <!-- self-hosted: CDN/CSP 의존 제거. window.html2canvas(pro) / window.jspdf.jsPDF 노출 -->
+  <!-- 캡처 엔진: html2canvas-pro (window.html2canvas). 도넛 색/글자 충실도 정확, 전체 ~2.5초. -->
+  <!--   로드 순서: 구버전 html2canvas.min.js 보다 뒤에 pro 를 로드해 window.html2canvas 를 덮어쓴다(pro 승). -->
+  <!--   modern-screenshot.js 는 더 이상 캡처에 쓰지 않지만 로드는 남겨둔다(무해). -->
   <script src="modern-screenshot.js"></script>
   <script src="html2canvas.min.js"></script>
+  <script src="html2canvas-pro.min.js"></script>
   <script src="jspdf.umd.min.js"></script>
 
   <script type="text/babel" src="lib/director-anim.jsx"></script>
@@ -257,7 +260,7 @@
        리포트 캡처 → PDF 저장 기능 (React 와 완전 분리된 vanilla JS)
        - 좌상단 고정 흰색 "캡처" 버튼
        - 카드 선택 모달(전체선택 토글 + 카드별 체크박스)
-       - 선택 카드를 modern-screenshot 캡처 → jsPDF 로 카드당 1페이지 PDF 저장
+       - 선택 카드를 html2canvas-pro 캡처 → jsPDF 로 카드당 1페이지 PDF 저장
        - 카드 식별: 리포트 각 섹션의 data-card / data-screen-label 속성
        ============================================================ -->
   <style>
@@ -340,12 +343,11 @@
   (function(){
     "use strict";
 
-    // 라이브러리 로드 확인 (CDN 실패 시 버튼만 안 띄움)
-    //   캡처 엔진을 modern-screenshot 로 교체: window.modernScreenshot.domToCanvas 사용.
+    // 라이브러리 로드 확인 (로드 실패 시 버튼만 안 띄움)
+    //   캡처 엔진: html2canvas-pro → window.html2canvas(함수) 사용.
     function libsReady(){
       var jspdf = window.jspdf || window.jsPDF;
-      var ms = window.modernScreenshot;
-      return ms && typeof ms.domToCanvas === "function" &&
+      return typeof window.html2canvas === "function" &&
              jspdf && (jspdf.jsPDF || jspdf.default || typeof jspdf === "function");
     }
     function getJsPDF(){
@@ -579,11 +581,10 @@
 
     confirmBtn.addEventListener("click", function(){ runCapture(); });
 
-    // ── 새 캡처 방식: 14개 카드를 감싸는 공통 컨테이너를 "단 한 번"만 modern-screenshot 으로 뜬 뒤,
+    // ── 캡처 방식: 14개 카드를 감싸는 공통 컨테이너를 "단 한 번"만 html2canvas-pro 로 뜬 뒤,
     //    그 큰 캔버스를 카드 경계로 잘라 카드당 1페이지 PDF 를 만든다.
     //    (이전엔 카드마다 따로 떠서 폰트/스타일/리소스를 14번 다시 로드 → 5~10분.
-    //     이제 캡처 1회로 끝나 훨씬 빠르다.
-    //     + html2canvas → modern-screenshot 교체로 전체 ~150초 → ~5초, 색 보정도 불필요.)
+    //     이제 캡처 1회로 끝나 훨씬 빠르다. html2canvas-pro 는 전체 ~2.5초 + 도넛 색/글자 충실도 정확.)
 
     // 모든 [data-card] 의 공통 조상(LCA)을 계산한다.
     //   대개 .bc-scroll 한 개지만, DOM 이 바뀌어도 안전하도록 직접 가장 가까운 공통 부모를 찾는다.
@@ -656,15 +657,14 @@
         return true;
       }
 
-      // 캡처 대상(컨테이너) 1회용 modern-screenshot 옵션. (scale 만 재시도 때 낮춰 재사용)
+      // 캡처 대상(컨테이너) 1회용 html2canvas-pro 옵션. (scale 만 재시도 때 낮춰 재사용)
       //   captureEl = 캡처 대상 컨테이너, captureScale = 렌더 배율.
-      //   ※ html2canvas 시절의 onclone 글자색 보정(원본 computed color/background/border/
-      //      fill/stroke 를 복제본에 일일이 복사)은 전부 제거했다.
-      //      modern-screenshot 은 CSS 변수/상속 색을 보정 없이 그대로 정확히 그린다(검증 완료).
-      //   ※ [중요] .bc-scroll 은 overflow-y:auto 인 스크롤 컨테이너라, modern-screenshot 이
-      //      기본으로 쓰는 getBoundingClientRect().height 는 "보이는 뷰포트 높이"뿐이다.
-      //      14장 전체를 떠야 하므로 width/height 를 scrollWidth/scrollHeight 로 명시 지정한다.
-      //      (라이브러리는 width/height 가 주어지면 그 값을 쓰고, 0 일 때만 rect 로 폴백한다.)
+      //   ※ onclone 은 애니메이션/트랜지션만 끈다(도넛 stroke 애니메이션 등 최종상태 보장).
+      //      예전의 "원본 computed color/background/border/fill/stroke 일일이 복사" 보정은 넣지 않는다.
+      //      html2canvas-pro 는 색을 알아서 정확히 그린다(도넛 파란 아크/AI 시그널 글자 확인) — 그게 빠름의 핵심.
+      //   ※ [중요] .bc-scroll 은 overflow-y:auto 인 스크롤 컨테이너라, getBoundingClientRect().height 는
+      //      "보이는 뷰포트 높이"뿐이다. 14장 전체를 떠야 하므로 width/height 를 scrollWidth/scrollHeight 로
+      //      명시 지정한다.
       function buildOpts(captureEl, captureScale){
         var fullW = (captureEl && (captureEl.scrollWidth || captureEl.getBoundingClientRect().width)) || 0;
         var fullH = (captureEl && (captureEl.scrollHeight || captureEl.getBoundingClientRect().height)) || 0;
@@ -672,7 +672,16 @@
           backgroundColor: bg,
           scale: captureScale,
           width: fullW,
-          height: fullH
+          height: fullH,
+          useCORS: true,
+          logging: false,
+          onclone: function(clonedDoc){
+            try {
+              var st = clonedDoc.createElement("style");
+              st.textContent = "*{animation:none !important;transition:none !important;animation-duration:0s !important;}";
+              (clonedDoc.head || clonedDoc.body || clonedDoc.documentElement).appendChild(st);
+            } catch(_){}
+          }
         };
       }
 
@@ -793,9 +802,9 @@
       }
 
       // ── 큰 컨테이너를 단 한 번만 캡처 → 워치독(타임아웃)과 경쟁 → 실패 시 scale 낮춰 1회 재시도 ──
-      var CONTAINER_TIMEOUT_MS = 30000;   // modern-screenshot 은 전체 ~5초. 30초면 충분한 안전망.
+      var CONTAINER_TIMEOUT_MS = 30000;   // html2canvas-pro 는 전체 ~2.5초. 30초면 충분한 안전망.
       var maxH = 30000;   // 캔버스 높이 한계: 이걸 넘으면 일부 브라우저에서 캡처 실패
-      var baseScale = 1.0;   // modern-screenshot 기본 배율 1.0 (긴 컨테이너는 maxH 한도로 자동 축소)
+      var baseScale = 1.0;   // html2canvas-pro 기본 배율 1.0 (긴 컨테이너는 maxH 한도로 자동 축소)
 
       // 1회 캡처: 컨테이너 높이에 따라 scale 을 자동으로 낮춰 캔버스 높이가 maxH 이하가 되게 한다.
       function captureContainerOnce(container, scaleCap, label){
@@ -812,8 +821,8 @@
             reject(new Error("container-timeout"));
           }, CONTAINER_TIMEOUT_MS);
         });
-        // 캡처 엔진: modern-screenshot.domToCanvas (html2canvas 대체).
-        var capP = window.modernScreenshot.domToCanvas(container, buildOpts(container, effScale));
+        // 캡처 엔진: html2canvas-pro → window.html2canvas(컨테이너, 옵션). Promise<canvas> 반환.
+        var capP = window.html2canvas(container, buildOpts(container, effScale));
         return Promise.race([ capP, timeoutP ]).then(function(canvas){
           clearTimeout(t);
           return { canvas: canvas, effScale: effScale };
