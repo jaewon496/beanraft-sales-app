@@ -58,6 +58,11 @@
   <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
   <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 
+  <!-- 리포트 캡처 → PDF 저장 (독립 vanilla JS, React 와 분리) -->
+  <!-- self-hosted: CDN/CSP 의존 제거. window.html2canvas / window.jspdf.jsPDF 노출 -->
+  <script src="html2canvas.min.js"></script>
+  <script src="jspdf.umd.min.js"></script>
+
   <script type="text/babel" src="lib/director-anim.jsx"></script>
   <script type="text/babel" src="lib/shared.jsx"></script>
   <script type="text/babel" src="lib/charts.jsx"></script>
@@ -244,6 +249,499 @@
       );
     }
     ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+  </script>
+
+  <!-- ============================================================
+       리포트 캡처 → PDF 저장 기능 (React 와 완전 분리된 vanilla JS)
+       - 좌상단 고정 흰색 "캡처" 버튼
+       - 카드 선택 모달(전체선택 토글 + 카드별 체크박스)
+       - 선택 카드를 html2canvas 캡처 → jsPDF 로 카드당 1페이지 PDF 저장
+       - 카드 식별: 리포트 각 섹션의 data-card / data-screen-label 속성
+       ============================================================ -->
+  <style>
+    #bc-cap-btn{
+      position:fixed; top:14px; left:14px; z-index:99000;
+      display:inline-flex; align-items:center; gap:6px;
+      padding:8px 12px; border-radius:10px;
+      background:#FFFFFF; color:#191F28;
+      border:1px solid rgba(0,0,0,0.08);
+      box-shadow:0 2px 12px rgba(0,0,0,0.28);
+      font-size:13px; font-weight:700; line-height:1; cursor:pointer;
+      font-family:Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+      -webkit-tap-highlight-color:transparent;
+    }
+    #bc-cap-btn:hover{ background:#F2F4F6; }
+    #bc-cap-btn svg{ display:block; }
+
+    #bc-cap-overlay{
+      position:fixed; inset:0; z-index:99001;
+      background:rgba(0,0,0,0.58);
+      display:none; align-items:center; justify-content:center;
+      padding:16px;
+      font-family:Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+    }
+    #bc-cap-overlay.open{ display:flex; }
+    .bc-cap-panel{
+      width:100%; max-width:400px; max-height:84vh;
+      display:flex; flex-direction:column;
+      background:#16161B; color:#ECECEF;
+      border:1px solid rgba(255,255,255,0.10);
+      border-radius:16px;
+      box-shadow:0 18px 50px rgba(0,0,0,0.55);
+      overflow:hidden;
+    }
+    .bc-cap-head{ padding:16px 18px 12px; border-bottom:1px solid rgba(255,255,255,0.08); }
+    .bc-cap-head h3{ margin:0; font-size:16px; font-weight:800; color:#F4F4F6; }
+    .bc-cap-head p{ margin:4px 0 0; font-size:12px; color:#9A9AA3; line-height:1.5; }
+    .bc-cap-allrow{
+      display:flex; align-items:center; gap:10px;
+      padding:12px 18px; cursor:pointer;
+      border-bottom:1px solid rgba(255,255,255,0.08);
+      user-select:none;
+    }
+    .bc-cap-allrow .bc-cap-alllabel{ font-size:14px; font-weight:700; color:#F4F4F6; }
+    .bc-cap-allrow .bc-cap-allcount{ margin-left:auto; font-size:12px; color:#9A9AA3; }
+    .bc-cap-list{ overflow-y:auto; padding:6px 0; flex:1; }
+    .bc-cap-item{
+      display:flex; align-items:center; gap:10px;
+      width:100%; padding:10px 18px; cursor:pointer; user-select:none;
+    }
+    .bc-cap-item:hover{ background:rgba(255,255,255,0.03); }
+    .bc-cap-item span.bc-cap-lbl{ font-size:14px; color:#ECECEF; line-height:1.4; }
+    .bc-cap-empty{ padding:22px 18px; font-size:13px; color:#9A9AA3; text-align:center; }
+    .bc-cap-chk{
+      width:20px; height:20px; flex-shrink:0; border-radius:6px;
+      display:inline-flex; align-items:center; justify-content:center;
+      border:1px solid rgba(255,255,255,0.25); background:transparent;
+      transition:background .15s, border-color .15s;
+    }
+    .bc-cap-chk.on{ background:#3182F6; border-color:#3182F6; }
+    .bc-cap-chk svg{ display:none; }
+    .bc-cap-chk.on svg{ display:block; }
+    .bc-cap-foot{ display:flex; gap:8px; padding:14px; border-top:1px solid rgba(255,255,255,0.08); }
+    .bc-cap-foot button{
+      border:none; border-radius:10px; font-size:14px; cursor:pointer;
+      font-family:inherit; padding:12px 0;
+    }
+    .bc-cap-cancel{ flex:1; background:rgba(255,255,255,0.06); color:#ECECEF; font-weight:600; }
+    .bc-cap-confirm{ flex:2; background:#3182F6; color:#FFFFFF; font-weight:700; }
+    .bc-cap-foot button:disabled{ opacity:.55; cursor:default; }
+    .bc-cap-progress{ padding:0 18px 4px; }
+    .bc-cap-bar{ height:4px; border-radius:2px; background:rgba(255,255,255,0.08); overflow:hidden; margin-top:8px; }
+    .bc-cap-bar > i{ display:block; height:100%; width:0%; background:#3182F6; transition:width .2s; }
+    .bc-cap-note{ margin:6px 0 0; font-size:12px; color:#9A9AA3; }
+    .bc-cap-err{ margin:8px 0 0; font-size:12px; color:#F87171; line-height:1.5; }
+    .bc-cap-hidden{ visibility:hidden !important; }
+  </style>
+
+  <script>
+  (function(){
+    "use strict";
+
+    // 라이브러리 로드 확인 (CDN 실패 시 버튼만 안 띄움)
+    function libsReady(){
+      var jspdf = window.jspdf || window.jsPDF;
+      return typeof window.html2canvas === "function" && jspdf && (jspdf.jsPDF || jspdf.default || typeof jspdf === "function");
+    }
+    function getJsPDF(){
+      var m = window.jspdf || window.jsPDF;
+      if (!m) return null;
+      return m.jsPDF || m.default || m;
+    }
+
+    function todayStamp(){
+      var d = new Date();
+      var y = d.getFullYear();
+      var mo = String(d.getMonth()+1).padStart(2,"0");
+      var da = String(d.getDate()).padStart(2,"0");
+      return "" + y + mo + da;
+    }
+    function wait(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+
+    // data-screen-label 앞쪽 번호("01".."14") 추출 → 화면 위→아래(=badge) 순 정렬 키
+    function labelOrderKey(el, domIndex){
+      var lab = el.getAttribute("data-screen-label") || "";
+      var m = lab.match(/\d+/);
+      if (m) return parseInt(m[0], 10);
+      // 라벨에 번호가 없으면 DOM 순서로 폴백
+      return 1000 + domIndex;
+    }
+
+    // 현재 DOM 의 카드 수집 (보이는 순서대로 정렬)
+    function collectCards(){
+      var nodes = Array.prototype.slice.call(document.querySelectorAll("[data-card]"));
+      var mapped = nodes.map(function(el, i){
+        return {
+          el: el,
+          id: el.getAttribute("data-card") || String(i+1),
+          label: (el.getAttribute("data-screen-label") || ("카드 " + (i+1))).trim(),
+          ord: labelOrderKey(el, i),
+          dom: i
+        };
+      });
+      mapped.sort(function(a,b){
+        if (a.ord !== b.ord) return a.ord - b.ord;
+        return a.dom - b.dom;
+      });
+      return mapped;
+    }
+
+    // 필터/단일카드 모드면 전체 14장이 DOM 에 없을 수 있음 → "전체 보고서" 클릭해 모두 펼침
+    function ensureAllCardsRendered(){
+      try {
+        var present = document.querySelectorAll("[data-card]").length;
+        if (present >= 14) return Promise.resolve();
+        var cats = document.querySelectorAll(".bc-cat");
+        for (var i=0;i<cats.length;i++){
+          var t = (cats[i].textContent || "");
+          if (t.indexOf("전체 보고서") !== -1){
+            cats[i].click();
+            return wait(260);
+          }
+        }
+      } catch(_){}
+      return Promise.resolve();
+    }
+
+    // ── DOM 빌드 ──
+    var btn = document.createElement("button");
+    btn.id = "bc-cap-btn";
+    btn.type = "button";
+    btn.setAttribute("aria-label", "리포트 캡처");
+    btn.innerHTML =
+      '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+        '<path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.05c.5 0 .96-.27 1.2-.71l.5-.93C9.7 3.9 10.16 3.6 10.7 3.6h2.6c.54 0 1 .3 1.25.76l.5.93c.24.44.7.71 1.2.71h1.05A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5v-8Z" stroke="#191F28" stroke-width="1.6"/>' +
+        '<circle cx="12" cy="12.5" r="3.2" stroke="#191F28" stroke-width="1.6"/>' +
+      '</svg>' +
+      '<span>캡처</span>';
+
+    var overlay = document.createElement("div");
+    overlay.id = "bc-cap-overlay";
+    overlay.innerHTML =
+      '<div class="bc-cap-panel" role="dialog" aria-modal="true">' +
+        '<div class="bc-cap-head">' +
+          '<h3>PDF로 저장할 카드 선택</h3>' +
+          '<p>선택한 카드가 한 장씩 PDF로 저장됩니다</p>' +
+        '</div>' +
+        '<div class="bc-cap-allrow" data-cap-all>' +
+          '<span class="bc-cap-chk" data-cap-allchk>' + checkSvg() + '</span>' +
+          '<span class="bc-cap-alllabel">전체 선택</span>' +
+          '<span class="bc-cap-allcount" data-cap-allcount></span>' +
+        '</div>' +
+        '<div class="bc-cap-list" data-cap-list></div>' +
+        '<div class="bc-cap-progress" data-cap-progress style="display:none;">' +
+          '<div class="bc-cap-bar"><i data-cap-barfill></i></div>' +
+          '<p class="bc-cap-note" data-cap-note>PDF 만드는 중…</p>' +
+        '</div>' +
+        '<p class="bc-cap-err" data-cap-err style="display:none;"></p>' +
+        '<div class="bc-cap-foot">' +
+          '<button type="button" class="bc-cap-cancel" data-cap-cancel>취소</button>' +
+          '<button type="button" class="bc-cap-confirm" data-cap-confirm>PDF 저장</button>' +
+        '</div>' +
+      '</div>';
+
+    function checkSvg(){
+      return '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+             '<path d="M5 12.5l4.5 4.5L19 7.5" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    }
+
+    function mount(){
+      document.body.appendChild(btn);
+      document.body.appendChild(overlay);
+    }
+    if (document.body) mount(); else document.addEventListener("DOMContentLoaded", mount);
+
+    // ── 상태 ──
+    var cards = [];                 // [{el,id,label,...}]
+    var checked = {};               // { id:true }
+    var busy = false;
+
+    var listEl    = overlay.querySelector("[data-cap-list]");
+    var allRow    = overlay.querySelector("[data-cap-all]");
+    var allChk    = overlay.querySelector("[data-cap-allchk]");
+    var allCount  = overlay.querySelector("[data-cap-allcount]");
+    var cancelBtn = overlay.querySelector("[data-cap-cancel]");
+    var confirmBtn= overlay.querySelector("[data-cap-confirm]");
+    var progress  = overlay.querySelector("[data-cap-progress]");
+    var barFill   = overlay.querySelector("[data-cap-barfill]");
+    var noteEl    = overlay.querySelector("[data-cap-note]");
+    var errEl     = overlay.querySelector("[data-cap-err]");
+
+    function allOn(){ return cards.length > 0 && cards.every(function(c){ return checked[c.id]; }); }
+
+    function renderList(){
+      allCount.textContent = cards.length + "개";
+      allChk.className = "bc-cap-chk" + (allOn() ? " on" : "");
+      listEl.innerHTML = "";
+      if (cards.length === 0){
+        var em = document.createElement("p");
+        em.className = "bc-cap-empty";
+        em.textContent = "캡처할 카드를 찾지 못했습니다";
+        listEl.appendChild(em);
+        return;
+      }
+      cards.forEach(function(c){
+        var row = document.createElement("div");
+        row.className = "bc-cap-item";
+        row.innerHTML = '<span class="bc-cap-chk' + (checked[c.id] ? " on" : "") + '">' + checkSvg() + '</span>' +
+                        '<span class="bc-cap-lbl"></span>';
+        row.querySelector(".bc-cap-lbl").textContent = c.label;
+        row.addEventListener("click", function(){
+          if (busy) return;
+          checked[c.id] = !checked[c.id];
+          renderList();
+        });
+        listEl.appendChild(row);
+      });
+    }
+
+    function showErr(msg){
+      if (msg){ errEl.style.display = "block"; errEl.textContent = msg; }
+      else { errEl.style.display = "none"; errEl.textContent = ""; }
+    }
+    function setProgress(pct, text){
+      progress.style.display = "block";
+      barFill.style.width = pct + "%";
+      noteEl.textContent = text || ("PDF 만드는 중… " + pct + "%");
+    }
+    function hideProgress(){ progress.style.display = "none"; barFill.style.width = "0%"; }
+
+    function setBusy(b){
+      busy = b;
+      cancelBtn.disabled = b;
+      confirmBtn.disabled = b;
+      confirmBtn.textContent = b ? "저장 중…" : "PDF 저장";
+    }
+    // 저장 중 버튼 텍스트에 진행 상황 표시: "저장 중… (3/14)"
+    function setBusyProgress(done, total){
+      confirmBtn.textContent = "저장 중… (" + done + "/" + total + ")";
+    }
+
+    // 카드 1장 캡처를 타임아웃과 경쟁시킨다. 제한시간을 넘기면 reject → 그 카드는 건너뛴다.
+    // (html2canvas 는 이미지/지도 로드 대기 중 throw 하지 않고 멈추기만 하므로 race 가 필요)
+    var CARD_TIMEOUT_MS = 8000;
+    function captureWithTimeout(el, opts){
+      var t;
+      var timeoutP = new Promise(function(_, reject){
+        t = setTimeout(function(){ reject(new Error("card-timeout")); }, CARD_TIMEOUT_MS);
+      });
+      return Promise.race([ window.html2canvas(el, opts), timeoutP ])
+        .then(function(canvas){ clearTimeout(t); return canvas; })
+        .catch(function(err){ clearTimeout(t); throw err; });
+    }
+
+    function openModal(){
+      showErr("");
+      hideProgress();
+      setBusy(false);
+      // 전체 14장이 안 떠 있으면 펼친 뒤 수집
+      ensureAllCardsRendered().then(function(){
+        cards = collectCards();
+        checked = {};
+        cards.forEach(function(c){ checked[c.id] = true; });   // 기본 전체 선택
+        renderList();
+        overlay.classList.add("open");
+      });
+    }
+    function closeModal(){ if (!busy) overlay.classList.remove("open"); }
+
+    btn.addEventListener("click", openModal);
+    cancelBtn.addEventListener("click", closeModal);
+    overlay.addEventListener("click", function(e){ if (e.target === overlay) closeModal(); });
+    allRow.addEventListener("click", function(){
+      if (busy) return;
+      var turnOn = !allOn();
+      cards.forEach(function(c){ checked[c.id] = turnOn; });
+      renderList();
+    });
+
+    confirmBtn.addEventListener("click", function(){ runCapture(); });
+
+    function runCapture(){
+      if (busy) return;
+      if (!libsReady()){
+        showErr("PDF 라이브러리를 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.");
+        return;
+      }
+      var selected = cards.filter(function(c){ return checked[c.id]; });
+      if (selected.length === 0){
+        showErr("한 개 이상 선택해 주세요.");
+        return;
+      }
+      showErr("");
+      setBusy(true);
+      setProgress(0, "PDF 만드는 중… 0%");
+
+      // 캡처 중 버튼/모달이 스크린샷에 안 찍히도록 숨김
+      btn.classList.add("bc-cap-hidden");
+      overlay.classList.add("bc-cap-hidden");
+
+      var JsPDF = getJsPDF();
+      // 페이지 크기를 A4 로 고정하지 않는다. 카드(canvas)마다 자기 비율 그대로의
+      //   맞춤 페이지를 만들어 이미지를 페이지 가득 그린다 → 찌그러짐/왜곡 없음.
+      //   pdf 는 첫 카드를 캡처한 뒤(=첫 페이지 크기를 알게 된 뒤) 생성한다.
+      var pdf = null;
+      var bg = "#0a0a0a";   // 리포트 다크 배경
+      var skipped = [];     // 시간 초과/실패로 제외된 카드 라벨
+      var pageCount = 0;
+
+      function finish(){
+        btn.classList.remove("bc-cap-hidden");
+        overlay.classList.remove("bc-cap-hidden");
+        setBusy(false);
+        hideProgress();
+        // 성공한 카드가 한 장도 없으면 다운로드 없이 오류만 표시
+        if (pageCount === 0){
+          showErr("캡처에 실패했습니다. 다시 시도해 주세요.");
+          return;
+        }
+        // 성공한 카드로 PDF 다운로드 (일부가 제외돼도 다운로드는 막지 않음)
+        try { pdf.save("빈크래프트_상권분석_" + todayStamp() + ".pdf"); } catch(e){}
+        if (skipped.length > 0){
+          showErr("일부 카드는 시간 초과로 제외되었습니다: " + skipped.join(", "));
+        } else {
+          overlay.classList.remove("open");
+        }
+      }
+
+      var total = selected.length;
+      var i = 0;
+      function step(){
+        if (i >= total){ finish(); return; }
+        var card = selected[i];
+        var el = card.el;
+        var pct = Math.round((i / total) * 100);
+        setProgress(pct, "PDF 만드는 중… " + pct + "%");
+        // 버튼에도 진행 상황 표시 (카드 캡처 시작 전에 갱신 → 멈춘 듯 보이지 않게)
+        setBusyProgress(i + 1, total);
+
+        if (!el || !document.body.contains(el)){
+          skipped.push(card.label); i++; step(); return;
+        }
+        // 차트/지도 lazy 렌더 안정화를 위해 한 박자 양보
+        try { el.scrollIntoView({ block:"start", behavior:"auto" }); } catch(_){}
+
+        // 보고서는 비동기(Babel) 렌더 + 카운트업/지연 차트가 있으므로,
+        //   화면에 들인 뒤 충분히 안정화될 때까지 잠깐 기다린 후 캡처한다.
+        wait(500).then(function(){
+          // 각 카드 캡처를 8초 타임아웃과 경쟁시킨다 → 이미지/지도가 안 떠도 절대 멈추지 않음
+          // [robust-capture] iframe/video/embed/object 만 캡처 대상에서 제외한다.
+          //   이들은 html2canvas 가 메인 스레드를 동기적으로 붙잡고 멈출 수 있다.
+          //   CANVAS(차트)는 절대 제외하지 않는다 → 제외하면 차트가 통째로 빈칸이 된다.
+          return captureWithTimeout(el, {
+            backgroundColor: bg,
+            scale: Math.min(2, window.devicePixelRatio || 1.5),
+            useCORS: true,
+            allowTaint: true,
+            imageTimeout: 2000,   // 실패/교차출처 이미지가 캡처를 오래 붙잡지 않도록
+            logging: false,
+            foreignObjectRendering: false,
+            removeContainer: true,
+            scrollX: 0,
+            scrollY: -window.scrollY,
+            windowWidth: document.documentElement.clientWidth,
+            // 동기 정지의 원흉이 될 수 있는 요소만 렌더 트리에서 건너뛴다 (CANVAS 제외 금지)
+            ignoreElements: function(node){
+              if (!node || !node.tagName) return false;
+              var tn = node.tagName.toUpperCase();
+              return tn === "IFRAME" || tn === "VIDEO" ||
+                     tn === "EMBED" || tn === "OBJECT";
+            },
+            // 복제본(clone) 처리:
+            //   1) 애니메이션/트랜지션만 정지 (콘텐츠/차트/canvas 는 절대 제거하지 않음)
+            //   2) [color-fix] 화면의 "실제 계산된 색"을 복제본에 인라인으로 박아 넣는다.
+            //      리포트 글자색이 CSS 변수(var(--...))/테마 상속으로 지정돼 있어,
+            //      html2canvas 의 복제 문서에서는 변수가 풀리지 않아 글자가 어둡게 깨진다.
+            //      원본(화면) 요소 → 복제본 요소를 같은 DOM 순서로 짝지어
+            //      getComputedStyle 의 color/배경/테두리(+SVG fill/stroke)를 그대로 복사한다.
+            onclone: function(clonedDoc, clonedEl){
+              try {
+                var stop = clonedDoc.createElement("style");
+                stop.textContent =
+                  "*,*::before,*::after{" +
+                    "animation:none !important;" +
+                    "transition:none !important;" +
+                  "}";
+                (clonedDoc.head || clonedDoc.documentElement).appendChild(stop);
+              } catch(_){}
+
+              // [color-fix] 원본 카드(화면)와 그 복제본을 찾아 색을 1:1 로 옮긴다.
+              try {
+                var origRoot = el; // 캡처 대상(원본, 화면에 떠 있는 카드)
+                // 복제 루트: html2canvas 가 넘겨준 clonedEl 우선, 없으면 data-card 로 매칭.
+                var cloneRoot = clonedEl;
+                if (!cloneRoot || cloneRoot.nodeType !== 1){
+                  var dc = origRoot.getAttribute && origRoot.getAttribute("data-card");
+                  if (dc){
+                    cloneRoot = clonedDoc.querySelector('[data-card="' + dc + '"]');
+                  }
+                }
+                if (origRoot && cloneRoot){
+                  var winRef = origRoot.ownerDocument && origRoot.ownerDocument.defaultView
+                    ? origRoot.ownerDocument.defaultView : window;
+                  // 한 요소의 화면 계산색을 복제본 인라인 스타일로 복사
+                  var copyColors = function(src, dst){
+                    if (!src || !dst || dst.nodeType !== 1) return;
+                    var cs;
+                    try { cs = winRef.getComputedStyle(src); } catch(_e){ return; }
+                    if (!cs) return;
+                    // 텍스트/배경/테두리 색 (CSS 변수가 이미 풀린 실제 값)
+                    if (cs.color) dst.style.color = cs.color;
+                    if (cs.backgroundColor) dst.style.backgroundColor = cs.backgroundColor;
+                    if (cs.borderColor) dst.style.borderColor = cs.borderColor;
+                    // SVG 텍스트/도형 색
+                    if (cs.fill && cs.fill !== "none") dst.style.fill = cs.fill;
+                    if (cs.stroke && cs.stroke !== "none") dst.style.stroke = cs.stroke;
+                  };
+                  // 루트 자신
+                  copyColors(origRoot, cloneRoot);
+                  // 모든 하위 요소: querySelectorAll('*') 는 문서 순서를 보존하므로
+                  //   원본/복제본을 같은 인덱스로 짝지을 수 있다.
+                  var srcNodes = origRoot.querySelectorAll("*");
+                  var dstNodes = cloneRoot.querySelectorAll("*");
+                  var n = Math.min(srcNodes.length, dstNodes.length);
+                  for (var k = 0; k < n; k++){
+                    copyColors(srcNodes[k], dstNodes[k]);
+                  }
+                }
+              } catch(_){}
+            }
+          });
+        }).then(function(canvas){
+          var imgW = canvas.width, imgH = canvas.height;
+          if (!imgW || !imgH){ skipped.push(card.label); i++; return wait(0).then(step); }
+
+          // 이 카드 캔버스의 픽셀 크기를 그대로 페이지 크기로 쓴다 (단위: px).
+          //   비율이 카드와 100% 같으므로 이미지를 페이지 가득 그려도 왜곡이 없다.
+          var orient = imgW >= imgH ? "landscape" : "portrait";
+          if (!pdf){
+            // 첫 페이지: 이 카드 크기로 문서를 생성
+            pdf = new JsPDF({ unit:"px", format:[imgW, imgH], orientation:orient, compress:true });
+          } else {
+            // 이후 페이지: 각 카드 크기에 맞춘 맞춤 페이지를 추가
+            pdf.addPage([imgW, imgH], orient);
+          }
+          pdf.setFillColor(bg);
+          pdf.rect(0, 0, imgW, imgH, "F");
+          var imgData = canvas.toDataURL("image/jpeg", 0.92);
+          pdf.addImage(imgData, "JPEG", 0, 0, imgW, imgH, undefined, "FAST");
+          pageCount++;
+          i++;
+          return wait(0).then(step);
+        }).catch(function(err){
+          // 타임아웃/지도/캔버스/iframe 등으로 캡처 실패 → 그 카드만 건너뛰고 다음으로 계속
+          if (window.console && console.warn) console.warn("[캡처 건너뜀]", card.label, err);
+          skipped.push(card.label);
+          i++;
+          wait(0).then(step);
+        });
+      }
+      // 웹폰트가 다 준비된 뒤 캡처를 시작한다 (폰트 미로딩으로 글자가 비거나 깨지는 것 방지).
+      //   루프 전체에 한 번만 기다린다.
+      var fontsReady = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
+      Promise.resolve(fontsReady).then(step, step);
+    }
+  })();
   </script>
 </body>
 </html>
