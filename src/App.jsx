@@ -13701,12 +13701,13 @@ JSON으로만 응답:
        : '검색 지역의 일반적인 카페 이용층 기준으로 트렌드를 분석하세요.';
 
      // [v17] Grounding OFF 전환: 블로그 본문 30개 (제목+설명) 충분히 사용
+     // [견고화] 프롬프트 경량화로 25초 내 응답 확률↑ (5000→2500자)
      const blogContext = collectedData.apis.naverBlogMenus?.data?.queries
        ?.flatMap(q => (q.items || []))
        .slice(0, 30)
        .map(b => `- ${b.title} :: ${b.description || ''}`)
        .join('\n')
-       .slice(0, 5000) || '';
+       .slice(0, 2500) || '';
 
      // SNS 트렌드 분석용 프롬프트
      // [v20] 검색 유입 경로 우선 추출 → 그 흐름으로 키워드 정리
@@ -13804,7 +13805,7 @@ B. 방문 동기 키워드 (사람들이 왜 오는가)
          [{ role: 'user', parts: [{ text: snsTrendPrompt }] }],
          {
            temperature: 0.5,
-           maxOutputTokens: 4000,
+           maxOutputTokens: 2000, // [견고화] 응답은 4필드뿐 → 2000이면 충분 (4000→2000, 25초 내 응답 확률↑)
            responseMimeType: 'application/json',
            responseSchema: snsResponseSchema,
            thinkingConfig: { thinkingBudget: 0 } // Gemini 2.5 thinking 비활성화 (출력 토큰 확보)
@@ -14030,10 +14031,11 @@ B. 방문 동기 키워드 (사람들이 왜 오는가)
            console.log('[SNS 트렌드 디버그] 응답 끝 300자:', snsText.slice(-300));
          }
        } else {
-         console.warn('[SNS 트렌드] gemini-proxy 응답 실패:', snsResponse.status);
+         console.warn('[SNS 트렌드] gemini-proxy 응답 실패 (status:', snsResponse.status, ') → 빈 값으로 진행. 504/타임아웃이면 일시적 Gemini 지연.');
        }
      } catch (e) {
-       console.warn('[SNS 트렌드] 호출 실패:', e.message);
+       const _reason = e.name === 'AbortError' ? '타임아웃(60초 초과)' : e.message;
+       console.warn('[SNS 트렌드] 호출 실패:', _reason, '→ 빈 값으로 진행.');
      }
 
      // ═══════════════════════════════════════════════════════════════
@@ -14098,7 +14100,7 @@ B. 방문 동기 키워드 (사람들이 왜 오는가)
          [{ role: 'user', parts: [{ text: topShopsPrompt }] }],
          {
            temperature: 0.4,
-           maxOutputTokens: 4000,
+           maxOutputTokens: 1500, // [견고화] 응답은 5줄뿐 → 1500이면 충분 (4000→1500, Grounding 호출 25초 내 응답 확률↑)
            thinkingConfig: { thinkingBudget: 0 } // Gemini 2.5 thinking 비활성화 (출력 토큰 확보)
          },
          AbortSignal.timeout(60000),
@@ -14186,10 +14188,11 @@ B. 방문 동기 키워드 (사람들이 왜 오는가)
            console.warn('[topShops Grounded] 파싱 결과 0개. 응답 앞 300자:', topShopsText.slice(0, 300));
          }
        } else {
-         console.warn('[topShops Grounded] gemini-proxy 응답 실패:', topShopsRes.status);
+         console.warn('[topShops Grounded] gemini-proxy 응답 실패 (status:', topShopsRes.status, ') → topShops 빈 값. 504/타임아웃이면 Grounding 호출 지연.');
        }
      } catch (e) {
-       console.warn('[topShops Grounded] 호출 실패:', e.message);
+       const _reason = e.name === 'AbortError' ? '타임아웃(60초 초과)' : e.message;
+       console.warn('[topShops Grounded] 호출 실패:', _reason, '→ topShops 빈 값.');
      }
 
      // ═══════════════════════════════════════════════════════════════

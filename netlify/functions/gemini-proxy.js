@@ -179,28 +179,57 @@ export async function handler(event) {
         ...(tools && { tools }),
       };
 
-      // 25초 타임아웃 (Netlify 함수 26초 제한 내)
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 25000);
-      
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(requestBody),
-          signal: controller.signal
-        }
-      );
-      
-      clearTimeout(timeoutId);
+      const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
-      const data = await response.text();
-      return { statusCode: response.status, headers, body: data };
+      // ── 전체 실행 예산 24초 (Netlify 함수 26초 제한 내, 재시도 포함해도 초과 금지) ──
+      // 단일 호출 1차 시도 → upstream이 429/503을 "즉시(=fast-fail)" 주면 남은 예산 안에서 1회만 빠르게 재시도.
+      // 타임아웃(AbortError)이나 504 등은 이미 예산을 소진한 것이므로 재시도하지 않는다.
+      const OVERALL_BUDGET_MS = 24000; // 1차 시도 최대 대기 (26초 한도 내 2초 여유)
+      const RETRY_MIN_BUDGET_MS = 3000; // 남은 예산이 이만큼은 있어야 재시도 (없으면 그냥 에러)
+      const startedAt = Date.now();
+
+      const callOnce = async (timeoutMs) => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+          const response = await fetch(GEMINI_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestBody),
+            signal: controller.signal
+          });
+          clearTimeout(timeoutId);
+          const text = await response.text();
+          return { status: response.status, body: text };
+        } finally {
+          clearTimeout(timeoutId);
+        }
+      };
+
+      // 1차 시도
+      let result = await callOnce(OVERALL_BUDGET_MS);
+
+      // upstream 일시 혼잡(429/503)이고 남은 예산이 충분하면 1회만 빠른 재시도
+      if (result.status === 429 || result.status === 503) {
+        const elapsed = Date.now() - startedAt;
+        const remaining = OVERALL_BUDGET_MS - elapsed;
+        if (remaining >= RETRY_MIN_BUDGET_MS) {
+          // 짧은 백오프(남은 예산의 일부, 최대 1초) 후 남은 예산 안에서 재시도
+          const backoff = Math.min(1000, Math.max(0, Math.floor(remaining * 0.15)));
+          if (backoff > 0) await new Promise(r => setTimeout(r, backoff));
+          const retryBudget = OVERALL_BUDGET_MS - (Date.now() - startedAt);
+          if (retryBudget >= 1000) {
+            // 재시도 결과를 채택(성공이면 정상 응답, 여전히 429/503이어도 최신 상태 반환)
+            result = await callOnce(retryBudget);
+          }
+        }
+      }
+
+      return { statusCode: result.status, headers, body: result.body };
     } catch (error) {
       // AbortController 타임아웃 시 더 명확한 에러 메시지
       if (error.name === 'AbortError') {
-        return { statusCode: 504, headers, body: JSON.stringify({ error: 'Gemini API 응답 시간 초과 (25초). 프롬프트를 줄이거나 maxOutputTokens를 낮추세요.' }) };
+        return { statusCode: 504, headers, body: JSON.stringify({ error: 'Gemini API 응답 시간 초과. 프롬프트를 줄이거나 maxOutputTokens를 낮추세요.' }) };
       }
       return { statusCode: 500, headers, body: JSON.stringify({ error: error.message }) };
     }

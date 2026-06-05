@@ -659,8 +659,10 @@
 
       // 캡처 대상(컨테이너) 1회용 html2canvas-pro 옵션. (scale 만 재시도 때 낮춰 재사용)
       //   captureEl = 캡처 대상 컨테이너, captureScale = 렌더 배율.
-      //   ※ onclone 은 애니메이션/트랜지션만 끈다(도넛 stroke 애니메이션 등 최종상태 보장).
-      //      예전의 "원본 computed color/background/border/fill/stroke 일일이 복사" 보정은 넣지 않는다.
+      //   ※ onclone 에서 애니메이션/트랜지션 비활성 스타일을 주입하지 않는다.
+      //      카드1 도넛("카페 비율")은 색 아크를 CSS 애니메이션(stroke-dashoffset)으로 그리는데,
+      //      애니메이션을 끄면 복제본이 시작상태(빈 회색 트랙)로 되돌아가 색 아크가 사라진다.
+      //      캡처는 렌더 수 초 뒤에 일어나 애니메이션이 이미 끝나 있으므로, 끄지 않아도 최종상태가 잡힌다.
       //      html2canvas-pro 는 색을 알아서 정확히 그린다(도넛 파란 아크/AI 시그널 글자 확인) — 그게 빠름의 핵심.
       //   ※ [중요] .bc-scroll 은 overflow-y:auto 인 스크롤 컨테이너라, getBoundingClientRect().height 는
       //      "보이는 뷰포트 높이"뿐이다. 14장 전체를 떠야 하므로 width/height 를 scrollWidth/scrollHeight 로
@@ -674,14 +676,7 @@
           width: fullW,
           height: fullH,
           useCORS: true,
-          logging: false,
-          onclone: function(clonedDoc){
-            try {
-              var st = clonedDoc.createElement("style");
-              st.textContent = "*{animation:none !important;transition:none !important;animation-duration:0s !important;}";
-              (clonedDoc.head || clonedDoc.body || clonedDoc.documentElement).appendChild(st);
-            } catch(_){}
-          }
+          logging: false
         };
       }
 
