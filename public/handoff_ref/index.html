@@ -775,18 +775,69 @@
         };
       }
 
+      // Blob → 임시 <a download> 클릭으로 직접 다운로드 (jsPDF 내부 saveAs 해석에 의존하지 않음).
+      //   pdf.save() 가 (1) 예외를 던지거나 (2) 내부 saveAs 가 no-op 으로 풀려 조용히 아무것도
+      //   안 받아오는 회귀 상황 모두를 막는다. 성공/실패를 콘솔에 반드시 남긴다.
+      function downloadViaBlob(name){
+        try {
+          var blob = pdf.output("blob");
+          var url = (window.URL || window.webkitURL).createObjectURL(blob);
+          var a = document.createElement("a");
+          a.href = url;
+          a.download = name;
+          a.rel = "noopener";
+          a.style.display = "none";
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(function(){
+            try { if (a.parentNode) a.parentNode.removeChild(a); } catch(_){}
+            try { (window.URL || window.webkitURL).revokeObjectURL(url); } catch(_){}
+          }, 40000);
+          console.log("[CAP] saved OK (blob)");
+          return true;
+        } catch (e){
+          console.error("[CAP] blob fallback failed", e);
+          return false;
+        }
+      }
+
       function finish(){
         btn.classList.remove("bc-cap-hidden");
         overlay.classList.remove("bc-cap-hidden");
         setBusy(false);
         hideProgress();
         // 성공한 카드가 한 장도 없으면 다운로드 없이 오류만 표시
-        if (pageCount === 0){
+        if (pageCount === 0 || !pdf){
           showErr("캡처에 실패했습니다. 다시 시도해 주세요.");
           return;
         }
-        // 성공한 카드로 PDF 다운로드 (일부가 제외돼도 다운로드는 막지 않음)
-        try { pdf.save("빈크래프트_상권분석_" + todayStamp() + ".pdf"); } catch(e){}
+
+        // 완주 후 저장은 반드시 1회 호출된다 (이 분기 누락이 회귀 원인이었음).
+        var fileName = "빈크래프트_상권분석_" + todayStamp() + ".pdf";
+        var savedOK = false;
+        try {
+          console.log("[CAP] saving pages=", pdf.getNumberOfPages());
+        } catch(_){}
+
+        // 1차: Blob → <a download> 직접 다운로드 (가장 확실한 경로)
+        savedOK = downloadViaBlob(fileName);
+
+        // 2차(폴백): Blob 경로가 실패하면 jsPDF 기본 save() 를 시도
+        if (!savedOK){
+          try {
+            pdf.save(fileName);
+            console.log("[CAP] saved OK (pdf.save)");
+            savedOK = true;
+          } catch (e){
+            console.error("[CAP] save failed", e);
+          }
+        }
+
+        if (!savedOK){
+          showErr("PDF 저장에 실패했습니다. 새로고침 후 다시 시도해 주세요.");
+          return;
+        }
+
         if (skipped.length > 0){
           showErr("일부 카드는 시간 초과로 제외되었습니다: " + skipped.join(", "));
         } else {
