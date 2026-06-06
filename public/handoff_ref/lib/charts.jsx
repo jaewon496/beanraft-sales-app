@@ -131,9 +131,24 @@ function LineChart({ data, comparison, width = 580, height = 180, yLabels, color
     ? { width: "100%", height: height, viewBox: `0 0 ${width} ${height}`, preserveAspectRatio: "none", style: {display:"block"} }
     : { width, height, viewBox: `0 0 ${width} ${height}` };
 
+  // 면(area) 채움 경로: 데이터 라인 → 베이스라인(차트 하단)까지 닫아 채운다.
+  //   ★ 캡처-안전: 이 fill 은 정적(애니메이션 없음)이라 html2canvas-pro 가 항상 최종 상태로 캡처한다.
+  //     (선 stroke 의 bc-spin-in dashoffset 애니메이션은 캡처에서 사라지지만, 이 면은 남는다 —
+  //      카드 01 미니 면 그래프(Sparkline)의 fill 방식과 동일.)
+  const baseY = height - padB;                 // 차트 영역 하단(베이스라인)
+  const areaPath = `${pathFor(pts)} L${pts[pts.length-1][0]},${baseY} L${pts[0][0]},${baseY} Z`;
+  // SVG 그라데이션 id 는 점/특수문자 불가 → 안전화
+  const areaGradId = "bcLineArea-" + String(id || "x").replace(/[^A-Za-z0-9_-]/g, "_");
+
   return (
     <div data-fx-id={id} style={{position:"relative", width:"100%"}} key={trig}>
       <svg {...svgProps}>
+        <defs>
+          <linearGradient id={areaGradId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stopColor={color} stopOpacity="0.28"/>
+            <stop offset="100%" stopColor={color} stopOpacity="0.02"/>
+          </linearGradient>
+        </defs>
         {ticVals.map((y, i) => {
           const py = yPos(y);
           if (py < padT - 4 || py > height - padB + 4) return null;
@@ -144,6 +159,8 @@ function LineChart({ data, comparison, width = 580, height = 180, yLabels, color
             </g>
           );
         })}
+        {/* 정적 면 채움 (캡처-안전, 애니메이션 없음) — 선 아래에 먼저 그린다 */}
+        <path d={areaPath} fill={`url(#${areaGradId})`} stroke="none"/>
         {Array.isArray(comparison) && comparison.length > 0 && (
           <path d={pathFor(comparison.map((v,i)=>[padL + i*step, yPos(v)]))} fill="none" stroke="#A3A3A3" strokeWidth="1.8" strokeDasharray="5 5" vectorEffect="non-scaling-stroke" opacity="0.7"/>
         )}
