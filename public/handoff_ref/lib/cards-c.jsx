@@ -136,7 +136,7 @@ function Card13({ body = {} }) {
   return (
     <CardShell n="13" id="13"
       title="상권 경쟁 분석"
-      sub="5축 분해 종합 평가 (만점 100)">
+      sub="경쟁력 종합 평가 (100점 만점)">
 
       <div style={{display:"grid", gridTemplateColumns:"320px 1fr", gap:32, alignItems:"center", marginBottom:24, padding:"8px 8px 16px"}}>
         <div style={{display:"flex", justifyContent:"center"}}>
@@ -167,8 +167,8 @@ function Card13({ body = {} }) {
       {/* 5축 분해 */}
       <div className="bc-box" style={{padding:32}}>
         <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:24}}>
-          <div style={{fontSize:20, fontWeight:700, letterSpacing:"-0.01em"}}>5축 분해</div>
-          <div style={{fontSize:14, color:"var(--matte-fg-3)"}}>각 축 점수 합 = 종합 <strong style={{color:"var(--matte-fg)", fontSize:17, marginLeft:4}}>{total}</strong>점</div>
+          <div style={{fontSize:20, fontWeight:700, letterSpacing:"-0.01em"}}>한눈에 보기</div>
+          <div style={{fontSize:14, color:"var(--matte-fg-3)"}}>항목 점수 합 = 종합 <strong style={{color:"var(--matte-fg)", fontSize:17, marginLeft:4}}>{total}</strong>점</div>
         </div>
 
         <window.DrStagger id="c13.axes" delay={140} style={{display:"flex", flexDirection:"column"}}>
@@ -205,7 +205,7 @@ function Card13({ body = {} }) {
         <div className="bc-box" style={{padding:28, border:"1px solid rgba(76, 123, 228,0.35)", background:"linear-gradient(180deg, rgba(76, 123, 228,0.06), transparent 70%)"}}>
           <div style={{display:"flex", alignItems:"baseline", justifyContent:"space-between", marginBottom:18}}>
             <div style={{fontSize:18, fontWeight:700, color:"#4C7BE4", letterSpacing:"-0.01em"}}>강점</div>
-            <div style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:600}}>{strengths.length}개 축</div>
+            <div style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:600}}>{strengths.length}개</div>
           </div>
           {strengths.length > 0 ? (
             <div style={{display:"flex", flexDirection:"column", gap:12}}>
@@ -220,14 +220,14 @@ function Card13({ body = {} }) {
               ))}
             </div>
           ) : (
-            <div style={{fontSize:13, color:"var(--matte-fg-4)", padding:"20px 0"}}>강점 축 없음</div>
+            <div style={{fontSize:13, color:"var(--matte-fg-4)", padding:"20px 0"}}>강점 없음</div>
           )}
         </div>
 
         <div className="bc-box" style={{padding:28}}>
           <div style={{display:"flex", alignItems:"baseline", justifyContent:"space-between", marginBottom:18}}>
             <div style={{fontSize:18, fontWeight:700, letterSpacing:"-0.01em"}}>약점</div>
-            <div style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:600}}>{weaknesses.length}개 축</div>
+            <div style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:600}}>{weaknesses.length}개</div>
           </div>
           {weaknesses.length > 0 ? (
             <div style={{display:"flex", flexDirection:"column", gap:12}}>
@@ -242,7 +242,7 @@ function Card13({ body = {} }) {
               ))}
             </div>
           ) : (
-            <div style={{fontSize:13, color:"var(--matte-fg-4)", padding:"20px 0"}}>약점 축 없음</div>
+            <div style={{fontSize:13, color:"var(--matte-fg-4)", padding:"20px 0"}}>약점 없음</div>
           )}
         </div>
       </div>
@@ -325,7 +325,7 @@ function Card14({ body = {}, onOpenDirector }) {
 
       <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:24}}>
         <div className="bc-box" style={{padding:18, display:"flex", flexDirection:"column", alignItems:"center"}}>
-          <div style={{alignSelf:"stretch", fontSize:15, fontWeight:600, marginBottom:8}}>5축 분포</div>
+          <div style={{alignSelf:"stretch", fontSize:15, fontWeight:600, marginBottom:8}}>한눈에 보기</div>
           {radarAxes.length === 5 && radarValues.some(v => v > 0) ? (
             <Radar
               id="c14.radar"
@@ -335,7 +335,7 @@ function Card14({ body = {}, onOpenDirector }) {
               values={radarValues}
             />
           ) : (
-            <div style={{padding:"60px 0", color:"var(--matte-fg-4)", fontSize:13}}>5축 점수 데이터 수집 중</div>
+            <div style={{padding:"60px 0", color:"var(--matte-fg-4)", fontSize:13}}>점수 데이터 수집 중</div>
           )}
         </div>
 
