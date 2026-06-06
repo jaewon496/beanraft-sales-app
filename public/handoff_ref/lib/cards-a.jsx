@@ -388,7 +388,7 @@ function Card03({ body = {} }) {
         <StatTile id="c3.tile4" tone="lilac" label="순증감"      value={`${netChg > 0 ? '+' : ''}${netChg}`} unit="개"/>
       </div>
 
-      <div style={{display:"grid", gridTemplateColumns:"1.2fr 1fr", gap:16}}>
+      <div style={{display:"grid", gridTemplateColumns:"1.2fr 1fr", gap:16, alignItems:"start"}}>
         {/* 생존율 + 5년전/지금 비교 */}
         <div className="bc-box" style={{padding:24}}>
           <div style={{display:"flex", alignItems:"baseline", gap:8, marginBottom:18}}>
