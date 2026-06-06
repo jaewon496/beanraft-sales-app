@@ -201,14 +201,14 @@ function Card13({ body = {} }) {
       </div>
 
       {/* 강점 / 약점 — 자동 분류 (mock 활용/대응 박스 제거) */}
-      <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginTop:16, alignItems:"start"}}>
-        <div className="bc-box" style={{padding:28, border:"1px solid rgba(76, 123, 228,0.35)", background:"linear-gradient(180deg, rgba(76, 123, 228,0.06), transparent 70%)"}}>
+      <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginTop:16}}>
+        <div className="bc-box" style={{padding:28, border:"1px solid rgba(76, 123, 228,0.35)", background:"linear-gradient(180deg, rgba(76, 123, 228,0.06), transparent 70%)", display:"flex", flexDirection:"column"}}>
           <div style={{display:"flex", alignItems:"baseline", justifyContent:"space-between", marginBottom:18}}>
             <div style={{fontSize:18, fontWeight:700, color:"#4C7BE4", letterSpacing:"-0.01em"}}>강점</div>
             <div style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:600}}>{strengths.length}개</div>
           </div>
           {strengths.length > 0 ? (
-            <div style={{display:"flex", flexDirection:"column", gap:12}}>
+            <div style={{display:"flex", flexDirection:"column", gap:12, flex:1, justifyContent:"space-between"}}>
               {strengths.map(a => (
                 <div key={a.key} style={{padding:"16px 20px", background:"rgba(255,255,255,0.03)", borderRadius:10, border:"1px solid var(--matte-line)"}}>
                   <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:8}}>
@@ -224,13 +224,13 @@ function Card13({ body = {} }) {
           )}
         </div>
 
-        <div className="bc-box" style={{padding:28}}>
+        <div className="bc-box" style={{padding:28, display:"flex", flexDirection:"column"}}>
           <div style={{display:"flex", alignItems:"baseline", justifyContent:"space-between", marginBottom:18}}>
             <div style={{fontSize:18, fontWeight:700, letterSpacing:"-0.01em"}}>약점</div>
             <div style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:600}}>{weaknesses.length}개</div>
           </div>
           {weaknesses.length > 0 ? (
-            <div style={{display:"flex", flexDirection:"column", gap:12}}>
+            <div style={{display:"flex", flexDirection:"column", gap:12, flex:1, justifyContent:"space-between"}}>
               {weaknesses.map(a => (
                 <div key={a.key} style={{padding:"16px 20px", background:"rgba(255,255,255,0.03)", borderRadius:10, border:"1px solid var(--matte-line)"}}>
                   <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:8}}>
@@ -301,7 +301,7 @@ function Card14({ body = {}, onOpenDirector }) {
         </button>
       }>
 
-      <div style={{display:"grid", gridTemplateColumns:"260px 1fr", gap:24, marginBottom:18, alignItems:"start"}}>
+      <div style={{display:"grid", gridTemplateColumns:"260px 1fr", gap:24, marginBottom:18}}>
         <div className="bc-tile tone-blue accent" style={{padding:28, minHeight:180, display:"flex", flexDirection:"column", justifyContent:"space-between"}}>
           <div>
             <div className="label" style={{fontSize:15}}>종합 점수</div>

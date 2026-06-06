@@ -237,7 +237,7 @@ function Card02({ body = {} }) {
         <StatTile id="c2.tile4" tone="cream" label="신규 비율" value={newCustomerPct > 0 ? String(newCustomerPct) : '-'} unit={newCustomerPct > 0 ? '%' : ''} sub={newCustomerPct > 0 && revisitEstimated ? '거주 안정성 기반 추정' : undefined}/>
       </div>
 
-      <div style={{display:"grid", gridTemplateColumns:"1.2fr 1fr", gap:16, alignItems:"start"}}>
+      <div style={{display:"grid", gridTemplateColumns:"1.2fr 1fr", gap:16}}>
         {/* 연령대 + 소득 */}
         <div className="bc-box" style={{padding:24}}>
           <div style={{fontSize:16, fontWeight:600, marginBottom:18}}>연령대 분포</div>
@@ -290,9 +290,9 @@ function Card02({ body = {} }) {
         </div>
 
         {/* 라이프스타일 */}
-        <div className="bc-box" style={{padding:24}}>
+        <div className="bc-box" style={{padding:24, display:"flex", flexDirection:"column"}}>
           <div style={{fontSize:16, fontWeight:600, marginBottom:20}}>라이프스타일 키워드</div>
-          <div style={{display:"flex", flexDirection:"column", gap:16}}>
+          <div style={{display:"flex", flexDirection:"column", gap:16, flex:1, justifyContent:"space-between"}}>
             {[
               ["여성", femaleRatio, femaleKw],
               ["남성", maleRatio, maleKw],
@@ -388,14 +388,14 @@ function Card03({ body = {} }) {
         <StatTile id="c3.tile4" tone="lilac" label="순증감"      value={`${netChg > 0 ? '+' : ''}${netChg}`} unit="개"/>
       </div>
 
-      <div style={{display:"grid", gridTemplateColumns:"1.2fr 1fr", gap:16, alignItems:"start"}}>
+      <div style={{display:"grid", gridTemplateColumns:"1.2fr 1fr", gap:16}}>
         {/* 생존율 + 5년전/지금 비교 */}
-        <div className="bc-box" style={{padding:24}}>
+        <div className="bc-box" style={{padding:24, display:"flex", flexDirection:"column"}}>
           <div style={{display:"flex", alignItems:"baseline", gap:8, marginBottom:18}}>
             <div style={{fontSize:16, fontWeight:600}}>생존율</div>
             {!survRegional && <span style={{fontSize:12, color:"var(--matte-fg-4)", fontWeight:500}}>전국 평균 추정</span>}
           </div>
-          <div style={{display:"flex", flexDirection:"column", gap:14}}>
+          <div style={{display:"flex", flexDirection:"column", gap:14, flex:1, justifyContent:"space-between"}}>
             <BarRow id="c3.g1" label="1년 생존" value={surv1y} max={100} suffix="%"/>
             <BarRow id="c3.g3" label="3년 생존" value={surv3y} max={100} suffix="%" accent/>
             <BarRow id="c3.g5" label="5년 생존" value={surv5y} max={100} suffix="%"/>
@@ -826,7 +826,7 @@ function Card06({ body = {} }) {
         <StatTile id="c6.tile4" tone="cream" label="매출 순위"       value={cafeSalesRank ? String(cafeSalesRank).split(' /')[0] : '-'} delta={prevMonRate ? String(Math.abs(Number(prevMonRate)).toFixed(1)) : undefined} deltaPositive={prevMonRate >= 0}/>
       </div>
 
-      <div style={{display:"grid", gridTemplateColumns:"2fr 1fr", gap:16, alignItems:"start"}}>
+      <div style={{display:"grid", gridTemplateColumns:"2fr 1fr", gap:16}}>
         <div className="bc-box" style={{padding:24}}>
           <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:18}}>
             <div style={{fontSize:16, fontWeight:600}}>매출 추이</div>
@@ -860,10 +860,10 @@ function Card06({ body = {} }) {
           </div>
         </div>
 
-        <div className="bc-box" style={{padding:24}}>
+        <div className="bc-box" style={{padding:24, display:"flex", flexDirection:"column"}}>
           <div style={{fontSize:18, fontWeight:700, marginBottom:20}}>{top5Title}</div>
           {top5Dongs.length > 0 ? (
-            <div style={{display:"flex", flexDirection:"column"}}>
+            <div style={{display:"flex", flexDirection:"column", flex:1, justifyContent:"space-between"}}>
               {top5Dongs.map(([n, v, label], i) => (
                 <div key={i} style={{display:"grid", gridTemplateColumns:"36px 1fr auto", gap:14, alignItems:"center", padding:"14px 0", borderBottom: i<4 ? "1px solid var(--matte-line)" : "none"}}>
                   <span style={{fontSize:15, color:"var(--matte-fg-4)", fontWeight:700, fontVariantNumeric:"tabular-nums"}}>{String(i+1).padStart(2,"0")}</span>

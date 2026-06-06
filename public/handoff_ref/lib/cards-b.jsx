@@ -54,7 +54,7 @@ function Card08({ body = {} }) {
         <StatTile id="c8.tile4" tone="rose"  label="권리금"  value={premiumManwon > 0 ? (premiumManwon >= 10000 ? (premiumManwon / 10000).toFixed(1) : Math.round(premiumManwon).toLocaleString()) : '-'} unit={premiumManwon > 0 ? (premiumManwon >= 10000 ? '억' : '만원') : ''}/>
       </div>
 
-      <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, alignItems:"start"}}>
+      <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16}}>
         <div className="bc-box" style={{padding:18}}>
           <div style={{fontSize:15, fontWeight:600, marginBottom:12}}>임대 시세 4종</div>
           <div className="bc-grid-2" style={{gap:10}}>
@@ -81,13 +81,13 @@ function Card08({ body = {} }) {
           </div>
         </div>
 
-        <div className="bc-box" style={{padding:18}}>
+        <div className="bc-box" style={{padding:18, display:"flex", flexDirection:"column"}}>
           <div style={{fontSize:15, fontWeight:600, marginBottom:12}}>전국 카페 평균</div>
           {kc ? (
             <>
               {/* [2026-05-19] 인테리어비 폴백: interiorAvg 없으면 interiorPerPyeong × avgAreaPyeong, 그것도 없으면 전국 카페 평균(약 5,250만원) */}
               {/* [2026-05-19] 메모리 절대 규칙: "-" 표시 금지 → NULL 박스 자체 숨김 */}
-              <div className="bc-grid-3" style={{gap:8}}>
+              <div className="bc-grid-3" style={{gap:8, flex:1, alignContent:"space-between"}}>
                 {(() => {
                   const _interiorFallback = (kc?.interiorPerPyeong > 0 && kc?.avgAreaPyeong > 0)
                     ? Math.round(kc.interiorPerPyeong * kc.avgAreaPyeong)
