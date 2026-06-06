@@ -13814,8 +13814,23 @@ B. 방문 동기 키워드 (사람들이 왜 오는가)
        );
 
        if (snsResponse.ok) {
-         const snsResult = await snsResponse.json();
+         // TEMP SNS DEBUG: 본문을 text()로 먼저 읽어 원문 확보 후 JSON.parse (정상 파싱 경로 유지)
+         const _snsRawBody = await snsResponse.text();
+         let snsResult = {};
+         let _snsBodyParsedOk = false;
+         try { snsResult = JSON.parse(_snsRawBody); _snsBodyParsedOk = true; } catch (_e) { snsResult = {}; _snsBodyParsedOk = false; }
          const snsText = snsResult.candidates?.[0]?.content?.parts?.[0]?.text || '';
+         // TEMP SNS DEBUG: 응답 받은 직후 흔적 남기기
+         try {
+           window.__snsDebug = window.__snsDebug || {};
+           window.__snsDebug.snsTrend = {
+             httpStatus: snsResponse.status,
+             ok: snsResponse.ok,
+             rawTextFirst2000: (_snsRawBody || '').slice(0, 2000),
+             parsedOk: _snsBodyParsedOk,
+             extractedSummary: { candidateTextLen: snsText.length },
+           };
+         } catch (_e) {}
 
          // [옵션 F] 구분자(@TAG) 패턴 우선 + JSON 폴백
          const extractSnsTrendByDelimiter = (raw) => {
@@ -14024,18 +14039,59 @@ B. 방문 동기 키워드 (사람들이 왜 오는가)
              '검색의도:', (snsContent.searchIntents || []).length,
              '인기키워드:', (snsContent.popularKeywords || []).length,
              '주의키워드:', (snsContent.negativeKeywords || []).length);
+           // TEMP SNS DEBUG: 추출 결과 요약 업데이트
+           try {
+             window.__snsDebug = window.__snsDebug || {};
+             window.__snsDebug.snsTrend = window.__snsDebug.snsTrend || {};
+             window.__snsDebug.snsTrend.parsedOk = true;
+             window.__snsDebug.snsTrend.extractedSummary = {
+               searchIntents: (snsContent.searchIntents || []).length,
+               popularKeywords: (snsContent.popularKeywords || []).length,
+               negativeKeywords: (snsContent.negativeKeywords || []).length,
+               hasSummary: !!snsContent.summary,
+             };
+           } catch (_e) {}
          } catch (e) {
            console.warn('[SNS 트렌드] JSON 파싱 실패:', e.message);
+           // TEMP SNS DEBUG: 내부 파싱 실패 기록
+           try {
+             window.__snsDebug = window.__snsDebug || {};
+             window.__snsDebug.snsTrend = window.__snsDebug.snsTrend || {};
+             window.__snsDebug.snsTrend.parsedOk = false;
+             window.__snsDebug.snsTrend.extractedSummary = { parseError: e.message, candidateTextLen: snsText.length };
+           } catch (_e2) {}
            console.log('[SNS 트렌드 디버그] 응답 길이:', snsText.length);
            console.log('[SNS 트렌드 디버그] 응답 앞 300자:', snsText.substring(0, 300));
            console.log('[SNS 트렌드 디버그] 응답 끝 300자:', snsText.slice(-300));
          }
        } else {
          console.warn('[SNS 트렌드] gemini-proxy 응답 실패 (status:', snsResponse.status, ') → 빈 값으로 진행. 504/타임아웃이면 일시적 Gemini 지연.');
+         // TEMP SNS DEBUG: 비정상 상태코드 기록 (본문도 읽어둠)
+         try {
+           let _errBody = '';
+           try { _errBody = await snsResponse.text(); } catch (_e) {}
+           window.__snsDebug = window.__snsDebug || {};
+           window.__snsDebug.snsTrend = {
+             httpStatus: snsResponse.status,
+             ok: false,
+             rawTextFirst2000: (_errBody || '').slice(0, 2000),
+             parsedOk: false,
+             extractedSummary: { note: 'non-ok response' },
+           };
+         } catch (_e) {}
        }
      } catch (e) {
        const _reason = e.name === 'AbortError' ? '타임아웃(60초 초과)' : e.message;
        console.warn('[SNS 트렌드] 호출 실패:', _reason, '→ 빈 값으로 진행.');
+       // TEMP SNS DEBUG: 예외 발생 기록 (성공/실패 무관 흔적 보장)
+       try {
+         window.__snsDebug = window.__snsDebug || {};
+         if (!window.__snsDebug.snsTrend) {
+           window.__snsDebug.snsTrend = { error: String(e), httpStatus: (typeof snsResponse !== 'undefined' && snsResponse) ? snsResponse.status : null };
+         } else {
+           window.__snsDebug.snsTrend.error = String(e);
+         }
+       } catch (_e) {}
      }
 
      // ═══════════════════════════════════════════════════════════════
@@ -14108,8 +14164,23 @@ B. 방문 동기 키워드 (사람들이 왜 오는가)
        );
 
        if (topShopsRes.ok) {
-         const topShopsResult = await topShopsRes.json();
+         // TEMP SNS DEBUG: 본문을 text()로 먼저 읽어 원문 확보 후 JSON.parse (정상 파싱 경로 유지)
+         const _topRawBody = await topShopsRes.text();
+         let topShopsResult = {};
+         let _topBodyParsedOk = false;
+         try { topShopsResult = JSON.parse(_topRawBody); _topBodyParsedOk = true; } catch (_e) { topShopsResult = {}; _topBodyParsedOk = false; }
          const topShopsText = topShopsResult.candidates?.[0]?.content?.parts?.[0]?.text || '';
+         // TEMP SNS DEBUG: 응답 받은 직후 흔적 남기기
+         try {
+           window.__snsDebug = window.__snsDebug || {};
+           window.__snsDebug.topShops = {
+             httpStatus: topShopsRes.status,
+             ok: topShopsRes.ok,
+             rawTextFirst2000: (_topRawBody || '').slice(0, 2000),
+             parsedOk: _topBodyParsedOk,
+             extractedSummary: { candidateTextLen: topShopsText.length },
+           };
+         } catch (_e) {}
          console.log('[topShops Grounded] 응답 원문 길이:', topShopsText.length);
          console.log('[topShops Grounded] 응답 전체:', topShopsText);
          const cleanText = topShopsText.replace(/\[\d+\]/g, '');
@@ -14187,12 +14258,43 @@ B. 방문 동기 키워드 (사람들이 왜 오는가)
          } else {
            console.warn('[topShops Grounded] 파싱 결과 0개. 응답 앞 300자:', topShopsText.slice(0, 300));
          }
+         // TEMP SNS DEBUG: 추출된 매장 개수 요약 업데이트
+         try {
+           window.__snsDebug = window.__snsDebug || {};
+           window.__snsDebug.topShops = window.__snsDebug.topShops || {};
+           window.__snsDebug.topShops.extractedSummary = {
+             candidateTextLen: topShopsText.length,
+             shopsParsed: topShops.length,
+           };
+         } catch (_e) {}
        } else {
          console.warn('[topShops Grounded] gemini-proxy 응답 실패 (status:', topShopsRes.status, ') → topShops 빈 값. 504/타임아웃이면 Grounding 호출 지연.');
+         // TEMP SNS DEBUG: 비정상 상태코드 기록 (본문도 읽어둠)
+         try {
+           let _errBody = '';
+           try { _errBody = await topShopsRes.text(); } catch (_e) {}
+           window.__snsDebug = window.__snsDebug || {};
+           window.__snsDebug.topShops = {
+             httpStatus: topShopsRes.status,
+             ok: false,
+             rawTextFirst2000: (_errBody || '').slice(0, 2000),
+             parsedOk: false,
+             extractedSummary: { note: 'non-ok response' },
+           };
+         } catch (_e) {}
        }
      } catch (e) {
        const _reason = e.name === 'AbortError' ? '타임아웃(60초 초과)' : e.message;
        console.warn('[topShops Grounded] 호출 실패:', _reason, '→ topShops 빈 값.');
+       // TEMP SNS DEBUG: 예외 발생 기록 (성공/실패 무관 흔적 보장)
+       try {
+         window.__snsDebug = window.__snsDebug || {};
+         if (!window.__snsDebug.topShops) {
+           window.__snsDebug.topShops = { error: String(e), httpStatus: (typeof topShopsRes !== 'undefined' && topShopsRes) ? topShopsRes.status : null };
+         } else {
+           window.__snsDebug.topShops.error = String(e);
+         }
+       } catch (_e) {}
      }
 
      // ═══════════════════════════════════════════════════════════════

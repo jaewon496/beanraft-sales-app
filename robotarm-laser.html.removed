@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>빈크래프트 — AI</title>
+<style>
+  html, body {
+    margin: 0; height: 100%;
+    background: #08080a; overflow: hidden;
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+  #stage { position: fixed; inset: 0; overflow: hidden; background: #08080a; }
+
+  /* ============================================================
+     우리 결과카드 = 화면 하단 박스. 점(도트) 패턴 + 둥근 모서리.
+     보라 테두리 없음. 평소엔 내용이 흐릿(투명도 낮음),
+     마우스를 손전등처럼 올리면 그 자리 내용이 또렷이 드러난다.
+     ============================================================ */
+  #card {
+    position: fixed;
+    left: 4.5vw; right: 4.5vw;
+    top: 50.5vh; bottom: 2.2vh;
+    z-index: 1;
+    border-radius: 22px;
+    overflow: hidden;
+    background:
+      radial-gradient(circle 2px at 21px 21px, rgba(150,165,200,0.16) 0%, rgba(150,165,200,0) 62%),
+      linear-gradient(180deg, #121319 0%, #0d0d12 100%);
+    background-size: 42px 42px, 100% 100%;
+    border: 1px solid rgba(255,255,255,0.045);
+    pointer-events: none;
+  }
+  /* 카드 내용 — 평소 흐릿 / 손전등 자리만 또렷 */
+  .card-fill, .card-flash {
+    position: absolute; inset: 0;
+    display: flex; align-items: flex-start; justify-content: center;
+  }
+  .card-fill  { opacity: 0.10; }                 /* 평소: 거의 안 보임 */
+  .card-flash {
+    opacity: 1;
+    -webkit-mask-image: radial-gradient(circle 300px at var(--mx,-9999px) var(--my,-9999px),
+      #000 0%, #000 52%, rgba(0,0,0,0.35) 78%, transparent 100%);
+    mask-image: radial-gradient(circle 300px at var(--mx,-9999px) var(--my,-9999px),
+      #000 0%, #000 52%, rgba(0,0,0,0.35) 78%, transparent 100%);
+    -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+  }
+
+  /* 결과카드 내용 스타일 */
+  .rc { width: 100%; box-sizing: border-box; padding: 26px 30px; color: #f2f2f4; }
+  .rc-head { display: flex; justify-content: space-between; align-items: flex-start; }
+  .rc-head-l { display: flex; gap: 11px; }
+  .rc-num { font-size: 11px; font-weight: 700; color: #6f6f76; padding-top: 3px; }
+  .rc-title { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
+  .rc-sub { font-size: 12px; color: #84848b; margin-top: 4px; }
+  .rc-btn { font-size: 11.5px; color: #c9c9cf; padding: 6px 12px;
+    border: 1px solid rgba(255,255,255,0.10); border-radius: 8px; }
+  .rc-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 18px; }
+  .rc-tile { background: #1b1c22; border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 11px; padding: 15px 17px; }
+  .rc-lbl { font-size: 11.5px; color: #8a8a90; }
+  .rc-val { font-size: 25px; font-weight: 700; margin-top: 8px; letter-spacing: -0.5px; }
+  .rc-val span { font-size: 13px; font-weight: 600; color: #9a9aa0; }
+  .rc-row2 { display: grid; grid-template-columns: 1.1fr 1fr; gap: 12px; margin-top: 12px; }
+  .rc-panel { background: #15161b; border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 11px; padding: 16px 18px; }
+  .rc-panel-t { font-size: 12.5px; font-weight: 700; color: #e4e4e8; }
+  .rc-grid6 { display: grid; grid-template-columns: repeat(3, 1fr);
+    row-gap: 16px; column-gap: 12px; margin-top: 15px; }
+  .rc-mval { font-size: 19px; font-weight: 700; margin-top: 6px; }
+  .rc-mval span { font-size: 11px; font-weight: 600; color: #9a9aa0; }
+  .rc-donut-wrap { display: flex; align-items: center; gap: 22px; margin-top: 10px; }
+  .rc-donut { width: 116px; height: 116px; border-radius: 50%; flex: none;
+    background: conic-gradient(from -90deg, #3b82f6 0 78%, #e6e7ea 78% 91%, #6b7280 91% 100%);
+    display: flex; align-items: center; justify-content: center; }
+  .rc-donut-c { width: 80px; height: 80px; border-radius: 50%; background: #15161b;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .rc-donut-c b { font-size: 22px; font-weight: 700; }
+  .rc-donut-c span { font-size: 10px; color: #84848b; margin-top: 2px; }
+  .rc-legend { display: flex; flex-direction: column; gap: 11px; font-size: 12.5px; color: #c4c4c9; }
+  .rc-legend div { display: flex; align-items: center; gap: 8px; }
+  .rc-legend i { width: 8px; height: 8px; border-radius: 50%; }
+  .rc-legend b { margin-left: auto; padding-left: 16px; }
+
+  /* 레이저 빔 캔버스 */
+  #laserCanvas { position: fixed; inset: 0; width: 100%; height: 100%;
+    z-index: 2; display: block; pointer-events: none; }
+
+  /* 빈크래프트 로고 — 손과 빛줄기 사이에 떠오름 */
+  #logo {
+    position: fixed; left: 50%; top: 34vh;
+    transform: translate(-50%, -50%) scale(0.92);
+    width: min(380px, 42vw); height: auto;
+    z-index: 3; opacity: 0; pointer-events: none;
+    filter: drop-shadow(0 0 26px rgba(90,150,255,0.45));
+  }
+
+  /* 로봇팔 영상 — 화면합성(screen)으로 검은 배경 제거 */
+  #robotVideo {
+    position: fixed; left: 50%; top: 0;
+    width: 62vw; max-width: 940px; height: auto;
+    z-index: 4; display: block; pointer-events: none;
+    transform: translate(-50%, 60vh);
+    mix-blend-mode: screen;
+    filter: drop-shadow(0 0 46px rgba(150,180,255,0.22)) brightness(1.06) contrast(1.1);
+    -webkit-mask-image: radial-gradient(ellipse 64% 74% at 50% 46%, #000 54%, transparent 90%);
+    mask-image: radial-gradient(ellipse 64% 74% at 50% 46%, #000 54%, transparent 90%);
+  }
+</style>
+</head>
+<body>
+  <div id="stage">
+    <div id="card">
+      <div class="card-fill"></div>
+      <div class="card-flash"></div>
+    </div>
+    <canvas id="laserCanvas"></canvas>
+    <img id="logo" src="logo.png" alt="BEANCRAFT">
+    <video id="robotVideo" muted loop playsinline autoplay preload="auto" disablepictureinpicture>
+      <source src="robotarm_loop.mp4" type="video/mp4">
+    </video>
+  </div>
+
+  <!-- 결과카드 내용 주입 -->
+  <script>
+  (function () {
+    var RC =
+      '<div class="rc">' +
+        '<div class="rc-head">' +
+          '<div class="rc-head-l"><span class="rc-num">01</span>' +
+            '<div><div class="rc-title">상권 분석 리포트</div>' +
+            '<div class="rc-sub">반경 500m 매장 구성과 임대 시세</div></div></div>' +
+          '<span class="rc-btn">지도로 보기</span>' +
+        '</div>' +
+        '<div class="rc-tiles">' +
+          '<div class="rc-tile"><div class="rc-lbl">총 매장</div><div class="rc-val">270 <span>개</span></div></div>' +
+          '<div class="rc-tile"><div class="rc-lbl">프랜차이즈</div><div class="rc-val">36 <span>개</span></div></div>' +
+          '<div class="rc-tile"><div class="rc-lbl">평당 월세</div><div class="rc-val">37 <span>만원</span></div></div>' +
+          '<div class="rc-tile"><div class="rc-lbl">공실률</div><div class="rc-val">17.6 <span>%</span></div></div>' +
+        '</div>' +
+        '<div class="rc-row2">' +
+          '<div class="rc-panel"><div class="rc-panel-t">매장</div><div class="rc-grid6">' +
+            '<div><div class="rc-lbl">카페</div><div class="rc-mval">246 <span>개</span></div></div>' +
+            '<div><div class="rc-lbl">프랜차이즈</div><div class="rc-mval">36 <span>개</span></div></div>' +
+            '<div><div class="rc-lbl">개인 카페</div><div class="rc-mval">210 <span>개</span></div></div>' +
+            '<div><div class="rc-lbl">베이커리</div><div class="rc-mval">24 <span>개</span></div></div>' +
+            '<div><div class="rc-lbl">신규 (1년)</div><div class="rc-mval">3 <span>개</span></div></div>' +
+            '<div><div class="rc-lbl">폐업 (1년)</div><div class="rc-mval">14 <span>개</span></div></div>' +
+          '</div></div>' +
+          '<div class="rc-panel"><div class="rc-panel-t">카페 비율</div><div class="rc-donut-wrap">' +
+            '<div class="rc-donut"><div class="rc-donut-c"><b>246</b><span>카페 매장</span></div></div>' +
+            '<div class="rc-legend">' +
+              '<div><i style="background:#3b82f6"></i>개인 <b>78%</b></div>' +
+              '<div><i style="background:#e6e7ea"></i>프랜차이즈 <b>13%</b></div>' +
+              '<div><i style="background:#6b7280"></i>베이커리 <b>9%</b></div>' +
+            '</div>' +
+          '</div></div>' +
+        '</div>' +
+      '</div>';
+    document.querySelector('.card-fill').innerHTML = RC;
+    document.querySelector('.card-flash').innerHTML = RC;
+  })();
+  </script>
+
+  <!-- 로봇 영상 안정 재생 -->
+  <script>
+  (function () {
+    var video = document.getElementById('robotVideo');
+    video.muted = true; video.defaultMuted = true;
+    video.setAttribute('muted', ''); video.playsInline = true;
+    try { video.load(); } catch (e) {}
+    var kicked = false;
+    function kickPlay() {
+      if (video.readyState >= 2 && !video.paused) { kicked = true; return; }
+      var p = video.play();
+      if (p && p.catch) {
+        p.then(function () { kicked = true; }).catch(function () {
+          var once = function () {
+            video.play().catch(function () {});
+            document.removeEventListener('pointerdown', once);
+            document.removeEventListener('keydown', once);
+          };
+          document.addEventListener('pointerdown', once, { passive: true });
+          document.addEventListener('keydown', once, { passive: true });
+        });
+      }
+    }
+    video.addEventListener('loadedmetadata', kickPlay);
+    video.addEventListener('loadeddata', kickPlay);
+    video.addEventListener('canplay', kickPlay);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) kickPlay(); });
+    var retries = 0;
+    var iv = setInterval(function () {
+      if ((kicked && !video.paused && video.currentTime > 0) || retries >= 6) { clearInterval(iv); return; }
+      retries++;
+      if (video.readyState < 2) { try { video.load(); } catch (e) {} }
+      kickPlay();
+    }, 1500);
+    if (document.readyState === 'complete') kickPlay();
+    else window.addEventListener('load', kickPlay);
+  })();
+  </script>
+
+  <!-- ============================================================
+       합본 연출 — 한 사이클:
+        1) 빛줄기가 위에서 내려옴
+        2) 로봇 손이 카드 하단에서 천천히 올라와 빛줄기와 만남
+        3) 손이 다시 내려가며 멀어지고, 그 사이에 빈크래프트 로고가 떠오름
+       손전등(커서) 효과로 카드 내용이 또렷이 드러남.
+       ============================================================ -->
+  <script>
+  (function () {
+    var canvas = document.getElementById('laserCanvas');
+    var ctx = canvas.getContext('2d');
+    var video = document.getElementById('robotVideo');
+    var logo = document.getElementById('logo');
+    var cardEl = document.getElementById('card');
+    var flash = document.querySelector('.card-flash');
+
+    var DPR = 1, W = 0, H = 0;
+    function resize() {
+      DPR = Math.min(window.devicePixelRatio || 1, 2);
+      W = window.innerWidth; H = window.innerHeight;
+      canvas.width = Math.round(W * DPR);
+      canvas.height = Math.round(H * DPR);
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    }
+    resize();
+    window.addEventListener('resize', resize, { passive: true });
+
+    function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+    function smooth(x) { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); }
+    function lerp(a, b, t) { return a + (b - a) * t; }
+
+    // ---- 연출 타이밍 (한 사이클 = CYCLE 초) ----
+    var CYCLE = 13.0;
+    // 위치 비율 (화면 높이 기준)
+    var MEET_Y   = 0.305;   // 손끝 + 빔끝이 만나는 지점
+    var BEAM_REST_Y = 0.155;// 만나기 전 빔 끝
+    var LOGO_Y   = 0.355;   // 로고 중심
+    // 로봇 영상 세로 이동(px 오프셋) — 손이 카드 아래에서 위로
+    var VY_REST = 0.78;     // 쉴 때(손이 카드 하단)  * H
+    var VY_MEET = 0.04;     // 만날 때(손이 위로)      * H
+
+    // 보간 상태
+    var beamI = 0.2, glowI = 0, mx = -9999, my = -9999, mxS = -9999, myS = -9999;
+
+    // 안개 파티클
+    var fog = [];
+    for (var i = 0; i < 20; i++) {
+      fog.push({ x: (Math.random() - 0.5), y: Math.random(),
+        r: 46 + Math.random() * 110, spd: 0.02 + Math.random() * 0.05,
+        a: 0.03 + Math.random() * 0.05 });
+    }
+
+    var prev = performance.now(), clock = 0;
+
+    function frame(now) {
+      requestAnimationFrame(frame);
+      var dt = Math.min(0.05, Math.max(0.001, (now - prev) / 1000));
+      prev = now;
+      clock += dt;
+      function ease(c, t, tau) { return c + (t - c) * (1 - Math.exp(-dt / tau)); }
+
+      // ---- 사이클 진행도 p (0~1) ----
+      var p = (window.__phase != null) ? window.__phase : ((clock % CYCLE) / CYCLE);
+
+      // 손 상승도: 0=쉼(아래), 1=만남(위)
+      //  rise 0~0.30 → 만남 hold 0.30~0.40 → recede 0.40~0.62 → rest
+      var handRise;
+      if (p < 0.30)      handRise = smooth(p / 0.30);
+      else if (p < 0.40) handRise = 1;
+      else if (p < 0.62) handRise = 1 - smooth((p - 0.40) / 0.22);
+      else               handRise = 0;
+
+      // 빔 도달도: 0=짧음, 1=만남지점까지
+      var beamReach = (p < 0.30) ? smooth(p / 0.30) : 1;
+
+      // 로고 등장: 손이 충분히 내려간 뒤(0.58~) 그 빈 자리에 떠오름
+      var logoO;
+      if (p < 0.58)      logoO = 0;
+      else if (p < 0.76) logoO = smooth((p - 0.58) / 0.18);
+      else if (p < 0.94) logoO = 1;
+      else               logoO = 1 - smooth((p - 0.94) / 0.06);
+
+      // 만남 임팩트(빛 터짐)
+      var impact = smooth(1 - Math.abs(p - 0.35) / 0.09);
+
+      // ---- 로봇 영상 위치 ----
+      var vy = lerp(VY_REST, VY_MEET, handRise) * H;
+      video.style.transform = 'translate(-50%, ' + vy.toFixed(1) + 'px)';
+      var armBright = (1.03 + 0.10 * handRise + 0.10 * impact).toFixed(3);
+      var armDrop = (0.16 + 0.30 * handRise + 0.34 * impact).toFixed(3);
+      video.style.filter =
+        'drop-shadow(0 0 ' + (40 + 46 * handRise) + 'px rgba(150,180,255,' + armDrop + ')) ' +
+        'brightness(' + armBright + ') contrast(1.1)';
+
+      // ---- 로고 ----
+      logo.style.opacity = logoO.toFixed(3);
+      logo.style.transform = 'translate(-50%, -50%) scale(' + (0.92 + 0.08 * logoO).toFixed(3) + ')';
+      logo.style.top = (LOGO_Y * 100).toFixed(2) + 'vh';
+
+      // ---- 손전등(커서) 마스크 ----
+      mxS = ease(mxS, mx, 0.05); myS = ease(myS, my, 0.05);
+      flash.style.setProperty('--mx', mxS.toFixed(1) + 'px');
+      flash.style.setProperty('--my', myS.toFixed(1) + 'px');
+
+      // ============ 레이저 빔 ============
+      var beamX = W * 0.5;
+      var beamTipY = lerp(H * BEAM_REST_Y, H * MEET_Y, beamReach);
+      var topY = -40;
+      var tailY = beamTipY + H * 0.085;
+      var beamH = tailY - topY;
+
+      beamI = ease(beamI, 0.30 + 0.45 * beamReach + 0.25 * impact, 0.32);
+      glowI = ease(glowI, 0.35 + 0.65 * handRise, 0.40);
+      var I = clamp(beamI, 0.2, 0.95);
+
+      ctx.clearRect(0, 0, W, H);
+      ctx.globalCompositeOperation = 'lighter';
+
+      // 안개
+      for (var f = 0; f < fog.length; f++) {
+        var q = fog[f];
+        q.y += q.spd * dt * 7.5;
+        if (q.y > 1) { q.y -= 1; q.x = (Math.random() - 0.5); }
+        var fy = topY + q.y * beamH;
+        var fx = beamX + q.x * (70 + q.y * 38) + Math.sin(clock * 0.6 + f) * 14;
+        var ft = 1 - smooth((fy - beamTipY) / (tailY - beamTipY));
+        var fa = q.a * I * (0.45 + 0.55 * q.y) * ft;
+        if (fa > 0.001) {
+          var fg = ctx.createRadialGradient(fx, fy, 0, fx, fy, q.r);
+          fg.addColorStop(0, 'rgba(150,120,235,' + fa.toFixed(3) + ')');
+          fg.addColorStop(1, 'rgba(150,120,235,0)');
+          ctx.fillStyle = fg;
+          ctx.beginPath(); ctx.arc(fx, fy, q.r, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+
+      // 헤일로
+      var haloW = 180 * (0.8 + 0.4 * I);
+      var hg = ctx.createLinearGradient(beamX - haloW, 0, beamX + haloW, 0);
+      hg.addColorStop(0.0, 'rgba(140,100,235,0)');
+      hg.addColorStop(0.5, 'rgba(165,120,245,' + (0.085 * I).toFixed(3) + ')');
+      hg.addColorStop(1.0, 'rgba(140,100,235,0)');
+      ctx.fillStyle = hg;
+      ctx.fillRect(beamX - haloW, topY, haloW * 2, beamH);
+
+      // 빔 본체 (여러 겹)
+      var layers = [
+        { w: 96, core: 0.11 }, { w: 42, core: 0.24 }, { w: 13, core: 0.62 }
+      ];
+      for (var l = 0; l < layers.length; l++) {
+        var lw = layers[l].w * (0.85 + 0.3 * I);
+        var lg = ctx.createLinearGradient(beamX - lw, 0, beamX + lw, 0);
+        var cA = (layers[l].core * I).toFixed(3);
+        var col = (l === 2) ? '255,248,255' : '200,165,255';
+        lg.addColorStop(0.0, 'rgba(' + col + ',0)');
+        lg.addColorStop(0.5, 'rgba(' + col + ',' + cA + ')');
+        lg.addColorStop(1.0, 'rgba(' + col + ',0)');
+        ctx.fillStyle = lg;
+        ctx.fillRect(beamX - lw, topY, lw * 2, beamH);
+      }
+
+      // 세로 페이드 — 위는 옅게 등장, 끝점에서 또렷, 아래는 사라짐
+      ctx.globalCompositeOperation = 'destination-out';
+      var fv = ctx.createLinearGradient(0, topY, 0, tailY);
+      var pTip = clamp((beamTipY - topY) / beamH, 0, 1);
+      fv.addColorStop(0.00, 'rgba(0,0,0,0.50)');
+      fv.addColorStop(0.18, 'rgba(0,0,0,0.14)');
+      fv.addColorStop(pTip, 'rgba(0,0,0,0.05)');
+      fv.addColorStop(clamp(pTip + 0.12, 0, 1), 'rgba(0,0,0,0.82)');
+      fv.addColorStop(1.00, 'rgba(0,0,0,1)');
+      ctx.fillStyle = fv;
+      ctx.fillRect(0, topY, W, beamH);
+      ctx.globalCompositeOperation = 'lighter';
+
+      // 만남 지점 광원 (손끝 ↔ 빔끝)
+      var pulse = 0.85 + 0.15 * Math.sin(clock * 3.0);
+      var glowS = (0.4 + 0.6 * handRise) * (0.6 + 0.7 * impact);
+      var wr = 250 * (0.6 + 0.5 * I) * pulse * (0.7 + 0.5 * glowS);
+      var wg = ctx.createRadialGradient(beamX, beamTipY, 0, beamX, beamTipY, wr);
+      wg.addColorStop(0.0, 'rgba(225,205,255,' + (0.20 * glowS).toFixed(3) + ')');
+      wg.addColorStop(0.45, 'rgba(170,135,255,' + (0.10 * glowS).toFixed(3) + ')');
+      wg.addColorStop(1.0, 'rgba(150,110,250,0)');
+      ctx.fillStyle = wg;
+      ctx.beginPath(); ctx.arc(beamX, beamTipY, wr, 0, Math.PI * 2); ctx.fill();
+
+      var ir = 110 * (0.6 + 0.6 * I) * pulse * (0.5 + 0.8 * impact);
+      if (ir > 1) {
+        var ig = ctx.createRadialGradient(beamX, beamTipY, 0, beamX, beamTipY, ir);
+        ig.addColorStop(0.0, 'rgba(255,250,255,' + (0.42 * impact).toFixed(3) + ')');
+        ig.addColorStop(0.3, 'rgba(215,180,255,' + (0.22 * impact).toFixed(3) + ')');
+        ig.addColorStop(1.0, 'rgba(180,130,255,0)');
+        ctx.fillStyle = ig;
+        ctx.beginPath(); ctx.arc(beamX, beamTipY, ir, 0, Math.PI * 2); ctx.fill();
+      }
+
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    requestAnimationFrame(frame);
+
+    // 손전등 — 마우스 위치 (카드 박스 기준 좌표로 변환)
+    window.addEventListener('pointermove', function (e) {
+      var r = cardEl.getBoundingClientRect();
+      mx = e.clientX - r.left;
+      my = e.clientY - r.top;
+      if (mxS < -9000) { mxS = mx; myS = my; }
+    }, { passive: true });
+    window.addEventListener('pointerleave', function () {
+      mx = -9999; my = -9999;
+    }, { passive: true });
+  })();
+  </script>
+</body>
+</html>
