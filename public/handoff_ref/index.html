@@ -241,6 +241,10 @@
                   sidebarOpen={sidebarOpen}
                   filterLabel={filterLabel}
                   onClearFilter={clearFilter}
+                  categories={window.GROUPS}
+                  filterCategory={filterCategory}
+                  onCategoryClick={onCategoryClick}
+                  onShowAll={clearFilter}
                 />
                 <div ref={scrollRef} className="bc-scroll">
                   {visibleCardNums.map(renderCard)}
@@ -453,6 +457,9 @@
     }
 
     function mount(){
+      // [캡처 툴바 이동] 좌상단 고정 버튼은 숨긴다(로직/모달은 그대로 둠).
+      //   캡처는 이제 툴바의 카메라 아이콘(window.__bcOpenCapture)으로 연다.
+      btn.style.display = "none";
       document.body.appendChild(btn);
       document.body.appendChild(overlay);
     }
@@ -568,6 +575,9 @@
       });
     }
     function closeModal(){ if (!busy) overlay.classList.remove("open"); }
+
+    // [캡처 툴바 이동] 툴바의 카메라 아이콘에서 호출할 수 있게 전역 노출
+    try { window.__bcOpenCapture = openModal; } catch(e){}
 
     btn.addEventListener("click", openModal);
     cancelBtn.addEventListener("click", closeModal);

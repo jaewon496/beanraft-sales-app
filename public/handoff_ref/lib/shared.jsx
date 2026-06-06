@@ -162,10 +162,138 @@ function Sidebar({ active, onNav, onStartTour, onCategoryClick, onShowAll, filte
 }
 
 /* ============================================================
+   TopBar 보조: 토스트 (하단 중앙 고정, 다크톤, 1.5초)
+   ============================================================ */
+function showToast(msg) {
+  try {
+    const id = "bc-tb-toast";
+    let el = document.getElementById(id);
+    if (el) el.remove();
+    el = document.createElement("div");
+    el.id = id;
+    el.textContent = msg;
+    el.style.cssText = [
+      "position:fixed", "left:50%", "bottom:34px", "transform:translateX(-50%) translateY(8px)",
+      "z-index:99500", "background:rgba(22,22,27,0.96)", "color:#ECECEF",
+      "border:1px solid rgba(255,255,255,0.12)", "border-radius:10px",
+      "padding:10px 16px", "font-size:13px", "font-weight:600",
+      "box-shadow:0 10px 30px rgba(0,0,0,0.45)", "opacity:0",
+      "transition:opacity .18s ease, transform .18s ease", "pointer-events:none",
+      'font-family:Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif'
+    ].join(";");
+    document.body.appendChild(el);
+    requestAnimationFrame(() => {
+      el.style.opacity = "1";
+      el.style.transform = "translateX(-50%) translateY(0)";
+    });
+    setTimeout(() => {
+      el.style.opacity = "0";
+      el.style.transform = "translateX(-50%) translateY(8px)";
+      setTimeout(() => { try { el.remove(); } catch(_){} }, 240);
+    }, 1500);
+  } catch(_){}
+}
+
+/* ============================================================
+   TopBar 보조: 팝오버 (알림·히스토리·필터 공용)
+   - 바깥 클릭 / Esc 로 닫힘. 버튼 아래 우측 정렬.
+   ============================================================ */
+function TbPopover({ open, onClose, children, width = 260 }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose?.(); };
+    const onKey = (e) => { if (e.key === "Escape") onClose?.(); };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open, onClose]);
+  if (!open) return null;
+  return (
+    <div
+      ref={ref}
+      style={{
+        position:"absolute", top:"calc(100% + 8px)", right:0, width,
+        background:"rgba(22,22,27,0.98)", color:"var(--fg, #ECECEF)",
+        border:"1px solid rgba(255,255,255,0.10)", borderRadius:12,
+        boxShadow:"0 18px 50px rgba(0,0,0,0.55)", padding:6, zIndex:99400,
+        maxHeight:340, overflowY:"auto"
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+/* ============================================================
    TopBar
    ============================================================ */
-function TopBar({ address = "", crumbCur = "결과 리포트", onToggleSidebar, sidebarOpen, filterLabel, onClearFilter, radius }) {
+function TopBar({ address = "", crumbCur = "결과 리포트", onToggleSidebar, sidebarOpen, filterLabel, onClearFilter, radius,
+                  categories, filterCategory, onCategoryClick, onShowAll }) {
   const radiusLabel = (typeof radius === "number" && radius > 0) ? `${radius}m` : "500m";
+
+  /* 한 번에 하나의 팝오버만 열림: "notif" | "history" | "filter" | null */
+  const [openPop, setOpenPop] = useState(null);
+  const togglePop = (which) => setOpenPop(prev => (prev === which ? null : which));
+  const closePop = () => setOpenPop(null);
+
+  /* 히스토리: 리포트가 뜰 때마다 현재 주소를 localStorage 에 누적 */
+  const [history, setHistory] = useState([]);
+  const HKEY = "bc_search_history";
+  const readHistory = () => {
+    try {
+      const raw = localStorage.getItem(HKEY);
+      const arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr.filter(x => typeof x === "string" && x.trim()) : [];
+    } catch(_) { return []; }
+  };
+  useEffect(() => {
+    const addr = (typeof address === "string" && address.trim()) ? address.trim() : "";
+    let list = readHistory();
+    if (addr) {
+      list = [addr, ...list.filter(x => x !== addr)].slice(0, 8);
+      try { localStorage.setItem(HKEY, JSON.stringify(list)); } catch(_){}
+    }
+    setHistory(list);
+  }, [address]);
+
+  /* 공유 */
+  const onShare = async () => {
+    const url = (typeof location !== "undefined" && location.href) || "";
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: "빈크래프트 상권분석",
+          text: (address || "") + " 상권 분석 리포트",
+          url
+        });
+      } catch(_) { /* 취소/실패는 조용히 무시 */ }
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      showToast("링크가 복사되었습니다");
+    } catch(_) {
+      showToast("복사하지 못했습니다");
+    }
+  };
+
+  const popItemStyle = {
+    display:"flex", alignItems:"center", gap:8, width:"100%",
+    padding:"9px 12px", borderRadius:8, cursor:"pointer",
+    fontSize:13, color:"var(--fg, #ECECEF)", textAlign:"left",
+    background:"transparent", border:"none", lineHeight:1.5
+  };
+  const popHeadStyle = {
+    padding:"8px 12px 6px", fontSize:12, fontWeight:700,
+    color:"var(--fg-3, #9A9AA3)", letterSpacing:"0.02em"
+  };
+
+  const cats = Array.isArray(categories) ? categories : [];
+
   return (
     <div className="bc-tb">
       <button
@@ -201,10 +329,104 @@ function TopBar({ address = "", crumbCur = "결과 리포트", onToggleSidebar, 
         <span style={{color:"var(--fg-3)"}}>{`· 반경 ${radiusLabel}`}</span>
       </div>
       <div className="bc-tb__spacer"></div>
-      <button className="bc-tb__icon-btn" title="필터"><i className="ph ph-funnel"></i></button>
-      <button className="bc-tb__icon-btn" title="히스토리"><i className="ph ph-clock-counter-clockwise"></i></button>
-      <button className="bc-tb__icon-btn" title="알림"><i className="ph ph-bell"></i></button>
-      <button className="bc-tb__icon-btn" title="공유"><i className="ph ph-share-network"></i></button>
+
+      {/* 캡처: index.html vanilla 캡처 모달 열기 */}
+      <button
+        className="bc-tb__icon-btn"
+        title="리포트 캡처"
+        onClick={() => { try { window.__bcOpenCapture && window.__bcOpenCapture(); } catch(e){} }}
+      >
+        <i className="ph ph-camera"></i>
+      </button>
+
+      {/* 필터 */}
+      <div style={{position:"relative"}}>
+        <button
+          className={"bc-tb__icon-btn" + (filterLabel ? " active" : "")}
+          title="필터"
+          onClick={() => togglePop("filter")}
+        >
+          <i className="ph ph-funnel"></i>
+        </button>
+        <TbPopover open={openPop === "filter"} onClose={closePop} width={240}>
+          <div style={popHeadStyle}>카테고리 필터</div>
+          {filterLabel && (
+            <div style={{padding:"0 12px 6px", fontSize:12, color:"var(--fg-3, #9A9AA3)"}}>
+              현재: <span style={{color:"var(--fg, #ECECEF)", fontWeight:600}}>{filterLabel}</span>
+            </div>
+          )}
+          <button
+            style={{...popItemStyle, fontWeight: !filterLabel ? 700 : 500}}
+            onClick={() => { (onShowAll || onClearFilter)?.(); closePop(); }}
+            onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
+            onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+          >
+            <i className="ph ph-stack" style={{fontSize:15}}></i>
+            전체 보기
+          </button>
+          {cats.map(g => {
+            const isOn = filterCategory === g.id;
+            return (
+              <button
+                key={g.id}
+                style={{...popItemStyle, fontWeight: isOn ? 700 : 500}}
+                onClick={() => { onCategoryClick?.(g.id); closePop(); }}
+                onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
+                onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+              >
+                <i className={"ph " + (g.icon || "ph-folder")} style={{fontSize:15}}></i>
+                <span style={{flex:1}}>{g.label}</span>
+                {isOn && <i className="ph ph-check" style={{fontSize:14, color:"var(--accent, #3182F6)"}}></i>}
+              </button>
+            );
+          })}
+          {cats.length === 0 && (
+            <div style={{padding:"10px 12px", fontSize:13, color:"var(--fg-3, #9A9AA3)"}}>필터 항목이 없습니다</div>
+          )}
+        </TbPopover>
+      </div>
+
+      {/* 히스토리 */}
+      <div style={{position:"relative"}}>
+        <button className="bc-tb__icon-btn" title="히스토리" onClick={() => togglePop("history")}>
+          <i className="ph ph-clock-counter-clockwise"></i>
+        </button>
+        <TbPopover open={openPop === "history"} onClose={closePop} width={260}>
+          <div style={popHeadStyle}>최근 검색한 지역</div>
+          {history.length === 0 && (
+            <div style={{padding:"10px 12px", fontSize:13, color:"var(--fg-3, #9A9AA3)"}}>최근 검색 기록이 없습니다</div>
+          )}
+          {history.map((h, i) => (
+            <div key={i} style={{...popItemStyle, cursor:"default"}}>
+              <i className="ph ph-map-pin" style={{fontSize:15, color:"var(--fg-3, #9A9AA3)"}}></i>
+              <span style={{flex:1, wordBreak:"keep-all"}}>{h}</span>
+            </div>
+          ))}
+        </TbPopover>
+      </div>
+
+      {/* 알림 */}
+      <div style={{position:"relative"}}>
+        <button className="bc-tb__icon-btn" title="알림" onClick={() => togglePop("notif")}>
+          <i className="ph ph-bell"></i>
+        </button>
+        <TbPopover open={openPop === "notif"} onClose={closePop} width={280}>
+          <div style={popHeadStyle}>안내</div>
+          <div style={{padding:"4px 12px 6px", fontSize:13, color:"var(--fg-2, #C7C7CC)", lineHeight:1.6, display:"flex", gap:8}}>
+            <i className="ph ph-info" style={{fontSize:15, color:"var(--fg-3, #9A9AA3)", marginTop:2}}></i>
+            <span>데이터 기준: 검색 시점의 공개 데이터입니다.</span>
+          </div>
+          <div style={{padding:"4px 12px 8px", fontSize:13, color:"var(--fg-2, #C7C7CC)", lineHeight:1.6, display:"flex", gap:8}}>
+            <i className="ph ph-clock" style={{fontSize:15, color:"var(--fg-3, #9A9AA3)", marginTop:2}}></i>
+            <span>신규 오픈 및 폐업 매장은 등록 절차에 따라 반영이 지연될 수 있습니다.</span>
+          </div>
+        </TbPopover>
+      </div>
+
+      {/* 공유 */}
+      <button className="bc-tb__icon-btn" title="공유" onClick={onShare}>
+        <i className="ph ph-share-network"></i>
+      </button>
     </div>
   );
 }
@@ -366,4 +588,4 @@ function Box({ label, value, unit, sub, src, tone }) {
   );
 }
 
-Object.assign(window, { CARDS, GROUPS, CARD_BADGE_MAP, groupOf, CardCtx, Sidebar, TopBar, CardShell, StatTile, CountUp, Box });
+Object.assign(window, { CARDS, GROUPS, CARD_BADGE_MAP, groupOf, CardCtx, Sidebar, TopBar, TbPopover, showToast, CardShell, StatTile, CountUp, Box });

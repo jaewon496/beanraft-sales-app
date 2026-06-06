@@ -585,6 +585,7 @@
   font-size: 16px;
 }
 .bc-tb__icon-btn:hover { background: var(--bg-overlay); color: var(--fg); }
+.bc-tb__icon-btn.active { color: var(--st-brand); border-color: var(--st-brand); }
 
 /* hamburger toggle */
 .bc-tb__hamb {
