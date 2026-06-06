@@ -827,7 +827,7 @@ function Card06({ body = {} }) {
       </div>
 
       <div style={{display:"grid", gridTemplateColumns:"2fr 1fr", gap:16}}>
-        <div className="bc-box" style={{padding:24}}>
+        <div className="bc-box" style={{padding:24, display:"flex", flexDirection:"column"}}>
           <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:18}}>
             <div style={{fontSize:16, fontWeight:600}}>매출 추이</div>
             <div style={{fontSize:13, color:"var(--matte-fg-3)"}}>{lineLabels.length > 0 ? `최근 ${lineLabels.length}개월` : ''}</div>
@@ -845,7 +845,7 @@ function Card06({ body = {} }) {
             <div style={{height:240, display:"flex", alignItems:"center", justifyContent:"center", color:"var(--matte-fg-4)"}}>매출 추이 데이터 수집 중</div>
           )}
 
-          <div style={{marginTop:24, paddingTop:20, borderTop:"1px solid var(--matte-line)", display:"grid", gridTemplateColumns:"repeat(4, 1fr)", gap:14}}>
+          <div style={{marginTop:"auto", paddingTop:20, borderTop:"1px solid var(--matte-line)", display:"grid", gridTemplateColumns:"repeat(4, 1fr)", gap:14}}>
             {[
               ["동 최고", fmtWon(dongMax), false],
               ["동 평균", fmtWon(dongAvg), true],
