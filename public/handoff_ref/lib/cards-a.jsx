@@ -237,7 +237,7 @@ function Card02({ body = {} }) {
         <StatTile id="c2.tile4" tone="cream" label="신규 비율" value={newCustomerPct > 0 ? String(newCustomerPct) : '-'} unit={newCustomerPct > 0 ? '%' : ''} sub={newCustomerPct > 0 && revisitEstimated ? '거주 안정성 기반 추정' : undefined}/>
       </div>
 
-      <div style={{display:"grid", gridTemplateColumns:"1.2fr 1fr", gap:16}}>
+      <div style={{display:"grid", gridTemplateColumns:"1.2fr 1fr", gap:16, alignItems:"start"}}>
         {/* 연령대 + 소득 */}
         <div className="bc-box" style={{padding:24}}>
           <div style={{fontSize:16, fontWeight:600, marginBottom:18}}>연령대 분포</div>
@@ -826,7 +826,7 @@ function Card06({ body = {} }) {
         <StatTile id="c6.tile4" tone="cream" label="매출 순위"       value={cafeSalesRank ? String(cafeSalesRank).split(' /')[0] : '-'} delta={prevMonRate ? String(Math.abs(Number(prevMonRate)).toFixed(1)) : undefined} deltaPositive={prevMonRate >= 0}/>
       </div>
 
-      <div style={{display:"grid", gridTemplateColumns:"2fr 1fr", gap:16}}>
+      <div style={{display:"grid", gridTemplateColumns:"2fr 1fr", gap:16, alignItems:"start"}}>
         <div className="bc-box" style={{padding:24}}>
           <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:18}}>
             <div style={{fontSize:16, fontWeight:600}}>매출 추이</div>
@@ -850,7 +850,7 @@ function Card06({ body = {} }) {
               ["동 최고", fmtWon(dongMax), false],
               ["동 평균", fmtWon(dongAvg), true],
               ["동 최저", fmtWon(dongMin), false],
-              ["YoY 성장", yoyRate ? `${yoyRate > 0 ? '+' : ''}${Number(yoyRate).toFixed(1)}%` : '-', false],
+              ["전년 대비", yoyRate ? `${yoyRate > 0 ? '+' : ''}${Number(yoyRate).toFixed(1)}%` : '-', false],
             ].map(([l, v, acc]) => (
               <div key={l} style={{padding:"14px 16px", background:"rgba(255,255,255,0.03)", borderRadius:10, border:"1px solid var(--matte-line)"}}>
                 <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:6, fontWeight:500}}>{l}</div>

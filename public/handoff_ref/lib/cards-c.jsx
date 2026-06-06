@@ -201,7 +201,7 @@ function Card13({ body = {} }) {
       </div>
 
       {/* 강점 / 약점 — 자동 분류 (mock 활용/대응 박스 제거) */}
-      <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginTop:16}}>
+      <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginTop:16, alignItems:"start"}}>
         <div className="bc-box" style={{padding:28, border:"1px solid rgba(76, 123, 228,0.35)", background:"linear-gradient(180deg, rgba(76, 123, 228,0.06), transparent 70%)"}}>
           <div style={{display:"flex", alignItems:"baseline", justifyContent:"space-between", marginBottom:18}}>
             <div style={{fontSize:18, fontWeight:700, color:"#4C7BE4", letterSpacing:"-0.01em"}}>강점</div>

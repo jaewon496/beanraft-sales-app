@@ -54,7 +54,7 @@ function Card08({ body = {} }) {
         <StatTile id="c8.tile4" tone="rose"  label="권리금"  value={premiumManwon > 0 ? (premiumManwon >= 10000 ? (premiumManwon / 10000).toFixed(1) : Math.round(premiumManwon).toLocaleString()) : '-'} unit={premiumManwon > 0 ? (premiumManwon >= 10000 ? '억' : '만원') : ''}/>
       </div>
 
-      <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16}}>
+      <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, alignItems:"start"}}>
         <div className="bc-box" style={{padding:18}}>
           <div style={{fontSize:15, fontWeight:600, marginBottom:12}}>임대 시세 4종</div>
           <div className="bc-grid-2" style={{gap:10}}>
