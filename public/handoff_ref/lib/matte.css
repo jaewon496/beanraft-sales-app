@@ -577,10 +577,9 @@ html, body { background: var(--matte-bg) !important; }
 .bc-app .bc-card__body > div[style*="grid-template-columns"] {
   align-items: stretch;
 }
-/* 상단 4칸 KPI: 140px 칸에 라벨-값이 벌어져 가운데 비던 것 → 칸 살짝 줄이고 내용 가운데 모으고 값 글자 키워 채움 (값 넘침 없게 30/36px) */
-.bc-app .bc-grid-4 > .bc-tile { min-height: 124px; justify-content: center; }
-.bc-app .bc-grid-4 > .bc-tile .value { font-size: 30px; }
-.bc-app .bc-grid-4 > .bc-tile .value-hero { font-size: 36px; }
+/* 상단 4칸 KPI: 고정 140px라 보조설명 없는 칸(공실률/폐업 등)이 비었음 → 고정높이 풀어 각 줄이 자기 내용 높이에 맞추고(같은 줄끼리는 stretch로 동일높이) 내용을 세로 가운데로. 값 글자는 유지(키우면 611,242명·30대(31%) 등 긴 값이 좁은 칸에서 넘침). */
+.bc-app .bc-grid-4 { align-items: stretch; }
+.bc-app .bc-grid-4 > .bc-tile { min-height: 96px; justify-content: center; }
 .bc-app .bc-box { padding: 22px 24px; }
 
 /* ────────────────────────────────────────────────────
