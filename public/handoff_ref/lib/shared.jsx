@@ -125,7 +125,7 @@ function Sidebar({ active, onNav, onStartTour, onCategoryClick, onShowAll, filte
               <div className="bc-cat-sub">
                 {g.cards.map(n => {
                   const c = CARDS.find(c => c.n === n);
-                  const isActive = active === n;
+                  const isActive = (active === n) && !isAll;
                   return (
                     <div
                       key={n}
