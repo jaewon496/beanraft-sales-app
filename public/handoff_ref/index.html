@@ -334,6 +334,8 @@
     }
     .bc-cap-cancel{ flex:1; background:rgba(255,255,255,0.06); color:#ECECEF; font-weight:600; }
     .bc-cap-confirm{ flex:2; background:#3182F6; color:#FFFFFF; font-weight:700; }
+    /* JPG 저장: PDF 버튼과 톤은 맞추되 보조(외곽선) 스타일로 구분 */
+    .bc-cap-confirm-jpg{ flex:2; background:transparent; color:#3182F6; font-weight:700; box-shadow:inset 0 0 0 1.5px #3182F6; }
     .bc-cap-foot button:disabled{ opacity:.55; cursor:default; }
     .bc-cap-progress{ padding:0 18px 4px; }
     .bc-cap-bar{ height:4px; border-radius:2px; background:rgba(255,255,255,0.08); overflow:hidden; margin-top:8px; }
@@ -448,6 +450,7 @@
         '<div class="bc-cap-foot">' +
           '<button type="button" class="bc-cap-cancel" data-cap-cancel>취소</button>' +
           '<button type="button" class="bc-cap-confirm" data-cap-confirm>PDF 저장</button>' +
+          '<button type="button" class="bc-cap-confirm bc-cap-confirm-jpg" data-cap-confirm-jpg>JPG 저장</button>' +
         '</div>' +
       '</div>';
 
@@ -476,6 +479,7 @@
     var allCount  = overlay.querySelector("[data-cap-allcount]");
     var cancelBtn = overlay.querySelector("[data-cap-cancel]");
     var confirmBtn= overlay.querySelector("[data-cap-confirm]");
+    var confirmJpgBtn = overlay.querySelector("[data-cap-confirm-jpg]");
     var progress  = overlay.querySelector("[data-cap-progress]");
     var barFill   = overlay.querySelector("[data-cap-barfill]");
     var noteEl    = overlay.querySelector("[data-cap-note]");
@@ -520,15 +524,36 @@
     }
     function hideProgress(){ progress.style.display = "none"; barFill.style.width = "0%"; }
 
-    function setBusy(b){
+    // 어떤 저장 경로가 진행 중인지: "pdf" | "jpg" | null. 버튼 텍스트 복구/진행표시 분기에 사용.
+    var busyMode = null;
+    function setBusy(b, mode){
       busy = b;
+      if (b) busyMode = mode || "pdf";
       cancelBtn.disabled = b;
       confirmBtn.disabled = b;
-      confirmBtn.textContent = b ? "저장 중…" : "PDF 저장";
+      if (confirmJpgBtn) confirmJpgBtn.disabled = b;
+      if (b){
+        // 진행 중인 버튼에만 "저장 중…", 나머지는 원래 텍스트 유지
+        if (busyMode === "jpg"){
+          if (confirmJpgBtn) confirmJpgBtn.textContent = "저장 중…";
+        } else {
+          confirmBtn.textContent = "저장 중…";
+        }
+      } else {
+        // 두 버튼 텍스트 모두 원래대로 복구
+        confirmBtn.textContent = "PDF 저장";
+        if (confirmJpgBtn) confirmJpgBtn.textContent = "JPG 저장";
+        busyMode = null;
+      }
     }
-    // 저장 중 버튼 텍스트에 진행 상황 표시: "저장 중… (3/14)"
+    // 저장 중 버튼 텍스트에 진행 상황 표시: "저장 중… (3/14)" (진행 중인 버튼에만)
     function setBusyProgress(done, total){
-      confirmBtn.textContent = "저장 중… (" + done + "/" + total + ")";
+      var txt = "저장 중… (" + done + "/" + total + ")";
+      if (busyMode === "jpg"){
+        if (confirmJpgBtn) confirmJpgBtn.textContent = txt;
+      } else {
+        confirmBtn.textContent = txt;
+      }
     }
 
     // html2canvas 가 캡처 도중 멈추면, 복제 작업용으로 body 끝에 붙여둔 iframe/컨테이너가
@@ -590,6 +615,7 @@
     });
 
     confirmBtn.addEventListener("click", function(){ runCapture(); });
+    if (confirmJpgBtn) confirmJpgBtn.addEventListener("click", function(){ runCaptureJpg(); });
 
     // ── 캡처 방식: 14개 카드를 감싸는 공통 컨테이너를 "단 한 번"만 html2canvas-pro 로 뜬 뒤,
     //    그 큰 캔버스를 카드 경계로 잘라 카드당 1페이지 PDF 를 만든다.
@@ -950,6 +976,290 @@
       // 웹폰트가 다 준비된 뒤 캡처를 시작한다 (폰트 미로딩으로 글자가 비거나 깨지는 것 방지).
       var fontsReady = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
       Promise.resolve(fontsReady).then(startCaptureFlow, startCaptureFlow);
+    }
+
+    // ── JPG 저장 ──────────────────────────────────────────────────────────────
+    //   PDF 와 동일하게: 카드 선택을 존중하고, .bc-scroll 컨테이너를 html2canvas-pro 로 단 한 번만
+    //   떠서(captureContainerOnce) 큰 canvas 를 만든 뒤, 선택된 카드 영역만 잘라 세로로 이어붙여
+    //   "단일 canvas" 를 만든다 → 그 canvas 를 JPEG 로 export 해 한 장으로 저장한다.
+    //   (PDF 의 sliceAndBuild 자르기 로직을 그대로 참고하되, 페이지로 나누지 않고 한 canvas 에 누적한다.)
+    function runCaptureJpg(){
+      if (busy) return;
+      // JPG 는 jsPDF 가 필요 없다 → html2canvas 만 있으면 된다.
+      if (typeof window.html2canvas !== "function"){
+        showErr("캡처 라이브러리를 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.");
+        return;
+      }
+      var selected = cards.filter(function(c){ return checked[c.id]; });
+      if (selected.length === 0){
+        showErr("한 개 이상 선택해 주세요.");
+        return;
+      }
+      showErr("");
+      setBusy(true, "jpg");
+      setProgress(0, "JPG 만드는 중… 0%");
+
+      // 캡처 중 버튼/모달이 스크린샷에 안 찍히도록 숨김
+      btn.classList.add("bc-cap-hidden");
+      overlay.classList.add("bc-cap-hidden");
+
+      var bg = "#0a0a0a";        // 리포트 다크 배경 (PDF 와 동일)
+      var GAP = 16;              // 카드 사이 간격(원본 px). effScale 곱해 캔버스 픽셀로 적용.
+
+      // 캔버스 1회 캡처 옵션 (runCapture 의 buildOpts 와 동일한 트레이드오프: 애니메이션 끄기 + SVG 최종 stroke 복사)
+      var SVG_SHAPE_SEL = "circle,path,ellipse,rect,line,polyline,polygon";
+      var SVG_COPY_PROPS = ["stroke", "strokeDasharray", "strokeDashoffset", "fill", "strokeWidth", "opacity"];
+      function buildOpts(captureEl, captureScale){
+        var fullW = (captureEl && (captureEl.scrollWidth || captureEl.getBoundingClientRect().width)) || 0;
+        var fullH = (captureEl && (captureEl.scrollHeight || captureEl.getBoundingClientRect().height)) || 0;
+        return {
+          backgroundColor: bg,
+          scale: captureScale,
+          width: fullW,
+          height: fullH,
+          useCORS: true,
+          logging: false,
+          onclone: function(clonedDoc, clonedEl){
+            try {
+              try {
+                var st = clonedDoc.createElement("style");
+                st.setAttribute("data-bc-cap-disable-anim", "1");
+                st.appendChild(clonedDoc.createTextNode(
+                  "*{animation:none !important;transition:none !important;animation-duration:0s !important;}"
+                ));
+                (clonedDoc.head || clonedDoc.documentElement || clonedEl).appendChild(st);
+              } catch (e1) {}
+              try {
+                var origRoot = captureEl;
+                if (origRoot && clonedEl) {
+                  var win = (origRoot.ownerDocument && origRoot.ownerDocument.defaultView) || window;
+                  var origShapes  = origRoot.querySelectorAll(SVG_SHAPE_SEL);
+                  var cloneShapes = clonedEl.querySelectorAll(SVG_SHAPE_SEL);
+                  var n = Math.min(origShapes.length, cloneShapes.length);
+                  for (var i = 0; i < n; i++) {
+                    var os = origShapes[i], cs = cloneShapes[i];
+                    if (!os || !cs) continue;
+                    var cssOrig;
+                    try { cssOrig = win.getComputedStyle(os); } catch(_){ cssOrig = null; }
+                    if (!cssOrig) continue;
+                    for (var k = 0; k < SVG_COPY_PROPS.length; k++) {
+                      var prop = SVG_COPY_PROPS[k];
+                      var val = cssOrig[prop];
+                      if (val === undefined || val === null || val === "") continue;
+                      try { cs.style[prop] = val; } catch(_){}
+                    }
+                  }
+                }
+              } catch (e2) {}
+            } catch (eAll) {}
+          }
+        };
+      }
+
+      var CONTAINER_TIMEOUT_MS = 30000;
+      var maxH = 30000;          // 캔버스 높이 한계 (PDF 와 동일 기준)
+      var baseScale = 1.0;
+
+      // 큰 컨테이너 1회 캡처 (PDF 의 captureContainerOnce 와 동일)
+      function captureContainerOnce(container, scaleCap, label){
+        var sh = container.scrollHeight || container.getBoundingClientRect().height || 1;
+        var effScale = Math.min(scaleCap, maxH / sh);
+        if (!isFinite(effScale) || effScale <= 0) effScale = scaleCap;
+        try { console.log("[CAP-JPG] capture container", label, "scrollH=", sh, "effScale=", effScale.toFixed(3)); } catch(_){}
+        var t, timedOut = false;
+        var timeoutP = new Promise(function(_, reject){
+          t = setTimeout(function(){
+            timedOut = true;
+            purgeHtml2canvasArtifacts();
+            reject(new Error("container-timeout"));
+          }, CONTAINER_TIMEOUT_MS);
+        });
+        var capP = window.html2canvas(container, buildOpts(container, effScale));
+        return Promise.race([ capP, timeoutP ]).then(function(canvas){
+          clearTimeout(t);
+          return { canvas: canvas, effScale: effScale };
+        }).catch(function(err){
+          clearTimeout(t);
+          if (timedOut) purgeHtml2canvasArtifacts();
+          throw err;
+        });
+      }
+
+      // 큰 canvas(big)에서 선택된 카드 영역들의 좌표/높이를 계산해 [{srcY, srcH}] 목록으로 만든다.
+      //   (PDF sliceAndBuild 의 좌표 계산과 동일 — 페이지로 나누지 않고 목록만 뽑는다.)
+      function computeSlices(big, container, effScale){
+        var contRect = container.getBoundingClientRect();
+        var bigH = big.height;
+        var out = [];
+        for (var i = 0; i < selected.length; i++){
+          var el = selected[i].el;
+          if (!el || !document.body.contains(el)) continue;
+          var r = el.getBoundingClientRect();
+          var relTop = r.top - contRect.top;
+          var srcY = Math.round(relTop * effScale);
+          var srcH = Math.round(r.height * effScale);
+          if (srcY < 0) { srcH += srcY; srcY = 0; }
+          if (srcY > bigH) continue;
+          if (srcY + srcH > bigH) srcH = bigH - srcY;
+          if (srcH <= 0) continue;
+          out.push({ srcY: srcY, srcH: srcH });
+        }
+        return out;
+      }
+
+      // 선택된 카드 영역들을 세로로 이어붙인 단일 canvas 를 만든다.
+      //   합친 높이가 maxH 를 넘으면 down 배율로 축소해 export 실패를 막는다.
+      function buildStitched(big, slices, gapPx){
+        var bigW = big.width;
+        var total = 0;
+        for (var i = 0; i < slices.length; i++) total += slices[i].srcH;
+        var gaps = slices.length > 0 ? (slices.length - 1) * gapPx : 0;
+        var fullH = total + gaps;
+        // 폭/높이 모두 maxH 한계 안으로 (down ≤ 1)
+        var down = Math.min(1, maxH / Math.max(1, fullH), maxH / Math.max(1, bigW));
+        if (!isFinite(down) || down <= 0) down = 1;
+        var outW = Math.max(1, Math.floor(bigW * down));
+        var outH = Math.max(1, Math.floor(fullH * down));
+        try { console.log("[CAP-JPG] stitch cards=", slices.length, "fullH=", fullH, "down=", down.toFixed(3), "out=", outW + "x" + outH); } catch(_){}
+
+        var out = document.createElement("canvas");
+        out.width = outW;
+        out.height = outH;
+        var ctx = out.getContext("2d");
+        ctx.fillStyle = bg;
+        ctx.fillRect(0, 0, outW, outH);
+
+        var y = 0;     // 원본(축소 전) 기준 누적 y
+        var tot = slices.length;
+        for (var j = 0; j < slices.length; j++){
+          var s = slices[j];
+          var pct = Math.round((j / Math.max(1, tot)) * 100);
+          setProgress(pct, "JPG 저장 중… (" + (j + 1) + "/" + tot + ")");
+          setBusyProgress(j + 1, tot);
+          // big 의 [0, srcY]~[bigW, srcY+srcH] 를 out 의 (0, y*down) 위치에 축소해서 그린다.
+          var dy = Math.round(y * down);
+          var dh = Math.round(s.srcH * down);
+          if (dh <= 0) dh = 1;
+          try {
+            ctx.drawImage(big, 0, s.srcY, bigW, s.srcH, 0, dy, outW, dh);
+          } catch(_){}
+          y += s.srcH + gapPx;
+        }
+        return out;
+      }
+
+      // 합친 canvas 를 JPEG blob 으로 만들어 <a download> 로 저장 (PDF 의 downloadViaBlob 과 동일 방식)
+      function exportJpg(canvas){
+        return new Promise(function(resolve){
+          var done = false;
+          function saveBlob(blob){
+            if (!blob){ resolve(false); return; }
+            try {
+              var url = (window.URL || window.webkitURL).createObjectURL(blob);
+              var name = "빈크래프트_상권분석_" + todayStamp() + ".jpg";
+              var a = document.createElement("a");
+              a.href = url;
+              a.download = name;
+              a.rel = "noopener";
+              a.style.display = "none";
+              document.body.appendChild(a);
+              a.click();
+              setTimeout(function(){
+                try { if (a.parentNode) a.parentNode.removeChild(a); } catch(_){}
+                try { (window.URL || window.webkitURL).revokeObjectURL(url); } catch(_){}
+              }, 40000);
+              console.log("[CAP-JPG] saved OK (blob)");
+              resolve(true);
+            } catch (e){
+              console.error("[CAP-JPG] blob save failed", e);
+              resolve(false);
+            }
+          }
+          try {
+            if (canvas.toBlob){
+              canvas.toBlob(function(blob){ if (!done){ done = true; saveBlob(blob); } }, "image/jpeg", 0.92);
+              // 일부 환경에서 toBlob 콜백이 안 올 때를 대비한 폴백(dataURL)
+              setTimeout(function(){
+                if (done) return;
+                done = true;
+                try {
+                  var dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+                  var bin = atob(dataUrl.split(",")[1]);
+                  var len = bin.length, arr = new Uint8Array(len);
+                  for (var i = 0; i < len; i++) arr[i] = bin.charCodeAt(i);
+                  saveBlob(new Blob([arr], { type: "image/jpeg" }));
+                } catch (e2){ console.error("[CAP-JPG] dataURL fallback failed", e2); resolve(false); }
+              }, 8000);
+            } else {
+              var dataUrl0 = canvas.toDataURL("image/jpeg", 0.92);
+              var bin0 = atob(dataUrl0.split(",")[1]);
+              var len0 = bin0.length, arr0 = new Uint8Array(len0);
+              for (var k = 0; k < len0; k++) arr0[k] = bin0.charCodeAt(k);
+              saveBlob(new Blob([arr0], { type: "image/jpeg" }));
+            }
+          } catch (e){ console.error("[CAP-JPG] export failed", e); resolve(false); }
+        });
+      }
+
+      function finishJpg(){
+        btn.classList.remove("bc-cap-hidden");
+        overlay.classList.remove("bc-cap-hidden");
+        setBusy(false);
+        hideProgress();
+      }
+
+      function failJpg(){
+        purgeHtml2canvasArtifacts();
+        btn.classList.remove("bc-cap-hidden");
+        overlay.classList.remove("bc-cap-hidden");
+        setBusy(false);
+        hideProgress();
+        showErr("JPG 저장에 실패했습니다. 다시 시도해 주세요.");
+      }
+
+      function buildAndExport(big, container, effScale){
+        var slices = computeSlices(big, container, effScale);
+        if (slices.length === 0){ failJpg(); return; }
+        var stitched = buildStitched(big, slices, Math.round(GAP * effScale));
+        if (!stitched || !stitched.width || !stitched.height){ failJpg(); return; }
+        setProgress(95, "JPG 저장 중…");
+        exportJpg(stitched).then(function(ok){
+          // 메모리 회수 힌트
+          try { stitched.width = stitched.height = 0; } catch(_){}
+          if (ok){ finishJpg(); overlay.classList.remove("open"); }
+          else { failJpg(); }
+        });
+      }
+
+      function startJpgFlow(){
+        var els = selected.map(function(c){ return c.el; }).filter(Boolean);
+        var container = findCommonContainer(els);
+        if (!container){ failJpg(); return; }
+        try { container.scrollTo ? container.scrollTo({top:0, behavior:"auto"}) : (container.scrollTop = 0); } catch(_){}
+        setProgress(5, "캡처 준비 중…");
+        wait(500).then(function(){
+          setProgress(15, "캡처 중…");
+          captureContainerOnce(container, baseScale, "JPG-1차").then(function(res){
+            if (!res.canvas || !res.canvas.width || !res.canvas.height) throw new Error("empty-container-canvas");
+            buildAndExport(res.canvas, container, res.effScale);
+          }).catch(function(err){
+            if (window.console && console.warn) console.warn("[CAP-JPG 1차 실패→재시도]", err);
+            purgeHtml2canvasArtifacts();
+            wait(150).then(function(){
+              captureContainerOnce(container, Math.max(1, baseScale * 0.6), "JPG-재시도").then(function(res2){
+                if (!res2.canvas || !res2.canvas.width || !res2.canvas.height) throw new Error("empty-container-canvas-retry");
+                buildAndExport(res2.canvas, container, res2.effScale);
+              }).catch(function(err2){
+                if (window.console && console.warn) console.warn("[CAP-JPG 재시도도 실패]", err2);
+                failJpg();
+              });
+            });
+          });
+        });
+      }
+
+      var fontsReadyJpg = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
+      Promise.resolve(fontsReadyJpg).then(startJpgFlow, startJpgFlow);
     }
   })();
   </script>
