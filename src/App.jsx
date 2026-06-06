@@ -13775,6 +13775,12 @@ B. 방문 동기 키워드 (사람들이 왜 오는가)
 [negativeKeywords - 3~5개]
 검색 의도가 깨질 때 나오는 불만 (예: 점심시간만석, 데이트분위기깸, 회의너무시끄러움, 주차어려움)
 
+[감정 비율 - sentiment]
+위 [블로그 후기] 30건의 실제 표현·톤을 근거로, 이 상권 카페들에 대한 긍정 여론과 부정 여론의 비율을 추정한다.
+- sentiment.positive 와 sentiment.negative 두 정수로 답하며, 둘의 합은 반드시 100이다.
+- 후기 본문의 칭찬(맛·분위기·친절 등)은 긍정, 불만(주차·대기·소음·품절 등)은 부정으로 센다.
+- 근거 없이 지어내지 말고 실제 후기 톤에 비례시켜라.
+
 [summary - 80~120자]
 ★ 정보 나열 금지. 손님이 "원하는 것/마음" 중심으로 표현.
 - 형식: "이 동네에 오는 손님은 OO을 원해요. OO한 카페를 찾아요." 톤
@@ -13797,9 +13803,10 @@ B. 방문 동기 키워드 (사람들이 왜 오는가)
            searchIntents: { type: 'ARRAY', items: { type: 'STRING' }, minItems: 5, maxItems: 7 },
            summary: { type: 'STRING' },
            popularKeywords: { type: 'ARRAY', items: { type: 'STRING' }, minItems: 10, maxItems: 14 },
-           negativeKeywords: { type: 'ARRAY', items: { type: 'STRING' }, minItems: 3, maxItems: 5 }
+           negativeKeywords: { type: 'ARRAY', items: { type: 'STRING' }, minItems: 3, maxItems: 5 },
+           sentiment: { type: 'OBJECT', properties: { positive: { type: 'NUMBER' }, negative: { type: 'NUMBER' } }, required: ['positive', 'negative'] }
          },
-         required: ['searchIntents', 'summary', 'popularKeywords', 'negativeKeywords']
+         required: ['searchIntents', 'summary', 'popularKeywords', 'negativeKeywords', 'sentiment']
        };
        const snsResponse = await callGeminiProxy(
          [{ role: 'user', parts: [{ text: snsTrendPrompt }] }],
