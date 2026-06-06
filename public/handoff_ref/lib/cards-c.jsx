@@ -316,7 +316,7 @@ function Card14({ body = {}, onOpenDirector }) {
           </div>
         </div>
 
-        <div className="bc-grid-3" style={{gap:12}}>
+        <div className="bc-grid-3 c14-kpi" style={{gap:12}}>
           <StatTile id="c14.kpi1" tone="mint"  label="기회"    value={String(opportunities)} unit="건" hero/>
           <StatTile id="c14.kpi2" tone="rose"  label="리스크"  value={String(risks)} unit="건" deltaPositive={false} hero/>
           <StatTile id="c14.kpi3" tone="cream" label="신뢰 점수" value={String(trustScore)} unit="/100"/>

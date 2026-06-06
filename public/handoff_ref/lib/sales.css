@@ -375,6 +375,10 @@
   color: #0F0F0F;
 }
 .bc-tile .value-hero { font-size: 32px; }
+/* AI 종합 KPI 타일: 큰 종합점수와 같은 높이 칸을 채우게 내용 세로 가운데 + 숫자 키움 (AI종합 카드에만 적용) */
+.c14-kpi .bc-tile { justify-content: center; }
+.c14-kpi .bc-tile .row { margin-top: 0; }
+.c14-kpi .bc-tile .value, .c14-kpi .bc-tile .value-hero { font-size: 46px; }
 .bc-tile .unit { font-size: 13px; font-weight: 600; color: #444; margin-left: 2px; }
 .bc-tile .delta {
   font-size: 12px;
