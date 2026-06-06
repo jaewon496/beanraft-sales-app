@@ -581,10 +581,18 @@
 
     confirmBtn.addEventListener("click", function(){ runCapture(); });
 
-    // ── 캡처 방식: 선택된 카드를 "1장씩 따로" html2canvas-pro 로 떠서 카드당 1페이지 PDF 를 만든다.
-    //    (전체 컨테이너 1회 캡처+분할은 도넛/반원게이지의 색 아크가 회색으로 깨진다 — 라이브 검증됨.
-    //     카드 단위로 뜨면 onclone 의 SVG 도형 stroke/dashoffset 복사가 제대로 먹어 색이 산다.
-    //     14장 총 캡처 ~16초로 측정 — 허용 범위.)
+    // ── 캡처 방식: "하이브리드"
+    //    (1) 14개 카드를 감싸는 공통 컨테이너(.bc-scroll)를 "단 한 번"만 html2canvas-pro 로 떠서(빠름 ~15초)
+    //        그 큰 캔버스를 카드 경계로 잘라 카드당 1페이지로 쓴다.
+    //    (2) 단, 도넛(카드1)·반원게이지(카드10) 같은 "SVG 색 아크" 카드는 큰 캔버스에서 stroke 가 회색으로
+    //        깨진다(pro 가 거대 캔버스에서 이 stroke-dasharray 차트를 잘못 그림 — 라이브 검증됨).
+    //        → 이 카드들만 "그 카드 단위로 따로" 개별 캡처해서 색을 살린다(카드 단위면 onclone SVG 복사가 정확).
+    //    (3) 페이지 조립 시: 그 카드가 개별캡처 대상이면 개별 캔버스를, 아니면 큰 캔버스의 해당 영역 잘라낸 것을 쓴다.
+    //
+    //    개별캡처 대상 식별:
+    //      - 하드코딩: data-card 가 "01"(도넛) 또는 "10"(게이지).
+    //      - 동적판별(더 견고): 카드 안에 stroke-dasharray 를 가진 svg circle/path 가 있으면 개별캡처.
+    //        (실제로 도넛은 1/7/10, 게이지는 13 에도 있어 동적판별이 전부를 잡는다.)
 
     function runCapture(){
       if (busy) return;
@@ -630,8 +638,9 @@
         return true;
       }
 
-      // 카드 1장용 html2canvas-pro 옵션. (scale 만 재시도 때 낮춰 재사용)
-      //   captureEl = 캡처 대상 "그 카드"(원본), captureScale = 렌더 배율.
+      // 캡처 대상(컨테이너 또는 단일 카드)용 html2canvas-pro 옵션. (scale 만 재시도 때 낮춰 재사용)
+      //   captureEl = 캡처 대상(원본). 전체캡처면 .bc-scroll 컨테이너, 개별캡처면 그 카드.
+      //   captureScale = 렌더 배율.
       //
       //   ※ onclone 에서 "두 가지"를 함께 한다. (라이브 PDF 검수로 확정된 트레이드오프)
       //     (1) 애니메이션/트랜지션 끄기:
@@ -645,10 +654,11 @@
       //         strokeDashoffset/fill/strokeWidth/opacity)을 복제 도형에 inline 으로 박아 색 아크를 고정한다.
       //         → SVG 도형(circle/path/ellipse/rect/line/polyline/polygon)만 순회하므로 빠르다.
       //           (절대 "모든 요소" 로 확대 금지 — 과거 150초짜리 회귀의 원인.)
-      //   ※ [핵심] 원본 기준을 "그 카드(captureEl)" 로 넘긴다. 전체 컨테이너가 아니라 카드 단위라서
-      //      origRoot/cloneRoot 의 SVG 도형 인덱스가 1:1 로 맞아 도넛/게이지 색이 정확히 복원된다.
+      //   ※ 원본 기준(captureEl)이 그 카드일 때(=개별캡처) origRoot/cloneRoot 의 SVG 도형 인덱스가
+      //      1:1 로 맞아 도넛/게이지 색이 정확히 복원된다. 그래서 도넛/게이지는 개별캡처로 뜬다.
       //     clonedEl 은 captureEl 의 복제본(html2canvas onclone 시그니처: onclone(clonedDoc, clonedEl)).
-      //   ※ 카드는 스크롤 컨테이너가 아니므로 scrollWidth/scrollHeight = 카드 실제 크기다(폭/높이 명시).
+      //   ※ .bc-scroll 은 overflow-y:auto 스크롤 컨테이너라 getBoundingClientRect().height 가 뷰포트
+      //      높이뿐이다 → 14장 전체를 뜨려고 width/height 를 scrollWidth/scrollHeight 로 명시 지정한다.
 
       // onclone 에서 색 아크 복원에 쓸 SVG 도형 셀렉터 (도형 요소만 — 전체 요소 순회 금지).
       var SVG_SHAPE_SEL = "circle,path,ellipse,rect,line,polyline,polygon";
@@ -781,38 +791,42 @@
         overlay.classList.remove("open");
       }
 
-      // ── 카드별 캡처 파라미터 ──
-      var CARD_TIMEOUT_MS = 20000;   // 카드 1장당 워치독(20초). 멈추면 scale 낮춰 1회 재시도.
-      var maxH = 30000;              // 캔버스 높이 한계: 넘으면 일부 브라우저에서 캡처 실패
-      var baseScale = 1.0;          // 기본 배율 1.0 (키 큰 카드는 maxH 한도로 자동 축소)
+      // ── 캡처 파라미터 ──
+      var CONTAINER_TIMEOUT_MS = 40000;  // 전체 컨테이너 캡처 워치독. pro 는 ~15초, 40초면 안전망.
+      var CARD_TIMEOUT_MS = 20000;       // 개별 카드(도넛/게이지) 1장 워치독.
+      var maxH = 30000;                  // 캔버스 높이 한계: 넘으면 일부 브라우저에서 캡처 실패
+      var baseScale = 1.0;               // 기본 배율 1.0 (긴 컨테이너/키 큰 카드는 maxH 한도로 자동 축소)
 
-      // 카드 1장 캡처 (높이에 맞춰 scale 자동 축소 → 캔버스 높이 maxH 이하). 워치독과 경쟁.
-      //   captureScale = 시도 배율. 카드(captureEl)를 onclone 원본 기준으로 buildOpts 에 넘긴다.
-      function captureCardOnce(el, scaleCap, label){
-        var sh = el.scrollHeight || el.getBoundingClientRect().height || 1;
-        var effScale = Math.min(scaleCap, maxH / sh);
-        if (!isFinite(effScale) || effScale <= 0) effScale = scaleCap;
-        try { console.log("[CAP] capture card", label, "h=", sh, "effScale=", effScale.toFixed(3)); } catch(_){}
-
-        var t, timedOut = false;
-        var timeoutP = new Promise(function(_, reject){
-          t = setTimeout(function(){
-            timedOut = true;
-            purgeHtml2canvasArtifacts();
-            reject(new Error("card-timeout"));
-          }, CARD_TIMEOUT_MS);
-        });
-        // 캡처 엔진: html2canvas-pro → window.html2canvas(카드, 옵션). Promise<canvas> 반환.
-        //   buildOpts(el, ...) 의 el 이 onclone 의 captureEl(원본 카드 기준)으로 들어간다.
-        var capP = window.html2canvas(el, buildOpts(el, effScale));
-        return Promise.race([ capP, timeoutP ]).then(function(canvas){
-          clearTimeout(t);
-          return canvas;
-        }).catch(function(err){
-          clearTimeout(t);
-          if (timedOut) purgeHtml2canvasArtifacts();
-          throw err;
-        });
+      // ── 개별캡처 대상 판별 ──
+      //   큰 캔버스에서 색 아크가 회색으로 깨지는 카드(도넛/게이지)만 따로 뜬다.
+      //   (1) 하드코딩: data-card 가 "01"(도넛)/"10"(게이지).
+      //   (2) 동적판별: 카드 안에 stroke-dasharray(색 아크) 를 가진 svg circle/path 가 있으면 대상.
+      //       → 실제로 도넛은 1/7/10, 게이지는 13 에도 있어 (2)가 전부를 견고하게 잡는다.
+      var FORCE_INDIVIDUAL_IDS = { "01": true, "10": true };
+      function hasColorArc(el){
+        if (!el || !el.querySelectorAll) return false;
+        try {
+          var shapes = el.querySelectorAll("svg circle, svg path, svg ellipse");
+          for (var i = 0; i < shapes.length; i++){
+            var s = shapes[i];
+            // 속성으로 그린 경우(strokeDasharray="...") + style/computed 로 그린 경우 둘 다 확인
+            var attr = s.getAttribute && s.getAttribute("stroke-dasharray");
+            if (attr && attr !== "none" && attr.trim() !== "") return true;
+            var inl = s.style && s.style.strokeDasharray;
+            if (inl && inl !== "none" && inl.trim() !== "") return true;
+            try {
+              var cs = (el.ownerDocument.defaultView || window).getComputedStyle(s);
+              var sd = cs && cs.strokeDasharray;
+              if (sd && sd !== "none" && sd.trim() !== "" && sd !== "0px") return true;
+            } catch(_){}
+          }
+        } catch(_){}
+        return false;
+      }
+      function needsIndividualCapture(card){
+        if (!card) return false;
+        if (FORCE_INDIVIDUAL_IDS[card.id]) return true;
+        return hasColorArc(card.el);
       }
 
       // 캡처가 끝내 실패한 카드 자리에 넣을 안내 placeholder 페이지(텍스트 1장).
@@ -835,67 +849,232 @@
         } catch(_){}
       }
 
-      // ── 선택 카드를 1장씩 순서대로 캡처 → 카드당 1페이지 추가 → 끝까지 진행 후 저장 ──
-      function startCaptureFlow(){
-        var list = selected.filter(function(c){ return c && c.el; });
-        var total = list.length;
-        if (total === 0){
-          btn.classList.remove("bc-cap-hidden");
-          overlay.classList.remove("bc-cap-hidden");
-          setBusy(false);
-          hideProgress();
-          showErr("캡처할 카드를 찾지 못했습니다.");
-          return;
+      // 모든 [data-card] 의 공통 조상(LCA)을 계산한다(대개 .bc-scroll 한 개).
+      function findCommonContainer(els){
+        if (!els || els.length === 0) return null;
+        if (els.length === 1) return els[0].parentNode || els[0];
+        var chain = [];
+        var p = els[0];
+        while (p){ chain.push(p); p = p.parentNode; }
+        var lcaIdx = 0;
+        for (var i = 1; i < els.length; i++){
+          var node = els[i];
+          var idx = -1;
+          var q = node;
+          while (q){
+            var pos = chain.indexOf(q);
+            if (pos !== -1){ idx = pos; break; }
+            q = q.parentNode;
+          }
+          if (idx === -1) return document.body;
+          if (idx > lcaIdx) lcaIdx = idx;
         }
+        return chain[lcaIdx] || document.body;
+      }
+
+      // ── (A) 개별 카드 1장 캡처 (도넛/게이지). 카드 단위라 onclone SVG 복사가 정확 → 색이 산다. ──
+      //   captureScale = 시도 배율. 카드(el)를 onclone 원본 기준으로 buildOpts 에 넘긴다.
+      function captureCardOnce(el, scaleCap, label){
+        var sh = el.scrollHeight || el.getBoundingClientRect().height || 1;
+        var effScale = Math.min(scaleCap, maxH / sh);
+        if (!isFinite(effScale) || effScale <= 0) effScale = scaleCap;
+        try { console.log("[CAP] capture card", label, "h=", sh, "effScale=", effScale.toFixed(3)); } catch(_){}
+
+        var t, timedOut = false;
+        var timeoutP = new Promise(function(_, reject){
+          t = setTimeout(function(){
+            timedOut = true;
+            purgeHtml2canvasArtifacts();
+            reject(new Error("card-timeout"));
+          }, CARD_TIMEOUT_MS);
+        });
+        var capP = window.html2canvas(el, buildOpts(el, effScale));
+        return Promise.race([ capP, timeoutP ]).then(function(canvas){
+          clearTimeout(t);
+          return canvas;
+        }).catch(function(err){
+          clearTimeout(t);
+          if (timedOut) purgeHtml2canvasArtifacts();
+          throw err;
+        });
+      }
+
+      // 도넛/게이지 카드 1장 → 캔버스(성공 시) / null(실패 시). 실패해도 흐름은 안 멈춘다.
+      function captureIndividualCard(card){
+        var el = card.el;
+        if (!el || !document.body.contains(el)) return Promise.resolve(null);
+        return captureCardOnce(el, baseScale, "개별#" + card.id).then(function(canvas){
+          if (!canvas || !canvas.width || !canvas.height) throw new Error("empty-card-canvas");
+          return canvas;
+        }).catch(function(err){
+          if (window.console && console.warn) console.warn("[CAP 개별 1차 실패→재시도]", card.id, err);
+          purgeHtml2canvasArtifacts();
+          return wait(120).then(function(){
+            return captureCardOnce(el, Math.max(0.6, baseScale * 0.6), "개별재시도#" + card.id).then(function(c2){
+              if (!c2 || !c2.width || !c2.height) throw new Error("empty-card-canvas-retry");
+              return c2;
+            }).catch(function(err2){
+              if (window.console && console.warn) console.warn("[CAP 개별 재시도도 실패]", card.id, err2);
+              purgeHtml2canvasArtifacts();
+              return null;
+            });
+          });
+        });
+      }
+
+      // ── (B) 큰 컨테이너 1회 캡처 (워치독과 경쟁, 실패 시 scale 낮춰 1회 재시도) ──
+      function captureContainerOnce(container, scaleCap, label){
+        var sh = container.scrollHeight || container.getBoundingClientRect().height || 1;
+        var effScale = Math.min(scaleCap, maxH / sh);
+        if (!isFinite(effScale) || effScale <= 0) effScale = scaleCap;
+        try { console.log("[CAP] capture container", label, "scrollH=", sh, "effScale=", effScale.toFixed(3)); } catch(_){}
+
+        var t, timedOut = false;
+        var timeoutP = new Promise(function(_, reject){
+          t = setTimeout(function(){
+            timedOut = true;
+            purgeHtml2canvasArtifacts();
+            reject(new Error("container-timeout"));
+          }, CONTAINER_TIMEOUT_MS);
+        });
+        var capP = window.html2canvas(container, buildOpts(container, effScale));
+        return Promise.race([ capP, timeoutP ]).then(function(canvas){
+          clearTimeout(t);
+          return { canvas: canvas, effScale: effScale };
+        }).catch(function(err){
+          clearTimeout(t);
+          if (timedOut) purgeHtml2canvasArtifacts();
+          throw err;
+        });
+      }
+
+      // 큰 캔버스에서 한 카드 영역만 잘라낸 캔버스 반환 (개별캡처 아닌 카드용).
+      function sliceCardCanvas(big, contRect, effScale, el){
+        var bigW = big.width, bigH = big.height;
+        var r = el.getBoundingClientRect();
+        var relTop = r.top - contRect.top;
+        var srcY = Math.round(relTop * effScale);
+        var srcH = Math.round(r.height * effScale);
+        if (srcY < 0) { srcH += srcY; srcY = 0; }
+        if (srcY > bigH) return null;
+        if (srcY + srcH > bigH) srcH = bigH - srcY;
+        if (srcH <= 0) return null;
+        var tmp = document.createElement("canvas");
+        tmp.width = bigW;
+        tmp.height = srcH;
+        var ctx = tmp.getContext("2d");
+        ctx.fillStyle = bg;
+        ctx.fillRect(0, 0, bigW, srcH);
+        ctx.drawImage(big, 0, srcY, bigW, srcH, 0, 0, bigW, srcH);
+        return tmp;
+      }
+
+      function failHard(){
+        purgeHtml2canvasArtifacts();
+        btn.classList.remove("bc-cap-hidden");
+        overlay.classList.remove("bc-cap-hidden");
+        setBusy(false);
+        hideProgress();
+        showErr("캡처에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      }
+
+      // ── 페이지 조립: 선택 카드를 화면순으로 돌며 개별캡처/슬라이스 분기해 1카드=1페이지 추가 ──
+      //   big/contRect/effScale 가 null 이면(전체 캡처가 통째로 실패) 비-개별 카드는 placeholder.
+      function buildPages(individualMap, big, contRect, effScale){
+        var total = selected.length;
+        for (var i = 0; i < total; i++){
+          var card = selected[i];
+          var el = card.el;
+
+          setProgress(Math.round((i / total) * 100), "저장 중… (" + (i + 1) + "/" + total + ")");
+          setBusyProgress(i + 1, total);
+
+          if (!el || !document.body.contains(el)){ addPlaceholderPage(card.label); continue; }
+
+          // (1) 개별캡처 대상이면 그 카드의 개별 캔버스 사용.
+          if (needsIndividualCapture(card)){
+            var indCv = individualMap[card.id];
+            if (indCv && indCv.width && indCv.height){
+              addImagePage(indCv);
+              indCv.width = indCv.height = 0;       // 메모리 회수
+              individualMap[card.id] = null;
+              continue;
+            }
+            // 개별캡처가 실패했으면 큰 캔버스 슬라이스로 폴백(색은 회색일 수 있으나 빈 페이지 방지).
+          }
+
+          // (2) 그 외(또는 개별캡처 폴백): 큰 캔버스에서 그 카드 영역을 잘라 사용.
+          if (big && contRect){
+            var sl = sliceCardCanvas(big, contRect, effScale, el);
+            if (sl && sl.width && sl.height){
+              addImagePage(sl);
+              sl.width = sl.height = 0;
+              continue;
+            }
+          }
+
+          addPlaceholderPage(card.label);
+        }
+        finish();
+      }
+
+      // ── 메인 흐름: (1) 도넛/게이지 개별 캡처 먼저 → (2) 전체 컨테이너 1회 캡처 → (3) 페이지 조립 ──
+      function startCaptureFlow(){
+        var els = selected.map(function(c){ return c.el; }).filter(Boolean);
+        if (els.length === 0){ failHard(); return; }
+        var container = findCommonContainer(els);
+        if (!container){ failHard(); return; }
+        try { console.log("[CAP] common container =", container.className || container.tagName); } catch(_){}
+
+        // 잘라낼 좌표가 정확하도록 컨테이너 맨 위로 스크롤
+        try { container.scrollTo ? container.scrollTo({top:0, behavior:"auto"}) : (container.scrollTop = 0); } catch(_){}
+
+        // 개별캡처 대상 목록(선택된 것 중)
+        var individualCards = selected.filter(needsIndividualCapture);
+        try { console.log("[CAP] individual cards =", individualCards.map(function(c){ return c.id; }).join(",") || "(none)"); } catch(_){}
 
         setProgress(5, "캡처 준비 중…");
 
-        // 한 장씩 순차 처리 (Promise 체인). 실패해도 placeholder 넣고 다음으로.
-        var idx = 0;
-        function step(){
-          if (idx >= total){ finish(); return; }
-
-          var card = list[idx];
-          var el = card.el;
-          var shown = idx + 1;
-
-          setProgress(Math.round((idx / total) * 100), "저장 중… (" + shown + "/" + total + ")");
-          setBusyProgress(shown, total);
-
-          if (!el || !document.body.contains(el)){
-            addPlaceholderPage(card.label);
-            idx++; step(); return;
+        wait(500).then(function(){
+          // (1) 도넛/게이지 카드를 각각 개별 캡처 (색 정상). 추가 ~3초. 실패해도 null 로 넘어감.
+          setProgress(10, "차트 캡처 중…");
+          var individualMap = {};
+          var idx = 0;
+          function nextIndividual(){
+            if (idx >= individualCards.length){ captureWhole(individualMap); return; }
+            var card = individualCards[idx];
+            setProgress(10 + Math.round((idx / Math.max(1, individualCards.length)) * 10),
+                        "차트 캡처 중… (" + (idx + 1) + "/" + individualCards.length + ")");
+            captureIndividualCard(card).then(function(cv){
+              individualMap[card.id] = cv;     // 성공이면 canvas, 실패면 null
+              idx++; nextIndividual();
+            });
           }
+          nextIndividual();
 
-          // 1차 캡처 → 실패/타임아웃 시 scale 낮춰 1회 재시도 → 그래도 실패면 placeholder.
-          captureCardOnce(el, baseScale, "1차#" + shown).then(function(canvas){
-            if (!canvas || !canvas.width || !canvas.height) throw new Error("empty-card-canvas");
-            addImagePage(canvas);
-            canvas.width = canvas.height = 0;
-            idx++; step();
-          }).catch(function(err){
-            if (window.console && console.warn) console.warn("[CAP 카드 1차 실패→재시도]", shown, err);
-            purgeHtml2canvasArtifacts();
-            wait(120).then(function(){
-              captureCardOnce(el, Math.max(0.6, baseScale * 0.6), "재시도#" + shown).then(function(c2){
-                if (!c2 || !c2.width || !c2.height) throw new Error("empty-card-canvas-retry");
-                addImagePage(c2);
-                c2.width = c2.height = 0;
-                idx++; step();
-              }).catch(function(err2){
-                if (window.console && console.warn) console.warn("[CAP 카드 재시도도 실패→placeholder]", shown, err2);
-                purgeHtml2canvasArtifacts();
-                addPlaceholderPage(card.label);
-                idx++; step();
+          // (2) 전체 컨테이너 1회 캡처 → (3) 조립
+          function captureWhole(individualMap){
+            setProgress(25, "전체 캡처 중…");
+            var contRect = container.getBoundingClientRect();
+            captureContainerOnce(container, baseScale, "전체1차").then(function(res){
+              if (!res.canvas || !res.canvas.width || !res.canvas.height) throw new Error("empty-container-canvas");
+              buildPages(individualMap, res.canvas, contRect, res.effScale);
+            }).catch(function(err){
+              if (window.console && console.warn) console.warn("[CAP 컨테이너 1차 실패→재시도]", err);
+              purgeHtml2canvasArtifacts();
+              wait(150).then(function(){
+                captureContainerOnce(container, Math.max(1, baseScale * 0.6), "전체재시도").then(function(res2){
+                  if (!res2.canvas || !res2.canvas.width || !res2.canvas.height) throw new Error("empty-container-canvas-retry");
+                  var contRect2 = container.getBoundingClientRect();
+                  buildPages(individualMap, res2.canvas, contRect2, res2.effScale);
+                }).catch(function(err2){
+                  if (window.console && console.warn) console.warn("[CAP 컨테이너 재시도도 실패]", err2);
+                  // 전체가 통째로 실패해도, 개별캡처분이라도 살려서 페이지 만든다.
+                  buildPages(individualMap, null, null, 1);
+                });
               });
             });
-          });
-        }
-
-        // 안정화를 위해 한 박자 양보 (비동기 Babel 렌더/지연 차트) 후 첫 카드부터.
-        wait(500).then(function(){
-          setProgress(10, "캡처 중…");
-          step();
+          }
         });
       }
 
