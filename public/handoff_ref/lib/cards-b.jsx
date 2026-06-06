@@ -87,7 +87,7 @@ function Card08({ body = {} }) {
             <>
               {/* [2026-05-19] 인테리어비 폴백: interiorAvg 없으면 interiorPerPyeong × avgAreaPyeong, 그것도 없으면 전국 카페 평균(약 5,250만원) */}
               {/* [2026-05-19] 메모리 절대 규칙: "-" 표시 금지 → NULL 박스 자체 숨김 */}
-              <div className="bc-grid-3" style={{gap:8, flex:1, alignContent:"space-between"}}>
+              <div className="bc-grid-3" style={{gap:14, flex:1, alignContent:"center"}}>
                 {(() => {
                   const _interiorFallback = (kc?.interiorPerPyeong > 0 && kc?.avgAreaPyeong > 0)
                     ? Math.round(kc.interiorPerPyeong * kc.avgAreaPyeong)

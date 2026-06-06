@@ -292,39 +292,39 @@ function Card02({ body = {} }) {
         {/* 라이프스타일 */}
         <div className="bc-box" style={{padding:24, display:"flex", flexDirection:"column"}}>
           <div style={{fontSize:16, fontWeight:600, marginBottom:20}}>라이프스타일 키워드</div>
-          <div style={{display:"flex", flexDirection:"column", gap:16, flex:1, justifyContent:"space-between"}}>
+          <div style={{display:"flex", flexDirection:"column", gap:16, flex:1}}>
             {[
               ["여성", femaleRatio, femaleKw],
               ["남성", maleRatio, maleKw],
             ].filter(([, , kws]) => kws.length > 0).map(([who, ratio, keywords]) => (
-              <div key={who} style={{padding:"20px 22px", background:"rgba(255,255,255,0.03)", borderRadius:12, border:"1px solid var(--matte-line)"}}>
-                <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:14}}>
+              <div key={who} style={{padding:"22px 24px", background:"rgba(255,255,255,0.03)", borderRadius:12, border:"1px solid var(--matte-line)", flex:1, display:"flex", flexDirection:"column", justifyContent:"center"}}>
+                <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:16}}>
                   <span style={{fontSize:16, fontWeight:700, color:"#fff"}}>{who}</span>
                   {ratio > 0 && <span style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:600, fontVariantNumeric:"tabular-nums"}}>{ratio}%</span>}
                 </div>
-                <window.DrStagger id="c2.chips" delay={50} style={{display:"flex", gap:8, flexWrap:"wrap"}}>
+                <window.DrStagger id="c2.chips" delay={50} style={{display:"flex", gap:10, flexWrap:"wrap"}}>
                   {keywords.map(k => (
-                    <span key={k} style={{padding:"7px 14px", background:"rgba(255,255,255,0.06)", border:"1px solid var(--matte-line)", borderRadius:8, fontSize:14, color:"var(--matte-fg-2)", fontWeight:500}}>#{k}</span>
+                    <span key={k} style={{padding:"10px 17px", background:"rgba(255,255,255,0.06)", border:"1px solid var(--matte-line)", borderRadius:8, fontSize:17, color:"var(--matte-fg-2)", fontWeight:500}}>#{k}</span>
                   ))}
                 </window.DrStagger>
               </div>
             ))}
             {femaleKw.length === 0 && maleKw.length === 0 && lifestyleKw.length > 0 && (
-              <div style={{padding:"20px 22px", background:"rgba(255,255,255,0.03)", borderRadius:12, border:"1px solid var(--matte-line)"}}>
-                <div style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:500, marginBottom:14}}>상권 생활 특성</div>
-                <window.DrStagger id="c2.chips2" delay={50} style={{display:"flex", gap:8, flexWrap:"wrap"}}>
+              <div style={{padding:"22px 24px", background:"rgba(255,255,255,0.03)", borderRadius:12, border:"1px solid var(--matte-line)", flex:1, display:"flex", flexDirection:"column", justifyContent:"center"}}>
+                <div style={{fontSize:16, color:"var(--matte-fg-3)", fontWeight:500, marginBottom:16}}>상권 생활 특성</div>
+                <window.DrStagger id="c2.chips2" delay={50} style={{display:"flex", gap:10, flexWrap:"wrap"}}>
                   {lifestyleKw.map(k => (
-                    <span key={k} style={{padding:"7px 14px", background:"rgba(255,255,255,0.06)", border:"1px solid var(--matte-line)", borderRadius:8, fontSize:14, color:"var(--matte-fg-2)", fontWeight:500}}>#{k}</span>
+                    <span key={k} style={{padding:"10px 17px", background:"rgba(255,255,255,0.06)", border:"1px solid var(--matte-line)", borderRadius:8, fontSize:17, color:"var(--matte-fg-2)", fontWeight:500}}>#{k}</span>
                   ))}
                 </window.DrStagger>
               </div>
             )}
             {femaleKw.length === 0 && maleKw.length === 0 && lifestyleKw.length === 0 && lifeFallbackKw.length > 0 && (
-              <div style={{padding:"20px 22px", background:"rgba(255,255,255,0.03)", borderRadius:12, border:"1px solid var(--matte-line)"}}>
-                <div style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:500, marginBottom:14}}>고객 세대 구성</div>
-                <window.DrStagger id="c2.chips3" delay={50} style={{display:"flex", gap:8, flexWrap:"wrap"}}>
+              <div style={{padding:"22px 24px", background:"rgba(255,255,255,0.03)", borderRadius:12, border:"1px solid var(--matte-line)", flex:1, display:"flex", flexDirection:"column", justifyContent:"center"}}>
+                <div style={{fontSize:16, color:"var(--matte-fg-3)", fontWeight:500, marginBottom:16}}>고객 세대 구성</div>
+                <window.DrStagger id="c2.chips3" delay={50} style={{display:"flex", gap:10, flexWrap:"wrap"}}>
                   {lifeFallbackKw.map(k => (
-                    <span key={k} style={{padding:"7px 14px", background:"rgba(255,255,255,0.06)", border:"1px solid var(--matte-line)", borderRadius:8, fontSize:14, color:"var(--matte-fg-2)", fontWeight:500}}>#{k}</span>
+                    <span key={k} style={{padding:"10px 17px", background:"rgba(255,255,255,0.06)", border:"1px solid var(--matte-line)", borderRadius:8, fontSize:17, color:"var(--matte-fg-2)", fontWeight:500}}>#{k}</span>
                   ))}
                 </window.DrStagger>
               </div>
@@ -395,7 +395,7 @@ function Card03({ body = {} }) {
             <div style={{fontSize:16, fontWeight:600}}>생존율</div>
             {!survRegional && <span style={{fontSize:12, color:"var(--matte-fg-4)", fontWeight:500}}>전국 평균 추정</span>}
           </div>
-          <div style={{display:"flex", flexDirection:"column", gap:14, flex:1, justifyContent:"space-between"}}>
+          <div style={{display:"flex", flexDirection:"column", gap:24, flex:1, justifyContent:"center"}}>
             <BarRow id="c3.g1" label="1년 생존" value={surv1y} max={100} suffix="%"/>
             <BarRow id="c3.g3" label="3년 생존" value={surv3y} max={100} suffix="%" accent/>
             <BarRow id="c3.g5" label="5년 생존" value={surv5y} max={100} suffix="%"/>
@@ -863,7 +863,7 @@ function Card06({ body = {} }) {
         <div className="bc-box" style={{padding:24, display:"flex", flexDirection:"column"}}>
           <div style={{fontSize:18, fontWeight:700, marginBottom:20}}>{top5Title}</div>
           {top5Dongs.length > 0 ? (
-            <div style={{display:"flex", flexDirection:"column", flex:1, justifyContent:"space-between"}}>
+            <div style={{display:"flex", flexDirection:"column", flex:1, justifyContent:"space-around"}}>
               {top5Dongs.map(([n, v, label], i) => (
                 <div key={i} style={{display:"grid", gridTemplateColumns:"36px 1fr auto", gap:14, alignItems:"center", padding:"14px 0", borderBottom: i<4 ? "1px solid var(--matte-line)" : "none"}}>
                   <span style={{fontSize:15, color:"var(--matte-fg-4)", fontWeight:700, fontVariantNumeric:"tabular-nums"}}>{String(i+1).padStart(2,"0")}</span>

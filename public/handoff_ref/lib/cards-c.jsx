@@ -208,14 +208,14 @@ function Card13({ body = {} }) {
             <div style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:600}}>{strengths.length}개</div>
           </div>
           {strengths.length > 0 ? (
-            <div style={{display:"flex", flexDirection:"column", gap:12, flex:1, justifyContent:"space-between"}}>
+            <div style={{display:"flex", flexDirection:"column", gap:14, flex:1}}>
               {strengths.map(a => (
-                <div key={a.key} style={{padding:"16px 20px", background:"rgba(255,255,255,0.03)", borderRadius:10, border:"1px solid var(--matte-line)"}}>
-                  <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:8}}>
-                    <span style={{fontSize:16, fontWeight:700, color:"#fff", letterSpacing:"-0.005em"}}>{a.label}</span>
-                    <span style={{fontSize:18, fontWeight:700, fontVariantNumeric:"tabular-nums", color:"#4C7BE4", letterSpacing:"-0.01em"}}>{a.score}<span style={{fontSize:13, color:"var(--matte-fg-3)", marginLeft:3, fontWeight:500}}>/{a.max}</span></span>
+                <div key={a.key} style={{padding:"20px 22px", background:"rgba(255,255,255,0.03)", borderRadius:10, border:"1px solid var(--matte-line)", flex:1, display:"flex", flexDirection:"column", justifyContent:"center"}}>
+                  <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:10}}>
+                    <span style={{fontSize:18, fontWeight:700, color:"#fff", letterSpacing:"-0.005em"}}>{a.label}</span>
+                    <span style={{fontSize:20, fontWeight:700, fontVariantNumeric:"tabular-nums", color:"#4C7BE4", letterSpacing:"-0.01em"}}>{a.score}<span style={{fontSize:14, color:"var(--matte-fg-3)", marginLeft:3, fontWeight:500}}>/{a.max}</span></span>
                   </div>
-                  <div style={{fontSize:14, color:"var(--matte-fg-2)", lineHeight:1.5}}>{a.headline}</div>
+                  <div style={{fontSize:15, color:"var(--matte-fg-2)", lineHeight:1.55}}>{a.headline}</div>
                 </div>
               ))}
             </div>
@@ -230,14 +230,14 @@ function Card13({ body = {} }) {
             <div style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:600}}>{weaknesses.length}개</div>
           </div>
           {weaknesses.length > 0 ? (
-            <div style={{display:"flex", flexDirection:"column", gap:12, flex:1, justifyContent:"space-between"}}>
+            <div style={{display:"flex", flexDirection:"column", gap:14, flex:1}}>
               {weaknesses.map(a => (
-                <div key={a.key} style={{padding:"16px 20px", background:"rgba(255,255,255,0.03)", borderRadius:10, border:"1px solid var(--matte-line)"}}>
-                  <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:8}}>
-                    <span style={{fontSize:16, fontWeight:700, color:"#fff", letterSpacing:"-0.005em"}}>{a.label}</span>
-                    <span style={{fontSize:18, fontWeight:700, fontVariantNumeric:"tabular-nums", color:"var(--matte-fg)", letterSpacing:"-0.01em"}}>{a.score}<span style={{fontSize:13, color:"var(--matte-fg-3)", marginLeft:3, fontWeight:500}}>/{a.max}</span></span>
+                <div key={a.key} style={{padding:"20px 22px", background:"rgba(255,255,255,0.03)", borderRadius:10, border:"1px solid var(--matte-line)", flex:1, display:"flex", flexDirection:"column", justifyContent:"center"}}>
+                  <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:10}}>
+                    <span style={{fontSize:18, fontWeight:700, color:"#fff", letterSpacing:"-0.005em"}}>{a.label}</span>
+                    <span style={{fontSize:20, fontWeight:700, fontVariantNumeric:"tabular-nums", color:"var(--matte-fg)", letterSpacing:"-0.01em"}}>{a.score}<span style={{fontSize:14, color:"var(--matte-fg-3)", marginLeft:3, fontWeight:500}}>/{a.max}</span></span>
                   </div>
-                  <div style={{fontSize:14, color:"var(--matte-fg-2)", lineHeight:1.5}}>{a.headline}</div>
+                  <div style={{fontSize:15, color:"var(--matte-fg-2)", lineHeight:1.55}}>{a.headline}</div>
                 </div>
               ))}
             </div>
