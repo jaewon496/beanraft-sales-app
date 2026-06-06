@@ -966,11 +966,11 @@ function Card07({ body = {} }) {
         </div>
 
         <div style={{display:"flex", flexDirection:"column", gap:12}}>
-          <div className="bc-box" style={{padding:18}}>
+          <div className="bc-box" style={{padding:18, flex:1, display:"flex", flexDirection:"column"}}>
             <div style={{fontSize:15, fontWeight:600, marginBottom:12}}>주중 vs 주말</div>
             {(weekdayPct > 0 || weekendPct > 0) ? (
-              <div style={{display:"flex", alignItems:"center", gap:16, justifyContent:"center"}}>
-                <Donut id="c7.donut" size={180} segments={[
+              <div style={{display:"flex", alignItems:"center", gap:16, justifyContent:"center", flex:1}}>
+                <Donut id="c7.donut" size={200} segments={[
                   {value:weekdayPct, color:"#4C7BE4", label:"주중"},
                   {value:weekendPct, color:"#FFFFFF", label:"주말"},
                 ]} centerLabel={`${Math.round(weekdayPct)}%`} centerSub="주중 비중"/>
@@ -983,17 +983,19 @@ function Card07({ body = {} }) {
               <div style={{fontSize:13, color:"var(--matte-fg-4)", textAlign:"center", padding:"30px 0"}}>주중/주말 데이터 수집 중</div>
             )}
           </div>
-          <div className="bc-box" style={{padding:14}}>
+          <div className="bc-box" style={{padding:18, flex:1, display:"flex", flexDirection:"column"}}>
             <div style={{fontSize:15, color:"var(--fg-3)", fontWeight:600, marginBottom:8}}>상위 유동인구 지역 {sigungu ? `(${sigungu})` : ''}</div>
             {topAreaList.length > 0 ? (
-              topAreaList.map((d, i)=>(
-                <div key={i} style={{display:"flex", justifyContent:"space-between", padding:"5px 0", fontSize:15}}>
-                  <span><span style={{color:"var(--fg-4)", marginRight:6}}>{i+1}위</span>{d.name}</span>
+              <div style={{flex:1, display:"flex", flexDirection:"column", justifyContent:"space-around"}}>
+              {topAreaList.map((d, i)=>(
+                <div key={i} style={{display:"flex", justifyContent:"space-between", alignItems:"center", padding:"6px 0", fontSize:18}}>
+                  <span><span style={{color:"var(--fg-4)", marginRight:8}}>{i+1}위</span>{d.name}</span>
                   <span style={{fontVariantNumeric:"tabular-nums", color:"var(--fg-2)"}}>{`${(d.pop/10000).toFixed(1)}만/일`}</span>
                 </div>
-              ))
+              ))}
+              </div>
             ) : (
-              <div style={{fontSize:13, color:"var(--fg-4)", padding:"5px 0"}}>인근 동 데이터 수집 중</div>
+              <div style={{flex:1, display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, color:"var(--fg-4)"}}>인근 동 데이터 수집 중</div>
             )}
           </div>
         </div>
