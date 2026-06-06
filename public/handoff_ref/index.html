@@ -126,10 +126,9 @@
       /* Scroll → highlight active sidebar item (전체 모드일 때만) */
       useEffect(() => {
         if (singleCardN || filterCategory) return;
-        const root = scrollRef.current;
-        if (!root) return;
         const ids = window.CARDS.map(c => c.n);
         const els = ids.map(n => document.getElementById(`card-${n}`)).filter(Boolean);
+        if (els.length === 0) return;
         const io = new IntersectionObserver((entries) => {
           let best = null, bestRatio = 0;
           for (const e of entries) {
@@ -142,7 +141,7 @@
             const n = best.dataset.card || best.id.replace("card-", "");
             setActive(n);
           }
-        }, { root, threshold: [0.2, 0.4, 0.6], rootMargin: "-80px 0px -50% 0px" });
+        }, { root: null, threshold: [0.2, 0.4, 0.6], rootMargin: "-80px 0px -50% 0px" });
         els.forEach(el => io.observe(el));
         return () => io.disconnect();
       }, [filterCategory, singleCardN]);
