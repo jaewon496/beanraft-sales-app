@@ -643,17 +643,20 @@ function Card12({ body = {} }) {
               <div style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:500, marginBottom:14}}>계절별 매출 변동</div>
               <div style={{display:"grid", gridTemplateColumns:"repeat(4, 1fr)", gap:10}}>
                 {[
-                  ["봄 (3~5월)", sunnyEffect != null ? Math.round(sunnyEffect * 0.5) : null, '안정'],
-                  ["여름 (6~8월)", rainyEffect, rainyEffect > 0 ? '성수기' : '비수기'],
-                  ["가을 (9~11월)", sunnyEffect != null ? Math.round(sunnyEffect * 0.4) : null, '안정'],
-                  ["겨울 (12~2월)", snowEffect, '비수기'],
-                ].map(([k, v, t]) => {
+                  ["봄", "3~5월", sunnyEffect != null ? Math.round(sunnyEffect * 0.5) : null, '안정'],
+                  ["여름", "6~8월", rainyEffect, rainyEffect > 0 ? '성수기' : '비수기'],
+                  ["가을", "9~11월", sunnyEffect != null ? Math.round(sunnyEffect * 0.4) : null, '안정'],
+                  ["겨울", "12~2월", snowEffect, '비수기'],
+                ].map(([k, mon, v, t]) => {
                   if (v == null) return null;
                   const vStr = `${v > 0 ? '+' : ''}${v}`;
                   const accent = v === Math.max(sunnyEffect != null ? Math.round(sunnyEffect * 0.5) : -999, rainyEffect != null ? rainyEffect : -999, sunnyEffect != null ? Math.round(sunnyEffect * 0.4) : -999, snowEffect != null ? snowEffect : -999) && v > 0;
                   return (
                     <div key={k} style={{padding:"16px 16px", background:"rgba(255,255,255,0.03)", borderRadius:10, border:"1px solid var(--matte-line)"}}>
-                      <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:8, fontWeight:500}}>{k}</div>
+                      <div style={{marginBottom:8}}>
+                        <div style={{fontSize:14, color:"var(--matte-fg-2)", fontWeight:600}}>{k}</div>
+                        <div style={{fontSize:12, color:"var(--matte-fg-3)", fontWeight:500, marginTop:2}}>{mon}</div>
+                      </div>
                       <div style={{fontSize:24, fontWeight:700, fontVariantNumeric:"tabular-nums", color: accent ? "#4C7BE4" : "var(--matte-fg)", letterSpacing:"-0.01em"}}>{vStr}<span style={{fontSize:13, color:"var(--matte-fg-3)", marginLeft:2, fontWeight:500}}>%</span></div>
                       <div style={{fontSize:13, color:"var(--matte-fg-3)", marginTop:6}}>{t}</div>
                     </div>

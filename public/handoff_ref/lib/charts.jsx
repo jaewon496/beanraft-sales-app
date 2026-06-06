@@ -400,6 +400,7 @@ function Radar({ axes, values, size = 320, id, accent = false }) {
     return ringPoint(i, v / axMax);
   };
   const rings = [0.25, 0.5, 0.75, 1.0];
+  const m = Math.round(size * 0.14); // 외곽 라벨(비용 부담/경쟁 환경/시장 매력도)이 잘리지 않게 viewBox 여백
 
   const [mounted, setMounted] = React.useState(false);
   const [particles, setParticles] = React.useState(0);
@@ -421,7 +422,7 @@ function Radar({ axes, values, size = 320, id, accent = false }) {
 
   return (
     <div data-fx-id={id} style={{position:"relative", width:"100%", maxWidth:size, aspectRatio:"1 / 1", margin:"0 auto"}}>
-      <svg width="100%" height="100%" viewBox={`0 0 ${size} ${size}`} preserveAspectRatio="xMidYMid meet" style={{overflow:"visible", display:"block", maxWidth:"100%"}}>
+      <svg width="100%" height="100%" viewBox={`${-m} ${-m} ${size + 2 * m} ${size + 2 * m}`} preserveAspectRatio="xMidYMid meet" style={{overflow:"visible", display:"block", maxWidth:"100%"}}>
         {rings.map((k, i) => {
           const pts = Array.from({length:n}, (_, j) => ringPoint(j, k));
           return <polygon key={i} points={pts.map(p=>p.join(",")).join(" ")} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1"/>;
