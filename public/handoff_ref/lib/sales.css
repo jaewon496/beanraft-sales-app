@@ -379,6 +379,8 @@
 .c14-kpi .bc-tile { justify-content: center; }
 .c14-kpi .bc-tile .row { margin-top: 0; }
 .c14-kpi .bc-tile .value, .c14-kpi .bc-tile .value-hero { font-size: 46px; }
+/* 전국 카페 평균 3열: 값이 길어 단위가 겹치던 것 → 칸 좌우 여백 줄여 값 영역 넓힘(글자 크기 유지) */
+.c8-kc .bc-box { padding-left: 14px; padding-right: 14px; }
 .bc-tile .unit { font-size: 13px; font-weight: 600; color: #444; margin-left: 2px; }
 .bc-tile .delta {
   font-size: 12px;

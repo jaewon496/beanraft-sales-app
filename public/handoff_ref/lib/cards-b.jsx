@@ -87,7 +87,7 @@ function Card08({ body = {} }) {
             <>
               {/* [2026-05-19] 인테리어비 폴백: interiorAvg 없으면 interiorPerPyeong × avgAreaPyeong, 그것도 없으면 전국 카페 평균(약 5,250만원) */}
               {/* [2026-05-19] 메모리 절대 규칙: "-" 표시 금지 → NULL 박스 자체 숨김 */}
-              <div className="bc-grid-3" style={{gap:14, flex:1, alignContent:"center"}}>
+              <div className="bc-grid-3 c8-kc" style={{gap:14, flex:1, alignContent:"center"}}>
                 {(() => {
                   const _interiorFallback = (kc?.interiorPerPyeong > 0 && kc?.avgAreaPyeong > 0)
                     ? Math.round(kc.interiorPerPyeong * kc.avgAreaPyeong)
@@ -97,7 +97,7 @@ function Card08({ body = {} }) {
                 })()}
                 {kc?.startupInvestAvg > 0 && <Box label="총 투자비"  value={(kc.startupInvestAvg / 10000).toFixed(2)} unit="억"/>}
                 {kc?.avgAreaPyeong > 0 && <Box label="평수"       value={kc.avgAreaPyeong.toFixed(1)} unit="평"/>}
-                {kc?.salesAvg > 0 && <Box label="월 매출"    value={kc.salesAvg.toLocaleString()} unit="만원"/>}
+                {kc?.salesAvg > 0 && <Box label="월 매출"    value={kc.salesAvg >= 10000 ? (kc.salesAvg/10000).toFixed(1) : Math.round(kc.salesAvg).toLocaleString()} unit={kc.salesAvg >= 10000 ? "억" : "만원"}/>}
                 {kc?.unitPriceAvg > 0 && <Box label="객단가"     value={kc.unitPriceAvg.toLocaleString()} unit="원"/>}
                 {kc?.profitMargin > 0 && <Box label="이익률"     value={kc.profitMargin.toFixed(1)} unit="%"/>}
               </div>
