@@ -233,9 +233,12 @@ function Card02({ body = {} }) {
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
         <StatTile id="c2.tile1" tone="blue"  label="주요 연령대"   value={topAgeDisplay} hero accent/>
         <StatTile id="c2.tile2" tone="lilac" label="성비 (여:남)" value={(femaleRatio + maleRatio) > 0 ? `${femaleRatio} : ${maleRatio}` : '-'}/>
-        <StatTile id="c2.tile3" tone="mint"  label="재방문율" value={regularPct > 0 ? String(regularPct) : '-'} unit={regularPct > 0 ? '%' : ''} sub={regularPct > 0 && revisitEstimated ? '거주 안정성 기반 추정' : undefined}/>
-        <StatTile id="c2.tile4" tone="cream" label="신규 비율" value={newCustomerPct > 0 ? String(newCustomerPct) : '-'} unit={newCustomerPct > 0 ? '%' : ''} sub={newCustomerPct > 0 && revisitEstimated ? '거주 안정성 기반 추정' : undefined}/>
+        <StatTile id="c2.tile3" tone="mint"  label="재방문율" value={regularPct > 0 ? String(regularPct) : '-'} unit={regularPct > 0 ? '%' : ''}/>
+        <StatTile id="c2.tile4" tone="cream" label="신규 비율" value={newCustomerPct > 0 ? String(newCustomerPct) : '-'} unit={newCustomerPct > 0 ? '%' : ''}/>
       </div>
+      {revisitEstimated && (regularPct > 0 || newCustomerPct > 0) && (
+        <div style={{fontSize:12, color:"var(--matte-fg-4)", marginTop:-6, marginBottom:14}}>재방문율 · 신규 비율은 거주 안정성 기반 추정치입니다.</div>
+      )}
 
       <div style={{display:"grid", gridTemplateColumns:"1.2fr 1fr", gap:16}}>
         {/* 연령대 + 소득 */}
