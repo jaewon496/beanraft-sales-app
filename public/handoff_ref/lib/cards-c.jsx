@@ -301,7 +301,7 @@ function Card14({ body = {}, onOpenDirector }) {
         </button>
       }>
 
-      <div style={{display:"grid", gridTemplateColumns:"260px 1fr", gap:24, marginBottom:18}}>
+      <div style={{display:"grid", gridTemplateColumns:"260px 1fr", gap:24, marginBottom:18, alignItems:"start"}}>
         <div className="bc-tile tone-blue accent" style={{padding:28, minHeight:180, display:"flex", flexDirection:"column", justifyContent:"space-between"}}>
           <div>
             <div className="label" style={{fontSize:15}}>종합 점수</div>
