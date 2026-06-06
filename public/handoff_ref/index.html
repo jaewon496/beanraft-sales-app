@@ -1004,7 +1004,7 @@
       overlay.classList.add("bc-cap-hidden");
 
       var bg = "#0a0a0a";        // 리포트 다크 배경 (PDF 와 동일)
-      var GAP = 16;              // 카드 사이 간격(원본 px). effScale 곱해 캔버스 픽셀로 적용.
+      var GAP = 2;               // 카드 사이 간격(원본 px). 카드별 위/아래 14px 패딩이 남으므로 간격은 최소만. effScale 곱해 캔버스 픽셀로 적용.
 
       // 캔버스 1회 캡처 옵션 (runCapture 의 buildOpts 와 동일한 트레이드오프: 애니메이션 끄기 + SVG 최종 stroke 복사)
       var SVG_SHAPE_SEL = "circle,path,ellipse,rect,line,polyline,polygon";
@@ -1095,9 +1095,15 @@
           var el = selected[i].el;
           if (!el || !document.body.contains(el)) continue;
           var r = el.getBoundingClientRect();
-          var relTop = r.top - contRect.top;
+          // 카드 위/아래 과한 패딩(기본 32~33px)을 KEEP_PAD 만큼만 남기고 깎아, 이어붙였을 때
+          //   카드 사이 빈 띠가 들쭉날쭉/휑하지 않게 촘촘·균일하게 만든다. (내용은 안 깎음 — 패딩만)
+          var csEl = window.getComputedStyle(el);
+          var KEEP_PAD = 14;
+          var topTrim = Math.max(0, (parseFloat(csEl.paddingTop) || 0) - KEEP_PAD);
+          var botTrim = Math.max(0, (parseFloat(csEl.paddingBottom) || 0) - KEEP_PAD);
+          var relTop = (r.top - contRect.top) + topTrim;
           var srcY = Math.round(relTop * effScale);
-          var srcH = Math.round(r.height * effScale);
+          var srcH = Math.round((r.height - topTrim - botTrim) * effScale);
           if (srcY < 0) { srcH += srcY; srcY = 0; }
           if (srcY > bigH) continue;
           if (srcY + srcH > bigH) srcH = bigH - srcY;
