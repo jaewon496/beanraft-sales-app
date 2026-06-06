@@ -262,7 +262,9 @@ function TopBar({ address = "", crumbCur = "결과 리포트", onToggleSidebar, 
 
   /* 공유 */
   const onShare = async () => {
-    const url = (typeof location !== "undefined" && location.href) || "";
+    let url = "";
+    try { url = (window.top && window.top.location && window.top.location.href) || ""; } catch(_) {}
+    if (!url) url = (typeof location !== "undefined" && location.href) || "";
     if (navigator.share) {
       try {
         await navigator.share({
