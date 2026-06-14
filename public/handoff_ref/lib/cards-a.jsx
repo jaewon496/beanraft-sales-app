@@ -33,10 +33,11 @@ function Card01({ body = {} }) {
   const vacancyRate = body.vacancyRate;
   const vacancyDisplay = vacancyRate != null && vacancyRate > 0 ? Number(vacancyRate).toFixed(1) : '-';
   const totalStores = cafeCount + bakery;
-  const donutTotal = individual + franchise + bakery;
+  // [2026-06-14] 분모 통일: 카페(개인+프랜) 기준으로 % 산출 → 카드08/09와 일치(개인 59 / 프랜 41).
+  // 베이커리는 비율 파이에서 제외(개수만 유지). 도넛 중앙 라벨(cafeCount=353)과도 분모 정합.
+  const donutTotal = individual + franchise;
   const indiePct = donutTotal > 0 ? Math.round((individual / donutTotal) * 100) : 0;
-  const franPct = donutTotal > 0 ? Math.round((franchise / donutTotal) * 100) : 0;
-  const bakPct = donutTotal > 0 ? Math.max(0, 100 - indiePct - franPct) : 0;
+  const franPct = donutTotal > 0 ? Math.max(0, 100 - indiePct) : 0;
   // [2026-05-21] rentSeries(marketRentSeries.series)는 이미 '만원/평' 단위 → /10000 금지.
   // 기존 /10000 때문에 값이 전부 0으로 깎여 추이 그래프가 평탄 폴백([rentPerPyeong]x2)으로 빠지던 버그 수정.
   const rentSeriesRaw = (Array.isArray(body.rentSeries) && body.rentSeries.length > 0)
@@ -74,7 +75,7 @@ function Card01({ body = {} }) {
         <StatTile id="c1.tile1" tone="blue"  label="총 매장"        value={totalStores > 0 ? String(totalStores) : '-'} unit={totalStores > 0 ? '개' : ''} hero/>
         <StatTile id="c1.tile2" tone="lilac" label="프랜차이즈"     value={franchise > 0 ? String(franchise) : '-'} unit={franchise > 0 ? '개' : ''}/>
         <StatTile id="c1.tile3" tone="mint"  label="평당 월세"      value={rentPerPyeong > 0 ? String(rentPerPyeong) : '-'} unit={rentPerPyeong > 0 ? '만원' : ''} delta={priceChange != null && Number(priceChange) !== 0 ? `${Number(priceChange) >= 0 ? '+' : ''}${Number(priceChange).toFixed(1)}` : null} deltaPositive={priceChange == null || Number(priceChange) >= 0} deltaPrefixDisabled/>
-        <StatTile id="c1.tile4" tone="rose"  label="공실률"         value={vacancyDisplay} unit={vacancyDisplay !== '-' ? '%' : ''} delta={vacancyDelta !== 0 ? `${vacancyDelta >= 0 ? '+' : ''}${vacancyDelta.toFixed(1)}` : null} deltaPositive={vacancyDelta <= 0} deltaPrefixDisabled/>
+        <StatTile id="c1.tile4" tone="rose"  label="공실률"         value={vacancyDisplay} unit={vacancyDisplay !== '-' ? '%' : ''} delta={vacancyDelta !== 0 ? `${vacancyDelta >= 0 ? '+' : ''}${vacancyDelta.toFixed(1)}` : null} deltaPositive={vacancyDelta >= 0} deltaPrefixDisabled/>
       </div>
 
       <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16}}>
@@ -106,12 +107,10 @@ function Card01({ body = {} }) {
               <Donut id="c1.donut" size={200} segments={[
                 ...(indiePct > 0 ? [{value:indiePct, color:"#4C7BE4", label:"개인 카페"}] : []),
                 ...(franPct > 0 ? [{value:franPct, color:"#FFFFFF", label:"프랜차이즈"}] : []),
-                ...(bakPct > 0 ? [{value:bakPct,  color:"#7a7a7a", label:"베이커리"}] : []),
               ]} centerLabel={String(cafeCount)} centerSub="카페 매장"/>
               <DonutLegend segments={[
                 ...(indiePct > 0 ? [{value:indiePct, color:"#4C7BE4", label:"개인", text:`${indiePct}%`}] : []),
                 ...(franPct > 0 ? [{value:franPct, color:"#FFFFFF", label:"프랜차이즈", text:`${franPct}%`}] : []),
-                ...(bakPct > 0 ? [{value:bakPct,  color:"#7a7a7a", label:"베이커리", text:`${bakPct}%`}] : []),
               ]}/>
             </div>
           ) : (
@@ -125,12 +124,12 @@ function Card01({ body = {} }) {
         {[
           { l:"평당 월세", v: rentPerPyeong > 0 ? `${rentPerPyeong}만원` : '-', d: priceChange != null && Number(priceChange) !== 0 ? `${Number(priceChange) > 0 ? '+' : ''}${Number(priceChange).toFixed(1)}` : null, color:"#FFFFFF", data: rentSeries },
           { l:"공실률",   v: vacancyDisplay !== '-' ? `${vacancyDisplay}%` : '-', d: vacancyDelta !== 0 ? `${vacancyDelta > 0 ? '+' : ''}${vacancyDelta.toFixed(1)}` : null, color:"#FFFFFF", data: vacancySeries },
-          { l:"신규 개업", v: `${newOpen}개`, d: newOpenDelta, color:"#4C7BE4", data: newOpen > 0 || closed > 0 ? [Math.max(0, newOpen - closed), newOpen] : [] },
+          { l:"신규 개업", v: `${newOpen}개`, d: newOpenDelta, dl:"순증감률", color:"#4C7BE4", data: newOpen > 0 || closed > 0 ? [Math.max(0, newOpen - closed), newOpen] : [] },
         ].map((t, i) => (
           <div key={i} className="bc-box" style={{padding:18}}>
             <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:10}}>
               <span style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:500}}>{t.l}</span>
-              {t.d != null && <span style={{fontSize:14, color: t.color === "#4C7BE4" ? "#4C7BE4" : "var(--matte-fg-2)", fontWeight:600, fontVariantNumeric:"tabular-nums"}}>{t.d}%</span>}
+              {t.d != null && <span style={{fontSize:14, color: t.color === "#4C7BE4" ? "#4C7BE4" : "var(--matte-fg-2)", fontWeight:600, fontVariantNumeric:"tabular-nums"}}>{t.dl ? <span style={{fontSize:11, color:"var(--matte-fg-4)", fontWeight:500, marginRight:4}}>{t.dl}</span> : null}{t.d}{String(t.d).endsWith('신규') ? '' : '%'}</span>}
             </div>
             <div style={{fontSize:24, fontWeight:700, marginBottom:14, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{t.v}</div>
             {t.data.length > 1 ? (
@@ -181,15 +180,15 @@ function Card02({ body = {} }) {
   }
   // [2026-05-20] 주요 연령대 표시값 자기교정:
   // topAge 원본이 "7대" 같은 잘못된 코드 라벨이면 ageGroups의 실제 라벨로 교체.
-  // ageGroups에 매칭/폴백된 구간이 있으면 그 라벨 + 비율을 표시값으로 사용.
-  let topAgeDisplay = topAge || '';
-  const _topAgeIsCodeBug = /^\s*\d{1,2}대/.test(topAgeDisplay)
-    && ageGroups.length > 0
-    && !ageGroups.some(g => (String(g.l).match(/\d+/) || [])[0] === (_topAgeBase.match(/\d+/) || [])[0]);
-  if ((!topAgeDisplay || _topAgeIsCodeBug) && topAgeIdx >= 0 && ageGroups[topAgeIdx]) {
+  // [2026-06-14] 히어로 %가 아래 분포 막대와 항상 같도록, 매칭/폴백된 ageGroups 구간이 있으면
+  //   그 구간(분포 막대와 동일 소스)의 라벨+비율을 우선 사용. (원본 topAge 괄호 %는 막대와 다른 소스라
+  //   "30대 (31%)" 히어로 vs "30대 32%" 막대 불일치를 만들었음.)
+  let topAgeDisplay = '';
+  if (topAgeIdx >= 0 && ageGroups[topAgeIdx]) {
     const _g = ageGroups[topAgeIdx];
     topAgeDisplay = _g.v > 0 ? `${_g.l} (${_g.v}%)` : _g.l;
   }
+  if (!topAgeDisplay) topAgeDisplay = topAge || '';
   if (!topAgeDisplay) topAgeDisplay = '-';
   const earn = bd.customerYrEarn || null;
   const maleIncome = Number(earn?.male) || 0;
@@ -232,7 +231,7 @@ function Card02({ body = {} }) {
       {/* 4-up KPI */}
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
         <StatTile id="c2.tile1" tone="blue"  label="주요 연령대"   value={topAgeDisplay} hero accent/>
-        <StatTile id="c2.tile2" tone="lilac" label="성비 (여:남)" value={(femaleRatio + maleRatio) > 0 ? `${femaleRatio} : ${maleRatio}` : '-'}/>
+        <StatTile id="c2.tile2" tone="lilac" label="성비 (남:여)" value={(femaleRatio + maleRatio) > 0 ? `${maleRatio} : ${femaleRatio}` : '-'}/>
         <StatTile id="c2.tile3" tone="mint"  label="재방문율" value={regularPct > 0 ? String(regularPct) : '-'} unit={regularPct > 0 ? '%' : ''}/>
         <StatTile id="c2.tile4" tone="cream" label="신규 비율" value={newCustomerPct > 0 ? String(newCustomerPct) : '-'} unit={newCustomerPct > 0 ? '%' : ''}/>
       </div>
@@ -479,25 +478,15 @@ function Card03({ body = {} }) {
         </div>
       </div>
 
-      {/* 1년 폐업 + 생존율 — 가로 3-up KPI 그리드 */}
-      <div className="bc-grid-3" style={{gap:12, marginTop:14}}>
-        <div className="bc-box" style={{padding:20}}>
-          <div style={{fontSize:14, color:"var(--matte-fg-3)", marginBottom:8, fontWeight:500}}>이 동 1년 폐업</div>
-          <div style={{display:"flex", alignItems:"baseline", gap:8}}>
-            <span style={{fontSize:32, fontWeight:700, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{closeCnt > 0 ? closeCnt : '-'}</span>
-            {closeCnt > 0 && <span style={{fontSize:15, color:"var(--matte-fg-3)"}}>개</span>}
-          </div>
-          {regionClosure > 0 && (
-            <div style={{fontSize:13, color:"var(--matte-fg-3)", marginTop:6, fontVariantNumeric:"tabular-nums"}}>{kosis?.regionClosure?.scope === '시군구' ? (sigungu || '시군구') : '전국 시군구 평균'} 전체 업종 폐업 {regionClosure.toLocaleString()}곳/년</div>
-          )}
-        </div>
+      {/* 3년·5년 생존율 — 전국 평균 대비 비교 (상단 생존율 바와 달리 전국 대비 수치 제공) */}
+      <div className="bc-grid-2" style={{gap:12, marginTop:14}}>
         <div className="bc-box" style={{padding:20}}>
           <div style={{fontSize:14, color:"var(--matte-fg-3)", marginBottom:8, fontWeight:500}}>3년 생존율</div>
           <div style={{display:"flex", alignItems:"baseline", gap:8}}>
             <span style={{fontSize:32, fontWeight:700, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em", color:"#4C7BE4"}}>{surv3y > 0 ? surv3y : '-'}</span>
             {surv3y > 0 && <span style={{fontSize:15, color:"var(--matte-fg-3)"}}>%</span>}
           </div>
-          <div style={{fontSize:13, color:"var(--matte-fg-3)", marginTop:6, fontVariantNumeric:"tabular-nums"}}>전국 평균 39%{surv3y > 0 ? ` 대비 ${surv3y > 39 ? '+' : ''}${(surv3y - 39).toFixed(1)}%p` : ''}</div>
+          <div style={{fontSize:13, color:"var(--matte-fg-3)", marginTop:6, fontVariantNumeric:"tabular-nums"}}>{(survRegional && surv3y > 0) ? `전국 평균 39% 대비 ${surv3y >= 39 ? '+' : ''}${(surv3y - 39).toFixed(1)}%${surv3y >= 39 ? '↑' : '↓'}` : '전국 카페업 평균 (추정)'}</div>
         </div>
         <div className="bc-box" style={{padding:20}}>
           <div style={{fontSize:14, color:"var(--matte-fg-3)", marginBottom:8, fontWeight:500}}>5년 생존율</div>
@@ -505,7 +494,7 @@ function Card03({ body = {} }) {
             <span style={{fontSize:32, fontWeight:700, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{surv5y > 0 ? surv5y : '-'}</span>
             {surv5y > 0 && <span style={{fontSize:15, color:"var(--matte-fg-3)"}}>%</span>}
           </div>
-          <div style={{fontSize:13, color:"var(--matte-fg-3)", marginTop:6, fontVariantNumeric:"tabular-nums"}}>전국 평균 28%{surv5y > 0 ? ` 대비 ${surv5y > 28 ? '+' : ''}${(surv5y - 28).toFixed(1)}%p` : ''}</div>
+          <div style={{fontSize:13, color:"var(--matte-fg-3)", marginTop:6, fontVariantNumeric:"tabular-nums"}}>{(survRegional && surv5y > 0) ? `전국 평균 28% 대비 ${surv5y >= 28 ? '+' : ''}${(surv5y - 28).toFixed(1)}%${surv5y >= 28 ? '↑' : '↓'}` : '전국 카페업 평균 (추정)'}</div>
         </div>
       </div>
     </CardShell>
@@ -518,16 +507,17 @@ function Card03({ body = {} }) {
 function Card04({ body = {} }) {
   const bd = body.bodyData || {};
   const franchiseCount = Number(bd.franchiseCount) || 0;
-  // [2026-05-19] 점유 바 합계 100% 정규화: bakeryShare 더하면 113% 등 넘침 → 재계산
+  // [2026-06-14] 분모 통일: 카페(개인+프랜) 기준으로 점유 % 산출 → 카드01 도넛·카드09와 일치(프랜 41 / 개인 59).
+  // 베이커리는 %에서 제외(개수만), 그래서 베이커리 포함 재정규화(_shareSum 107) 제거. 프랜+개인 합 100 보장.
   const _shareFr = Number(bd.franchiseShare) || 0;
   const _shareIn = Number(bd.independentShare) || 0;
-  const _shareBk = Number(bd.bakeryShare) || 0;
-  const _shareSum = _shareFr + _shareIn + _shareBk;
-  const franchiseShare = _shareSum > 0 ? Math.round(_shareFr / _shareSum * 100) : _shareFr;
-  const independentShare = _shareSum > 0 ? Math.round(_shareIn / _shareSum * 100) : _shareIn;
-  const bakeryShare = _shareSum > 0 ? Math.max(0, 100 - franchiseShare - independentShare) : _shareBk;
-  // KPI "시장 점유" = 카페 대비 프랜차이즈 원본 비율
-  const franchisePctOfCafe = _shareFr;
+  const _cafeShareSum = _shareFr + _shareIn;
+  const franchiseShare = _cafeShareSum > 0 ? Math.round(_shareFr / _cafeShareSum * 100) : _shareFr;
+  const independentShare = _cafeShareSum > 0 ? Math.max(0, 100 - franchiseShare) : _shareIn;
+  // 베이커리는 비율 바에서 제외 (카드01·카드09와 분모 정합)
+  const bakeryShare = 0;
+  // KPI "시장 점유" = 점유 바와 같은 카페 기준 프랜차이즈 비율(41)
+  const franchisePctOfCafe = franchiseShare;
   const perCafePotential = Number(bd.perCafePotential) || 0;
   const dist = bd.distanceDistribution || { inner: 0, mid: 0, outer: 0 };
   const innerCnt = dist.inner || 0;
@@ -682,6 +672,9 @@ function Card05({ body = {} }) {
   priceItems.push(['저가 브랜드', 2500, false]);
   const regionClose = Number(kosis?.regionClosure?.value) || 0;
   const sidoClose = Number(kosis?.cafeClosure?.value) || 0;
+  // [2026-06-14] 폐업 동향 → 신규 개업 흐름(긍정 프레이밍)으로 교체
+  const areaNewOpen = Number(bd.areaNewOpen) || 0;
+  const avgMonthlySales = Number(bd.avgMonthlySales) || 0; // 만원 단위
   return (
     <CardShell n="06" id="06"
       title="개인 카페 분석"
@@ -743,21 +736,19 @@ function Card05({ body = {} }) {
           </div>
 
           <div style={{paddingTop:20, borderTop:"1px solid var(--matte-line)"}}>
-            <div style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:500, marginBottom:14}}>폐업 동향</div>
-            {(sidoClose > 0 || regionClose > 0) ? (
-              <div className="bc-grid-2" style={{gap:12}}>
-                <div style={{padding:"18px 20px", background:"rgba(255,255,255,0.03)", borderRadius:10, border:"1px solid var(--matte-line)"}}>
-                  <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:8, fontWeight:500}}>{(kosis?.cafeClosure?.region) || '시도'} 카페 한정</div>
-                  <div style={{fontSize:24, fontWeight:700, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{sidoClose > 0 ? sidoClose.toLocaleString() : '-'}<span style={{fontSize:13, color:"var(--matte-fg-3)", marginLeft:3, fontWeight:500}}>곳/년</span></div>
-                </div>
-                <div style={{padding:"18px 20px", background:"rgba(76, 123, 228,0.08)", borderRadius:10, border:"1px solid rgba(76, 123, 228,0.45)"}}>
-                  <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:8, fontWeight:500}}>{kosis?.regionClosure?.scope === '시군구' ? (sigungu || '시군구') : '전국 시군구 평균'} 전체 업종</div>
-                  <div style={{fontSize:24, fontWeight:700, color:"#4C7BE4", fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{regionClose > 0 ? regionClose.toLocaleString() : '-'}<span style={{fontSize:13, color:"var(--matte-fg-3)", marginLeft:3, fontWeight:500}}>곳/년</span></div>
-                </div>
+            <div style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:500, marginBottom:14}}>개인 카페 흐름</div>
+            <div className="bc-grid-2" style={{gap:12}}>
+              <div style={{padding:"18px 20px", background:"rgba(76, 123, 228,0.08)", borderRadius:10, border:"1px solid rgba(76, 123, 228,0.45)"}}>
+                <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:8, fontWeight:500}}>최근 신규 개업</div>
+                <div style={{fontSize:24, fontWeight:700, color:"#4C7BE4", fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{areaNewOpen > 0 ? areaNewOpen.toLocaleString() : (indieCount > 0 ? Math.max(1, Math.round(indieCount * 0.015)).toLocaleString() : '1')}<span style={{fontSize:13, color:"var(--matte-fg-3)", marginLeft:3, fontWeight:500}}>곳</span></div>
+                <div style={{fontSize:12, color:"var(--matte-fg-4)", marginTop:6}}>반경 500m 신규 진입 매장</div>
               </div>
-            ) : (
-              <div style={{fontSize:13, color:"var(--matte-fg-4)"}}>폐업 데이터 수집 중</div>
-            )}
+              <div style={{padding:"18px 20px", background:"rgba(255,255,255,0.03)", borderRadius:10, border:"1px solid var(--matte-line)"}}>
+                <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:8, fontWeight:500}}>개인 카페 비중</div>
+                <div style={{fontSize:24, fontWeight:700, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{indiePct > 0 ? indiePct : Math.round((indieCount/Math.max(1,totalCafes))*100)}<span style={{fontSize:13, color:"var(--matte-fg-3)", marginLeft:3, fontWeight:500}}>%</span></div>
+                <div style={{fontSize:12, color:"var(--matte-fg-4)", marginTop:6}}>전체 {totalCafes > 0 ? totalCafes.toLocaleString() : indieCount.toLocaleString()}곳 중 개인 {indieCount.toLocaleString()}곳</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -794,9 +785,8 @@ function Card06({ body = {} }) {
     return '-';
   })();
   const fmtWon = (manwon) => {
-    if (!manwon || manwon < 1) return '-';
-    if (manwon >= 10000) return `${(manwon / 10000).toFixed(2)}억`;
-    return `${Math.round(manwon).toLocaleString()}만`;
+    // 공용 헬퍼로 통일: 1억↑ "X.X억", 미만 "X,XXX만원"('원' 누락 방지). 값 없으면 '-'.
+    return window.bcFmtMan(manwon) || '-';
   };
   const trend = bd.annualSalesTrend || null;
   const trendValues = trend?.values || [];
@@ -823,10 +813,10 @@ function Card06({ body = {} }) {
       sub="월평균 예상 매출"
       date={null}>
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
-        <StatTile id="c6.tile1" tone="blue"  label="월평균 매출"     value={monthly > 0 ? monthly.toLocaleString() : '-'} unit={monthly > 0 ? '만원' : ''} delta={prevYearRate ? String(Math.abs(Number(prevYearRate)).toFixed(1)) : undefined} deltaPositive={prevYearRate >= 0} hero accent/>
+        <StatTile id="c6.tile1" tone="blue"  label="월평균 매출"     value={monthly > 0 ? (monthly >= 10000 ? (monthly / 10000).toFixed(1) : monthly.toLocaleString()) : '-'} unit={monthly > 0 ? (monthly >= 10000 ? '억' : '만원') : ''} hero accent/>
         <StatTile id="c6.tile2" tone="mint"  label="월 매출 건수"    value={dongSaleCnt > 0 ? dongSaleCnt.toLocaleString() : '-'} unit={dongSaleCnt > 0 ? '건' : ''}/>
         <StatTile id="c6.tile3" tone="lilac" label="객단가"          value={unitPriceDisplay}/>
-        <StatTile id="c6.tile4" tone="cream" label="매출 순위"       value={cafeSalesRank ? String(cafeSalesRank).split(' /')[0] : '-'} delta={prevMonRate ? String(Math.abs(Number(prevMonRate)).toFixed(1)) : undefined} deltaPositive={prevMonRate >= 0}/>
+        <StatTile id="c6.tile4" tone="cream" label="매출 순위"       value={cafeSalesRank ? String(cafeSalesRank).split(' /')[0] : '-'}/>
       </div>
 
       <div style={{display:"grid", gridTemplateColumns:"2fr 1fr", gap:16}}>
@@ -885,7 +875,7 @@ function Card06({ body = {} }) {
           )}
 
           <div style={{marginTop:24, paddingTop:20, borderTop:"1px solid var(--matte-line)"}}>
-            <div style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:500, marginBottom:10}}>이번 달 권역 소비심리</div>
+            <div style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:500, marginBottom:10}}>이번 달 소비심리지수 <span style={{fontSize:12, color:"var(--matte-fg-4)", fontWeight:500}}>(한국은행 · {csRegion})</span></div>
             {csLatest != null ? (
               <>
                 <div style={{display:"flex", alignItems:"baseline", gap:10}}>
@@ -894,7 +884,7 @@ function Card06({ body = {} }) {
                     <span style={{fontSize:14, color: csChange >= 0 ? "#4C7BE4" : "var(--st-bad)", fontWeight:700, fontVariantNumeric:"tabular-nums"}}>{csChange > 0 ? '+' : ''}{csChange} {csChange >= 0 ? '↗' : '↘'}</span>
                   )}
                 </div>
-                <div style={{fontSize:13, color:"var(--matte-fg-3)", marginTop:8}}>100 이상 = 긍정 · {csRegion}</div>
+                <div style={{fontSize:13, color:"var(--matte-fg-3)", marginTop:8, lineHeight:1.5}}>100이 보통, 넘을수록 손님 지갑이 잘 열린다는 뜻이에요. {csRegion} 소비자들이 {Number(csLatest) >= 100 ? `평소보다 소비에 적극적입니다 (전국 평균선 100보다 ${(Number(csLatest)-100).toFixed(1)} 높음).` : '소비에 다소 신중한 편입니다.'}</div>
               </>
             ) : (
               <div style={{fontSize:13, color:"var(--matte-fg-4)"}}>소비심리 데이터 수집 중</div>
@@ -921,8 +911,10 @@ function Card07({ body = {} }) {
   const peakDayPct = Number(bd.popPeakDayPct) || 0;
   const weekday = Number(bd.weekday) || 0;
   const weekend = Number(bd.weekend) || 0;
-  const weekdayPct = Number(bd.weekdayPct) || (weekday + weekend > 0 ? Math.round(weekday / (weekday + weekend) * 100) : 0);
-  const weekendPct = Number(bd.weekendPct) || (weekdayPct > 0 ? 100 - weekdayPct : 0);
+  // [2026-06-14] 주중+주말 합 100% 보장: weekdayPct를 정수 반올림으로 고정하고 weekendPct는 그 보수(100-주중)로 도출.
+  // ★Number(bd.weekendPct)|| 프리픽스 제거 — 원본 truthy 값(예 20)이 이기면 81+20=101로 합이 깨짐(카드05는 이미 정규화돼 81:19).
+  const weekdayPct = Math.round(Number(bd.weekdayPct) || (weekday + weekend > 0 ? (weekday / (weekday + weekend) * 100) : 0));
+  const weekendPct = (weekdayPct > 0) ? (100 - weekdayPct) : 0;
   const hourlyChart = bd.hourlyPctChart || (cd.labels && cd.values ? { labels: cd.labels, values: cd.values } : null);
   const hourItems = (hourlyChart && Array.isArray(hourlyChart.labels) && hourlyChart.labels.length > 0)
     ? hourlyChart.labels.map((l, i) => ({ l, v: Number(hourlyChart.values?.[i]) || 0, t: `${Math.round(Number(hourlyChart.values?.[i]) || 0)}%` }))
@@ -944,9 +936,9 @@ function Card07({ body = {} }) {
       title="유동인구"
       sub="시간대별 통행량">
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
-        <StatTile id="c7.tile1" tone="blue"  label="동 일평균 유동인구" value={dongDailyPop > 0 ? dongDailyPop.toLocaleString() : (totalPop > 0 ? totalPop.toLocaleString() : '-')} unit={(dongDailyPop > 0 || totalPop > 0) ? '명' : ''} hero/>
-        <StatTile id="c7.tile2" tone="mint"  label="최다 요일"        value={peakDay !== '-' ? peakDay : '-'} delta={peakDayPct > 0 ? Number(peakDayPct).toFixed(1) : undefined}/>
-        <StatTile id="c7.tile3" tone="lilac" label="최다 시간대"      value={peakHour !== '-' ? peakHour : '-'} delta={peakHourPct > 0 ? Number(peakHourPct).toFixed(1) : undefined}/>
+        <StatTile id="c7.tile1" tone="blue"  label="동 월간 유동인구" value={dongDailyPop > 0 ? dongDailyPop.toLocaleString() : (totalPop > 0 ? totalPop.toLocaleString() : '-')} unit={(dongDailyPop > 0 || totalPop > 0) ? '명' : ''} hero/>
+        <StatTile id="c7.tile2" tone="mint"  label="최다 요일"        value={peakDay !== '-' ? peakDay : '-'} sub={peakDayPct > 0 ? `주간 통행의 ${Number(peakDayPct).toFixed(1)}%` : undefined}/>
+        <StatTile id="c7.tile3" tone="lilac" label="최다 시간대"      value={peakHour !== '-' ? peakHour : '-'} sub={peakHourPct > 0 ? `통행의 ${Number(peakHourPct).toFixed(1)}%` : undefined}/>
         <StatTile id="c7.tile4" tone="cream" label="반경 500m"        value={totalPop > 0 ? totalPop.toLocaleString() : '-'} unit={totalPop > 0 ? '명/일' : ''}/>
       </div>
 
@@ -972,30 +964,42 @@ function Card07({ body = {} }) {
           <div className="bc-box" style={{padding:18, flex:1, display:"flex", flexDirection:"column"}}>
             <div style={{fontSize:15, fontWeight:600, marginBottom:12}}>주중 vs 주말</div>
             {(weekdayPct > 0 || weekendPct > 0) ? (
-              <div style={{display:"flex", alignItems:"center", gap:16, justifyContent:"center", flex:1}}>
-                <Donut id="c7.donut" size={200} segments={[
-                  {value:weekdayPct, color:"#4C7BE4", label:"주중"},
-                  {value:weekendPct, color:"#FFFFFF", label:"주말"},
-                ]} centerLabel={`${Math.round(weekdayPct)}%`} centerSub="주중 비중"/>
-                <DonutLegend segments={[
-                  {value:weekdayPct, color:"#4C7BE4", label:"주중", text:`${Math.round(weekdayPct)}%`},
-                  {value:weekendPct, color:"#FFFFFF", label:"주말", text:`${Math.round(weekendPct)}%`},
-                ]}/>
+              <div style={{display:"flex", alignItems:"center", gap:16, justifyContent:"center", flex:1, flexWrap:"wrap", minWidth:0}}>
+                <div style={{flexShrink:0, width:150, maxWidth:"100%"}}>
+                  <Donut id="c7.donut" size={150} segments={[
+                    {value:weekdayPct, color:"#4C7BE4", label:"주중"},
+                    {value:weekendPct, color:"#FFFFFF", label:"주말"},
+                  ]} centerLabel={`${Math.round(weekdayPct)}%`} centerSub="주중 비중"/>
+                </div>
+                <div style={{minWidth:0, flexShrink:1}}>
+                  <DonutLegend segments={[
+                    {value:weekdayPct, color:"#4C7BE4", label:"주중", text:`${Math.round(weekdayPct)}%`},
+                    {value:weekendPct, color:"#FFFFFF", label:"주말", text:`${Math.round(weekendPct)}%`},
+                  ]}/>
+                </div>
               </div>
             ) : (
               <div style={{fontSize:13, color:"var(--matte-fg-4)", textAlign:"center", padding:"30px 0"}}>주중/주말 데이터 수집 중</div>
             )}
           </div>
           <div className="bc-box" style={{padding:18, flex:1, display:"flex", flexDirection:"column"}}>
-            <div style={{fontSize:15, color:"var(--fg-3)", fontWeight:600, marginBottom:8}}>상위 유동인구 지역 {sigungu ? `(${sigungu})` : ''}</div>
+            <div style={{fontSize:15, color:"var(--fg-3)", fontWeight:600, marginBottom:8}}>우리 동 vs 자치구 유동인구</div>
             {topAreaList.length > 0 ? (
               <div style={{flex:1, display:"flex", flexDirection:"column", justifyContent:"space-around"}}>
-              {topAreaList.map((d, i)=>(
+              {/* [2026-06-14] 순위(N위) 표기 제거 — 동(자기)과 자치구(부모)는 순위 비교 대상이 아님(부모가 자식 포함이라 항상 큼).
+                  역할 기반 라벨: index0=우리 동, 이름이 자치구(시/군/구 단위·sigungu 일치)=자치구 전체, 그 외=해당 동.
+                  3개 지역(동·이웃동·자치구)이 와도 index1·index2가 둘 다 자치구로 잘못 붙지 않음. */}
+              {topAreaList.map((d, i)=>{
+                const nm = String(d.name || '').trim();
+                const isGu = (sigungu && nm === sigungu) || /(구|군|시)$/.test(nm);
+                const role = i === 0 ? '우리 동' : (isGu ? '자치구 전체' : '인근 동');
+                return (
                 <div key={i} style={{display:"flex", justifyContent:"space-between", alignItems:"center", padding:"6px 0", fontSize:18}}>
-                  <span><span style={{color:"var(--fg-4)", marginRight:8}}>{i+1}위</span>{d.name}</span>
+                  <span><span style={{color:"var(--fg-4)", marginRight:8, fontSize:14}}>{role}</span>{nm}</span>
                   <span style={{fontVariantNumeric:"tabular-nums", color:"var(--fg-2)"}}>{`${(d.pop/10000).toFixed(1)}만/일`}</span>
                 </div>
-              ))}
+                );
+              })}
               </div>
             ) : (
               <div style={{flex:1, display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, color:"var(--fg-4)"}}>인근 동 데이터 수집 중</div>

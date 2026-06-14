@@ -32,8 +32,8 @@ function Card13({ body = {} }) {
       max: 20,
       score: Number(body.scoreMarket) || 0,
       headline: cafeSales > 0 && guAvg > 0
-        ? `월매출 ${cafeSales.toLocaleString()}만 — ${sigungu || '시군구'} 평균 ${cafeSales > guAvg ? '+' : ''}${Math.round((cafeSales / guAvg - 1) * 100)}%`
-        : (cafeSales > 0 ? `월매출 ${cafeSales.toLocaleString()}만` : '시장 데이터 수집 중'),
+        ? `월매출 ${window.bcFmtMan(cafeSales) || (cafeSales.toLocaleString() + '만원')} — ${sigungu || '시군구'} 평균 ${cafeSales > guAvg ? '+' : ''}${Math.round((cafeSales / guAvg - 1) * 100)}%`
+        : (cafeSales > 0 ? `월매출 ${window.bcFmtMan(cafeSales) || (cafeSales.toLocaleString() + '만원')}` : '시장 데이터 수집 중'),
     },
     {
       key: "competition",
@@ -101,34 +101,50 @@ function Card13({ body = {} }) {
   const weaknesses = axes.filter(a => a.score / a.max < 0.6).sort((a, b) => (a.score/a.max) - (b.score/b.max));
   const maxRatio = axes.reduce((m, a) => Math.max(m, a.score/a.max), 0);
 
+  // [2026-06-14] 우리 5축 점수 비율 → 우리 자체 등급 (외부 95점/외부 A등급 대체)
+  //   85%↑ 우수 / 65%↑ 양호 / 45%↑ 보통 / 25%↑ 주의 / 그 미만 취약
+  const axisGrade = (ratio) => {
+    if (!(ratio > 0)) return '취약';
+    if (ratio >= 0.85) return '우수';
+    if (ratio >= 0.65) return '양호';
+    if (ratio >= 0.45) return '보통';
+    if (ratio >= 0.25) return '주의';
+    return '취약';
+  };
+  // KPI 3번째 타일에 노출할 우리 축: 가장 약한 축(없으면 가장 강한 축) — 자리 판단에 가장 중요
+  const focusAxis = weaknesses[0] || strengths[0] || axes[0];
+  const focusRatio = focusAxis ? (focusAxis.max > 0 ? focusAxis.score / focusAxis.max : 0) : 0;
+
   // 한 줄 요약 (점수·축 기반 동적 생성)
   const headline = (() => {
     if (total === 0) return '데이터 수집 중';
     const strongest = strengths[0];
-    const weakest = weaknesses[weaknesses.length - 1];
+    // weaknesses는 비율 오름차순 정렬 → [0]이 가장 약한 축(최약점). 강점 strongest[0](최강)과 대칭.
+    const weakest = weaknesses[0];
     if (strongest && weakest) {
       return `${strongest.label}는 강하지만 ${weakest.label}이 ${grade === '좋음' || grade === '매우 좋음' ? '함께 큰' : '부담인'} 자리.`;
     }
     return `${grade} 등급 상권.`;
   })();
 
-  // 외부 지표 6칸 (창업기상도/상권지도 5종)
-  const externalCards = (() => {
+  // [2026-06-14] "빈크래프트 종합 진단" — 전적으로 우리 5축 점수 기반.
+  //   외부 창업기상도(95점)·외부 상권지도 A등급·외부 매출지수는 우리 종합 58점(보통)과
+  //   기준·스케일이 달라 모순을 일으키므로 화면 노출 제거(점수 보너스로는 이미 내부 반영됨).
+  //   여기서는 경쟁력 종합 점수(앵커) + 우리 5축을 점수 비율순으로 우리 등급으로만 표기.
+  const diagnosisCards = (() => {
     const items = [];
-    if (weatherLabel && weatherScore > 0) items.push(['창업 기상도', `${weatherLabel} (${weatherScore}점)`]);
-    else if (weatherLabel) items.push(['창업 기상도', weatherLabel]);
-    else if (weatherScore > 0) items.push(['창업 기상도', `${weatherScore}점`]);
-
-    const mm = externalIndicators?.marketMapScores || [];
-    mm.slice(0, 5).forEach(s => {
-      if (s.name && s.score > 0) {
-        const label = s.score >= 80 ? 'A' : s.score >= 70 ? 'A-' : s.score >= 60 ? 'B+' : s.score >= 50 ? 'B' : 'C';
-        items.push([s.name.length > 10 ? s.name.slice(0, 10) : s.name, label]);
-      }
-    });
-
-    if (items.length < 6 && externalIndicators?.salesIndexSource) {
-      items.push(['매출지수', externalIndicators.salesIndexSource]);
+    // 1) 우리 자체 종합 (5축 합산 점수 = total)
+    const _gradeKr = total >= 80 ? '매우 좋음' : total >= 60 ? '좋음' : total >= 40 ? '보통' : total >= 20 ? '조정 필요' : '신중';
+    if (total > 0) items.push(['경쟁력 종합', `${total}점 · ${_gradeKr}`, true]);
+    // 2) 우리 5축을 점수 비율 내림차순으로 → 우리 등급(우수/양호/보통/주의/취약)으로 표기
+    if (total > 0) {
+      const ranked = [...axes].sort((a, b) => (b.score/b.max) - (a.score/a.max));
+      ranked.forEach(a => {
+        if (items.length < 6) {
+          const _r = a.max > 0 ? a.score / a.max : 0;
+          items.push([a.label, axisGrade(_r), false]);
+        }
+      });
     }
     return items.slice(0, 6);
   })();
@@ -150,9 +166,9 @@ function Card13({ body = {} }) {
           </div>
           <div style={{display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:14}}>
             {[
-              ["3년 생존", survival3y > 0 ? String(survival3y) : '-', survival3y > 0 ? '%' : '', survival3y > 0 ? `${survival3y > 39 ? '+' : ''}${(survival3y - 39).toFixed(1)}%p (전국)` : '', survival3y >= 60],
-              ["월매출", cafeSales > 0 ? cafeSales.toLocaleString() : '-', cafeSales > 0 ? '만' : '', cafeSales > 0 && guAvg > 0 ? `${sigungu || '시군구'} 평균 대비 ${cafeSales > guAvg ? '+' : ''}${Math.round((cafeSales/guAvg-1)*100)}%` : '', false],
-              ["창업 기상도", weatherLabel || (weatherScore > 0 ? String(weatherScore) : '-'), '', weatherScore > 0 ? `${weatherScore}점 / 100점` : '', weatherScore >= 60],
+              ["3년 생존", survival3y > 0 ? String(survival3y) : '-', survival3y > 0 ? '%' : '', survival3y > 0 ? `전국 평균 대비 ${survival3y >= 39 ? '+' : ''}${(survival3y - 39).toFixed(1)}%${survival3y >= 39 ? '↑' : '↓'}` : '', survival3y >= 60],
+              ["월매출", cafeSales > 0 ? (window.bcFmtMan(cafeSales) || cafeSales.toLocaleString() + '만원') : '-', '', cafeSales > 0 && guAvg > 0 ? `${sigungu || '시군구'} 평균 대비 ${cafeSales > guAvg ? '+' : ''}${Math.round((cafeSales/guAvg-1)*100)}%` : '', false],
+              [focusAxis ? focusAxis.label : '핵심 지표', total > 0 && focusAxis ? axisGrade(focusRatio) : '-', '', total > 0 && focusAxis ? `우리 분석 ${focusAxis.score}/${focusAxis.max}점 (${Math.round(focusRatio*100)}%)` : '', focusRatio >= 0.65],
             ].map(([l, v, u, sub, acc]) => (
               <div key={l} style={{padding:"20px 22px", background:"rgba(255,255,255,0.03)", borderRadius:12, border:"1px solid var(--matte-line)"}}>
                 <div style={{fontSize:14, color:"var(--matte-fg-3)", marginBottom:10, fontWeight:500}}>{l}</div>
@@ -247,14 +263,17 @@ function Card13({ body = {} }) {
         </div>
       </div>
 
-      {/* 외부 지표 — 실제 데이터 기반 */}
-      {externalCards.length > 0 && (
+      {/* 빈크래프트 종합 진단 — 우리 5축 점수 기반 (외부 지표 노출 제거) */}
+      {diagnosisCards.length > 0 && (
         <div className="bc-box" style={{padding:"24px 32px", marginTop:16, display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:24, alignItems:"center"}}>
-          <div style={{fontSize:13, color:"var(--matte-fg-3)", fontWeight:700, letterSpacing:"0.08em", textTransform:"uppercase"}}>외부 지표</div>
-          {externalCards.map(([l, v], i) => (
+          <div style={{display:"flex", flexDirection:"column", gap:2}}>
+            <div style={{fontSize:13, color:"var(--matte-fg)", fontWeight:700, letterSpacing:"0.04em"}}>빈크래프트 종합 진단</div>
+            <div style={{fontSize:11, color:"var(--matte-fg-4)", fontWeight:500}}>우리 5축 분석 기준</div>
+          </div>
+          {diagnosisCards.map(([l, v, isOurs], i) => (
             <div key={i} style={{display:"flex", flexDirection:"column", alignItems:"flex-start", gap:4}}>
               <div style={{fontSize:13, color:"var(--matte-fg-3)", fontWeight:500}}>{l}</div>
-              <div style={{fontSize:18, color:"var(--matte-fg)", fontWeight:700, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.005em"}}>{v}</div>
+              <div style={{fontSize:18, color: isOurs ? "#4C7BE4" : "var(--matte-fg)", fontWeight:700, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.005em"}}>{v}</div>
             </div>
           ))}
         </div>
@@ -370,6 +389,31 @@ function Card14({ body = {}, onOpenDirector }) {
               <div style={{fontSize:13, color:"var(--matte-fg-4)"}}>부정 시그널 없음</div>
             )}
           </div>
+
+          {/* [2026-06-14] 디렉터 설계 방향 — 냉정한 진단을 "그래서 이렇게 풀면 됩니다"로 전환 */}
+          {(() => {
+            const dd = body.designDirection;
+            const ddItems = Array.isArray(dd)
+              ? dd.filter(x => typeof x === 'string' && x.trim().length > 0)
+              : (typeof dd === 'string' && dd.trim().length > 0 ? [dd.trim()] : []);
+            if (ddItems.length === 0) return null;
+            return (
+              <div className="bc-box" style={{padding:18, marginTop:12, background:"rgba(76, 123, 228,0.08)", border:"1px solid rgba(76, 123, 228,0.40)"}}>
+                <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:12}}>
+                  <i className="ph ph-compass-tool" style={{fontSize:18, color:"#4C7BE4"}}></i>
+                  <span style={{fontSize:15, color:"#4C7BE4", fontWeight:700, letterSpacing:"0.02em"}}>이렇게 설계하면 됩니다</span>
+                </div>
+                <window.DrStagger id="c14.design" delay={90} style={{display:"flex", flexDirection:"column", gap:11}}>
+                  {ddItems.map((t, i) => (
+                    <div key={i} style={{display:"grid", gridTemplateColumns:"22px 1fr", gap:8, fontSize:14, color:"var(--matte-fg)", lineHeight:1.55}}>
+                      <span style={{fontSize:13, color:"#4C7BE4", fontVariantNumeric:"tabular-nums", fontWeight:700}}>{String(i+1).padStart(2,"0")}</span>
+                      <span>{t}</span>
+                    </div>
+                  ))}
+                </window.DrStagger>
+              </div>
+            );
+          })()}
         </div>
       </div>
 

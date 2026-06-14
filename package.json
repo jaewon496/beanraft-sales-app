@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@netlify/blobs": "^10.7.9",
     "@turf/boolean-point-in-polygon": "^7.3.5",
     "@turf/helpers": "^7.3.5",
     "apexcharts": "^5.10.4",

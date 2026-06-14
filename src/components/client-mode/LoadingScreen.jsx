@@ -95,17 +95,24 @@ export default function LoadingScreen({ progress = 0, onComplete, onGoHomepage, 
   }, []);
 
   // displayProgress가 실제 progress에 1씩 부드럽게 따라가도록 보간
+  // [bugfix 2026-06-14] 진행률 역행 방지: 표시값은 단조 증가만 한다.
+  //   단계별 목표% 매핑이 꼬이거나 두 타이머가 경쟁해 progress가 잠깐 내려가도
+  //   화면에서는 절대 뒤로 가지 않는다. 새 검색(progress가 5 미만으로 리셋)일 때만 0으로 되돌린다.
   useEffect(() => {
-    const target = Math.min(100, Math.max(0, progress));
-    if (displayProgress === target) return;
+    const incoming = Math.min(100, Math.max(0, progress));
+    // 새 검색 리셋 감지: 들어온 값이 매우 낮고 현재 표시값이 높으면 처음부터 다시.
+    if (incoming < 5 && displayProgress > 20) {
+      setDisplayProgress(0);
+      return;
+    }
+    // 단조 증가 고정: 현재 표시값보다 낮은 목표는 무시(=현재값 유지).
+    const target = Math.max(displayProgress, incoming);
+    if (displayProgress >= target) return;
     // 차이가 클수록 빠르게 (40ms~12ms), 작을수록 자연스럽게
-    const diff = Math.abs(target - displayProgress);
+    const diff = target - displayProgress;
     const stepMs = Math.max(12, Math.min(40, Math.round(400 / Math.max(1, diff))));
     const id = setTimeout(() => {
-      setDisplayProgress((cur) => {
-        if (cur === target) return cur;
-        return cur < target ? cur + 1 : cur - 1;
-      });
+      setDisplayProgress((cur) => (cur < target ? cur + 1 : cur));
     }, stepMs);
     return () => clearTimeout(id);
   }, [progress, displayProgress]);

@@ -3927,6 +3927,7 @@ export default function UnifiedLayout({
           ];
         }
         hfBody.tags = card.chartData?.tags || [];
+        hfBody.designDirection = card.chartData?.designDirection || [];
       }
       if (i === 12) {
         const bd = card.bodyData || {};
@@ -4006,6 +4007,13 @@ export default function UnifiedLayout({
         }
         if (!Number(hfBody.bodyData.franchiseMaxPrice)) {
           hfBody.bodyData.franchiseMaxPrice = 4700; // 스타벅스 톨 아메
+        }
+        // [2026-06-14] 폐업 동향 → 신규 개업 흐름으로 교체 (긍정 프레이밍). 상권분석/상권변화 카드의 신규 개업 수 인용.
+        {
+          const _c0 = cards[0]?.bodyData || {};
+          const _c2 = cards[2]?.bodyData || {};
+          const _newOpen = Number(_c0.newOpen) || Number(_c2.openCount) || Number(_c2.recentOpen) || 0;
+          if (_newOpen > 0) hfBody.bodyData.areaNewOpen = _newOpen;
         }
       }
       if (i === 5) {
@@ -6870,6 +6878,7 @@ export default function UnifiedLayout({
                             }
                             // 태그
                             hfBody.tags = card.chartData?.tags || [];
+                            hfBody.designDirection = card.chartData?.designDirection || [];
                           }
                           // Card13(상권경쟁)도 별도 키 추가
                           if (i === 12) {
@@ -6973,6 +6982,13 @@ export default function UnifiedLayout({
                             }
                             if (!Number(hfBody.bodyData.franchiseMaxPrice)) {
                               hfBody.bodyData.franchiseMaxPrice = 4700;
+                            }
+                            // [2026-06-14] 폐업 동향 → 신규 개업 흐름 교체용 데이터
+                            {
+                              const _c0 = cards[0]?.bodyData || {};
+                              const _c2 = cards[2]?.bodyData || {};
+                              const _newOpen = Number(_c0.newOpen) || Number(_c2.openCount) || Number(_c2.recentOpen) || 0;
+                              if (_newOpen > 0) hfBody.bodyData.areaNewOpen = _newOpen;
                             }
                           }
                           // Card05(매출)에 권역 sigungu 전달용

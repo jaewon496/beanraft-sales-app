@@ -173,8 +173,11 @@ export default function ClientMode({
   //   progress prop이 100에 못 도달 → waitClick 전환 안 됨 → 클릭 무시 버그.
   useEffect(() => {
     if (!onSearchRegion || phase !== PHASE.LOADING) return;
-    const effectiveProgress = searchResult?.success ? 100 : analysisProgress;
-    const isCompleteEvent = !!searchResult?.success && effectiveProgress === 100;
+    const raw = searchResult?.success ? 100 : analysisProgress;
+    const isCompleteEvent = !!searchResult?.success && raw === 100;
+    // [bugfix 2026-06-14] 진행률 단조 증가 고정: 단계별 목표% 매핑이 꼬여 analysisProgress가
+    //   잠깐 내려가도(예 95→85) 표시값을 뒤로 보내지 않는다. 완료 이벤트는 무조건 100.
+    const effectiveProgress = isCompleteEvent ? 100 : Math.max(progressRef.current, raw);
     if (!isCompleteEvent && progressRef.current === effectiveProgress) return; // 분석 중에만 동일값 가드
     progressRef.current = effectiveProgress;
     setLoadingProgress(effectiveProgress);

@@ -1,45 +1,179 @@
-﻿// 나이스비즈맵 세션 유지용 heartbeat
+// 나이스비즈맵 세션 유지용 heartbeat (강한 버전)
+// - 세션 읽기: Netlify Blobs bizmap-session/current.sessionId 우선 → 없거나 에러나면 env NICEBIZMAP_SESSION_ID 폴백
+// - STEP1: GET /api/auth/session (상태 확인)
+// - STEP2(★핵심·복원): GET check-analyzability (활동 → idle TTL 연장, 한도 0차감)
+// - Set-Cookie 회전 캡처: 새 SESSION 쿠키 오면 Blobs bizmap-session/current 갱신
+// - 만료 감지: success:false 또는 code 1002/9999 → Blobs bizmap-session/expired 갱신
+// scheduled function 이므로 "배포본"에서만 5분마다 실행됨 (로컬/미배포 코드는 안 돔)
+// ★ 저장소 교체(RTDB→Netlify Blobs, 2026-06-15): RTDB 쓰기가 401(인증)로 막혀 회전/만료가 무동작.
+//   Blobs 는 함수 내장 저장소(siteID/token 자동) → 별도 인증 불필요 → 401 원천 해소.
+//   단 Blobs 는 "배포본"에서만 컨텍스트가 있고, 로컬/미배포에선 getStore/get/set 이 throw → try/catch 로 env 폴백.
 const https = require('https');
 
-exports.handler = async (event) => {
-  const sessionId = process.env.NICEBIZMAP_SESSION_ID;
-  if (!sessionId) {
-    return { statusCode: 200, body: JSON.stringify({ ok: false, reason: 'no session id' }) };
+// ── Netlify Blobs 헬퍼 (동적 import: v10 은 ESM, 이 파일은 CommonJS) ──
+// store 'bizmap-session', 키 current={sessionId,updatedAt,source}, expired={value,at}
+// 실패해도 절대 throw 하지 않음 (heartbeat 가 죽으면 안 됨)
+async function getBlobStore() {
+  try {
+    const { getStore } = await import('@netlify/blobs');
+    return getStore('bizmap-session');
+  } catch (e) {
+    // 로컬/미배포: Blobs 컨텍스트 없음 → null 반환해 env 폴백 유도
+    console.warn('[nicebizmap-heartbeat] Blobs getStore 불가(로컬/미배포 추정) → env 폴백:', e.message);
+    return null;
   }
+}
+async function blobGetJSON(store, key) {
+  if (!store) return null;
+  try {
+    return await store.get(key, { type: 'json', consistency: 'strong' });
+  } catch (e) {
+    console.warn('[nicebizmap-heartbeat] Blobs get 실패(무시):', key, e.message);
+    return null;
+  }
+}
+async function blobSetJSON(store, key, value) {
+  if (!store) return false;
+  try {
+    await store.setJSON(key, value);
+    return true;
+  } catch (e) {
+    console.warn('[nicebizmap-heartbeat] Blobs set 실패(무시):', key, e.message);
+    return false;
+  }
+}
 
-  const cookie = 'SESSION=' + Buffer.from(sessionId).toString('base64');
+// 세션 읽기: Blobs current 우선 → env 폴백 (Blobs 없거나 에러나면 env 로 정상 동작)
+async function resolveSessionId(store) {
+  const cur = await blobGetJSON(store, 'current');
+  if (cur && cur.sessionId) return { sessionId: cur.sessionId, source: 'blobs' };
+  if (process.env.NICEBIZMAP_SESSION_ID) return { sessionId: process.env.NICEBIZMAP_SESSION_ID, source: 'env' };
+  return { sessionId: null, source: 'none' };
+}
 
+// 쿠키 문자열: SESSION = Base64(sessionId)
+function cookieFor(sessionId) {
+  return 'SESSION=' + Buffer.from(sessionId).toString('base64');
+}
+
+// 한 번의 GET 호출 → { json, setCookie:[...] } 반환 (한글 안전: Buffer 모은 뒤 디코딩)
+function bizmapGet(path, sessionId) {
   return new Promise((resolve) => {
     const req = https.get({
       hostname: 'm.nicebizmap.co.kr',
-      path: '/api/auth/session',
+      path,
       headers: {
-        'Cookie': cookie,
+        'Cookie': cookieFor(sessionId),
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'Referer': 'https://m.nicebizmap.co.kr/',
+        'Origin': 'https://m.nicebizmap.co.kr',
+        'X-Requested-With': 'XMLHttpRequest'
       }
     }, res => {
-      // [버그 수정] 청크를 Buffer로 모은 후 마지막에 UTF-8 디코딩
-      // 한글 멀티바이트가 청크 경계에 걸리면 fffd로 깨지는 문제 방지
+      const setCookie = res.headers['set-cookie'] || [];
       const chunks = [];
       res.on('data', c => chunks.push(c));
       res.on('end', () => {
-        try {
-          const data = Buffer.concat(chunks).toString('utf-8');
-          const j = JSON.parse(data);
-          console.log('[nicebizmap-heartbeat]', j.success ? 'session alive' : 'session expired', j.data?.loginId || '');
-          resolve({
-            statusCode: 200,
-            body: JSON.stringify({ ok: j.success, valid: j.data?.valid, loginId: j.data?.loginId })
-          });
-        } catch(e) {
-          resolve({ statusCode: 200, body: JSON.stringify({ ok: false, error: e.message }) });
-        }
+        let json = null;
+        try { json = JSON.parse(Buffer.concat(chunks).toString('utf-8')); } catch (e) { json = null; }
+        resolve({ json, setCookie });
       });
     });
-    req.on('error', e => resolve({ statusCode: 200, body: JSON.stringify({ ok: false, error: e.message }) }));
+    req.on('error', e => resolve({ json: null, setCookie: [], error: e.message }));
+    req.setTimeout(8000, () => { req.destroy(); resolve({ json: null, setCookie: [], error: 'timeout' }); });
     req.end();
   });
+}
+
+// Set-Cookie 배열에서 새 SESSION 값 추출 → sessionId(UUID) 디코딩
+function extractRotatedSessionId(setCookieArrays) {
+  for (const arr of setCookieArrays) {
+    if (!Array.isArray(arr)) continue;
+    for (const c of arr) {
+      const m = /(?:^|;|\s)SESSION=([^;]+)/i.exec(c);
+      if (m && m[1]) {
+        const b64 = decodeURIComponent(m[1].trim());
+        try {
+          const decoded = Buffer.from(b64, 'base64').toString('utf-8');
+          // UUID 형태면 채택 (회전된 새 sessionId)
+          if (/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(decoded)) {
+            return decoded;
+          }
+        } catch (e) { /* base64 아님 → 무시 */ }
+      }
+    }
+  }
+  return null;
+}
+
+// 응답이 만료를 의미하는지 판정
+function isExpiredResponse(j) {
+  if (!j) return false; // 네트워크 실패는 만료로 보지 않음 (오탐 방지)
+  if (j.success === false) return true;
+  const code = String(j.code ?? j.errorCode ?? j.resultCode ?? '');
+  if (code === '1002' || code === '9999') return true;
+  return false;
+}
+
+exports.handler = async (event) => {
+  const store = await getBlobStore(); // 로컬/미배포면 null → env 폴백
+  const { sessionId, source } = await resolveSessionId(store);
+  if (!sessionId) {
+    console.log('[nicebizmap-heartbeat] no session id (blobs+env 모두 없음)');
+    return { statusCode: 200, body: JSON.stringify({ ok: false, reason: 'no session id' }) };
+  }
+
+  // STEP1: 상태 확인
+  const step1 = await bizmapGet('/api/auth/session', sessionId);
+  // STEP2(★핵심): check-analyzability = 활동 호출 → idle TTL 연장, 한도 0차감
+  const step2 = await bizmapGet(
+    '/api/explorer/summary/check-analyzability?admiCd=11680640&upjong3Cd=Q13007',
+    sessionId
+  );
+
+  // ── Set-Cookie 회전 캡처 (두 응답 모두 검사) ──
+  let rotated = false;
+  const newSid = extractRotatedSessionId([step1.setCookie, step2.setCookie]);
+  if (newSid && newSid !== sessionId) {
+    rotated = await blobSetJSON(store, 'current', {
+      sessionId: newSid,
+      updatedAt: new Date().toISOString(),
+      source: 'heartbeat-rotate'
+    });
+    console.log('[nicebizmap-heartbeat] session rotated -> Blobs current 갱신:', newSid, 'set=' + rotated);
+  }
+
+  // ── 살아있음/활동 판정 ──
+  const aliveStatus = !!(step1.json && step1.json.success);   // /api/auth/session
+  const activityOk = !!(step2.json && step2.json.success !== false && !isExpiredResponse(step2.json));
+  const keepAlive = activityOk; // check-analyzability 가 정상 = TTL 연장됨
+
+  // ── 만료 감지 ──
+  const expired = isExpiredResponse(step1.json) || isExpiredResponse(step2.json);
+  if (expired) {
+    await blobSetJSON(store, 'expired', { value: true, at: new Date().toISOString() });
+  } else if (step1.json || step2.json) {
+    // 정상 응답을 한 번이라도 받았으면 expired:false 로 정리
+    await blobSetJSON(store, 'expired', { value: false, at: new Date().toISOString() });
+  }
+
+  console.log(
+    `[nicebizmap-heartbeat] session ${expired ? 'expired' : 'alive'}, keepAlive:${keepAlive}, rotated:${rotated}`
+    + ` (src:${source}, step1:${aliveStatus}, step2:${activityOk}, loginId:${step1.json?.data?.loginId || ''})`
+  );
+
+  return {
+    statusCode: 200,
+    body: JSON.stringify({
+      ok: aliveStatus || activityOk,
+      keepAlive,
+      rotated,
+      expired,
+      source,
+      loginId: step1.json?.data?.loginId || null
+    })
+  };
 };
 
 exports.config = {

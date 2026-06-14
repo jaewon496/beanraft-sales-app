@@ -4,6 +4,37 @@
 const { useState, useEffect, useRef, useContext, createContext } = React;
 
 /* ============================================================
+   공용 숫자 포맷 헬퍼 (전 카드 통일) — 2026-06-14
+   bcFmtMan(manwon):  만원 단위 입력 → 1억 이상이면 "X.X억", 미만이면 "X,XXX만원"
+   bcFmtWon(won):     원 단위 입력  → 동일 규칙 (만원 환산 후)
+   bcFmtCount(n,u):   카운트 → "X,XXX" + 단위(곳/명/건 등)
+   값이 없거나 0 이하면 null 반환(호출부에서 폴백 텍스트 처리, "-" 직접 금지)
+   ============================================================ */
+function bcFmtMan(manwon) {
+  const v = Number(manwon);
+  if (!v || v <= 0 || !isFinite(v)) return null;
+  if (v >= 10000) {
+    // 1억 이상 → X.X억 (소수 1자리)
+    return `${(v / 10000).toFixed(1)}억`;
+  }
+  // 1억 미만 → 천단위 콤마 + 만원
+  return `${Math.round(v).toLocaleString()}만원`;
+}
+function bcFmtWon(won) {
+  const v = Number(won);
+  if (!v || v <= 0 || !isFinite(v)) return null;
+  // 1만원 미만은 원 단위 그대로 (객단가 등)
+  if (v < 10000) return `${Math.round(v).toLocaleString()}원`;
+  return bcFmtMan(v / 10000);
+}
+function bcFmtCount(n, unit = "") {
+  const v = Number(n);
+  if (v == null || isNaN(v) || !isFinite(v)) return null;
+  return `${Math.round(v).toLocaleString()}${unit}`;
+}
+Object.assign(window, { bcFmtMan, bcFmtWon, bcFmtCount });
+
+/* ============================================================
    14 cards — 카테고리 순서대로 1-14 연속 번호
    identity(n): 컴포넌트(window.Card${n}) 식별자 — 기존 ID 유지
    badge:      화면에 노출되는 순번 (01..14)

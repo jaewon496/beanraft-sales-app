@@ -4,6 +4,90 @@
 const https = require('https');
 const zlib = require('zlib');
 
+// ─────────────────────────────────────────────────────────────────────────
+// 세션 소스 보강 (데이터 로직 무변경 — 세션을 어디서 읽느냐만 바꿈)
+// 우선순위: Netlify Blobs bizmap-session/current.sessionId → 없거나 에러나면 env NICEBIZMAP_SESSION_ID 폴백
+// ★ 저장소 교체(RTDB→Netlify Blobs, 2026-06-15): RTDB 쓰기 401(인증) 해소.
+//   Blobs 는 함수 내장 저장소(siteID/token 자동) → 별도 인증 불필요.
+//   단 Blobs 는 "배포본"에서만 컨텍스트가 있고, 로컬 vite dev 에선 getStore/get/set 이 throw →
+//   반드시 try/catch 로 감싸 env 폴백 (프록시가 로컬에서 안 죽게).
+// @netlify/blobs v10 은 ESM → CommonJS 인 이 파일에선 동적 import(await import) 로 불러온다.
+// ─────────────────────────────────────────────────────────────────────────
+
+// 핸들러 시작 시 한 번 채워짐. 쿠키 헬퍼(fetchHtmlGet/Post, fetchJsonPost)가 이 값을 읽는다.
+// 초기값 = env 폴백 (Blobs 조회 전이라도 기존과 동일하게 동작 보장).
+let RESOLVED_SESSION_ID = process.env.NICEBIZMAP_SESSION_ID || '';
+
+// 동기 쿠키 빌더 (세 함수가 공통 사용) — SESSION = Base64(sessionId)
+function nbmSessionCookie() {
+  return RESOLVED_SESSION_ID
+    ? 'SESSION=' + Buffer.from(RESOLVED_SESSION_ID).toString('base64')
+    : '';
+}
+
+// Netlify Blobs store 가져오기 (동적 import + try/catch — 로컬/미배포면 null)
+async function getBlobStore() {
+  try {
+    const { getStore } = await import('@netlify/blobs');
+    return getStore('bizmap-session');
+  } catch (e) {
+    console.warn('[nicebizmap-proxy] Blobs getStore 불가(로컬/미배포 추정) → env 폴백:', e.message);
+    return null;
+  }
+}
+
+// Blobs current → sessionId 조회해 RESOLVED_SESSION_ID 갱신 (없거나 에러면 env 유지)
+async function resolveNbmSession(store) {
+  try {
+    if (store) {
+      const cur = await store.get('current', { type: 'json', consistency: 'strong' });
+      if (cur && cur.sessionId) {
+        RESOLVED_SESSION_ID = cur.sessionId; // Blobs 값 우선
+        return;
+      }
+    }
+  } catch (e) {
+    console.warn('[nicebizmap-proxy] Blobs 세션 조회 실패 → env 폴백:', e.message);
+  }
+  // Blobs 없음/빈값/실패 → env 폴백 유지
+  RESOLVED_SESSION_ID = process.env.NICEBIZMAP_SESSION_ID || '';
+}
+
+// Set-Cookie 배열에서 새 SESSION 회전 감지 → Blobs current 갱신 (heartbeat 와 동일 방식)
+function extractRotatedSessionId(setCookie) {
+  if (!Array.isArray(setCookie)) return null;
+  for (const c of setCookie) {
+    const m = /(?:^|;|\s)SESSION=([^;]+)/i.exec(c);
+    if (m && m[1]) {
+      try {
+        const decoded = Buffer.from(decodeURIComponent(m[1].trim()), 'base64').toString('utf-8');
+        if (/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(decoded)) {
+          return decoded;
+        }
+      } catch (e) { /* base64 아님 → 무시 */ }
+    }
+  }
+  return null;
+}
+async function maybeRotateNbmSession(store, setCookie) {
+  try {
+    const newSid = extractRotatedSessionId(setCookie);
+    if (newSid && newSid !== RESOLVED_SESSION_ID) {
+      RESOLVED_SESSION_ID = newSid; // 이후 호출에 즉시 반영
+      if (store) {
+        await store.setJSON('current', {
+          sessionId: newSid,
+          updatedAt: new Date().toISOString(),
+          source: 'proxy-rotate'
+        });
+        console.log('[nicebizmap-proxy] session rotated -> Blobs current 갱신:', newSid);
+      }
+    }
+  } catch (e) {
+    console.warn('[nicebizmap-proxy] 세션 회전 Blobs 갱신 실패(무시):', e.message);
+  }
+}
+
 function fetchJsonGet(url, headers = {}) {
   return new Promise((resolve, reject) => {
     const urlObj = new URL(url);
@@ -46,9 +130,7 @@ function fetchJsonGet(url, headers = {}) {
 function fetchHtmlGet(url, headers = {}) {
   return new Promise((resolve) => {
     const urlObj = new URL(url);
-    const sessionCookie = process.env.NICEBIZMAP_SESSION_ID
-      ? 'SESSION=' + Buffer.from(process.env.NICEBIZMAP_SESSION_ID).toString('base64')
-      : '';
+    const sessionCookie = nbmSessionCookie();
     const options = {
       hostname: urlObj.hostname,
       port: 443,
@@ -106,9 +188,7 @@ function fetchHtmlPost(url, jsonBody) {
         'X-Requested-With': 'XMLHttpRequest',
         'Referer': 'https://m.nicebizmap.co.kr/',
         'Origin': 'https://m.nicebizmap.co.kr',
-        'Cookie': process.env.NICEBIZMAP_SESSION_ID
-          ? 'SESSION=' + Buffer.from(process.env.NICEBIZMAP_SESSION_ID).toString('base64')
-          : '',
+        'Cookie': nbmSessionCookie(),
         'Content-Length': Buffer.byteLength(postBody)
       },
       timeout: 15000
@@ -224,14 +304,14 @@ function fetchJsonPost(url, jsonBody) {
         'X-Requested-With': 'XMLHttpRequest',
         'Referer': 'https://m.nicebizmap.co.kr/',
         'Origin': 'https://m.nicebizmap.co.kr',
-        'Cookie': process.env.NICEBIZMAP_SESSION_ID
-          ? 'SESSION=' + Buffer.from(process.env.NICEBIZMAP_SESSION_ID).toString('base64')
-          : '',
+        'Cookie': nbmSessionCookie(),
         'Content-Length': Buffer.byteLength(postBody)
       },
       timeout: 15000
     };
     const req = https.request(options, (res) => {
+      // [세션 회전 캡처] 비즈맵 응답의 새 SESSION 쿠키를 모듈 변수에 기록 (데이터 무변경)
+      LAST_POST_SET_COOKIE = res.headers['set-cookie'] || [];
       const encoding = (res.headers['content-encoding'] || '').toLowerCase();
       let stream = res;
       if (encoding === 'gzip') { stream = res.pipe(zlib.createGunzip()); }
@@ -254,6 +334,9 @@ function fetchJsonPost(url, jsonBody) {
   });
 }
 
+// 직전 fetchJsonPost 응답의 set-cookie (세션 회전 감지용). 데이터 흐름과 무관.
+let LAST_POST_SET_COOKIE = [];
+
 exports.handler = async (event) => {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -265,6 +348,12 @@ exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 200, headers: corsHeaders, body: '' };
   }
+
+  // [세션 소스 보강] 비즈맵 호출 전에 Blobs current 우선 조회 (없거나 에러 시 env 폴백 유지).
+  // 데이터 로직은 그대로 — 쿠키 헬퍼가 읽을 세션 값만 결정한다.
+  // store 는 회전 캡처(maybeRotateNbmSession)에서도 재사용. 로컬/미배포면 null → env 로 동작.
+  const blobStore = await getBlobStore();
+  await resolveNbmSession(blobStore);
 
   try {
     let admiCd, requestBody, body = {};
@@ -458,6 +547,10 @@ exports.handler = async (event) => {
 
     let result = await fetchJsonPost(targetUrl, requestBody);
 
+    // [세션 회전 캡처] summary-report 응답에 새 SESSION 쿠키가 왔으면 Blobs current 갱신
+    // (heartbeat 와 동일 방식. 데이터 로직 무영향 — 회전 감지만. 로컬/미배포면 store=null → 스킵.)
+    await maybeRotateNbmSession(blobStore, LAST_POST_SET_COOKIE);
+
     // 핵심 키 수신 검증 + 로깅
     const coreKeys = ['genderAgeTrendList','hourlySalesConcentration','weeklySalesConcentration','averageSalesList','usageAndPaymentTrendList','storeCountTrendList','marketSizeTrendList','costAnalysisList','popularMenuList'];
     const inner = (result && !result.parseError) ? (result.data || result) : null;
@@ -520,12 +613,19 @@ exports.handler = async (event) => {
     if (_risingNeedFill) {
       try {
         const sidoCode = admiCd.substring(0, 2);
-        const currentYear = new Date().getFullYear();
         const upjongCd = requestBody.upjong3Cd || 'Q13007';
-        const zinidataUrl = `https://api-v1.zinidata.co.kr/v4/union/biz_trend_menu?CLSFC_TERM=M&YEAR=${currentYear}&TERMS=2&UPJONG_CD=${upjongCd}&AREA_CD=${sidoCode}`;
-        console.log(`[nicebizmap-proxy] risingMenuList NULL -> zinidata 보충: ${zinidataUrl}`);
-        const zinResult = await fetchJsonGet(zinidataUrl, { 'UNION-API-KEY': 'pringles' });
-        const menuList = zinResult && zinResult.RESULT && zinResult.RESULT.MENU_LIST;
+        // [2026-06-14] 연도 폴백: 당해(getFullYear)는 집계 전이라 MENU_LIST 빈배열로 옴.
+        // 당해 → 전년 순서로 시도해서 빈 메뉴 유실을 막는다.
+        const nowYear = new Date().getFullYear();
+        const yearCandidates = [nowYear, nowYear - 1];
+        let menuList = null;
+        for (const yr of yearCandidates) {
+          const zinidataUrl = `https://api-v1.zinidata.co.kr/v4/union/biz_trend_menu?CLSFC_TERM=M&YEAR=${yr}&TERMS=2&UPJONG_CD=${upjongCd}&AREA_CD=${sidoCode}`;
+          console.log(`[nicebizmap-proxy] risingMenuList NULL -> zinidata 보충(YEAR=${yr}): ${zinidataUrl}`);
+          const zinResult = await fetchJsonGet(zinidataUrl, { 'UNION-API-KEY': 'pringles' });
+          const _list = zinResult && zinResult.RESULT && zinResult.RESULT.MENU_LIST;
+          if (_list && _list.length > 0) { menuList = _list; break; }
+        }
         if (menuList && menuList.length > 0) {
           result.data.risingMenuList = menuList;
           console.log(`[nicebizmap-proxy] zinidata 보충 완료: ${menuList.length}건`);
@@ -545,17 +645,29 @@ exports.handler = async (event) => {
       if (_popEmpty) {
         try {
           const sidoCode = admiCd.substring(0, 2);
-          const currentYear = new Date().getFullYear();
           const upjongCd = requestBody.upjong3Cd || 'Q13007';
-          const popUrl = `https://api-v1.zinidata.co.kr/v4/union/biz_popular_menu?CLSFC_TERM=M&YEAR=${currentYear}&TERMS=6&UPJONG_CD=${upjongCd}&AREA_CD=${sidoCode}&MENU_CLS=ALL`;
-          console.log(`[nicebizmap-proxy] popularMenuList 빈값 -> zinidata 보충: ${popUrl}`);
-          const popResult = await fetchJsonGet(popUrl, { 'UNION-API-KEY': 'pringles' });
-          const popList = popResult && popResult.RESULT && popResult.RESULT.MENU_LIST;
+          // [2026-06-14] 연도 폴백: 당해(getFullYear)는 집계 전이라 MENU_LIST 빈배열로 옴
+          // (예: 2026년 호출 시 빈값 → 아메리카노/카페라떼 등 실제 인기메뉴 유실).
+          // 당해 → 전년 순서로 시도. 아메리카노 38%/카페라떼 10% 등 실데이터 복구.
+          const nowYear = new Date().getFullYear();
+          const yearCandidates = [nowYear, nowYear - 1];
+          let popList = null;
+          for (const yr of yearCandidates) {
+            const popUrl = `https://api-v1.zinidata.co.kr/v4/union/biz_popular_menu?CLSFC_TERM=M&YEAR=${yr}&TERMS=6&UPJONG_CD=${upjongCd}&AREA_CD=${sidoCode}&MENU_CLS=ALL`;
+            console.log(`[nicebizmap-proxy] popularMenuList 빈값 -> zinidata 보충(YEAR=${yr}): ${popUrl}`);
+            const popResult = await fetchJsonGet(popUrl, { 'UNION-API-KEY': 'pringles' });
+            const _list = popResult && popResult.RESULT && popResult.RESULT.MENU_LIST;
+            if (_list && _list.length > 0) { popList = _list; break; }
+          }
           if (popList && popList.length > 0) {
-            // dataMapper 호환 형식으로 매핑: menuNm 키 표준화
+            // dataMapper 호환 형식으로 매핑: menuNm 키 + 비중/단가 표준화
+            // zinidata 인기메뉴 필드: OKP_QTY_RATE(판매비중%), OKP_AVG_UPRC(평균단가)
+            // → dataMapper가 읽는 saleRate/avgPrice 로 옮겨 비중(아메리카노 38% 등)이 살아남게 한다.
             const normalized = popList.slice(0, 10).map((m, idx) => ({
               menuNm: m.MENU4_NM || m.MENU3_NM || m.MENU2_NM || m.MENU1_NM || m.MENU_NM || '',
               menuName: m.MENU4_NM || m.MENU3_NM || m.MENU2_NM || m.MENU1_NM || m.MENU_NM || '',
+              saleRate: (m.OKP_QTY_RATE != null) ? m.OKP_QTY_RATE : (m.OKP_AMT_RATE != null ? m.OKP_AMT_RATE : 0),
+              avgPrice: m.OKP_AVG_UPRC != null ? m.OKP_AVG_UPRC : (m.AVG_SALE_UPRC != null ? m.AVG_SALE_UPRC : 0),
               rank: idx + 1,
               raw: m
             })).filter(m => m.menuNm);
