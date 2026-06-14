@@ -151,6 +151,7 @@ function Card13({ body = {} }) {
 
   return (
     <CardShell n="13" id="13"
+      bruSummary={body.bruSummary}
       title="상권 경쟁 분석"
       sub="경쟁력 종합 평가 (100점 만점)">
 
@@ -312,6 +313,7 @@ function Card14({ body = {}, onOpenDirector }) {
 
   return (
     <CardShell n="14" id="14"
+      bruSummary={body.bruSummary}
       title="AI 종합 분석"
       sub="AI 에이전트 종합 피드백"
       headerRight={
@@ -371,7 +373,7 @@ function Card14({ body = {}, onOpenDirector }) {
                 ))}
               </window.DrStagger>
             ) : (
-              <div style={{fontSize:13, color:"var(--matte-fg-4)"}}>긍정 시그널 추출 중</div>
+              <div style={{fontSize:13, color:"var(--matte-fg-4)"}}>개인 카페 비중을 살린 차별화 콘셉트면 비집고 들어갈 자리가 있습니다.</div>
             )}
           </div>
           <div className="bc-box" style={{padding:16}}>

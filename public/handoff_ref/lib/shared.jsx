@@ -35,6 +35,33 @@ function bcFmtCount(n, unit = "") {
 Object.assign(window, { bcFmtMan, bcFmtWon, bcFmtCount });
 
 /* ============================================================
+   UnitTag — 큰 숫자의 "범위" 표시용 작은 회색 배지 (신뢰성)
+   예) 유동인구 [역삼1동] / [반경 500m], 매출 [동 평균] / [전국],
+       생존율 [전국 카페 기준]
+   값/계산은 안 바꾸고 라벨만 덧붙인다. text 비면 렌더 안 함.
+   ============================================================ */
+function UnitTag({ text, style }) {
+  const t = (typeof text === "string" ? text.trim() : "");
+  if (!t) return null;
+  return (
+    <span
+      className="bc-unittag"
+      style={{
+        display:"inline-flex", alignItems:"center",
+        fontSize:11, fontWeight:600, lineHeight:1.3,
+        color:"var(--matte-fg-3)",
+        background:"rgba(255,255,255,0.05)",
+        border:"1px solid var(--matte-line)",
+        borderRadius:6, padding:"1px 7px",
+        letterSpacing:"-0.005em", whiteSpace:"nowrap",
+        verticalAlign:"middle",
+        ...(style || {}),
+      }}
+    >{t}</span>
+  );
+}
+
+/* ============================================================
    14 cards — 카테고리 순서대로 1-14 연속 번호
    identity(n): 컴포넌트(window.Card${n}) 식별자 — 기존 ID 유지
    badge:      화면에 노출되는 순번 (01..14)
@@ -467,9 +494,10 @@ function TopBar({ address = "", crumbCur = "결과 리포트", onToggleSidebar, 
 /* ============================================================
    Card shell — header + body + footer (sources)
    ============================================================ */
-function CardShell({ n, title, sub, date = "2026.05.13", sources = [], headerRight, children, id }) {
+function CardShell({ n, title, sub, date = "2026.05.13", sources = [], headerRight, children, id, bruSummary }) {
   const key = id || n;
   const badge = (window.CARD_BADGE_MAP && window.CARD_BADGE_MAP[n]) || n;
+  const summary = (typeof bruSummary === "string" ? bruSummary.trim() : "");
   return (
     <section className="bc-card" id={`card-${key}`} data-card={key} data-screen-label={`${badge} ${title}`}>
       <header className="bc-card__header">
@@ -484,6 +512,26 @@ function CardShell({ n, title, sub, date = "2026.05.13", sources = [], headerRig
           {headerRight}
         </div>
       </header>
+      {summary && (
+        <div
+          className="bc-card__bru"
+          style={{
+            margin: "0 0 16px",
+            padding: "12px 24px",
+            background: "rgba(56,130,246,0.10)",
+            borderLeft: "3px solid #3B82F6",
+            borderRadius: 8,
+            fontSize: 14,
+            fontWeight: 600,
+            lineHeight: 1.55,
+            color: "rgba(255,255,255,0.88)",
+            overflowWrap: "anywhere",
+            wordBreak: "keep-all",
+          }}
+        >
+          {summary}
+        </div>
+      )}
       <div className="bc-card__body">
         {children}
       </div>
@@ -496,7 +544,7 @@ function CardShell({ n, title, sub, date = "2026.05.13", sources = [], headerRig
    Uses count-up animation on mount; if `id` given, re-animates on tour trigger.
    Flavor classes (sparkle/glow/float/hot/roulette/bounce/glitch) come from seq.anim.
    ============================================================ */
-function StatTile({ tone = "blue", label, value, unit, delta, deltaPositive = true, hero, id, accent = false, sub, deltaPrefixDisabled = false }) {
+function StatTile({ tone = "blue", label, value, unit, delta, deltaPositive = true, hero, id, accent = false, sub, deltaPrefixDisabled = false, tag }) {
   const fx = id ? (window.useFx?.(id) ?? { n: 0, anim: [] }) : { n: 0, anim: [] };
   const [hot, setHot] = useState(false);
   useEffect(() => {
@@ -513,7 +561,10 @@ function StatTile({ tone = "blue", label, value, unit, delta, deltaPositive = tr
   if (has("float")) cls += " float";
   return (
     <div className={cls} data-fx-id={id} style={{position:"relative"}}>
-      <div className="label">{label}</div>
+      <div className="label" style={{display:"flex", alignItems:"center", gap:6, flexWrap:"wrap"}}>
+        <span>{label}</span>
+        {tag ? <UnitTag text={tag}/> : null}
+      </div>
       <div className="row">
         <span className={"value " + (hero ? "value-hero" : "")}>
           <CountUp value={value} id={id}/>{unit && <span className="unit">{unit}</span>}
@@ -621,4 +672,4 @@ function Box({ label, value, unit, sub, src, tone }) {
   );
 }
 
-Object.assign(window, { CARDS, GROUPS, CARD_BADGE_MAP, groupOf, CardCtx, Sidebar, TopBar, TbPopover, showToast, CardShell, StatTile, CountUp, Box });
+Object.assign(window, { CARDS, GROUPS, CARD_BADGE_MAP, groupOf, CardCtx, Sidebar, TopBar, TbPopover, showToast, CardShell, StatTile, CountUp, Box, UnitTag });

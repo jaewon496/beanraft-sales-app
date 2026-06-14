@@ -81,6 +81,120 @@
   <script type="text/babel">
     const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
+    /* ============================================================
+       [2026-06-15] "한 장 요약" 배너 (방법A: 카드 루프 위 별도 배너, 전체 보기에서만)
+         - 권고 한 줄(결론) + 핵심 5숫자 + 무료 상담 CTA
+         - data-card 속성 없음 → 카드 개수/사이드바/스왑/캡처(14장) 모두 영향 0
+       ============================================================ */
+    function SummaryBanner({ summary }) {
+      if (!summary) return null;
+      const s = summary.stats || {};
+      const toneColor = summary.verdictTone === 'good' ? '#4C7BE4'
+                       : summary.verdictTone === 'mid' ? '#E8A13A'
+                       : '#E8A13A';
+      const onConsult = () => {
+        try {
+          const c = summary.consult || {};
+          window.parent.postMessage({
+            type: 'bc:consult',
+            pyeong: c.pyeong || 15,
+            totalStartup: c.totalStartup || 0,
+            monthly: c.monthly || 0,
+            verdict: summary.verdict || '',
+          }, '*');
+        } catch (e) {}
+      };
+      // 핵심 5숫자 타일 (값 없는 항목은 안내 문구로 — 빈칸/"-" 금지)
+      const stat = (label, value, sub) => (
+        <div style={{
+          flex:"1 1 0", minWidth:150, padding:"16px 18px",
+          background:"rgba(255,255,255,0.03)", borderRadius:12,
+          border:"1px solid var(--matte-line)"
+        }}>
+          <div style={{fontSize:13, color:"var(--matte-fg-3)", fontWeight:500, marginBottom:8}}>{label}</div>
+          <div style={{fontSize:24, fontWeight:700, color:"var(--matte-fg)", fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em", lineHeight:1.1, wordBreak:"keep-all"}}>{value}</div>
+          {sub && <div style={{fontSize:12, color:"var(--matte-fg-3)", marginTop:6, fontWeight:500}}>{sub}</div>}
+        </div>
+      );
+      const monthlyVal = s.monthlyText || '동네 평균 기준';
+      const bepVal = (s.bepSalesText && s.bepCups > 0) ? s.bepSalesText : (s.bepSalesText || '규모별 산정');
+      const bepSub = s.bepCups > 0 ? `하루 약 ${s.bepCups.toLocaleString()}잔` : '월 고정비 기준';
+      const paybackVal = s.paybackMonths > 0
+        ? (s.paybackMonths >= 12 ? `약 ${(s.paybackMonths/12).toFixed(1)}년` : `약 ${s.paybackMonths}개월`)
+        : '규모별 산정';
+      const paybackSub = s.paybackMonths > 0 ? '15평 기준 추정' : '월 순이익 기준';
+      const startupVal = s.totalStartupText || '예산 맞춤 설계';
+      return (
+        <section className="bc-card bc-summary" style={{paddingTop:24, paddingBottom:24}}>
+          <div style={{
+            border:`1px solid ${toneColor}55`,
+            borderRadius:16,
+            background:`linear-gradient(135deg, ${toneColor}14, transparent 55%)`,
+            padding:"26px 28px",
+          }}>
+            <div style={{display:"flex", alignItems:"center", gap:10, marginBottom:14, flexWrap:"wrap"}}>
+              <span style={{fontSize:13, color:"var(--matte-fg-3)", fontWeight:700, letterSpacing:"0.10em", textTransform:"uppercase"}}>한 장 요약</span>
+              <span style={{
+                fontSize:14, fontWeight:800, color:"#fff",
+                background:toneColor, borderRadius:999, padding:"5px 14px", letterSpacing:"-0.01em"
+              }}>{summary.verdict}</span>
+            </div>
+
+            <div style={{fontSize:24, fontWeight:700, color:"#fff", lineHeight:1.4, letterSpacing:"-0.015em", marginBottom:10, wordBreak:"keep-all"}}>
+              {summary.verdictLine}
+            </div>
+            {Array.isArray(summary.reasons) && summary.reasons.length > 0 && (
+              <div style={{display:"flex", gap:8, flexWrap:"wrap", marginBottom:22}}>
+                {summary.reasons.map((r, i) => (
+                  <span key={i} style={{
+                    fontSize:13, color:"var(--matte-fg-2)", fontWeight:600,
+                    background:"rgba(255,255,255,0.05)", border:"1px solid var(--matte-line)",
+                    borderRadius:8, padding:"6px 12px"
+                  }}>{r}</span>
+                ))}
+              </div>
+            )}
+
+            <div style={{display:"flex", gap:12, flexWrap:"wrap", marginBottom:22}}>
+              {stat("예상 월매출", monthlyVal, "이 동네 카페 평균")}
+              {stat("손익분기(BEP)", bepVal, bepSub)}
+              {stat("투자 회수기간", paybackVal, paybackSub)}
+              {stat("총 창업비", startupVal, "15평 기준")}
+            </div>
+
+            <div style={{
+              display:"flex", gap:8, alignItems:"flex-start",
+              padding:"14px 16px", marginBottom:22,
+              background:"rgba(255,255,255,0.03)", border:"1px solid var(--matte-line)", borderRadius:10
+            }}>
+              <i className="ph ph-lightbulb" style={{fontSize:18, color:toneColor, marginTop:1, flexShrink:0}}></i>
+              <span style={{fontSize:14, color:"var(--matte-fg-2)", lineHeight:1.55, fontWeight:500, wordBreak:"keep-all"}}>
+                <strong style={{color:"#fff", fontWeight:700}}>핵심 리스크</strong> · {summary.riskLine}
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={onConsult}
+              style={{
+                display:"flex", alignItems:"center", justifyContent:"center", gap:10,
+                width:"100%", padding:"16px 20px",
+                background:toneColor, color:"#fff", border:"none", borderRadius:12,
+                fontSize:16, fontWeight:800, cursor:"pointer", letterSpacing:"-0.01em",
+                boxShadow:`0 8px 24px ${toneColor}40`,
+                fontFamily:'inherit',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.filter = "brightness(1.08)"; }}
+              onMouseLeave={e => { e.currentTarget.style.filter = "none"; }}
+            >
+              <i className="ph-fill ph-sparkle" style={{fontSize:18}}></i>
+              이 분석대로 공간설계·기기·시그니처 메뉴·오픈교육까지 빈크래프트가 설계합니다 → 무료 상담
+            </button>
+          </div>
+        </section>
+      );
+    }
+
     function App() {
       const [active, setActive] = useState("01");
       const [director, setDirector] = useState(false);
@@ -246,6 +360,28 @@
                   onShowAll={clearFilter}
                 />
                 <div ref={scrollRef} className="bc-scroll">
+                  {(!filterCategory && !singleCardN) && (
+                    <SummaryBanner summary={(window.__BC_DATA__ && window.__BC_DATA__.summary) || null}/>
+                  )}
+                  {(() => {
+                    /* [2026-06-15] 데이터 기준월 캡션 — __BC_DATA__.dataAsOf (top-level 우선, 없으면 summary.dataAsOf).
+                       값이 없으면(undefined/빈문자) 캡션 자체를 렌더하지 않는다(빈 캡션 금지). */
+                    const _d = window.__BC_DATA__ || {};
+                    const _asOf = (typeof _d.dataAsOf === 'string' && _d.dataAsOf.trim())
+                      || (_d.summary && typeof _d.summary.dataAsOf === 'string' && _d.summary.dataAsOf.trim())
+                      || '';
+                    if (!_asOf) return null;
+                    return (
+                      <div className="bc-dataasof" style={{
+                        display:"flex", alignItems:"center", gap:6,
+                        padding:"0 4px 10px", margin:"2px 0 0",
+                        fontSize:12, color:"var(--matte-fg-4)", fontWeight:500, letterSpacing:"-0.005em"
+                      }}>
+                        <i className="ph ph-calendar-blank" style={{fontSize:13}}></i>
+                        <span>데이터 기준: {_asOf}</span>
+                      </div>
+                    );
+                  })()}
                   {visibleCardNums.map(renderCard)}
                 </div>
               </main>

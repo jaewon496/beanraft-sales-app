@@ -67,6 +67,7 @@ function Card01({ body = {} }) {
     : (newOpen > 0 ? '+신규' : null);
   return (
     <CardShell n="01" id="01"
+      bruSummary={body.bruSummary}
       title="상권 분석 리포트"
       sub="반경 500m 매장 구성과 임대 시세"
       headerRight={window.MapTriggerButton ? <window.MapTriggerButton/> : null}>
@@ -226,6 +227,7 @@ function Card02({ body = {} }) {
   const revisitEstimated = !!bd.revisitEstimated;
   return (
     <CardShell n="02" id="02"
+      bruSummary={body.bruSummary}
       title="고객 분석"
       sub="방문 고객 특성">
       {/* 4-up KPI */}
@@ -380,6 +382,7 @@ function Card03({ body = {} }) {
   const regionClosure = Number(kosis?.regionClosure?.value) || 0;
   return (
     <CardShell n="03" id="03"
+      bruSummary={body.bruSummary}
       title="상권 변화 추이"
       sub="개폐업 및 상권 트렌드">
       {/* Top tiles */}
@@ -393,9 +396,10 @@ function Card03({ body = {} }) {
       <div style={{display:"grid", gridTemplateColumns:"1.2fr 1fr", gap:16}}>
         {/* 생존율 + 5년전/지금 비교 */}
         <div className="bc-box" style={{padding:24, display:"flex", flexDirection:"column"}}>
-          <div style={{display:"flex", alignItems:"baseline", gap:8, marginBottom:18}}>
+          <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:18}}>
             <div style={{fontSize:16, fontWeight:600}}>생존율</div>
-            {!survRegional && <span style={{fontSize:12, color:"var(--matte-fg-4)", fontWeight:500}}>전국 평균 추정</span>}
+            {/* [2026-06-15] 공간단위 태그: 지역 실데이터면 자치구 기준, 전국 폴백이면 전국 카페 기준 */}
+            <window.UnitTag text={survRegional ? (sigungu || '자치구 기준') : '전국 카페 기준'}/>
           </div>
           <div style={{display:"flex", flexDirection:"column", gap:24, flex:1, justifyContent:"center"}}>
             <BarRow id="c3.g1" label="1년 생존" value={surv1y} max={100} suffix="%"/>
@@ -535,6 +539,7 @@ function Card04({ body = {} }) {
   const newFranchiseList = Array.isArray(bd.newFranchiseList) ? bd.newFranchiseList.slice(0, 5) : [];
   return (
     <CardShell n="04" id="04"
+      bruSummary={body.bruSummary}
       title="프랜차이즈 현황"
       sub="주요 프랜차이즈 브랜드 분석">
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
@@ -677,6 +682,7 @@ function Card05({ body = {} }) {
   const avgMonthlySales = Number(bd.avgMonthlySales) || 0; // 만원 단위
   return (
     <CardShell n="06" id="06"
+      bruSummary={body.bruSummary}
       title="개인 카페 분석"
       sub="주변 개인 카페 현황 및 가격대">
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
@@ -807,13 +813,19 @@ function Card06({ body = {} }) {
   const csRegion = kosis?.consumerSentiment?.region || kosis?.consumerSentimentSeries?.region || '전국 평균';
   const yoyRate = prevYearRate;
   const top5Title = bd.topFiveTitle || '동네별 카페 매출 TOP 5';
+  // [2026-06-15] 공간단위 태그 — 월평균 매출은 동(상권) 카페 평균임을 명시(라벨만)
+  const _dongName = (typeof bd.dongName === 'string' && bd.dongName.trim())
+    || (typeof body.dongName === 'string' && body.dongName.trim())
+    || '';
+  const _monthlyTag = _dongName ? `${_dongName} 평균` : '동 평균';
   return (
     <CardShell n="05" id="05"
+      bruSummary={body.bruSummary}
       title="매출 분석"
       sub="월평균 예상 매출"
       date={null}>
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
-        <StatTile id="c6.tile1" tone="blue"  label="월평균 매출"     value={monthly > 0 ? (monthly >= 10000 ? (monthly / 10000).toFixed(1) : monthly.toLocaleString()) : '-'} unit={monthly > 0 ? (monthly >= 10000 ? '억' : '만원') : ''} hero accent/>
+        <StatTile id="c6.tile1" tone="blue"  label="월평균 매출"     tag={_monthlyTag} value={monthly > 0 ? (monthly >= 10000 ? (monthly / 10000).toFixed(1) : monthly.toLocaleString()) : '-'} unit={monthly > 0 ? (monthly >= 10000 ? '억' : '만원') : ''} hero accent/>
         <StatTile id="c6.tile2" tone="mint"  label="월 매출 건수"    value={dongSaleCnt > 0 ? dongSaleCnt.toLocaleString() : '-'} unit={dongSaleCnt > 0 ? '건' : ''}/>
         <StatTile id="c6.tile3" tone="lilac" label="객단가"          value={unitPriceDisplay}/>
         <StatTile id="c6.tile4" tone="cream" label="매출 순위"       value={cafeSalesRank ? String(cafeSalesRank).split(' /')[0] : '-'}/>
@@ -931,15 +943,25 @@ function Card07({ body = {} }) {
   const topAreaList = top3Dongs.length > 0
     ? top3Dongs.map(d => ({ name: d?.name || '인근 동', pop: Number(d?.pop) || 0 }))
     : (topArea ? [{ name: topArea.name, pop: Number(topArea.pop) || 0 }] : []);
+  // [2026-06-15] 공간단위 태그 — 큰 숫자의 범위 표시(라벨만, 값/계산 무변경)
+  //   동 라벨: 데이터에 있으면 사용(우리 동 = top3Dongs/ topArea 첫 항목·역할상 우리 동), 없으면 생략(빈 태그 금지)
+  const _dongName = (typeof bd.dongName === 'string' && bd.dongName.trim())
+    || (typeof body.dongName === 'string' && body.dongName.trim())
+    || (top3Dongs[0] && typeof top3Dongs[0].name === 'string' && top3Dongs[0].name.trim())
+    || (topArea && typeof topArea.name === 'string' && topArea.name.trim())
+    || '';
+  const _dongTag = _dongName || '우리 동';
+  const _radiusM = (typeof body.radius === 'number' && body.radius > 0) ? `반경 ${body.radius}m` : '반경 500m';
   return (
     <CardShell n="07" id="07"
+      bruSummary={body.bruSummary}
       title="유동인구"
       sub="시간대별 통행량">
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
-        <StatTile id="c7.tile1" tone="blue"  label="동 월간 유동인구" value={dongDailyPop > 0 ? dongDailyPop.toLocaleString() : (totalPop > 0 ? totalPop.toLocaleString() : '-')} unit={(dongDailyPop > 0 || totalPop > 0) ? '명' : ''} hero/>
+        <StatTile id="c7.tile1" tone="blue"  label="동 월간 유동인구" tag={_dongTag} value={dongDailyPop > 0 ? dongDailyPop.toLocaleString() : (totalPop > 0 ? totalPop.toLocaleString() : '-')} unit={(dongDailyPop > 0 || totalPop > 0) ? '명' : ''} hero/>
         <StatTile id="c7.tile2" tone="mint"  label="최다 요일"        value={peakDay !== '-' ? peakDay : '-'} sub={peakDayPct > 0 ? `주간 통행의 ${Number(peakDayPct).toFixed(1)}%` : undefined}/>
         <StatTile id="c7.tile3" tone="lilac" label="최다 시간대"      value={peakHour !== '-' ? peakHour : '-'} sub={peakHourPct > 0 ? `통행의 ${Number(peakHourPct).toFixed(1)}%` : undefined}/>
-        <StatTile id="c7.tile4" tone="cream" label="반경 500m"        value={totalPop > 0 ? totalPop.toLocaleString() : '-'} unit={totalPop > 0 ? '명/일' : ''}/>
+        <StatTile id="c7.tile4" tone="cream" label="유동인구"          tag={_radiusM} value={totalPop > 0 ? totalPop.toLocaleString() : '-'} unit={totalPop > 0 ? '명/일' : ''}/>
       </div>
 
       <div style={{display:"grid", gridTemplateColumns:"1.3fr 1fr", gap:16, alignItems:"stretch"}}>

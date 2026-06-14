@@ -5119,6 +5119,11 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     if (c14DailyPop > 3000) c14Opps.push({ title: '풍부한 유동인구', detail: `일평균 ${c14DailyPop.toLocaleString()}명. 자연 유입 기대` });
     if (c14Total > 0 && c14Total <= 15) c14Opps.push({ title: '저밀도 상권', detail: `카페 ${c14Total}개. 진입 여유 충분` });
   }
+  // [긍정 시그널 보장 / 2026-06-15] 위 조건들이 모두 빗나가도 긍정 시그널은 절대 비지 않게 한다.
+  //   비수도권 중소도시(AI 기회 0 + 결정 룰도 0)에서 빈칸이 뜨던 버그 방지. 항상 존재하는 데이터로 구성한 긍정·처방 한 문장.
+  if (c14Opps.length === 0) {
+    c14Opps.push({ title: '차별화 여지', detail: `개인 카페 비중이 ${c14IndepRatio > 0 ? c14IndepRatio + '%로 ' : ''}적지 않아, 빈크래프트 콘셉트·메뉴 차별화로 비집고 들어갈 자리가 있습니다.` });
+  }
 
   // === 리스크 리스트 추출 ===
   // [2026-05-17] aiData.risks가 title="리스크 분석"·detail=""만 들어오는 경우 무시 (의미 없는 페이로드)
@@ -5134,12 +5139,14 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     });
   }
   // aiData.risks가 비어있거나 위 필터로 다 빠진 경우 자동 생성 룰 적용
+  // [item1 / 2026-06-15] 부정 시그널을 "[이런 상황입니다] → 그래서 빈크래프트와 이렇게 하시면 됩니다" 처방으로 재프레이밍.
+  //   위협 나열이 아니라, 빈크래프트 강점(메뉴개발·인테리어·운영교육·디자인)으로 푸는 처방까지 한 문장에 잇는다. 과장 금지, 정직하되 희망적.
   if (c14Risks.length === 0) {
-    if (c14Total > 80) c14Risks.push({ title: '카페 과밀', detail: `반경 내 ${c14Total}개. 신규 진입 시 차별화 필수` });
-    if (c14Closed >= 3) c14Risks.push({ title: '폐업 발생', detail: `최근 폐업 ${c14Closed}개. 생존율 점검 필요` });
-    if (c14CafeSales > 0 && c14DongAvg > 0 && c14CafeSales < c14DongAvg * 0.8) c14Risks.push({ title: '평균 매출 낮음', detail: `카페 매출 ${c14CafeSales.toLocaleString()}만원 (동평균 대비 ${Math.round((1 - c14CafeSales / c14DongAvg) * 100)}% 하회)` });
-    if (c14FranchRatio >= 60) c14Risks.push({ title: '프랜차이즈 우위', detail: `프랜차이즈 ${c14FranchRatio}%. 가격 경쟁 부담` });
-    if (c14AvgRent > 5000000) c14Risks.push({ title: '높은 임대료', detail: `평균 ${(c14AvgRent / 10000).toLocaleString()}만원/월. 고정비 부담` });
+    if (c14Total > 80) c14Risks.push({ title: '카페 밀집', detail: `반경 내 ${c14Total}개로 밀집한 상권인 만큼, 빈크래프트 메뉴개발로 객단가를 지키는 시그니처를 잡으면 가격경쟁 대신 단골을 확보합니다.` });
+    if (c14Closed >= 3) c14Risks.push({ title: '교체가 활발한 자리', detail: `최근 ${c14Closed}곳이 자리를 비운 만큼, 빈크래프트 운영교육으로 초기 운영을 다지면 생존율을 끌어올릴 여지가 있습니다.` });
+    if (c14CafeSales > 0 && c14DongAvg > 0 && c14CafeSales < c14DongAvg * 0.8) c14Risks.push({ title: '평균 매출 여지', detail: `카페 매출이 동평균보다 ${Math.round((1 - c14CafeSales / c14DongAvg) * 100)}% 낮은 만큼, 빈크래프트 메뉴개발로 타깃을 좁힌 시그니처를 잡아 객단가를 올리면 끌어올릴 수 있습니다.` });
+    if (c14FranchRatio >= 60) c14Risks.push({ title: '프랜차이즈 우위', detail: `프랜차이즈 비중이 ${c14FranchRatio}%인 만큼, 빈크래프트 인테리어·디자인으로 차별화된 공간을 설계해 가격경쟁을 피하면 개인카페만의 매력으로 승부할 수 있습니다.` });
+    if (c14AvgRent > 5000000) c14Risks.push({ title: '임대 부담', detail: `평균 임대료가 월 ${(c14AvgRent / 10000).toLocaleString()}만원인 입지인 만큼, 빈크래프트 인테리어로 좁은 면적의 회전 동선을 설계해 평당 매출로 상쇄할 수 있습니다.` });
   }
 
   // === 추천 라벨 (Card 13 종합 점수 라벨과 일치: 매우 좋음/좋음/보통/안좋음/매우 안좋음) ===
@@ -5165,14 +5172,15 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
 
   // === 시그널 (긍정/부정 항목 통합) ===
   // [2026-05-17] detail이 비면 콜론 없이 title만 표시
+  // [item1 / 2026-06-15] 부정 시그널은 "상황 → 처방" 한 문장이라 80자에서 처방이 잘림 → 160자로 확장 (카드 UI는 줄바꿈 처리됨)
   const c14Signals = [];
   c14Opps.slice(0, 3).forEach(o => {
     const txt = o.detail ? `${o.title}: ${o.detail}` : o.title;
-    c14Signals.push({ type: 'positive', text: String(txt || '').substring(0, 80) });
+    c14Signals.push({ type: 'positive', text: String(txt || '').substring(0, 160) });
   });
   c14Risks.slice(0, 3).forEach(r => {
     const txt = r.detail ? `${r.title}: ${r.detail}` : r.title;
-    c14Signals.push({ type: 'negative', text: String(txt || '').substring(0, 80) });
+    c14Signals.push({ type: 'negative', text: String(txt || '').substring(0, 160) });
   });
 
   // === 설계 방향 (디렉터 제언) — AI 생성 우선, 없으면 데이터 기반 자동 생성 ===

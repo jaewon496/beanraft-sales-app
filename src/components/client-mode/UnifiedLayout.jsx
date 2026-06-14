@@ -3902,6 +3902,37 @@ export default function UnifiedLayout({
         kosisBoxData,
         sigungu: card.sigungu || kosisBoxData?.sigungu || '',
       };
+      // ──────────────────────────────────────────────────────────
+      // [2026-06-15] 개인 카페 한정 값(차별화) — 모든 카드 hfBody에 공통 노출.
+      //   빈크래프트는 개인 카페 전문이라 "개인 카페 기준" 관점이 차별점.
+      //   이미 수집된 개인 카페 데이터로만 구성(허위 생성 금지):
+      //     indieCount   : 반경 내 개인 카페 수 (cards[4].independentCount → cards[0].individual)
+      //     indieShare   : 전체 카페 중 개인 비중 % (cards[0].independentShare, 없으면 indie/total 계산)
+      //     indieAvgPrice: 개인 카페 객단가(아메리카노 평균, 원) (cards[4].americanoAvg)
+      //   ★개인 한정 "생존율"·"종합점수"는 깨끗한 소스가 없어 만들지 않는다(허위 금지).
+      //   화면 작업자가 매출/경쟁 맥락에서 "개인 카페 기준" 값으로 쓸 수 있도록 필드명 고정.
+      // ──────────────────────────────────────────────────────────
+      {
+        const _c4 = cards[4]?.bodyData || {};   // 개인 카페 분석
+        const _c1 = cards[0]?.bodyData || {};   // 상권 분석 리포트
+        const _toNum = (v) => {
+          const n = Number(v);
+          return (typeof n === 'number' && isFinite(n)) ? n : 0;
+        };
+        // 개인 카페 수
+        const _indieCount = _toNum(_c4.independentCount) || _toNum(_c1.individual);
+        if (_indieCount > 0) hfBody.indieCount = _indieCount;
+        // 개인 카페 비중(%) — 상권 카드의 independentShare 우선, 없으면 개인/전체로 계산
+        const _totalCafes = _toNum(_c4.totalCafes) || _toNum(_c1.cafes);
+        let _indieShare = _toNum(_c1.independentShare);
+        if (!(_indieShare > 0) && _totalCafes > 0 && _indieCount > 0) {
+          _indieShare = Math.round((_indieCount / _totalCafes) * 100);
+        }
+        if (_indieShare > 0 && _indieShare <= 100) hfBody.indieShare = _indieShare;
+        // 개인 카페 객단가(원) — 개인 카페 아메리카노 평균. 비현실적 값 가드.
+        const _indieAvg = _toNum(_c4.americanoAvg);
+        if (_indieAvg > 0 && _indieAvg < 100000) hfBody.indieAvgPrice = Math.round(_indieAvg);
+      }
       if (i === 13) {
         hfBody.totalScore = card.bodyData?.overallScore || 0;
         hfBody.opportunities = card.bodyData?.opportunities || 0;
@@ -4246,9 +4277,440 @@ export default function UnifiedLayout({
           hfBody.bodyData.blogMentions = blogCount;
         }
       }
+      // ──────────────────────────────────────────────────────────
+      // [2026-06-15] 카드별 "한 줄 정리"(bruSummary) 결정적 복원.
+      //   AI 의존 없이 각 카드 자신의 실제 데이터로 생성 → 모든 지역/카드에서 빈칸 0 보장.
+      //   톤: "이런 상황입니다 → 이렇게 하면 좋습니다" 긍정·창업유도. 부정 지표도 기회로 재프레이밍.
+      //   숫자 포맷은 화면과 일관(억/만원/명/%/개). 이모티콘 금지.
+      // ──────────────────────────────────────────────────────────
+      {
+        const _bd = card.bodyData || {};
+        const _num = (v) => {
+          const n = Number(v);
+          return (typeof n === 'number' && isFinite(n)) ? n : 0;
+        };
+        // 만원 단위 → 억/만원 한국식 표기
+        const _manToWon = (man) => {
+          const v = Math.round(_num(man));
+          if (v <= 0) return '';
+          if (v >= 10000) {
+            const e = Math.floor(v / 10000);
+            const m = Math.round(v % 10000);
+            return m > 0 ? `${e}억 ${m.toLocaleString('ko-KR')}만원` : `${e}억원`;
+          }
+          return `${v.toLocaleString('ko-KR')}만원`;
+        };
+        const _n = (v) => Math.round(_num(v)).toLocaleString('ko-KR');
+        let _sum = '';
+        switch (i) {
+          case 0: { // 상권 분석 리포트
+            const cafes = _num(hfBody.cafeCount) || _num(_bd.cafes);
+            const indi = _num(hfBody.individual) || _num(_bd.individual);
+            const indiPct = cafes > 0 ? Math.round((indi / cafes) * 100) : 0;
+            if (cafes > 0) {
+              _sum = `반경 ${radius}m에 카페 ${_n(cafes)}곳`
+                + (indiPct > 0 ? `·개인 ${indiPct}%` : '')
+                + (indiPct >= 50
+                    ? '로 개인 카페가 주류인 동네예요. 차별화된 콘셉트라면 충분히 비집고 들어갈 자리가 있습니다.'
+                    : '으로 검증된 카페 수요가 있는 동네예요. 색깔 있는 한 잔이면 단골을 만들 수 있습니다.');
+            } else {
+              _sum = '아직 카페가 드문 동네라 선점 효과가 큰 곳이에요. 먼저 자리 잡으면 동네 대표 카페가 될 수 있습니다.';
+            }
+            break;
+          }
+          case 1: { // 고객 분석
+            const age = String(hfBody.topAge || _bd.topAge || '').trim();
+            const peak = String(hfBody.peakHour || _bd.peakTime || '').trim();
+            const fem = _num(hfBody.femaleRatio);
+            const male = _num(hfBody.maleRatio);
+            // [2026-06-15] 성비 차이 5%p 이내면 한쪽 비중 높다는 표현 대신 "고르게 찾는다"로
+            const genderTxt = (fem > 0 || male > 0)
+              ? (Math.abs(fem - male) <= 5
+                  ? '남녀가 고르게 찾는 동네예요'
+                  : (fem > male ? '여성 고객 비중이 높아요' : '남성 고객 비중이 높아요'))
+              : '';
+            if (age) {
+              _sum = `${age} 손님이 가장 많고 ${genderTxt || '꾸준한 발길이 이어져요'}`
+                + (peak && peak !== '-' ? `, ${peak}에 붐벼요` : '')
+                + `. 이 고객층의 취향을 저격한 메뉴·공간이면 단골로 이어집니다.`;
+            } else {
+              _sum = '다양한 연령대가 고르게 찾는 동네예요. 폭넓게 사랑받는 시그니처 한 잔이면 안정적인 단골을 만들 수 있습니다.';
+            }
+            break;
+          }
+          case 2: { // 상권 변화 추이
+            const s3 = _num(_bd.survivalRate3y);
+            const open = _num(_bd.openCount);
+            if (s3 > 0) {
+              _sum = `이 동네 카페 3년 생존율은 ${s3}%`
+                + (open > 0 ? `, 최근 신규 개업도 ${_n(open)}곳 이어져요` : ' 수준이에요')
+                + `. 자리만 잘 잡으면 오래 가는 상권, 차근차근 준비하면 충분히 안착할 수 있습니다.`;
+            } else {
+              _sum = '상권이 꾸준히 돌아가는 동네예요. 흐름을 읽고 들어가면 오래 가는 카페를 만들 수 있습니다.';
+            }
+            break;
+          }
+          case 3: { // 프랜차이즈 현황
+            const fc = _num(_bd.franchiseCount);
+            const share = _num(_bd.franchiseShare);
+            const indiShare = _num(_bd.independentShare);
+            if (fc > 0) {
+              _sum = `프랜차이즈가 ${_n(fc)}곳`
+                + (share > 0 ? `(${share}%)` : '')
+                + ` 자리 잡은 걸 보면 카페 수요가 검증된 동네예요. `
+                + (indiShare >= 50
+                    ? '개인 카페 비중도 높아 개성 있는 콘셉트로 승부 볼 여지가 충분합니다.'
+                    : '대형 브랜드가 못 채우는 빈틈을 작은 차별화로 노려볼 만합니다.');
+            } else {
+              _sum = '아직 프랜차이즈가 적은 동네라 개인 카페가 빛을 발할 곳이에요. 색깔 있는 브랜딩이면 동네 대표가 될 수 있습니다.';
+            }
+            break;
+          }
+          case 4: { // 개인 카페 분석
+            const _ib = (hfBody.bodyData || _bd);
+            const indi = _num(_ib.independentCount) || _num(_bd.independentCount);
+            const sales = _num(_ib.avgMonthlySales) || _num(_bd.avgMonthlySales);
+            if (indi > 0) {
+              _sum = `주변 개인 카페가 ${_n(indi)}곳`
+                + (sales > 0 ? `, 점포당 월평균 ${_manToWon(sales)} 수준이에요` : ' 영업 중이에요')
+                + `. 검증된 동네에서 한 끗 다른 콘셉트면 충분히 상위권을 노려볼 만합니다.`;
+            } else {
+              _sum = '개인 카페가 드물어 개성으로 승부하기 좋은 동네예요. 나만의 시그니처로 먼저 자리 잡으면 단골이 따라옵니다.';
+            }
+            break;
+          }
+          case 5: { // 매출 분석
+            const monthly = _num(_bd.monthly);
+            const unit = String(_bd.bizmapAvgUnitPrice || '').trim();
+            if (monthly > 0) {
+              _sum = `이 동네 카페 월평균 매출은 ${_manToWon(monthly)} 수준이에요. `
+                + (unit
+                    ? `객단가 ${unit}을 지키는 시그니처로 상위권을 노려볼 만합니다.`
+                    : '객단가를 지키는 시그니처 메뉴로 상위권을 노려볼 만합니다.');
+            } else {
+              _sum = '꾸준한 카페 매출이 받쳐주는 동네예요. 객단가를 지키는 시그니처면 안정적인 수익을 기대할 수 있습니다.';
+            }
+            break;
+          }
+          case 6: { // 유동인구
+            const pop = _num(_bd.totalPop) || _num(_bd.dongDailyPop);
+            const peak = String((hfBody.bodyData && hfBody.bodyData.peakHour) || _bd.peakHour || '').trim();
+            if (pop > 0) {
+              _sum = `하루 약 ${_n(pop)}명이 지나가는 동네예요`
+                + (peak && peak !== '-' ? `, ${peak}가 가장 붐벼요` : '')
+                + `. 이 시간대를 겨냥한 메뉴·동선이면 매출이 따라옵니다.`;
+            } else {
+              _sum = '꾸준한 발길이 이어지는 동네예요. 피크 시간대를 겨냥한 메뉴·동선이면 자연 유입을 매출로 바꿀 수 있습니다.';
+            }
+            break;
+          }
+          case 7: { // 임대/창업 정보
+            const rent = _num(_bd.rentPerPyeong) || _num(hfBody.bodyData && hfBody.bodyData.rentPerPyeongManwon);
+            const total = _num(hfBody.bodyData && hfBody.bodyData.totalStartupCostManwon) || _num(_bd.totalStartupCost);
+            if (rent > 0 || total > 0) {
+              _sum = (rent > 0 ? `월 임대료 ${_manToWon(rent)} 선` : '합리적인 임대 조건')
+                + (total > 0 ? `, 초기 창업비는 ${_manToWon(total)} 안팎이에요` : '의 동네예요')
+                + `. 예산에 맞춰 규모를 정하면 무리 없이 시작할 수 있습니다.`;
+            } else {
+              _sum = '시세가 비교적 합리적인 동네예요. 예산에 맞춰 규모를 정하면 부담 없이 첫 카페를 열 수 있습니다.';
+            }
+            break;
+          }
+          case 8: { // 카페 기회
+            const indiPct = _num(hfBody.individualPct);
+            const s3 = _num(hfBody.survival3y);
+            const newOpen = _num(hfBody.newOpen);
+            if (indiPct > 0 || s3 > 0) {
+              _sum = (indiPct > 0 ? `개인 카페 비중 ${indiPct}%` : '개인 카페가 활발한 동네')
+                + (s3 > 0 ? `·3년 생존율 ${s3}%` : '')
+                + (newOpen > 0 ? `, 신규 개업도 ${_n(newOpen)}곳 이어져요` : '인 동네예요')
+                + `. 차별화 포인트만 분명하면 비집고 들어갈 기회가 충분합니다.`;
+            } else {
+              _sum = '신규 진입 여지가 넉넉한 동네예요. 분명한 차별화 포인트 하나면 동네 카페 지도를 새로 그릴 수 있습니다.';
+            }
+            break;
+          }
+          case 9: { // 배달 객단가
+            const avg = _num(_bd.searchAvgPrice) || _num((hfBody.bodyData || {}).searchAvgPrice);
+            const dong = String(_bd.searchDongName || '').trim();
+            if (avg > 0) {
+              _sum = `${dong ? dong + ' ' : '이 동네 '}배달 객단가는 약 ${_n(avg)}원이에요. `
+                + '세트·디저트 묶음 구성으로 객단가를 올리면 배달만으로도 매출 한 축을 세울 수 있습니다.';
+            } else {
+              _sum = '배달 수요가 살아있는 동네예요. 세트·디저트 구성으로 객단가를 올리면 배달이 든든한 매출 한 축이 됩니다.';
+            }
+            break;
+          }
+          case 10: { // SNS 트렌드
+            const kws = Array.isArray(_bd.keywords) ? _bd.keywords.filter(Boolean) : [];
+            const pos = _num(_bd.positiveRatio);
+            const kwTxt = kws.slice(0, 3).map(k => (typeof k === 'string' ? k : (k && k.text) || k && k.name || '')).filter(Boolean).join('·');
+            if (kwTxt) {
+              _sum = `SNS에서 ${kwTxt} 같은 키워드가 도는 동네예요`
+                + (pos > 0 ? `(긍정 반응 ${pos}%)` : '')
+                + `. 이 흐름에 맞춘 비주얼·메뉴면 자연스럽게 입소문을 탈 수 있습니다.`;
+            } else {
+              _sum = 'SNS에서 카페가 꾸준히 회자되는 동네예요. 사진 잘 나오는 한 컷·시그니처면 입소문이 매출로 이어집니다.';
+            }
+            break;
+          }
+          case 11: { // 날씨 영향 분석
+            const yd = _bd.yearlyDistribution || {};
+            const rainy = _num(yd.rainyPct);
+            const temp = (yd.avgTemp != null) ? yd.avgTemp : null;
+            if (rainy > 0 || temp != null) {
+              _sum = `연중 비 오는 날 ${rainy > 0 ? rainy + '%' : '적당'}`
+                + (temp != null ? `·연평균 ${temp}도` : '')
+                + `인 동네예요. 날씨에 맞춘 따뜻한/시원한 시즌 메뉴를 미리 준비하면 비수기도 매출로 바꿀 수 있습니다.`;
+            } else {
+              _sum = '사계절이 뚜렷한 동네예요. 계절·날씨에 맞춘 시즌 메뉴를 준비하면 어떤 날씨에도 손님을 부를 수 있습니다.';
+            }
+            break;
+          }
+          case 12: { // 상권 경쟁 분석
+            const level = String(_bd.level || '').trim();
+            const life = String(_bd.avgLifespan || '').trim();
+            // [2026-06-15] avgLifespan이 숫자(개월/년 등)일 때만 영업기간을 언급.
+            //   "혼재" 같은 비숫자 값이면 "오래된 가게도 많아요"로 자연스럽게 대체.
+            const lifeHasNum = /\d/.test(life);
+            if (level || lifeHasNum) {
+              _sum = `경쟁 강도는 ${level || '적정'} 수준`
+                + (lifeHasNum ? `, 평균 영업기간은 ${life}이에요` : ', 오래된 가게도 꾸준히 자리를 지켜요')
+                + `. 한 끗 다른 콘셉트로 자리 잡으면 오래 살아남는 카페를 만들 수 있습니다.`;
+            } else {
+              _sum = '경쟁이 과하지 않은 동네예요. 분명한 차별화 하나면 오래 사랑받는 카페로 자리 잡을 수 있습니다.';
+            }
+            break;
+          }
+          case 13: { // AI 종합 분석
+            const score = _num(hfBody.totalScore);
+            const opp = _num(hfBody.opportunities);
+            if (score > 0) {
+              _sum = `종합 점수 ${score}점`
+                + (opp > 0 ? `, 포착된 기회 요인만 ${_n(opp)}가지예요` : '의 동네예요')
+                + `. 강점을 살리고 약점은 콘셉트로 메우면 충분히 승산 있는 상권입니다.`;
+            } else {
+              _sum = '데이터로 본 전반적 여건이 받쳐주는 동네예요. 강점을 살린 콘셉트로 준비하면 승산 있는 도전입니다.';
+            }
+            break;
+          }
+          default:
+            _sum = '데이터로 살펴본 결과 도전해볼 만한 동네예요. 분명한 콘셉트 하나면 충분히 자리 잡을 수 있습니다.';
+        }
+        hfBody.bruSummary = _sum;
+      }
       return { n: String(i + 1).padStart(2, '0'), body: hfBody };
     });
-  }, [cards, kosisBoxData, collectedData]);
+  }, [cards, kosisBoxData, collectedData, radius]);
+
+  // [2026-05-19] 검색 주소가 시안 TopBar 기본값("강남역 1번 출구")으로 덮이지 않도록
+  // collectedData / searchAddress에서 실제 주소를 추출해 iframe으로 함께 푸시한다.
+  // [2026-06-15] TDZ 방지: bcOneLineSummary가 이 값을 참조하므로 그 위에서 선언한다.
+  const bcSearchAddress = useMemo(() => {
+    const _addr =
+      collectedData?.addressInfo?.address ||
+      collectedData?.address ||
+      collectedData?.region ||
+      searchAddress ||
+      '';
+    return String(_addr).trim();
+  }, [collectedData, searchAddress]);
+
+  // ──────────────────────────────────────────────────────────
+  // [2026-06-15] "한 장 요약" 배너 데이터 (방법A: 카드 루프 위 별도 배너)
+  //   - 권고 한 줄(결론) + 핵심 5숫자(월매출/BEP/회수기간/총창업비/리스크) + 상담 CTA용 입력값
+  //   - 전적으로 카드 데이터에서 결정적으로 계산(AI 의존 금지). 빈값/"-"/이모티콘 금지.
+  //   - 카드 인덱스(스왑 전 기준): 0=상권, 2=상권변화/생존, 5=매출분석, 7=임대/창업, 9=배달, 12=상권경쟁(5축), 13=AI종합
+  // ──────────────────────────────────────────────────────────
+  const bcOneLineSummary = useMemo(() => {
+    if (!Array.isArray(cards) || cards.length === 0) return null;
+    const num = (v) => {
+      const n = Number(v);
+      return (typeof n === 'number' && isFinite(n)) ? n : 0;
+    };
+    // 만원 단위 → "X억 X만원"/"X,XXX만원" 한국식 표기
+    const fmtMan = (man) => {
+      const v = Math.round(num(man));
+      if (v <= 0) return '';
+      if (v >= 10000) {
+        const e = Math.floor(v / 10000);
+        const m = Math.round(v % 10000);
+        return m > 0 ? `${e}억 ${m.toLocaleString('ko-KR')}만원` : `${e}억원`;
+      }
+      return `${v.toLocaleString('ko-KR')}만원`;
+    };
+    const c0 = cards[0]?.bodyData || {};
+    const c2 = cards[2]?.bodyData || {};
+    const c5 = cards[5]?.bodyData || {};
+    const c7 = cards[7]?.bodyData || {};
+    const c9 = cards[9]?.bodyData || {};
+    const c12 = cards[12]?.bodyData || {};
+    const c13 = cards[13]?.bodyData || {};
+    const c8hf = bcCardsBodies[7]?.body || {};       // 임대/창업 (단위 정규화된 hfBody)
+    const c5hf = bcCardsBodies[5]?.body?.bodyData || {};
+    const kc = c7?.kosisCafe || (bcCardsBodies[7]?.body?.chartData?.kosisCafe) || {};
+
+    // ── 5축 점수 (상권경쟁 카드 = cards[12]) ──
+    const total = num(c13.overallScore) || num(c12.score);
+    const max = (v, fb) => (num(v) > 0 ? num(v) : fb);
+    const sMarket = num(c12.scoreMarket);
+    const sCompete = num(c12.scoreCompete);
+    const sChange = num(c12.scoreChange);
+    const sSurvival = num(c12.scoreSurvival);
+    const sCost = num(c12.scoreCost);
+    const survivalRatio = sSurvival > 0 ? sSurvival / 30 : 0;   // 생존 기반 만점 30
+    const survival3y = num(c2.survivalRate3y);
+
+    // ── 핵심 입력값 ──
+    const monthly = num(c5.monthly);                 // 동네 카페 월평균 매출 (만원)
+    // [2026-06-15] 객단가(원): 임대/창업 카드 시뮬레이터와 BEP 잔수를 일치시키기 위해
+    //   시뮬레이터가 쓰는 것과 '동일 출처·동일 우선순위'(전국 카페 평균 → 폴백 4,500원)로 통일한다.
+    //   (이전엔 매출분석 비즈맵 객단가(9,853원)를 써서 시뮬레이터(5,856원)와 BEP 잔수가 달라 보였음.)
+    const unitPrice = (() => {
+      const p = (num(kc.unitPriceAvg) > 0 && num(kc.unitPriceAvg) < 100000) ? Math.round(num(kc.unitPriceAvg)) : 4500;
+      return p;
+    })();
+    // [2026-06-15] 이익률(%): 시뮬레이터와 동일 — 전국 카페 평균 이익률(없으면 카페 표준 28%).
+    //   (kc.profitMargin은 i===7 hfBody 빌드에서 비즈맵 영업이익률을 이미 흡수함.)
+    const profitPct = (() => {
+      const p = num(kc.profitMargin);
+      return (p > 0 && p < 80) ? p : 28;
+    })();
+    // 월 임대료(만원): 15평 기준 = 평당 월세 × 15
+    const rentPerPy = num(c8hf.bodyData?.rentPerPyeongManwon) || num(c0.rentPerPyeong);
+    const rentMonthly = rentPerPy > 0 ? Math.round(rentPerPy * 15) : 0;
+    // [2026-06-15] 총 창업비(만원, 15평 기준): 임대/창업 카드 시뮬레이터(cards-b Card08)의
+    //   total 계산을 15평 기준으로 그대로 복제한다 — 같은 출처·같은 결과를 보장한다.
+    //   ① totalStartupCostManwon(정규화값) 우선
+    //   ② 없으면 보증금(15평) + 인테리어(평당×15) + 권리금 합산  ← 시뮬레이터의 폴백과 동일
+    const totalStartup = (() => {
+      const ts = num(c8hf.bodyData?.totalStartupCostManwon) || num(c7.totalStartupCost);
+      if (ts > 0) return Math.round(ts);
+      // 폴백: 보증금 + 인테리어 + 권리금 (전부 만원 단위, 15평)
+      const depositManwon = num(c8hf.bodyData?.depositManwon) || num(c7.deposit);   // 15평 기준 보증금
+      const interiorPerPy = num(kc.interiorPerPyeong);
+      const interior15 = interiorPerPy > 0 ? Math.round(interiorPerPy * 15) : 0;
+      // 권리금(만원): chartData.premium.value(원) → bodyData.premiumCost(만원)
+      const premiumWon = num(c8hf.chartData?.premium?.value);
+      const premiumManwon = premiumWon > 0 ? Math.round(premiumWon / 10000) : num(c7.premiumCost);
+      const sum = depositManwon + interior15 + premiumManwon;
+      return sum > 0 ? Math.round(sum) : 0;
+    })();
+
+    // ── 월 고정비(만원): 임대료 + 인건비/관리비 간단 추정(임대료의 2.2배). 임대료 없으면 0. ──
+    //   (시뮬레이터 fixedMonthly와 동일 계수 2.2)
+    const fixedMonthly = rentMonthly > 0 ? Math.round(rentMonthly * 2.2) : 0;
+    // ── 손익분기 매출(만원): 고정비 / 이익률 ── (시뮬레이터 bepSales와 동일 식)
+    const bepSales = (fixedMonthly > 0 && profitPct > 0) ? Math.round(fixedMonthly / (profitPct / 100)) : 0;
+    // ── BEP 하루 잔수: BEP매출(원) / 객단가(원) / 30일 ── (객단가·이익률을 시뮬레이터와 통일 → 잔수 일치)
+    const bepCups = (bepSales > 0 && unitPrice > 0) ? Math.ceil((bepSales * 10000) / unitPrice / 30) : 0;
+    // [2026-06-15] 회수기간(개월): 임대/창업 카드 시뮬레이터(cards-b Card08)와 '완전히 동일한 식'으로 통일.
+    //   simulator: assumedMonthlySales = bepSales × 1.4(BEP의 1.4배 매출 가정) → monthlyProfit = ×이익률
+    //              paybackMonths = total / monthlyProfit
+    //   (동네 카페 평균 월매출(monthly)을 그대로 쓰면 대형 프랜차이즈가 섞여 비현실적으로 짧게 나옴 → 시뮬레이터 가정 채택.)
+    const assumedMonthlySales = bepSales > 0 ? Math.round(bepSales * 1.4) : 0;
+    const monthlyProfit = (assumedMonthlySales > 0 && profitPct > 0) ? assumedMonthlySales * (profitPct / 100) : 0;
+    const paybackMonths = (totalStartup > 0 && monthlyProfit > 0) ? Math.round(totalStartup / monthlyProfit) : 0;
+
+    // ── 권고 한 줄(결론) — 5축/생존율 기반 결정적 룰 ──
+    //   생존 기반이 임계(40% = 점수 12/30) 미만이면 점수 무관 "차별화 필수".
+    //   그 외 총점 60↑=조건부 진입 추천 / 40~60=입지 재검토 후 진입 / 그 미만=차별화 필수.
+    let verdict, verdictTone;
+    if (survivalRatio > 0 && survivalRatio < 0.4) {
+      verdict = '차별화 필수';
+      verdictTone = 'warn';
+    } else if (total >= 60) {
+      verdict = '조건부 진입 추천';
+      verdictTone = 'good';
+    } else if (total >= 40) {
+      verdict = '입지 재검토 후 진입';
+      verdictTone = 'mid';
+    } else if (total > 0) {
+      verdict = '차별화 필수';
+      verdictTone = 'warn';
+    } else {
+      verdict = '조건부 진입 추천';
+      verdictTone = 'good';
+    }
+    // 근거 2~3개 (실제 데이터로)
+    const reasons = [];
+    if (survival3y > 0) reasons.push(`3년 생존율 ${survival3y}%`);
+    if (monthly > 0) reasons.push(`동네 월매출 ${fmtMan(monthly)}`);
+    const cafes = num(c0.cafes);
+    const indi = num(c0.individual);
+    if (cafes > 0) {
+      const indiPct = indi > 0 ? Math.round((indi / cafes) * 100) : 0;
+      reasons.push(indiPct >= 50 ? `개인 카페 ${indiPct}% — 차별화 여지` : `카페 ${cafes.toLocaleString('ko-KR')}곳 — 검증된 수요`);
+    }
+    if (reasons.length < 2 && total > 0) reasons.push(`종합 ${total}점`);
+
+    // 긍정·창업유도 톤의 결론 문장
+    const verdictLine = (() => {
+      if (verdict === '조건부 진입 추천') {
+        return '여건이 받쳐주는 동네예요. 콘셉트만 분명하면 충분히 승산 있는 진입입니다.';
+      }
+      if (verdict === '입지 재검토 후 진입') {
+        return '잠재력 있는 동네예요. 입지·규모를 한 번 더 다듬으면 안정적으로 시작할 수 있습니다.';
+      }
+      return '경쟁이 만만치 않은 동네지만, 한 끗 다른 콘셉트면 비집고 들어갈 자리가 분명히 있습니다.';
+    })();
+
+    // 핵심 리스크 한 줄 (가장 약한 축 또는 비용/생존)
+    const riskLine = (() => {
+      const axes = [
+        ['시장 매력도', sMarket, 20],
+        ['경쟁 환경', sCompete, 20],
+        ['시장 변화', sChange, 15],
+        ['생존 기반', sSurvival, 30],
+        ['비용 부담', sCost, 15],
+      ].filter(a => a[2] > 0 && a[1] >= 0);
+      const scored = axes.filter(a => a[1] > 0);
+      if (scored.length > 0) {
+        const weakest = scored.reduce((m, a) => (a[1] / a[2] < m[1] / m[2] ? a : m));
+        const tip = {
+          '시장 매력도': '시그니처 한 잔으로 객단가를 끌어올리면 만회됩니다',
+          '경쟁 환경': '명확한 콘셉트로 차별화하면 충분히 자리 잡습니다',
+          '시장 변화': '트렌드에 맞춘 메뉴로 흐름을 타면 됩니다',
+          '생존 기반': '탄탄한 단골 전략으로 버티는 힘을 키우면 됩니다',
+          '비용 부담': '규모를 예산에 맞춰 정하면 부담을 줄일 수 있습니다',
+        }[weakest[0]] || '콘셉트로 보완할 수 있습니다';
+        return `${weakest[0]} 부분이 상대적 약점 — ${tip}`;
+      }
+      if (rentMonthly > 0) return `고정비 관리가 관건 — 규모를 예산에 맞추면 됩니다`;
+      return '뚜렷한 콘셉트로 차별화하면 충분히 승산 있습니다';
+    })();
+
+    return {
+      address: bcSearchAddress,
+      radius,
+      verdict,
+      verdictTone,
+      verdictLine,
+      reasons: reasons.slice(0, 3),
+      stats: {
+        monthly,                  // 만원
+        monthlyText: monthly > 0 ? fmtMan(monthly) : '',
+        bepSales,                 // 만원
+        bepSalesText: bepSales > 0 ? fmtMan(bepSales) : '',
+        bepCups,                  // 하루 잔수
+        paybackMonths,            // 개월
+        totalStartup,             // 만원
+        totalStartupText: totalStartup > 0 ? fmtMan(totalStartup) : '',
+        fixedMonthly,             // 만원
+        fixedMonthlyText: fixedMonthly > 0 ? fmtMan(fixedMonthly) : '',
+        unitPrice,                // 원
+        profitPct,                // %
+      },
+      riskLine,
+      // CTA(상담)로 함께 보낼 시뮬레이터 기본값
+      consult: {
+        pyeong: 15,
+        totalStartup,
+        monthly,
+        verdict,
+      },
+    };
+  }, [cards, bcCardsBodies, bcSearchAddress, radius]);
 
   // [2026-05-18] 시안 cards-a.jsx 끝에서 window.Card05/Card06이 스왑되어 있음
   //   Object.assign(window, { Card05: Card06, Card06: Card05 })
@@ -4281,28 +4743,83 @@ export default function UnifiedLayout({
     const id = setTimeout(() => setIframeReady(true), 80);
     return () => clearTimeout(id);
   }, [resultsReady]);
-  // [2026-05-19] 검색 주소가 시안 TopBar 기본값("강남역 1번 출구")으로 덮이지 않도록
-  // collectedData / searchAddress에서 실제 주소를 추출해 iframe으로 함께 푸시한다.
-  const bcSearchAddress = useMemo(() => {
-    const _addr =
-      collectedData?.addressInfo?.address ||
-      collectedData?.address ||
-      collectedData?.region ||
-      searchAddress ||
-      '';
-    return String(_addr).trim();
-  }, [collectedData, searchAddress]);
+
+  // ──────────────────────────────────────────────────────────
+  // [2026-06-15] 데이터 기준월 (신뢰성 캡션용) — __BC_DATA__.dataAsOf
+  //   화면 작업자가 "데이터 기준: {dataAsOf}" 캡션을 단다(필드명 정확히 dataAsOf).
+  //   우선순위: ①비즈맵 매출/이용 yyyymm(매출·유동인구 핵심 기준월)
+  //            ②KOSIS 핵심 통계 기준월(소비심리/임대료 PRD_DE)
+  //            ③검색 시점(현재 연·월) — 못 찾을 때 폴백.
+  //   "YYYY년 M월" 한국식 문자열로 반환. 빈값/이모티콘 금지.
+  // ──────────────────────────────────────────────────────────
+  const bcDataAsOf = useMemo(() => {
+    // "202503"·"2025.03"·"20251"(분기) → "2025년 3월" 변환. 실패 시 ''.
+    const fmtYm = (raw) => {
+      const s = String(raw || '').replace(/[^0-9]/g, '');
+      if (s.length >= 6) {
+        const y = s.slice(0, 4);
+        const m = parseInt(s.slice(4, 6), 10);
+        if (m >= 1 && m <= 12) return `${y}년 ${m}월`;
+      }
+      if (s.length === 5) {
+        // KOSIS 분기 코드(예: 20251 = 2025년 1분기) → 분기 마지막 달
+        const y = s.slice(0, 4);
+        const q = parseInt(s.slice(4, 5), 10);
+        if (q >= 1 && q <= 4) return `${y}년 ${q * 3}월`;
+      }
+      if (s.length === 4) return `${s}년`;
+      return '';
+    };
+    const apis = collectedData?.apis;
+    // ① 비즈맵 매출/이용건수 시계열의 최신 yyyymm (매출·유동인구 핵심)
+    const pickBizmapYm = () => {
+      const pools = [
+        apis?.bizMapAverageSales?.data,
+        apis?.bizMapUsageAndPayment?.data,
+        apis?.bizMapStoreCountTrend?.data,
+      ];
+      let best = '';
+      for (const pool of pools) {
+        if (!Array.isArray(pool)) continue;
+        for (const r of pool) {
+          const ym = String(r?.yyyymm || r?.stdYm || r?.ym || '').replace(/[^0-9]/g, '');
+          if (ym.length === 6 && ym > best) best = ym;
+        }
+      }
+      return best;
+    };
+    const bizYm = pickBizmapYm();
+    if (bizYm) {
+      const out = fmtYm(bizYm);
+      if (out) return out;
+    }
+    // ② KOSIS 핵심 통계 기준월 (소비심리 → 임대료 순)
+    const kosisYm = String(
+      kosisBoxData?.consumerSentiment?.period ||
+      kosisBoxData?.marketRent?.period ||
+      kosisBoxData?.cafeClosure?.period ||
+      ''
+    );
+    if (kosisYm) {
+      const out = fmtYm(kosisYm);
+      if (out) return out;
+    }
+    // ③ 검색 시점(현재 연·월) 폴백 — 못 찾아도 빈값 금지
+    const now = new Date();
+    return `${now.getFullYear()}년 ${now.getMonth() + 1}월`;
+  }, [collectedData, kosisBoxData]);
+
   useEffect(() => {
     if (!resultsReady) return;
     const win = handoffIframeRef.current?.contentWindow;
     if (!win) return;
     try {
-      win.__BC_DATA__ = { cards: bcCardsBodiesSwapped, address: bcSearchAddress, radius };
+      win.__BC_DATA__ = { cards: bcCardsBodiesSwapped, address: bcSearchAddress, radius, summary: bcOneLineSummary, dataAsOf: bcDataAsOf };
       if (typeof win.__bcRender === 'function') win.__bcRender();
     } catch (e) {
       // iframe cross-origin/not ready
     }
-  }, [bcCardsBodiesSwapped, resultsReady, bcSearchAddress, radius]);
+  }, [bcCardsBodiesSwapped, resultsReady, bcSearchAddress, radius, bcOneLineSummary, bcDataAsOf]);
 
   // iframe 안에서 '다시 검색하기' 클릭 시 부모로 전달
   useEffect(() => {
@@ -4326,6 +4843,24 @@ export default function UnifiedLayout({
       } else if (ev.data.type === 'bc:map') {
         // iframe 카드의 '지도로 보기' → 부모의 진짜 네이버 지도 오버레이 열기
         setShowCafeMap(true);
+      } else if (ev.data.type === 'bc:consult') {
+        // [2026-06-15] '무료 상담' CTA: 한 장 요약 배너/시뮬레이터에서 보낸 상담 요청.
+        //   실제 상담 접수 채널이 붙기 전까지는 사용자에게 접수 안내만 표시한다.
+        try {
+          const py = Number(ev.data.pyeong);
+          const ts = Number(ev.data.totalStartup);
+          const parts = [];
+          if (Number.isFinite(py) && py > 0) parts.push(`${py}평`);
+          if (Number.isFinite(ts) && ts > 0) {
+            const eok = ts >= 10000 ? `${(ts / 10000).toFixed(1)}억` : `${Math.round(ts).toLocaleString('ko-KR')}만원`;
+            parts.push(`예상 창업비 ${eok}`);
+          }
+          const detail = parts.length > 0 ? ` (${parts.join(' · ')})` : '';
+          // 부모 앱에 토스트 인프라가 있으면 사용, 없으면 alert 폴백
+          const msg = `무료 상담 요청이 접수되었습니다${detail}. 빈크래프트가 곧 연락드리겠습니다.`;
+          if (typeof window.__bcToast === 'function') window.__bcToast(msg);
+          else if (typeof window.alert === 'function') window.alert(msg);
+        } catch (_) {}
       }
     };
     window.addEventListener('message', handler);
@@ -6746,7 +7281,7 @@ export default function UnifiedLayout({
                       const win = handoffIframeRef.current?.contentWindow;
                       if (!win) return;
                       try {
-                        win.__BC_DATA__ = { cards: bcCardsBodiesSwapped, address: bcSearchAddress, radius };
+                        win.__BC_DATA__ = { cards: bcCardsBodiesSwapped, address: bcSearchAddress, radius, summary: bcOneLineSummary, dataAsOf: bcDataAsOf };
                         if (typeof win.__bcRender === 'function') win.__bcRender();
                       } catch (_) {}
                     }}
