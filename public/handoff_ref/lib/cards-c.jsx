@@ -311,6 +311,10 @@ function Card14({ body = {}, onOpenDirector }) {
     return Math.min(100, score);
   })();
 
+  // [2026-06-15] "한 장 요약" 병합 — 상단 배너 제거 후 본 카드로 흡수.
+  const _sum = (typeof window !== 'undefined' && window.__BC_DATA__ && window.__BC_DATA__.summary) || {};
+  const _st = _sum.stats || {};
+
   return (
     <CardShell n="14" id="14"
       bruSummary={body.bruSummary}
@@ -321,6 +325,36 @@ function Card14({ body = {}, onOpenDirector }) {
           <i className="ph ph-sparkle"></i> AI 디렉터
         </button>
       }>
+
+      {/* [2026-06-15] 한 장 요약 — 상단 배너에서 병합. 카드 톤(파랑/매트)으로 통일, CTA·아이콘·주황 없음. */}
+      {(_sum.verdict || _sum.verdictLine || (_sum.reasons && _sum.reasons.length) || _sum.riskLine ||
+        _st.monthlyText || _st.bepSalesText || _st.paybackMonths || _st.totalStartupText) && (
+        <>
+          <div className="bc-box" style={{padding:18, borderLeft:"3px solid #4C7BE4", marginBottom:16}}>
+            {_sum.verdict && (
+              <span style={{color:"#4C7BE4", fontWeight:700, fontSize:13, letterSpacing:"0.04em"}}>{_sum.verdict}</span>
+            )}
+            {_sum.verdictLine && (
+              <div style={{color:"var(--matte-fg)", fontSize:17, fontWeight:600, lineHeight:1.4, marginTop:6}}>{_sum.verdictLine}</div>
+            )}
+            {Array.isArray(_sum.reasons) && _sum.reasons.length > 0 && (
+              <div style={{display:"flex", flexWrap:"wrap", gap:8, marginTop:12}}>
+                {_sum.reasons.map((r, i) => <span key={i} className="bc-pill">{r}</span>)}
+              </div>
+            )}
+            {_sum.riskLine && (
+              <div style={{color:"var(--matte-fg-3)", fontSize:14, marginTop:10}}>핵심 리스크 — {_sum.riskLine}</div>
+            )}
+          </div>
+
+          <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
+            <StatTile id="c14.sum1" tone="blue"  label="예상 월매출" value={_st.monthlyText || '-'} hero/>
+            <StatTile id="c14.sum2" tone="mint"  label="손익분기"   value={_st.bepSalesText || '-'} sub={_st.bepCups ? ('하루 약 ' + _st.bepCups + '잔') : ''}/>
+            <StatTile id="c14.sum3" tone="lilac" label="회수기간"   value={_st.paybackMonths ? ('약 ' + _st.paybackMonths + '개월') : '-'}/>
+            <StatTile id="c14.sum4" tone="cream" label="총 창업비"  value={_st.totalStartupText || '-'} sub="15평 기준"/>
+          </div>
+        </>
+      )}
 
       <div style={{display:"grid", gridTemplateColumns:"260px 1fr", gap:24, marginBottom:18}}>
         <div className="bc-tile tone-blue accent" style={{padding:28, minHeight:180, display:"flex", flexDirection:"column", justifyContent:"space-between"}}>
@@ -344,19 +378,41 @@ function Card14({ body = {}, onOpenDirector }) {
         </div>
       </div>
 
-      <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:24, alignItems:"start"}}>
-        <div className="bc-box" style={{padding:18, display:"flex", flexDirection:"column", alignItems:"center"}}>
-          <div style={{alignSelf:"stretch", fontSize:15, fontWeight:600, marginBottom:8}}>한눈에 보기</div>
+      <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:24}}>
+        <div className="bc-box" style={{padding:18, display:"flex", flexDirection:"column"}}>
+          <div style={{fontSize:15, fontWeight:600, marginBottom:8}}>한눈에 보기</div>
           {radarAxes.length === 5 && radarValues.some(v => v > 0) ? (
-            <Radar
-              id="c14.radar"
-              size={340}
-              accent
-              axes={radarAxes}
-              values={radarValues}
-            />
+            <>
+              <div style={{display:"flex", justifyContent:"center"}}>
+                <Radar
+                  id="c14.radar"
+                  size={320}
+                  accent
+                  axes={radarAxes}
+                  values={radarValues}
+                />
+              </div>
+              <div style={{flex:1, display:"flex", flexDirection:"column", justifyContent:"space-between", gap:12, marginTop:16, paddingTop:16, borderTop:"1px solid var(--matte-line)"}}>
+                {axesArr.map((a, idx) => {
+                  const mx = Number(a?.max) > 0 ? Number(a.max) : 1;
+                  const sc = Number(a?.score) || 0;
+                  const pct = Math.round((sc / mx) * 100);
+                  return (
+                    <div key={idx}>
+                      <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:6}}>
+                        <span style={{fontSize:14, color:"var(--matte-fg-2)", fontWeight:600, letterSpacing:"-0.01em"}}>{a?.label || '-'}</span>
+                        <span style={{fontSize:14, color:"var(--matte-fg)", fontWeight:700, fontVariantNumeric:"tabular-nums"}}>{sc}<span style={{fontSize:12, color:"var(--matte-fg-3)", fontWeight:500}}> / {mx}</span></span>
+                      </div>
+                      <div className="bc-bar" style={{height:8, background:"rgba(255,255,255,0.08)"}}>
+                        <div style={{width:`${pct}%`, background:"#4C7BE4", height:"100%", borderRadius:"inherit", transition:"width 0.9s var(--ease)"}}></div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
           ) : (
-            <div style={{padding:"60px 0", color:"var(--matte-fg-4)", fontSize:13}}>점수 데이터 수집 중</div>
+            <div style={{flex:1, display:"flex", alignItems:"center", justifyContent:"center", padding:"60px 0", color:"var(--matte-fg-4)", fontSize:13}}>점수 데이터 수집 중</div>
           )}
         </div>
 
@@ -391,8 +447,7 @@ function Card14({ body = {}, onOpenDirector }) {
               <div style={{fontSize:13, color:"var(--matte-fg-4)"}}>부정 시그널 없음</div>
             )}
           </div>
-
-          {/* [2026-06-14] 디렉터 설계 방향 — 냉정한 진단을 "그래서 이렇게 풀면 됩니다"로 전환 */}
+          {/* [2026-06-14] 디렉터 설계 방향 — 냉정한 진단을 "그래서 이렇게 풀면 됩니다"로 전환. [2026-06-15] 우측 컬럼 높이를 채우기 위해 부정 시그널 아래(우측 셀 내부)로 복귀 */}
           {(() => {
             const dd = body.designDirection;
             const ddItems = Array.isArray(dd)
@@ -417,17 +472,6 @@ function Card14({ body = {}, onOpenDirector }) {
             );
           })()}
         </div>
-      </div>
-
-      <div className="bc-box" style={{padding:16, marginTop:16}}>
-        <div style={{fontSize:15, color:"var(--matte-fg-3)", fontWeight:600, marginBottom:10, letterSpacing:"0.04em"}}>외부 신호 (분석에 사용된 핵심 수치)</div>
-        {tags.length > 0 ? (
-          <div style={{display:"flex", flexWrap:"wrap", gap:6}}>
-            {tags.map((t, i) => <span key={i} className="bc-pill">#{t}</span>)}
-          </div>
-        ) : (
-          <div style={{fontSize:13, color:"var(--matte-fg-4)"}}>태그 데이터 추출 중</div>
-        )}
       </div>
 
       <button onClick={onOpenDirector} className="bc-btn bc-btn--lg" style={{marginTop:20, width:"100%", justifyContent:"center"}}>
