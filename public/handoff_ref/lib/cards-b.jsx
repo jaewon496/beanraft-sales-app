@@ -43,52 +43,6 @@ function Card08({ body = {} }) {
   const total = totalStartupCost > 0
     ? (totalStartupCost * pyeong / 15)
     : ((deposit + interior + premiumManwon) > 0 ? deposit + interior + premiumManwon : 0);
-
-  // ── [2026-06-15] 손익분기(BEP) / 회수기간 (시뮬레이터 슬라이더에 연동) ──
-  //   객단가(원): 전국 카페 평균 → 폴백 시 카페 표준 4,500원
-  const unitPriceWon = (Number(kc?.unitPriceAvg) > 0 && Number(kc.unitPriceAvg) < 100000) ? Math.round(kc.unitPriceAvg) : 4500;
-  //   이익률(%): 전국 카페 평균 이익률 → 폴백 시 28%
-  const profitPct = (Number(kc?.profitMargin) > 0 && Number(kc.profitMargin) < 80) ? Number(kc.profitMargin) : 28;
-  //   월 고정비(만원): 임대료 + 인건비/관리비 간단 추정(임대료의 2.2배)
-  const fixedMonthly = monthly > 0 ? Math.round(monthly * 2.2) : 0;
-  //   BEP 매출(만원) = 고정비 / 이익률
-  const bepSales = (fixedMonthly > 0 && profitPct > 0) ? Math.round(fixedMonthly / (profitPct / 100)) : 0;
-  //   BEP 하루 잔수 = BEP매출(원) / 객단가(원) / 30일
-  const bepCups = (bepSales > 0 && unitPriceWon > 0) ? Math.ceil((bepSales * 10000) / unitPriceWon / 30) : 0;
-  //   회수기간(개월) = 총창업비 / (BEP 손익분기 직후 월 순이익). 동네 평균 매출 대비 순이익으로 추정.
-  //   월 순이익(만원) = (동네 월매출 추정 = 고정비/이익률의 1.4배 가정) × 이익률. 보수적으로 BEP의 1.4배 매출 가정.
-  const assumedMonthlySales = bepSales > 0 ? Math.round(bepSales * 1.4) : 0;
-  const monthlyProfit = (assumedMonthlySales > 0 && profitPct > 0) ? assumedMonthlySales * (profitPct / 100) : 0;
-  const paybackMonths = (total > 0 && monthlyProfit > 0) ? Math.round(total / monthlyProfit) : 0;
-  const fmtMoney = (man) => window.bcFmtMan(man) || (man > 0 ? `${Math.round(man).toLocaleString()}만원` : '-');
-
-  // ── [2026-06-15] 빈크래프트 표준 시공 견적 (표준 패키지 예시 — 하드코딩 상수) ──
-  //   실제 시공DB가 아니라 "빈크래프트로 하면 이 정도" 표준 패키지 예시값.
-  //   공개통계(전국 카페 평균 인테리어비)와 나란히 둬서 차별화/비교가 되게 한다.
-  const BC_STD = {
-    basePyeong: 15,                 // 기준 평수
-    perPyeongManwon: 280,           // 실평당 공사비(만원) — 현실적 상수(250~300 범위 내)
-    weeksMin: 6,                    // 오픈 소요 최소(주)
-    weeksMax: 8,                    // 오픈 소요 최대(주)
-    package: [                      // 표준 패키지 구성 (라벨, 기준 금액 만원)
-      ["인테리어 시공", 2700],      //  공간 설계 + 시공
-      ["기기 패키지",   1100],      //  머신/그라인더/제빙기 등
-      ["메뉴 개발",      400],      //  시그니처 음료/디저트 레시피
-      ["오픈 교육",      300],      //  바리스타/운영 교육
-    ],
-  };
-  // 기준(15평) 총 시공비 = 패키지 합 (≈4,500만, 평당 280 × 15 = 4,200과 정합 범위)
-  const bcStdPackageSum = BC_STD.package.reduce((s, p) => s + p[1], 0);     // 4,500만
-  const bcStdTotalBase  = bcStdPackageSum;                                   // 표준(15평) 총 시공비
-  // 시뮬레이터 평수에 비례 환산 (표준 패키지 예시를 평수에 맞춰 보여줌)
-  const bcStdScale      = pyeong > 0 ? pyeong / BC_STD.basePyeong : 1;
-  const bcStdTotalScaled= Math.round(bcStdTotalBase * bcStdScale);
-  // 공개통계: 전국 카페 평균 인테리어비 (kc.interiorAvg 우선 → 평당×평수 폴백 → 전국 카페 평균 5,250만)
-  const bcPublicInterior = (() => {
-    if (kc?.interiorAvg > 0) return Math.round(kc.interiorAvg);
-    if (kc?.interiorPerPyeong > 0 && kc?.avgAreaPyeong > 0) return Math.round(kc.interiorPerPyeong * kc.avgAreaPyeong);
-    return 5250; // 공개통계 폴백(전국 카페 평균 인테리어비, 만원)
-  })();
   return (
     <CardShell n="08" id="08"
       bruSummary={body.bruSummary}
@@ -155,74 +109,10 @@ function Card08({ body = {} }) {
         </div>
       </div>
 
-      {/* [2026-06-15] 빈크래프트 표준 시공 견적 — 공개통계(전국 카페 평균)와 나란히 비교 */}
-      <div className="bc-box" style={{padding:24, marginTop:16, background:"linear-gradient(135deg, rgba(76, 123, 228,0.10), transparent 62%)", border:"1px solid rgba(76, 123, 228,0.45)"}}>
-        <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", flexWrap:"wrap", gap:8, marginBottom:18}}>
-          <div style={{display:"flex", alignItems:"center", gap:10, flexWrap:"wrap"}}>
-            <div style={{fontSize:16, fontWeight:700, color:"#4C7BE4"}}>빈크래프트 표준 시공 견적</div>
-            <window.UnitTag text="표준 패키지 예시"/>
-          </div>
-          <div style={{fontSize:13, color:"var(--matte-fg-3)", fontWeight:500}}>실평당 <strong style={{color:"#fff", fontWeight:700, fontSize:15, marginLeft:2}}>{BC_STD.perPyeongManwon.toLocaleString()}</strong>만원 · 오픈 <strong style={{color:"#fff", fontWeight:700, fontSize:15, marginLeft:2}}>{BC_STD.weeksMin}~{BC_STD.weeksMax}</strong>주</div>
-        </div>
-
-        <div style={{display:"grid", gridTemplateColumns:"1.1fr 1fr", gap:16, alignItems:"stretch"}}>
-          {/* 좌: 표준 패키지 구성 + 총 시공비 */}
-          <div style={{padding:"18px 20px", background:"rgba(255,255,255,0.03)", borderRadius:12, border:"1px solid var(--matte-line)", display:"flex", flexDirection:"column"}}>
-            <div style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:600, marginBottom:14}}>표준 패키지 구성 <span style={{fontSize:12, color:"var(--matte-fg-4)", fontWeight:500, marginLeft:4}}>{pyeong}평 기준</span></div>
-            <div style={{display:"flex", flexDirection:"column", gap:11, flex:1}}>
-              {BC_STD.package.map(([l, v]) => {
-                const scaled = Math.round(v * bcStdScale);
-                return (
-                  <div key={l} style={{display:"flex", justifyContent:"space-between", alignItems:"baseline"}}>
-                    <span style={{fontSize:14, color:"var(--matte-fg-2)", fontWeight:500}}>{l}</span>
-                    <span style={{fontSize:15, fontWeight:700, color:"var(--matte-fg)", fontVariantNumeric:"tabular-nums"}}>{fmtMoney(scaled)}</span>
-                  </div>
-                );
-              })}
-            </div>
-            <div style={{marginTop:16, paddingTop:14, borderTop:"1px solid rgba(76, 123, 228,0.30)", display:"flex", justifyContent:"space-between", alignItems:"baseline"}}>
-              <span style={{fontSize:15, color:"#4C7BE4", fontWeight:700}}>빈크래프트 총 시공비</span>
-              <span style={{fontSize:24, fontWeight:700, color:"#4C7BE4", fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{fmtMoney(bcStdTotalScaled)}</span>
-            </div>
-          </div>
-
-          {/* 우: 공개통계 비교 (전국 카페 평균 인테리어비) */}
-          <div style={{padding:"18px 20px", background:"rgba(255,255,255,0.03)", borderRadius:12, border:"1px solid var(--matte-line)", display:"flex", flexDirection:"column", justifyContent:"center"}}>
-            <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:14}}>
-              <span style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:600}}>전국 카페 평균 인테리어비</span>
-              <window.UnitTag text="공개통계"/>
-            </div>
-            <div style={{display:"flex", flexDirection:"column", gap:16}}>
-              <div>
-                <div style={{fontSize:13, color:"var(--matte-fg-4)", marginBottom:6, fontWeight:500}}>공개통계 평균</div>
-                <div style={{fontSize:28, fontWeight:700, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{fmtMoney(bcPublicInterior)}</div>
-              </div>
-              <div>
-                <div style={{fontSize:13, color:"var(--matte-fg-4)", marginBottom:6, fontWeight:500}}>빈크래프트로 하면 <span style={{color:"var(--matte-fg-3)"}}>({pyeong}평 표준)</span></div>
-                <div style={{display:"flex", alignItems:"baseline", gap:10}}>
-                  <div style={{fontSize:28, fontWeight:700, color:"#4C7BE4", fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{fmtMoney(bcStdTotalScaled)}</div>
-                  {bcPublicInterior > 0 && (() => {
-                    const diff = bcStdTotalScaled - bcPublicInterior;
-                    const pct = Math.round((diff / bcPublicInterior) * 100);
-                    const cheaper = diff < 0;
-                    return (
-                      <span style={{fontSize:13, fontWeight:700, color: cheaper ? "#4C7BE4" : "var(--matte-fg-3)", fontVariantNumeric:"tabular-nums"}}>
-                        {cheaper ? '평균 대비 ' : '평균 대비 +'}{Math.abs(pct)}%{cheaper ? '↓' : ''}
-                      </span>
-                    );
-                  })()}
-                </div>
-              </div>
-            </div>
-            <div style={{fontSize:12, color:"var(--matte-fg-4)", marginTop:16, lineHeight:1.5}}>인테리어+기기+메뉴개발+오픈교육을 한 번에 묶은 빈크래프트 표준 패키지 예시입니다. 실제 견적은 현장·콘셉트에 따라 달라집니다.</div>
-          </div>
-        </div>
-      </div>
-
       <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginTop:16}}>
-        <div className="bc-box" style={{padding:24}}>
+        <div className="bc-box" style={{padding:24, display:"flex", flexDirection:"column"}}>
           <div style={{fontSize:16, fontWeight:600, marginBottom:18}}>인테리어 비용 분포 <span style={{fontSize:13, color:"var(--matte-fg-3)", fontWeight:500, marginLeft:8}}>{pyeong}평 기준</span></div>
-          <div style={{display:"flex", flexDirection:"column", gap:10}}>
+          <div style={{display:"flex", flexDirection:"column", gap:10, flex:1, justifyContent:"space-around"}}>
           {(() => {
             const perPy = kc?.interiorPerPyeong > 0 ? kc.interiorPerPyeong : 350;
             const tiers = [
@@ -275,25 +165,6 @@ function Card08({ body = {} }) {
 
           {premiumManwon > 0 && kosisRegion && (
             <div style={{marginTop:14, fontSize:13, color:"var(--matte-fg-3)"}}>{kosisRegion} 기준 권리금 평균 {premiumManwon.toLocaleString()}만원 포함</div>
-          )}
-
-          {/* [2026-06-15] 손익분기(BEP) / 회수기간 — 슬라이더 결과 아래 3줄 */}
-          {(fixedMonthly > 0 || bepSales > 0) && (
-            <div style={{marginTop:18, paddingTop:16, borderTop:"1px solid rgba(76, 123, 228,0.30)", display:"flex", flexDirection:"column", gap:10}}>
-              <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline"}}>
-                <span style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:500}}>월 고정비 (임대+인건비 추정)</span>
-                <span style={{fontSize:16, fontWeight:700, color:"var(--matte-fg)", fontVariantNumeric:"tabular-nums"}}>{fmtMoney(fixedMonthly)}</span>
-              </div>
-              <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline"}}>
-                <span style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:500}}>손익분기 매출 {bepCups > 0 ? `(하루 ${bepCups.toLocaleString()}잔)` : ''}</span>
-                <span style={{fontSize:16, fontWeight:700, color:"#4C7BE4", fontVariantNumeric:"tabular-nums"}}>{bepSales > 0 ? `${fmtMoney(bepSales)}/월` : '-'}</span>
-              </div>
-              <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline"}}>
-                <span style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:500}}>예상 회수기간</span>
-                <span style={{fontSize:16, fontWeight:700, color:"var(--matte-fg)", fontVariantNumeric:"tabular-nums"}}>{paybackMonths > 0 ? (paybackMonths >= 12 ? `약 ${(paybackMonths/12).toFixed(1)}년 (${paybackMonths}개월)` : `약 ${paybackMonths}개월`) : '-'}</span>
-              </div>
-              <div style={{fontSize:12, color:"var(--matte-fg-4)", marginTop:2, lineHeight:1.5}}>객단가 {unitPriceWon.toLocaleString()}원·이익률 {profitPct}% 기준 추정. 실제는 운영 방식에 따라 달라집니다.</div>
-            </div>
           )}
         </div>
       </div>

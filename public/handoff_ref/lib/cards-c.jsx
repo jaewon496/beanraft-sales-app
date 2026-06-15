@@ -344,7 +344,7 @@ function Card14({ body = {}, onOpenDirector }) {
         </div>
       </div>
 
-      <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:24}}>
+      <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:24, alignItems:"start"}}>
         <div className="bc-box" style={{padding:18, display:"flex", flexDirection:"column", alignItems:"center"}}>
           <div style={{alignSelf:"stretch", fontSize:15, fontWeight:600, marginBottom:8}}>한눈에 보기</div>
           {radarAxes.length === 5 && radarValues.some(v => v > 0) ? (

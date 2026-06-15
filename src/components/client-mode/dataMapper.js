@@ -4892,10 +4892,18 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   } catch (e) { /* 빈 배열 유지 */ }
   try {
     // 비즈맵 risingMenuList 필드: MENU_NM, AVG_SALE_UPRC, PCTILE_25, PCTILE_75, COM_PRE_RATE
-    const _riseMenuRaw = cd?.nicebizmapMenu
+    // [2026-06-15] 유실 방지: 인기메뉴(_pmSrc)와 동일하게 apis.bizMapRisingMenu({data:[...]} 또는 배열) 1순위 인식.
+    // App.jsx가 risingMenuList를 apis.bizMapRisingMenu + nicebizmapMenu 양쪽에 저장 → 둘 중 살아있는 쪽 사용.
+    const _rmSrc = apis.bizMapRisingMenu
+      ?? cd?.apis?.bizMapRisingMenu
+      ?? aiData?.apis?.bizMapRisingMenu
+      ?? null;
+    const _riseMenuRaw = (Array.isArray(_rmSrc) ? _rmSrc : _rmSrc?.data)
+      ?? cd?.nicebizmapMenu
       ?? aiData?.nicebizmapMenu
       ?? cd?.risingMenuList
       ?? aiData?.risingMenuList
+      ?? cd?.nicebizmap?.risingMenuList
       ?? [];
     if (Array.isArray(_riseMenuRaw) && _riseMenuRaw.length > 0) {
       _extra_risingMenus = _riseMenuRaw.slice(0, 3).map(m => {

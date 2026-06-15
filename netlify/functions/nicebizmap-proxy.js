@@ -612,23 +612,41 @@ exports.handler = async (event) => {
       (_curRising == null || (Array.isArray(_curRising) && _curRising.length === 0));
     if (_risingNeedFill) {
       try {
-        const sidoCode = admiCd.substring(0, 2);
+        // [2026-06-15] 급상승 메뉴 출처 수정 — 동(洞) 단위 → 시도(2자리) 폴백.
+        //   기존: AREA_CD=시도2자리 만 호출 → 서울 전체 급상승(망고아이스크림/한라봉젤리/
+        //         불고기샌드위치 등 비(非)카페 식사류)만 와서 isCafeMenu 필터에 전량 탈락 → 항상 빈값.
+        //   수정: AREA_CD=8자리 동코드(역삼1동 11680640) 를 1순위로 호출하면 그 동의 실제
+        //         카페 급상승 메뉴(청귤에이드/콜드브루/베이글/딸기요거트 등)가 MENU_NM 으로 옴.
+        //         동에서 빈배열일 때만 시도2자리로 폴백(소멸 방지).
+        //   ※ AREA_CD 는 정확히 8자리만 동 단위로 인식됨(10자리/6자리는 빈배열). admiCd 가
+        //      10자리로 오면 앞 8자리로 잘라 시도한다.
         const upjongCd = requestBody.upjong3Cd || 'Q13007';
+        const admiStr = String(admiCd);
+        const dongCode8 = admiStr.length >= 8 ? admiStr.substring(0, 8) : null;
+        const sidoCode = admiStr.substring(0, 2);
+        // 출처 우선순위: 동(카페 단위) → 시도(광역, 폴백)
+        const areaCandidates = [];
+        if (dongCode8) areaCandidates.push(dongCode8);
+        if (sidoCode && sidoCode !== dongCode8) areaCandidates.push(sidoCode);
         // [2026-06-14] 연도 폴백: 당해(getFullYear)는 집계 전이라 MENU_LIST 빈배열로 옴.
         // 당해 → 전년 순서로 시도해서 빈 메뉴 유실을 막는다.
         const nowYear = new Date().getFullYear();
         const yearCandidates = [nowYear, nowYear - 1];
         let menuList = null;
-        for (const yr of yearCandidates) {
-          const zinidataUrl = `https://api-v1.zinidata.co.kr/v4/union/biz_trend_menu?CLSFC_TERM=M&YEAR=${yr}&TERMS=2&UPJONG_CD=${upjongCd}&AREA_CD=${sidoCode}`;
-          console.log(`[nicebizmap-proxy] risingMenuList NULL -> zinidata 보충(YEAR=${yr}): ${zinidataUrl}`);
-          const zinResult = await fetchJsonGet(zinidataUrl, { 'UNION-API-KEY': 'pringles' });
-          const _list = zinResult && zinResult.RESULT && zinResult.RESULT.MENU_LIST;
-          if (_list && _list.length > 0) { menuList = _list; break; }
+        let hitArea = null;
+        for (const area of areaCandidates) {
+          for (const yr of yearCandidates) {
+            const zinidataUrl = `https://api-v1.zinidata.co.kr/v4/union/biz_trend_menu?CLSFC_TERM=M&YEAR=${yr}&TERMS=2&UPJONG_CD=${upjongCd}&AREA_CD=${area}`;
+            console.log(`[nicebizmap-proxy] risingMenuList NULL -> zinidata 보충(AREA=${area} ${area.length === 8 ? '동' : '시도'} YEAR=${yr}): ${zinidataUrl}`);
+            const zinResult = await fetchJsonGet(zinidataUrl, { 'UNION-API-KEY': 'pringles' });
+            const _list = zinResult && zinResult.RESULT && zinResult.RESULT.MENU_LIST;
+            if (_list && _list.length > 0) { menuList = _list; hitArea = area; break; }
+          }
+          if (menuList) break; // 동 단위에서 잡혔으면 시도 폴백 안 함
         }
         if (menuList && menuList.length > 0) {
           result.data.risingMenuList = menuList;
-          console.log(`[nicebizmap-proxy] zinidata 보충 완료: ${menuList.length}건`);
+          console.log(`[nicebizmap-proxy] zinidata 급상승 보충 완료: ${menuList.length}건 (AREA=${hitArea} ${hitArea && hitArea.length === 8 ? '동단위 카페' : '시도단위'}) [${menuList.map(m => m.MENU_NM || m.MENU4_NM || '').filter(Boolean).join(', ')}]`);
         }
       } catch (e) {
         console.warn('[nicebizmap-proxy] zinidata 보충 실패 (무시):', e.message);
