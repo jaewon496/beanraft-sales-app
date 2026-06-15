@@ -4302,16 +4302,69 @@ export default function UnifiedLayout({
         };
         const _n = (v) => Math.round(_num(v)).toLocaleString('ko-KR');
         let _sum = '';
+        // ──────────────────────────────────────────────────────────
+        // [2026-06-15] 교차 인용(cross-reference): 각 카드 한 줄 정리에 "다른 카드의 실제 값" 한 조각을
+        //   엮어 다차원 인사이트로 만든다. 규칙:
+        //   - 형제 카드 값이 없거나 0/빈문자면 교차 절 자체를 생략(현재 단일 카드 문장 그대로 유지).
+        //   - 숫자 포맷·반올림은 그 형제 카드 화면 표기와 동일하게 맞춘다(평일% 정수, 객단가 콤마, 평당 만원, 긍정률 소수1).
+        //   - cards[] 는 내부 인덱스 순서: 0상권 1고객 2변화 3프랜 4개인 5매출 6유동 7임대 8기회 9배달 10SNS 11날씨 12경쟁 13종합.
+        // ──────────────────────────────────────────────────────────
+        const _cBd = (j) => (cards && cards[j] && cards[j].bodyData) ? cards[j].bodyData : {};
+        // SNS 긍정률(%) — cards[10].positiveRatio (null 가능). 소수1자리.
+        const _xPos = (() => { const v = Math.round(_num(_cBd(10).positiveRatio) * 10) / 10; return (v > 0 && v <= 100) ? v : 0; })();
+        // 유동 평일 비중(%) — cards[6].weekdayPct. 정수(카드 KPI toFixed(0)와 일치).
+        const _xWeekday = (() => { const v = Math.round(_num(_cBd(6).weekdayPct)); return (v > 0 && v <= 100) ? v : 0; })();
+        // 상권 경쟁 강도 라벨 — cards[12].level ∈ {매우 과밀, 과밀, 보통, 양호}.
+        const _xCompetLevel = String(_cBd(12).level || '').trim();
+        // 동네 카페 월매출(만원) — cards[5].monthly.
+        const _xMonthly = (() => { const v = _num(_cBd(5).monthly); return v > 0 ? v : 0; })();
+        // 통합 평당 월세(만원/평) — 카드 0/7 KPI(integratedRent)와 동일하게 산출.
+        const _xRentPy = (() => {
+          const _ir = kosisBoxData && kosisBoxData.integratedRent;
+          let v = 0;
+          if (_ir && _ir.value) {
+            v = (typeof _ir.unit === 'string' && _ir.unit.indexOf('만원') >= 0)
+              ? Math.round(_ir.value)
+              : Math.round(_ir.value / 10000);
+          } else if (kosisBoxData && kosisBoxData.marketRent && kosisBoxData.marketRent.value) {
+            v = Math.round(kosisBoxData.marketRent.value / 10000);
+          }
+          return v > 0 ? v : 0;
+        })();
+        // 배달 객단가(원) — cards[9].searchAvgPrice. 카드 표기와 일치하는 현실 범위(1,000~100,000원)일 때만 사용.
+        const _xDeliveryAvg = (() => { const v = Math.round(_num(_cBd(9).searchAvgPrice)); return (v >= 1000 && v < 100000) ? v : 0; })();
+        // 주 고객 연령 — cards[1].topAge. 괄호(%) 떼고 핵심만. 플레이스홀더('-')는 제외.
+        const _xTopAge = (() => {
+          const t = String(_cBd(1).topAge || '').replace(/\s*\([^)]*\)\s*$/, '').trim();
+          return (!t || t === '-' || t === '–') ? '' : t;
+        })();
+        // 개인 카페 아메리카노 평균(원)과 프랜차이즈 대비 가격차(원) — cards[4].
+        const _x4 = _cBd(4);
+        const _xIndieAmAvg = (() => { const v = Math.round(_num(_x4.americanoAvg)); return (v > 0 && v < 100000) ? v : 0; })();
+        const _xIndieGap = (() => {
+          const cmp = _x4.indieFranchPriceCompare;
+          if (cmp && _num(cmp.indie) > 0 && _num(cmp.franch) > 0) {
+            const g = Math.round(_num(cmp.franch) - _num(cmp.indie));
+            return g > 0 ? g : 0;
+          }
+          return 0;
+        })();
         switch (i) {
           case 0: { // 상권 분석 리포트
             const cafes = _num(hfBody.cafeCount) || _num(_bd.cafes);
             const indi = _num(hfBody.individual) || _num(_bd.individual);
             const indiPct = cafes > 0 ? Math.round((indi / cafes) * 100) : 0;
+            // [교차] SNS 긍정률 — 개인 비중이 버티는 이유를 "회자되는 콘셉트"로 보강.
+            const _crossSns = (_xPos > 0)
+              ? ` SNS에서도 긍정 반응 ${_xPos}%로 회자되니, 콘셉트가 통하는 동네라는 신호입니다.`
+              : '';
             if (cafes >= 15) {
               if (indiPct >= 50) {
-                _sum = `카페가 ${_n(cafes)}곳이나 빽빽한데도 개인 카페가 ${indiPct}%로 버틴다는 건, 브랜드 인지도보다 콘셉트로 손님이 갈리는 시장이라는 뜻이에요. 무난하면 묻히고, 색이 분명하면 자리를 잡습니다.`;
+                _sum = `카페가 ${_n(cafes)}곳이나 빽빽한데도 개인 카페가 ${indiPct}%로 버틴다는 건, 브랜드 인지도보다 콘셉트로 손님이 갈리는 시장이라는 뜻이에요. 무난하면 묻히고, 색이 분명하면 자리를 잡습니다.`
+                  + _crossSns;
               } else {
-                _sum = `반경 ${radius}m에 카페 ${_n(cafes)}곳, 프랜차이즈 비중이 높은 검증된 수요처예요. 대형 브랜드가 못 채우는 빈틈(특화 콘셉트·공간)을 파고드는 게 개인 카페의 자리입니다.`;
+                _sum = `반경 ${radius}m에 카페 ${_n(cafes)}곳, 프랜차이즈 비중이 높은 검증된 수요처예요. 대형 브랜드가 못 채우는 빈틈(특화 콘셉트·공간)을 파고드는 게 개인 카페의 자리입니다.`
+                  + _crossSns;
               }
             } else if (cafes > 0) {
               _sum = `반경 ${radius}m에 카페가 ${_n(cafes)}곳뿐이라 아직 손이 덜 탄 시장이에요. 경쟁이 붙기 전에 먼저 색깔을 박아두면 동네 대표 자리를 선점할 수 있습니다.`;
@@ -4334,15 +4387,22 @@ export default function UnifiedLayout({
               : '';
             // 연령대 숫자 추출(20·30대 = 젊은층, 40·50대 = 안정·품질 지향)
             const ageNum = (() => { const m = age.match(/(\d{2})/); return m ? Number(m[1]) : 0; })();
+            // [교차] 유동 평일 비중 — 주 고객이 평일 직장인층임을 보강(경험 소비층 겨냥 근거).
+            const _crossFlow = (_xWeekday >= 60)
+              ? ` 평일 비중도 ${_xWeekday}%로 높아 직장인 중심이니, 평일을 촘촘히 잡는 운영이 맞습니다.`
+              : '';
             if (age && (ageNum === 20 || ageNum === 30)) {
               _sum = `${age}가 주축인 동네 — 가격보다 경험(공간·퀄리티)에 지갑을 여는 층이라, 싸게 파는 것보다 '값을 하는 한 잔'이 통합니다.`
-                + (genderTail ? ' ' + genderTail : '');
+                + (genderTail ? ' ' + genderTail : '')
+                + _crossFlow;
             } else if (age && (ageNum === 40 || ageNum === 50 || ageNum >= 40)) {
               _sum = `${age}가 주축인 동네 — 자극적인 트렌드보다 품질과 편안함을 중시하는 안정 지향 손님이라, 꾸준한 맛과 머무르기 좋은 자리가 단골을 만듭니다.`
-                + (genderTail ? ' ' + genderTail : '');
+                + (genderTail ? ' ' + genderTail : '')
+                + _crossFlow;
             } else if (age) {
               _sum = `${age} 손님이 가장 많은 동네예요.`
-                + (genderTail ? ' ' + genderTail : ' 이 고객층의 생활 패턴에 맞춘 운영이면 단골로 이어집니다.');
+                + (genderTail ? ' ' + genderTail : ' 이 고객층의 생활 패턴에 맞춘 운영이면 단골로 이어집니다.')
+                + _crossFlow;
             } else {
               _sum = '다양한 연령대가 고르게 찾는 동네예요. 폭넓게 사랑받는 시그니처 한 잔이면 안정적인 단골을 만들 수 있습니다.';
             }
@@ -4366,18 +4426,25 @@ export default function UnifiedLayout({
               : isShrinking
                 ? '가게 교체가 잦은 상권이라 초기 안착(자금·운영)이 성패를 가릅니다.'
                 : '꾸준히 유지되는 상권이라 차근차근 준비하면 안착할 수 있습니다.';
+            // [교차] 상권 경쟁 강도 — 생존율과 묶어 "초기 진입 설계가 관건"을 보강.
+            const _crossCompet = _xCompetLevel
+              ? ` 경쟁은 ${_xCompetLevel} 수준이라, 초기 진입 설계로 첫 문턱을 넘는 게 관건입니다.`
+              : '';
             if (s3 >= 50 && survivalRegional) {
               _sum = `3년 생존율 ${s3}%는 업종 평균을 웃도는 수치 — 한번 자리 잡으면 쉽게 흔들리지 않는 단단한 상권이에요. 진입 문턱만 넘으면 오래 가져갈 수 있는 동네입니다.`
-                + (open > 0 ? ` 최근 신규 개업도 ${_n(open)}곳 이어져 흐름이 살아 있습니다.` : '');
+                + (open > 0 ? ` 최근 신규 개업도 ${_n(open)}곳 이어져 흐름이 살아 있습니다.` : '')
+                + _crossCompet;
             } else if (s3 > 0 && s3 < 30 && survivalRegional) {
-              _sum = `3년 생존율 ${s3}%로 부침이 큰 시장이에요 — 만만히 들어가면 위험하지만, 그만큼 어설픈 경쟁자가 빨리 빠지는 곳이기도 합니다. 초반 자금 여력과 운영 설계가 생사를 가릅니다.`;
+              _sum = `3년 생존율 ${s3}%로 부침이 큰 시장이에요 — 만만히 들어가면 위험하지만, 그만큼 어설픈 경쟁자가 빨리 빠지는 곳이기도 합니다. 초반 자금 여력과 운영 설계가 생사를 가릅니다.`
+                + _crossCompet;
             } else if (s3 > 0) {
               // 생존율이 전국 폴백(≈39%)이거나 평균선 구간 → 같은 문장 수렴 방지: trend로 전략 절반을 변주.
               _sum = `3년 생존율 ${s3}%는 업종 평균선 수준 — `
                 + trendTail
                 + (isGrowing && open > 0
                     ? ` 최근 신규 개업이 ${_n(open)}곳 이어집니다.`
-                    : (isShrinking && close > 0 ? ` 최근 폐업이 ${_n(close)}곳 나온 만큼 입지 검증이 중요합니다.` : ''));
+                    : (isShrinking && close > 0 ? ` 최근 폐업이 ${_n(close)}곳 나온 만큼 입지 검증이 중요합니다.` : ''))
+                + _crossCompet;
             } else {
               // 생존율 데이터 자체가 없을 때도 trend로 변주.
               _sum = isGrowing
@@ -4391,12 +4458,20 @@ export default function UnifiedLayout({
           case 3: { // 프랜차이즈 현황
             const fc = _num(_bd.franchiseCount);
             const share = Math.round(_num(_bd.franchiseShare) * 10) / 10;
+            // [교차] 개인 카페 가격차 — "가격 말고 개성으로 비켜 가라"의 근거로 보강.
+            const _crossPrice = (_xIndieGap >= 200)
+              ? ` 개인 카페 아메리카노는 프랜차이즈보다 약 ${_n(_xIndieGap)}원 싸니, 가격이 아니라 개성으로 비켜 가는 게 맞습니다.`
+              : (_xIndieAmAvg > 0
+                  ? ` 개인 카페 아메리카노가 평균 ${_n(_xIndieAmAvg)}원 선이라 가격 경쟁은 이미 바닥, 개성으로 승부해야 합니다.`
+                  : '');
             if (fc >= 5) {
               _sum = `프랜차이즈만 ${_n(fc)}곳`
                 + (share > 0 ? `(${share}%)` : '')
-                + ` — 대기업이 입지 분석 끝에 들어온 '검증 도장'이에요. 정면 승부는 불리하니, 그들이 안 하는 개성·동네 밀착으로 비켜 가는 게 정석입니다.`;
+                + ` — 대기업이 입지 분석 끝에 들어온 '검증 도장'이에요. 정면 승부는 불리하니, 그들이 안 하는 개성·동네 밀착으로 비켜 가는 게 정석입니다.`
+                + _crossPrice;
             } else if (fc > 0) {
-              _sum = `프랜차이즈는 ${_n(fc)}곳뿐, 대형 브랜드 손이 덜 닿은 동네예요. 개인 카페가 개성으로 무대를 차지하기 좋은 자리이니 색깔 있는 브랜딩이 곧 무기입니다.`;
+              _sum = `프랜차이즈는 ${_n(fc)}곳뿐, 대형 브랜드 손이 덜 닿은 동네예요. 개인 카페가 개성으로 무대를 차지하기 좋은 자리이니 색깔 있는 브랜딩이 곧 무기입니다.`
+                + _crossPrice;
             } else {
               _sum = '아직 프랜차이즈가 없는 동네라 개인 카페만의 무대예요. 색깔 있는 브랜딩이면 동네 대표가 될 수 있습니다.';
             }
@@ -4410,12 +4485,19 @@ export default function UnifiedLayout({
             const indiePrice = _num(cmp && cmp.indie);
             const franchPrice = _num(cmp && cmp.franch);
             const gap = (indiePrice > 0 && franchPrice > 0) ? (franchPrice - indiePrice) : 0;
+            // [교차] 동네 카페 월매출 — "가격 아닌 콘셉트로 상위권"의 근거(편차 큰 시장)로 보강.
+            const _crossSales = (_xMonthly > 0)
+              ? ` 동네 카페 월매출이 ${_manToWon(_xMonthly)} 안팎이라 '되는 집'에 들면 충분히 받쳐주니, 가격이 아니라 콘셉트로 상위권에 드는 게 핵심입니다.`
+              : '';
             if (indiePrice > 0 && franchPrice > 0 && gap >= 200) {
-              _sum = `개인 카페 아메리카노가 평균 ${_n(indiePrice)}원으로 프랜차이즈보다 약 ${_n(gap)}원 싸요 — 가격으로 붙으면 제 살 깎기예요. '이 집만의 한 잔'으로 값을 올려 받을 명분을 만드는 게 생존법입니다.`;
+              _sum = `개인 카페 아메리카노가 평균 ${_n(indiePrice)}원으로 프랜차이즈보다 약 ${_n(gap)}원 싸요 — 가격으로 붙으면 제 살 깎기예요. '이 집만의 한 잔'으로 값을 올려 받을 명분을 만드는 게 생존법입니다.`
+                + _crossSales;
             } else if (amAvg > 0) {
-              _sum = `주변 개인 카페 아메리카노 평균이 ${_n(amAvg)}원 선이에요 — 가격은 이미 바닥 경쟁이라 더 내릴 여지가 없습니다. 검증된 동네에서 한 끗 다른 콘셉트로 값을 올려 받는 게 상위권으로 가는 길입니다.`;
+              _sum = `주변 개인 카페 아메리카노 평균이 ${_n(amAvg)}원 선이에요 — 가격은 이미 바닥 경쟁이라 더 내릴 여지가 없습니다. 검증된 동네에서 한 끗 다른 콘셉트로 값을 올려 받는 게 상위권으로 가는 길입니다.`
+                + _crossSales;
             } else if (indi > 0) {
-              _sum = `주변에 개인 카페가 ${_n(indi)}곳이나 영업 중인, 개성으로 갈리는 시장이에요. 무난한 한 잔은 묻히니, 이 집만의 색이 분명해야 상위권을 노려볼 수 있습니다.`;
+              _sum = `주변에 개인 카페가 ${_n(indi)}곳이나 영업 중인, 개성으로 갈리는 시장이에요. 무난한 한 잔은 묻히니, 이 집만의 색이 분명해야 상위권을 노려볼 수 있습니다.`
+                + _crossSales;
             } else {
               _sum = '개인 카페가 드물어 개성으로 승부하기 좋은 동네예요. 나만의 시그니처로 먼저 자리 잡으면 단골이 따라옵니다.';
             }
@@ -4437,15 +4519,21 @@ export default function UnifiedLayout({
               (maxS > 0 && minS > 0 && maxS >= minS * 2)
               || (maxS > 0 && monthly > 0 && maxS >= monthly * 1.5)
             );
+            // [교차] 임대 평당 월세 — 매출과 묶어 "임대 부담은 객단가 콘셉트로 상쇄"를 보강.
+            const _crossRent = (_xRentPy > 0)
+              ? ` 임대 평당 ${_manToWon(_xRentPy)} 부담은 객단가를 받쳐주는 콘셉트로 상쇄하는 게 관건입니다.`
+              : '';
             if (wideSpread) {
               _sum = `동네 카페 월매출이 평균 ${_manToWon(monthly)}이지만 최고 ${_manToWon(maxS)}`
                 + (minS > 0 ? `~최저 ${_manToWon(minS)}` : '')
-                + `으로 편차가 극심해요 — '되는 집'과 '안 되는 집'이 갈리는 시장이라, 평균만 보고 안심하면 안 되고 상위권에 드는 차별화가 필수입니다.`;
+                + `으로 편차가 극심해요 — '되는 집'과 '안 되는 집'이 갈리는 시장이라, 평균만 보고 안심하면 안 되고 상위권에 드는 차별화가 필수입니다.`
+                + _crossRent;
             } else if (monthly > 0) {
               _sum = `동네 카페 월매출이 ${_manToWon(monthly)} 안팎으로 가게별 편차가 크지 않은, 평균만 해도 먹고사는 안정적인 시장이에요. `
                 + (unit
                     ? `객단가 ${unit}만 지켜도 꾸준한 수익을 기대할 수 있습니다.`
-                    : '객단가만 지켜도 꾸준한 수익을 기대할 수 있습니다.');
+                    : '객단가만 지켜도 꾸준한 수익을 기대할 수 있습니다.')
+                + _crossRent;
             } else {
               _sum = '꾸준한 카페 매출이 받쳐주는 동네예요. 객단가를 지키는 시그니처면 안정적인 수익을 기대할 수 있습니다.';
             }
@@ -4464,10 +4552,16 @@ export default function UnifiedLayout({
             const peakHourNum = (() => { const m = peak.match(/(\d{1,2})\s*시/); return m ? Number(m[1]) : -1; })();
             const isLunchPeak = peakHourNum >= 11 && peakHourNum <= 15;
             const isEveningPeak = peakHourNum >= 16;
+            // [교차] 배달 객단가 — 평일 직장인 흐름과 묶어 "점심 회전 + 오후 미팅·배달"을 보강(사장님 대표 예시).
+            const _crossDelivery = (_xDeliveryAvg > 0)
+              ? ` 배달 객단가도 ${_n(_xDeliveryAvg)}원(모임·사무실 주문 신호)이라, 점심 빠른 회전에 더해 오후 미팅·배달 채널로 객단가를 끌어올릴 수 있습니다.`
+              : '';
             if (wd >= 60 && isLunchPeak) {
-              _sum = `평일 ${wdR}%에 점심시간이 가장 붐비는 오피스 상권 — 손님 대부분이 시간 쫓기는 직장인이에요. 점심엔 빠른 회전, 오후엔 미팅·작업 공간으로 객단가를 올리는 '두 얼굴' 운영이 맞습니다.`;
+              _sum = `평일 ${wdR}%에 점심시간이 가장 붐비는 오피스 상권 — 손님 대부분이 시간 쫓기는 직장인이에요. 점심엔 빠른 회전, 오후엔 미팅·작업 공간으로 객단가를 올리는 '두 얼굴' 운영이 맞습니다.`
+                + _crossDelivery;
             } else if (wd >= 60) {
-              _sum = `평일 비중이 ${wdR}%로 높은, 직장인이 주도하는 상권이에요 — 출근·점심·퇴근 동선을 타는 손님이 대부분이라, 평일 시간대를 촘촘히 잡고 주말 빈 시간을 어떻게 채울지가 관건입니다.`;
+              _sum = `평일 비중이 ${wdR}%로 높은, 직장인이 주도하는 상권이에요 — 출근·점심·퇴근 동선을 타는 손님이 대부분이라, 평일 시간대를 촘촘히 잡고 주말 빈 시간을 어떻게 채울지가 관건입니다.`
+                + _crossDelivery;
             } else if (we > 0 && we >= wd) {
               _sum = `주말 비중이 ${weR}%로 높고${isEveningPeak ? ' 오후·저녁에 붐비는' : ''} 동네 — 가족·여가 손님이 '머무는' 곳이라, 좌석 회전보다 오래 앉게 만드는 공간이 매출을 만듭니다.`;
             } else if (wd > 0 && we > 0) {
@@ -4491,12 +4585,18 @@ export default function UnifiedLayout({
             const premium = premWon > 0 ? Math.round(premWon / 10000) : _num(_bd.premiumCost);
             // 평당 임대료가 높은지 판정(서울 핵심 상권 평당 30만원/월 이상을 '비싼' 기준선으로)
             const highRent = rentPy >= 30;
+            // [교차] 동네 카페 월매출 — 평당 부담을 "월매출이 받쳐주니 작은 평수 회전으로 상쇄"로 보강.
+            const _crossMonthly = (_xMonthly > 0)
+              ? ` 동네 카페 월매출이 ${_manToWon(_xMonthly)} 안팎으로 받쳐주니, 작은 평수의 회전으로 평당 부담을 충분히 상쇄할 수 있습니다.`
+              : '';
             if (rentPy > 0 && (highRent || premium >= 3000)) {
               _sum = `평당 ${_manToWon(rentPy)}`
                 + (premium > 0 ? `에 권리금 ${_manToWon(premium)}까지` : '으로')
-                + ` 초기 비용이 만만치 않은 입지예요 — 그만큼 수요가 검증됐다는 뜻이기도 합니다. 작은 평수로 회전을 높이거나 객단가를 받쳐줄 콘셉트로 평당 비용을 상쇄하는 게 핵심입니다.`;
+                + ` 초기 비용이 만만치 않은 입지예요 — 그만큼 수요가 검증됐다는 뜻이기도 합니다. 작은 평수로 회전을 높이거나 객단가를 받쳐줄 콘셉트로 평당 비용을 상쇄하는 게 핵심입니다.`
+                + _crossMonthly;
             } else if (rentPy > 0) {
-              _sum = `평당 ${_manToWon(rentPy)} 선으로 임대 조건이 비교적 합리적인 동네 — 무리한 평수보다 콘셉트에 맞는 규모로 시작하면 고정비 부담을 줄일 수 있습니다.`;
+              _sum = `평당 ${_manToWon(rentPy)} 선으로 임대 조건이 비교적 합리적인 동네 — 무리한 평수보다 콘셉트에 맞는 규모로 시작하면 고정비 부담을 줄일 수 있습니다.`
+                + _crossMonthly;
             } else if (_num(_bd.deposit) > 0 || premium > 0) {
               // [2026-06-15] 평당 KOSIS 데이터가 없을 때(D 경로): 합리적 문장 복붙 대신 보증금/권리금을 근거로 변주.
               const _dep = _num(_bd.deposit);
@@ -4516,11 +4616,17 @@ export default function UnifiedLayout({
             const newOpen = _num(hfBody.newOpen);
             // [2026-06-15] 비중/생존율은 소수1자리로 정리(raw float 노출 방지).
             const indiPct = Math.round(_num(hfBody.individualPct) * 10) / 10;
+            // [교차] 상권 경쟁 강도 — "경쟁은 [level]이지만 콘셉트로 비집고 들어갈 여지"로 보강.
+            const _crossCompet8 = _xCompetLevel
+              ? ` 경쟁은 ${_xCompetLevel} 수준이지만, 색이 분명한 콘셉트면 비집고 들어갈 여지가 있습니다.`
+              : '';
             if (vac > 0 && vac <= 8 && newOpen > 0) {
-              _sum = `공실률 ${vacR}%로 빈 상가가 적고 신규 개업이 꾸준한, 들어오려는 사람이 줄 선 동네 — 좋은 자리는 빨리 빠지니 매물·권리금 협상의 속도와 정보력이 곧 경쟁력입니다.`;
+              _sum = `공실률 ${vacR}%로 빈 상가가 적고 신규 개업이 꾸준한, 들어오려는 사람이 줄 선 동네 — 좋은 자리는 빨리 빠지니 매물·권리금 협상의 속도와 정보력이 곧 경쟁력입니다.`
+                + _crossCompet8;
             } else if (vac > 0 && vac <= 8) {
               // [2026-06-15] 공실 낮음(자리 귀함) — newOpen 유무와 무관하게 별도 분기.
-              _sum = `공실률 ${vacR}%로 빈 상가가 귀한 동네예요 — 자리 자체가 매물로 잘 안 나오니, 좋은 입지가 뜨면 빠르게 잡을 수 있게 정보력과 자금 준비를 미리 갖추는 게 곧 경쟁력입니다.`;
+              _sum = `공실률 ${vacR}%로 빈 상가가 귀한 동네예요 — 자리 자체가 매물로 잘 안 나오니, 좋은 입지가 뜨면 빠르게 잡을 수 있게 정보력과 자금 준비를 미리 갖추는 게 곧 경쟁력입니다.`
+                + _crossCompet8;
             } else if (vac > 12) {
               _sum = `공실률이 ${vacR}%로 빈 상가가 눈에 띄는 동네예요 — 뒤집어 보면 임대인이 아쉬운 쪽이라 임대료·권리금을 깎을 여지가 큽니다. 급할 것 없이 조건을 따져 좋은 자리를 싸게 잡는 게 기회입니다.`;
             } else if (indiPct >= 60) {
@@ -4545,12 +4651,19 @@ export default function UnifiedLayout({
             const dong = String(_bd.searchDongName || '').trim();
             // [2026-06-15] 1인주문 구간(avg<12000)을 주문량으로 변주: 주문이 많으면 박리다매형(회전), 적으면 단가 끌어올리기형.
             const orders = _num(_bd.searchOrders) || _num((hfBody.bodyData || {}).searchOrders);
+            // [교차] 유동 평일 비중 — "평일 직장인 중심이라 점심·사무실 배달을 공략"으로 보강.
+            const _crossWeekday = (_xWeekday >= 60)
+              ? ` 유동인구도 평일 ${_xWeekday}%로 직장인 중심이니, 점심·사무실 배달을 정조준하면 효과가 큽니다.`
+              : '';
             if (avg >= 12000) {
-              _sum = `배달 객단가가 ${_n(avg)}원으로 매장보다 훨씬 높아요 — 1인분보다 사무실·모임 단위 주문이 많다는 신호예요. 세트·다인 구성과 점심 배달을 잡으면 오피스 수요를 매출 한 축으로 굳힐 수 있습니다.`;
+              _sum = `배달 객단가가 ${_n(avg)}원으로 매장보다 훨씬 높아요 — 1인분보다 사무실·모임 단위 주문이 많다는 신호예요. 세트·다인 구성과 점심 배달을 잡으면 오피스 수요를 매출 한 축으로 굳힐 수 있습니다.`
+                + _crossWeekday;
             } else if (avg > 0 && orders >= 1000) {
-              _sum = `${dong ? dong + ' ' : '이 동네 '}배달은 객단가 약 ${_n(avg)}원의 1인 주문이 많지만 주문 건수 자체가 두터운 동네예요 — 빠른 조리·포장 회전으로 박리다매를 받쳐주면 배달이 든든한 매출 한 축이 됩니다.`;
+              _sum = `${dong ? dong + ' ' : '이 동네 '}배달은 객단가 약 ${_n(avg)}원의 1인 주문이 많지만 주문 건수 자체가 두터운 동네예요 — 빠른 조리·포장 회전으로 박리다매를 받쳐주면 배달이 든든한 매출 한 축이 됩니다.`
+                + _crossWeekday;
             } else if (avg > 0) {
-              _sum = `${dong ? dong + ' ' : '이 동네 '}배달 객단가는 약 ${_n(avg)}원으로 대체로 1인 주문 위주예요 — 세트·디저트 묶음으로 한 건당 단가를 끌어올리면 배달만으로도 매출 한 축을 세울 수 있습니다.`;
+              _sum = `${dong ? dong + ' ' : '이 동네 '}배달 객단가는 약 ${_n(avg)}원으로 대체로 1인 주문 위주예요 — 세트·디저트 묶음으로 한 건당 단가를 끌어올리면 배달만으로도 매출 한 축을 세울 수 있습니다.`
+                + _crossWeekday;
             } else {
               _sum = '배달 수요가 살아있는 동네예요. 세트·디저트 구성으로 객단가를 올리면 배달이 든든한 매출 한 축이 됩니다.';
             }
@@ -4561,13 +4674,19 @@ export default function UnifiedLayout({
             // [2026-06-15] 긍정 비율은 소수1자리로 정리(카드 KPI와 일치, raw float 방지).
             const pos = Math.round(_num(_bd.positiveRatio) * 10) / 10;
             const kwTxt = kws.slice(0, 3).map(k => (typeof k === 'string' ? k : (k && k.text) || k && k.name || '')).filter(Boolean).join('·');
+            // [교차] 주 고객 연령 — "주 고객 ${age}라 비주얼·감성 한 컷이 통한다"로 보강.
+            const _crossAge = _xTopAge
+              ? ` 주 고객이 ${_xTopAge}라, 비주얼·감성 한 컷이 그대로 입소문으로 이어집니다.`
+              : '';
             if (pos >= 70) {
               _sum = `SNS에서 긍정 반응 ${pos}%로 회자되는, '검색해서 찾아오는' 손님이 많은 동네 — 사진 한 장 잘 나오는 비주얼 시그니처가 광고비를 대신합니다.`
-                + (kwTxt ? ` (${kwTxt} 키워드가 도는 중)` : '');
+                + (kwTxt ? ` (${kwTxt} 키워드가 도는 중)` : '')
+                + _crossAge;
             } else if (kwTxt) {
               _sum = `SNS에서 ${kwTxt} 같은 키워드로 입소문이 도는 동네예요`
                 + (pos > 0 ? `(긍정 반응 ${pos}%)` : '')
-                + ` — 이 흐름에 올라탄 비주얼 한 컷이면 별도 광고 없이도 찾아오는 손님을 만들 수 있습니다.`;
+                + ` — 이 흐름에 올라탄 비주얼 한 컷이면 별도 광고 없이도 찾아오는 손님을 만들 수 있습니다.`
+                + _crossAge;
             } else {
               _sum = 'SNS에서 카페가 꾸준히 회자되는 동네예요. 사진 잘 나오는 한 컷·시그니처면 입소문이 곧 광고가 되어 매출로 이어집니다.';
             }
@@ -4587,14 +4706,21 @@ export default function UnifiedLayout({
             // 추운 지역: 겨울 최저 -10도 이하 또는 눈 비중 6% 이상 / 온난 지역: 연평균 14도 이상이면서 눈 적음
             const isCold = (winterMin != null && winterMin <= -10) || snowy >= 6;
             const isMild = (temp != null && temp >= 14) && snowy <= 3;
+            // [교차] 배달 객단가 — "비·겨울엔 배달 채널로 무게가 옮겨가는데, 객단가 N원이 그 채널을 받쳐준다"로 보강.
+            const _crossDeliveryWeather = (_xDeliveryAvg > 0)
+              ? ` 비·겨울엔 무게가 배달·실내 수요로 옮겨가는데, 배달 객단가 ${_n(_xDeliveryAvg)}원이 그 채널을 든든히 받쳐줍니다.`
+              : '';
             if (isCold) {
               _sum = `겨울이 길고 추운 동네예요`
                 + (winterMin != null ? `(겨울 최저 ${winterMin}도${snowy > 0 ? `, 눈 ${snowy}%` : ''})` : (snowy > 0 ? `(눈 오는 날 연 ${snowy}%)` : ''))
-                + ` — 따뜻한 음료·디저트와 오래 머물게 하는 실내 공간으로 겨울 비수기를 버티는 구성이 매출을 지킵니다.`;
+                + ` — 따뜻한 음료·디저트와 오래 머물게 하는 실내 공간으로 겨울 비수기를 버티는 구성이 매출을 지킵니다.`
+                + _crossDeliveryWeather;
             } else if (isMild) {
-              _sum = `연평균 ${temp}도로 사계절 온화한 편이라 날씨에 매출이 크게 출렁이지 않는 동네예요 — 테이크아웃과 시즌 음료를 촘촘히 돌리면 날씨 타는 구간까지 메워 꾸준한 매출을 만들 수 있습니다.`;
+              _sum = `연평균 ${temp}도로 사계절 온화한 편이라 날씨에 매출이 크게 출렁이지 않는 동네예요 — 테이크아웃과 시즌 음료를 촘촘히 돌리면 날씨 타는 구간까지 메워 꾸준한 매출을 만들 수 있습니다.`
+                + _crossDeliveryWeather;
             } else if (rainy > 0) {
-              _sum = `비 오는 날이 연 ${rainy}%인데 카페 매출은 날씨를 크게 타요 — 비·한파엔 배달·실내 수요로, 맑은 날엔 테이크아웃으로 무게가 옮겨갑니다. 날씨별 빠지는 구간을 배달·시즌 메뉴로 메우는 운영이 연매출을 지킵니다.`;
+              _sum = `비 오는 날이 연 ${rainy}%인데 카페 매출은 날씨를 크게 타요 — 비·한파엔 배달·실내 수요로, 맑은 날엔 테이크아웃으로 무게가 옮겨갑니다. 날씨별 빠지는 구간을 배달·시즌 메뉴로 메우는 운영이 연매출을 지킵니다.`
+                + _crossDeliveryWeather;
             } else if (temp != null) {
               _sum = `연평균 ${temp}도, 계절 폭이 큰 동네예요 — 더울 땐 시원한 음료·테이크아웃으로, 추울 땐 실내 체류·배달로 손님의 발길 자체가 옮겨갑니다. 계절마다 빠지는 채널을 미리 채워두면 비수기를 매출로 바꿀 수 있습니다.`;
             } else {
@@ -4614,11 +4740,16 @@ export default function UnifiedLayout({
             const isLow = /양호|낮|여유|한산|느슨/.test(level) || (!level && densityNum > 0 && densityNum <= 30);
             const isMid = /보통|적정|중간/.test(level);
             const isStable = stable >= 40;
+            // [교차] 임대 평당 월세 — "임대 평당 부담까지 감안하면 초기 설계가 승부"로 보강.
+            const _crossRent12 = (_xRentPy > 0)
+              ? ` 임대 평당 ${_manToWon(_xRentPy)} 부담까지 감안하면, 초기 진입 설계가 승부처입니다.`
+              : '';
             if (isCrowded) {
               // 과밀: 진입은 어렵지만 안착하면 버티는 시장 (안정율 있으면 근거로 보강)
-              _sum = isStable
+              _sum = (isStable
                 ? `경쟁은 ${level} 수준이지만 한번 자리 잡은 가게(3년 이상 ${stable}%)가 쉽게 안 망하는 동네 — 들어가는 게 어렵지 버티는 건 가능해요. 입지·콘셉트·자금까지 초기 진입 설계에 승부를 거는 게 맞습니다.`
-                : `경쟁이 ${level} 수준으로 카페가 빽빽한 동네예요 — 버티는 건 가능하지만 만만히 들어가면 묻힙니다. 입지·콘셉트·자금까지 초기 진입 설계를 촘촘히 짜야 자리를 잡습니다.`;
+                : `경쟁이 ${level} 수준으로 카페가 빽빽한 동네예요 — 버티는 건 가능하지만 만만히 들어가면 묻힙니다. 입지·콘셉트·자금까지 초기 진입 설계를 촘촘히 짜야 자리를 잡습니다.`)
+                + _crossRent12;
             } else if (isLow) {
               // 양호/여유: 경쟁이 느슨해 선점 여지가 큰 시장
               _sum = `경쟁이 빽빽하지 않은 ${level ? level + ' 수준의 ' : ''}동네예요 — 먼저 색깔 있는 카페로 자리를 잡으면 동네 대표가 될 여지가 큽니다. 경쟁자가 붙기 전에 선점하는 게 가장 큰 무기입니다.`;
@@ -4639,8 +4770,13 @@ export default function UnifiedLayout({
             // [2026-06-15] 종합 점수는 정수로(카드 종합 점수 표기와 일치).
             const score = Math.round(_num(hfBody.totalScore));
             const opp = _num(hfBody.opportunities);
+            // [교차] 종합 점수에 SNS 긍정률을 한 조각 곁들여 "콘셉트가 통한다"는 외부 신호로 보강.
+            const _crossSns13 = (_xPos >= 70)
+              ? ` SNS 긍정 반응도 ${_xPos}%라, 콘셉트만 분명하면 입소문이 그대로 손님으로 이어집니다.`
+              : '';
             if (score >= 70) {
-              _sum = `데이터 종합 ${score}점 — 수요·매출·성장성이 두루 받쳐주는 상위권 입지예요. 강점이 분명한 만큼 '왜 이 동네에 또 한 곳'이 아니라 '왜 우리 집'을 콘셉트로 못 박으면 승산이 큽니다.`;
+              _sum = `데이터 종합 ${score}점 — 수요·매출·성장성이 두루 받쳐주는 상위권 입지예요. 강점이 분명한 만큼 '왜 이 동네에 또 한 곳'이 아니라 '왜 우리 집'을 콘셉트로 못 박으면 승산이 큽니다.`
+                + _crossSns13;
             } else if (score > 0 && score < 50) {
               _sum = `데이터 종합 ${score}점 — 경쟁이나 비용 같은 약점이 눈에 띄는 자리예요. 무난하게 들어가면 묻히지만, 빈틈을 정확히 노린 콘셉트와 탄탄한 초기 설계로 들어가면 오히려 경쟁이 덜한 틈을 차지할 수 있습니다.`;
             } else if (score > 0) {
