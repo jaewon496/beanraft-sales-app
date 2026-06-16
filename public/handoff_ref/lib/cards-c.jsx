@@ -353,6 +353,9 @@ function Card14({ body = {}, onOpenDirector }) {
             <StatTile id="c14.sum3" tone="lilac" label="회수기간"   value={_st.paybackMonths ? ('약 ' + _st.paybackMonths + '개월') : '-'}/>
             <StatTile id="c14.sum4" tone="cream" label="총 창업비"  value={_st.totalStartupText || '-'} sub="15평 기준"/>
           </div>
+          <div style={{fontSize:12, color:"var(--matte-fg-4)", lineHeight:1.65, marginBottom:4}}>
+            손익분기는 ‘매달 이만큼(하루 잔 수) 팔면 본전’이 되는 매출, 회수기간은 목표 매출이 나왔을 때 투자금을 되찾는 데 걸리는 예상 기간이에요. (목표 매출 기준 추정이라 실제론 더 걸릴 수 있어요.)
+          </div>
         </>
       )}
 

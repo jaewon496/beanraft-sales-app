@@ -54,6 +54,21 @@ import {
   buildIntegratedRent,
 } from './dataMapper';
 
+// [2026-06-15] AI 디렉터 대화 음성: 생성기(buildDirectorDialogue)·캐시(__ttsCache/__ttsInflight)는
+//   아래 컴포넌트 바로 위 모듈 블록에 정의됨. 여기선 리포트 주입 헬퍼만 둔다.
+// 리포트로 푸시할 cards 배열에 director.tts 주입(원본 불변 — 얕은 클론)
+function injectTtsIntoCards(cardsArr, regionKey) {
+  if (!Array.isArray(cardsArr)) return cardsArr;
+  const c13 = cardsArr[13];
+  const dir = c13 && c13.body && c13.body.chartData && c13.body.chartData.director;
+  if (!dir) return cardsArr;
+  const payload = __ttsCache.get(regionKey);
+  if (!payload) return cardsArr;   // 아직 생성 시작 안 함 → 주입 없음(폴백 음성)
+  const out = cardsArr.slice();
+  out[13] = { ...c13, body: { ...c13.body, chartData: { ...c13.body.chartData, director: { ...dir, tts: payload } } } };
+  return out;
+}
+
 // ─── Naver Map SDK Loader (uses global script from index.html, never loads a second script) ───
 let naverSDKLoadPromise = null;
 
@@ -3727,6 +3742,776 @@ function RadiusSlider({ value = SLIDER_DEFAULT, onChange = () => {} }) {
   );
 }
 
+// ─────────────────────────────────────────────────────────────
+// [2026-06-15] AI 디렉터 14카드 워크스루용 Gemini 2-speaker TTS 사전 생성
+//   - 지역(regionKey)당 정확히 1회만 유료 호출 (캐시 + inflight 가드)
+//   - 결과(audioBase64/perCard/script)를 director.tts 로 iframe 에 주입
+//   - API 키(VITE_GEMINI_API_KEY)는 부모에서만 읽고, iframe 으로는 절대 전달 안 함
+//   - 429/오류 시 status:'failed' 로 캐시 → iframe 은 브라우저 음성으로 폴백
+// ─────────────────────────────────────────────────────────────
+const __ttsCache = new Map();      // regionKey -> { audioBase64, sampleRate, status, regionKey, script, perCard }
+const __ttsInflight = new Set();   // regionKey (생성 진행 중)
+if (typeof window !== 'undefined') { window.__pregenTTSByRegion = window.__pregenTTSByRegion || {}; }
+
+// 디렉터 카드(n="14") 데이터 5영역 → 14카드 매핑 (director-modal.jsx CARD_AREA_MAP 와 byte-identical 유지)
+// ※ 락스텝: 아래 두 테이블/_naturalize/슬롯 분배 로직은 iframe 쪽과 동일해야 perCard 패리티가 맞음
+const __DM_CARD_AREA_MAP = {
+  "01": "market",      "02": "customer",    "03": "direction",
+  "04": "competition", "05": "profit",      "06": "competition",
+  "07": "customer",    "08": "profit",      "09": "market",
+  "10": "direction",   "11": "direction",   "12": "direction",
+  "13": "competition", "14": "ai",
+};
+const __DM_AREA_CARD_ORDER = {
+  market:      ["01", "09"],
+  customer:    ["02", "07"],
+  competition: ["04", "06", "13"],
+  profit:      ["05", "08"],
+  direction:   ["03", "10", "11", "12"],
+};
+// [STEP 5b] 대사 전용: bruSummary 의 '첫 완결 문장'만 뽑아 짧고 또렷한 발화로.
+//   화면 파란 박스(.bc-card__bru)는 전체 bruSummary 그대로, 대사만 첫 문장으로 분리.
+//   경계: '습니다.' / '요.' / '다.' / '. '(마침표+공백) 중 가장 먼저 나오는 곳까지(부호 포함).
+//   소수점·% 뒤 숫자(예: 19.5%)는 뒤가 공백이 아니라 컷 안 됨. 경계 없으면 원문 유지.
+//   ★iframe(director-modal.jsx _firstSentence)와 byte-identical 유지.
+function __dmFirstSentence(raw) {
+  const s = String(raw || "").replace(/\s*\n\s*/g, " ").replace(/\s{2,}/g, " ").trim();
+  if (!s) return "";
+  const re = /(습니다\.|요\.|다\.|[.!?…])/g;
+  let m;
+  while ((m = re.exec(s)) !== null) {
+    const end = m.index + m[0].length;
+    if (end >= s.length || /\s/.test(s[end])) return s.slice(0, end).trim();
+  }
+  return s;
+}
+
+// [STEP 5] director-modal.jsx _naturalize 와 byte-identical (warm 존댓말).
+//   따뜻한 구어체 존댓말: -습니다 어미를 부드럽게, 카드당 -습니다 1회 이내.
+//   ★자막=발화 wording 동일을 위해 iframe 쪽 _naturalize 와 글자 단위로 같아야 한다.
+function __dmWarmEndings(s) {
+  // 딱딱한 -입니다/-습니다 류를 따뜻한 어미로. (한 카드 내 -습니다 1회 정도만 남기는 건 호출부 책임)
+  let t = s;
+  t = t.replace(/입니다([.!?…]?)$/u, '이에요$1');
+  t = t.replace(/습니다([.!?…]?)$/u, '어요$1');
+  t = t.replace(/됩니다([.!?…]?)$/u, '돼요$1');
+  t = t.replace(/있습니다([.!?…]?)/gu, '있어요$1');
+  t = t.replace(/없습니다([.!?…]?)/gu, '없어요$1');
+  return t;
+}
+function __dmNaturalize(raw) {
+  let s = String(raw || "").trim();
+  if (!s) return "";
+  s = s.replace(/\s*\n\s*/g, " ").replace(/\s{2,}/g, " ").trim();
+  s = __dmWarmEndings(s);
+  if (!/[.!?。…]$/.test(s)) s += ".";
+  return s;
+}
+
+// [STEP 5] 주제(영역) 전환 다리 — fromArea→toArea 가 바뀌면 그 카드 라인 앞에 연결절 1개 + [medium pause].
+//   ★iframe(director-modal.jsx __dmBridge)와 byte-identical 유지.
+function __dmBridge(fromArea, toArea) {
+  if (!fromArea || !toArea || fromArea === toArea) return '';
+  const key = fromArea + '>' + toArea;
+  const TABLE = {
+    'market>customer':    '자리를 봤으니, 이제 어떤 분들이 오는지 볼게요. [medium pause] ',
+    'customer>direction': '사람이 이렇게 모이는 곳이면, 온라인에선 이 동네를 어떻게 말할까요? [medium pause] ',
+    'direction>competition': '흐름은 그렇고, 그럼 경쟁은 어떤지 보죠. [medium pause] ',
+    'competition>profit': '경쟁을 봤으니, 그래서 돈이 되는 자리인지 따져볼게요. [medium pause] ',
+    'profit>market':      '비용을 봤으니, 다시 자리 자체의 기회를 짚어볼게요. [medium pause] ',
+    'profit>direction':   '돈 얘기를 했으니, 채널 쪽 흐름으로 넘어가 볼게요. [medium pause] ',
+    'competition>direction': '경쟁을 봤으니, 분위기가 어떤지로 넘어가요. [medium pause] ',
+    'direction>customer': '흐름을 봤으니, 다시 사람 쪽을 볼게요. [medium pause] ',
+    'customer>profit':    '손님 결을 봤으니, 그래서 매출이 받쳐주는지 보죠. [medium pause] ',
+    'market>direction':   '자리를 봤으니, 동네 흐름으로 넘어가 볼게요. [medium pause] ',
+  };
+  // 일반 폴백(표에 없는 전환도 자연스러운 다리 하나)
+  return TABLE[key] || '그럼 이어서, 다음 부분을 볼게요. [medium pause] ';
+}
+// director-modal.jsx buildLiveScript 의 "카드별 디렉터 멘트 선택" 로직과 동일 (락스텝).
+// step.card 별로 director 데이터에서 보여줄 디렉터 라인을 만든다(헤드라인+관찰 슬라이스).
+function __dmDirectorLineForCard(d, cardN) {
+  const area = __DM_CARD_AREA_MAP[cardN];
+  if (area === "ai") {
+    const parts = [];
+    if (d.intro) parts.push(__dmNaturalize(d.intro));
+    if (d.closing) parts.push(__dmNaturalize(d.closing));
+    return parts.join(' ');
+  }
+  const block = d[area];
+  if (!block) return '';
+  const obs = Array.isArray(block.observations) ? block.observations.filter(Boolean) : [];
+  const order = __DM_AREA_CARD_ORDER[area] || [cardN];
+  const cardPos = Math.max(0, order.indexOf(cardN));
+  const slot = order.length || 1;
+  const per = Math.ceil(obs.length / slot) || 1;
+  let mine = obs.slice(cardPos * per, cardPos * per + per);
+  if (mine.length === 0) mine = obs.slice(0, 2);
+  const sentences = [];
+  if (block.headline) sentences.push(__dmNaturalize(block.headline));
+  mine.forEach((o) => { const s = __dmNaturalize(o); if (s) sentences.push(s); });
+  if (!sentences.length) return '';
+  // director-modal: text = sentences.slice(0,3).join(' ')
+  return sentences.slice(0, 3).join(' ');
+}
+
+// 14개 카드 식별자 순서 (DIRECTOR_SCRIPT 카드 순서와 동일)
+const __DM_CARD_ORDER = ["01","02","03","04","05","06","07","08","09","10","11","12","13","14"];
+
+// 의뢰인(고객) 14개 질문 뱅크 — 따뜻하고 짧게. 카드 순서와 1:1.
+const __DM_CLIENT_PROMPTS = [
+  "자리부터 좀 볼까요?",                 // 01 상권
+  "손님들은 어떤 분들이에요?",            // 02 고객
+  "이 동네 분위기는 좀 어떻게 변하고 있어요?", // 03 변화
+  "경쟁 매장은 많은가요?",               // 04 프랜차이즈
+  "매출은 좀 나오는 자리예요?",          // 05 매출
+  "개인 카페들은 어때요?",               // 06 개인 카페
+  "사람은 얼마나 다녀요?",               // 07 유동인구
+  "들어가는 돈은 어느 정도예요?",         // 08 임대/창업
+  "기회로 볼 만한 신호가 있을까요?",      // 09 기회
+  "배달은 챙길 만한가요?",               // 10 배달
+  "온라인 반응은 어때요?",               // 11 SNS
+  "날씨도 영향이 있나요?",               // 12 날씨
+  "종합하면 경쟁력은 어느 정도예요?",     // 13 경쟁
+  "그래서 결론은 어떻게 가는 게 좋을까요?", // 14 AI 종합
+];
+
+// director(데이터) -> { script(2화자 전체 대본), perCard[14] }
+// perCard[i] = { card, area, chars(고객질문+디렉터멘트 글자수), text(디렉터 멘트) }
+// Gemini multi-speaker 형식: "Client: ...\nDirector: ..." 14쌍.
+function buildDirectorDialogue(cardsArr, director) {
+  const d = director || {};
+  const lines = [];
+  const perCard = [];
+  let prevArea = null;   // [STEP 5] 직전 카드 영역(주제) — 바뀌면 다리절 1개 prepend
+  __DM_CARD_ORDER.forEach((cardN, i) => {
+    const area = __DM_CARD_AREA_MAP[cardN];
+    // ★ 1순위: 이 카드 전용 대사 — 화면 박스와 같은 카드(bruSummary)이되 '첫 문장만' 짧게(iframe buildLiveScript 와 동일 소스)
+    const idx = parseInt(cardN, 10) - 1;
+    let bru = "";
+    try { const b = cardsArr && cardsArr[idx] && cardsArr[idx].body; if (b && b.bruSummary) bru = __dmNaturalize(b.bruSummary); } catch (e) {}
+    let directorLine = bru || __dmDirectorLineForCard(d, cardN);
+    if (!directorLine) directorLine = "이 부분은 데이터를 확인하고 있어요.";
+    // [STEP 5] 주제 전환 다리 — 영역이 바뀐 카드 라인 앞에 연결절 1개 + [medium pause]
+    const bridge = __dmBridge(prevArea, area);
+    if (bridge) directorLine = bridge + directorLine;
+    prevArea = area;
+    const clientPrompt = __DM_CLIENT_PROMPTS[i] || "이건 어떤가요?";
+    lines.push(`Client: ${clientPrompt}`);
+    lines.push(`Director: ${directorLine}`);
+    perCard.push({
+      card: cardN,
+      area,
+      chars: clientPrompt.length + directorLine.length,  // 실제로 발화되는 글자수
+      text: directorLine,                                 // 디렉터가 말하는 멘트 (iframe cur.text 와 패리티)
+      clientQ: clientPrompt,
+      clientQLen: clientPrompt.length,
+      // 이 카드 한 장짜리 대화(고객 질문 + 디렉터 답) — 카드별 음성 클립 생성용
+      cardScript: `Client: ${clientPrompt}\nDirector: ${directorLine}`,
+    });
+  });
+  return { script: lines.join('\n'), perCard };
+}
+
+// ─────────────────────────────────────────────────────────────
+// [STEP 3] normalizeKR — TTS 로 보낼 '발화 문자열'만 한국어 자연발음으로 정규화.
+//   ★화면 카드 텍스트/숫자는 절대 안 건드린다. 오직 음성으로 읽을 문장에만 적용.
+//   순서: (1) 약어→한글  (2) 기호/단위→말  (3) 숫자→한자어 한글(만 단위 묶음, 단위 인식)
+//        (4) 0 규칙(개수 0 → "없음"/"한 곳도 없"; 그 외 0 은 자리값에 흡수)  (5) 오버라이드 사전
+// ─────────────────────────────────────────────────────────────
+const __NKR_DIGITS = ['영', '일', '이', '삼', '사', '오', '육', '칠', '팔', '구'];
+// 4자리(만 미만) 한자어 변환: 1~9999. (만/억 묶음은 호출부에서)
+function __nkrUnder10000(n) {
+  n = Math.floor(n);
+  if (n <= 0) return '';
+  const places = ['', '십', '백', '천'];
+  let out = '';
+  const s = String(n);
+  const len = s.length;
+  for (let i = 0; i < len; i++) {
+    const d = s.charCodeAt(i) - 48;
+    const place = len - 1 - i;
+    if (d === 0) continue;
+    // 십/백/천 자리의 1 은 '일' 생략 (예: 19000 → 만 구천, 십 not 일십)
+    if (d === 1 && place >= 1) out += places[place];
+    else out += __NKR_DIGITS[d] + places[place];
+  }
+  return out;
+}
+// 정수 → 한자어 한글, 만(10^4)·억(10^8) 묶음. 0 → '영' (호출부에서 개수 0 은 따로 처리).
+function __nkrSinoInt(n) {
+  n = Math.floor(Math.abs(n));
+  if (n === 0) return '영';
+  const eok = Math.floor(n / 100000000);
+  const man = Math.floor((n % 100000000) / 10000);
+  const rest = n % 10000;
+  const parts = [];
+  if (eok > 0) parts.push(__nkrUnder10000(eok) + '억');
+  if (man > 0) parts.push((man === 1 ? '만' : __nkrUnder10000(man) + '만'));
+  if (rest > 0) parts.push(__nkrUnder10000(rest));
+  return parts.join(' ').trim();
+}
+// 순우리말 수관형사 1~20 (개·명·잔 등 세는 단위 앞)
+const __NKR_NATIVE = {
+  1: '한', 2: '두', 3: '세', 4: '네', 5: '다섯', 6: '여섯', 7: '일곱', 8: '여덟', 9: '아홉', 10: '열',
+  11: '열한', 12: '열두', 13: '열세', 14: '열네', 15: '열다섯', 16: '열여섯', 17: '열일곱',
+  18: '열여덟', 19: '열아홉', 20: '스무',
+};
+const __NKR_NATIVE_COUNTERS = ['개', '명', '잔', '번', '곳', '마리'];
+// 오버라이드 사전: TTS 가 잘못 읽는 단어 → 또렷한 동의어/재배치로 교정 (발화 문자열 최종 치환).
+//   ★화면 텍스트/숫자 불변 — 여기 치환은 오직 음성으로 읽을 문장에만 적용된다.
+//   원칙: '다시 적기'보다 '뜻 같은 또렷한 단어로 바꿔쓰기'가 안전(연구 확인).
+//   확장법: 아래 배열에 ['잘못 들리는 말', '교정'] 추가. ★긴 키를 위에(먼저) 둘 것
+//          (예: '빽빽한' 이 '빽빽' 보다 위 → 부분 치환으로 어미가 깨지지 않음).
+const __NKR_OVERRIDE = [
+  // 빽빽 → '빼곡' (확인된 오독: "백백" 으로 들림). 어미 보존 위해 긴 형태 먼저.
+  ['빽빽하게', '빼곡하게'],
+  ['빽빽한', '빼곡한'],
+  ['빽빽이', '빼곡히'],
+  ['빽빽', '빼곡'],
+  // 견디다 계열 (기존)
+  ['버티는 힘', '견디는 힘'],
+  ['버티는', '견디는'],
+  // '카페' → '까페' : TTS 발음만 또렷하게(화면 텍스트는 그대로 '카페'). 단순 치환.
+  ['카페', '까페'],
+];
+function normalizeKR(text) {
+  let s = String(text == null ? '' : text);
+  if (!s) return s;
+
+  // (1) 약어 → 한글
+  s = s.replace(/SNS/g, '에스엔에스')
+       .replace(/\bAI\b/g, '에이아이').replace(/AI/g, '에이아이')
+       .replace(/\bMZ\b/g, '엠지').replace(/MZ/g, '엠지')
+       .replace(/KPI/g, '케이피아이')
+       .replace(/PDF/g, '피디에프');
+
+  // (2) 범위 기호 ~,- (숫자 사이) → '부터/에서'. 음수 부호 → '마이너스'.
+  //   범위: "350~400" → "350부터 400", "12-18" → "12에서 18"
+  s = s.replace(/(\d)\s*~\s*(\d)/g, '$1부터 $2');
+  s = s.replace(/(\d)\s*-\s*(\d)/g, '$1에서 $2');
+  s = s.replace(/(^|[\s(])-(\d)/g, '$1마이너스 $2');
+
+  // (3)+(4) 숫자 → 한글. 단위 인식: 콤마 포함 숫자(소수 포함) + 뒤따르는 단위.
+  //   '만원'은 '만 원'(띄움)으로. 개수 0 은 '없음'. 단위에 따라 순우리말/한자어 선택.
+  s = s.replace(/(\d[\d,]*)(\.\d+)?\s*(만원|만 원|억원|억 원|개|명|잔|번|곳|마리|원|퍼센트|%|㎡|m|년|분기|도|만|억)?/g,
+    (m, intPart, frac, unit) => {
+      const rawInt = intPart.replace(/,/g, '');
+      let num = parseInt(rawInt, 10);
+      if (isNaN(num)) return m;
+      unit = unit || '';
+      const fracDigits = frac ? frac.slice(1) : '';
+
+      // 단위 정규화
+      let spoken = '';
+      let spokenUnit = unit;
+      if (unit === '%') spokenUnit = '퍼센트';
+      if (unit === '㎡') spokenUnit = '제곱미터';   // ㎡ 먼저 (m 보다 우선)
+      if (unit === 'm') spokenUnit = '미터';       // 라틴 m → 한글 '미터'
+      if (unit === '만원' || unit === '만 원') spokenUnit = '만 원';   // '만'은 숫자로 합치고 '원' 분리
+      if (unit === '억원' || unit === '억 원') spokenUnit = '억원';
+
+      // '만'/'억' 이 단위로 붙은 경우 → 숫자에 곱해서 자연스럽게(예: 9,121만원 → 구천백이십일만 원)
+      let baseNum = num;
+      let trailingUnit = spokenUnit;
+      if (unit === '만' || unit === '만원' || unit === '만 원') {
+        // num 자체가 '만' 단위 → 만 자리 그대로 읽되 '만' 접미사 유지
+        spoken = (num === 0 ? '영' : __nkrSinoInt(num)) + '만';
+        trailingUnit = (unit === '만원' || unit === '만 원') ? ' 원' : '';
+        // 소수(예: 1.8억 류는 아래 억 분기) 거의 없음 — 만 단위 소수는 무시
+        return (spoken + trailingUnit).trim();
+      }
+      if (unit === '억' || unit === '억원' || unit === '억 원') {
+        // 1.8억 → 일점팔억 식보다, 정수+소수 처리: 1.8 → "일점팔"
+        let head = (num === 0 ? '영' : __nkrSinoInt(num));
+        if (fracDigits) {
+          head += '점' + fracDigits.split('').map(d => __NKR_DIGITS[+d]).join('');
+        }
+        spoken = head + '억';
+        trailingUnit = (unit === '억원' || unit === '억 원') ? '원' : '';
+        return (spoken + trailingUnit).trim();
+      }
+
+      // 개수 0 규칙: 세는 단위(개/명/잔/번/곳/마리)에 0 → '없음'(곳은 '한 곳도 없')
+      if (num === 0 && __NKR_NATIVE_COUNTERS.includes(unit)) {
+        return unit === '곳' ? '한 곳도 없' : '없음';
+      }
+
+      // 세는 단위 + 개수 ≤20 → 순우리말 수관형사
+      if (__NKR_NATIVE_COUNTERS.includes(unit) && num >= 1 && num <= 20 && !fracDigits) {
+        return __NKR_NATIVE[num] + ' ' + unit;
+      }
+
+      // 그 외(원/퍼센트/년/분기/도, 또는 세는 단위 >20) → 한자어
+      let head = (num === 0 ? '영' : __nkrSinoInt(baseNum));
+      if (fracDigits) head += '점' + fracDigits.split('').map(d => __NKR_DIGITS[+d]).join('');
+      if (!spokenUnit) return head;
+      // '만 원'은 head 뒤에 ' 원' (만은 숫자에 이미 포함 안 됨 → 위 만 분기서 처리되므로 여기 안 옴)
+      return (head + (spokenUnit === '만 원' ? ' 원' : spokenUnit)).trim();
+    });
+
+  // (5) 오버라이드 사전 — 최종 치환(긴 키 먼저)
+  for (const [from, to] of __NKR_OVERRIDE) {
+    s = s.split(from).join(to);
+  }
+  return s;
+}
+
+// [STEP 4] Gemini 멀티스피커에 얹을 자연어 스타일 지시 (대본 맨 앞에 1줄).
+const __DM_STYLE_INSTRUCTION =
+  '두 사람이 편안하게 대화하듯, 자연스럽고 친근한 어조로, 적당히 또렷하고 너무 느리지 않게. ' +
+  'Director는 따뜻하고 자신감 있는 컨설턴트, Client는 궁금해하는 친근한 카페 사장님.';
+
+// [STEP 4] 정규화된 발화문에 멈춤 태그 삽입.
+//   - 핵심 숫자(한글 수사 직전) 앞 ~250ms: [short pause]
+//   - 문장 끝/주제 전환: ~500ms: [medium pause]
+function __dmInsertPauses(spoken) {
+  let s = String(spoken || '');
+  if (!s) return s;
+  // 문장 경계(. ! ? …) 뒤 → [medium pause]
+  s = s.replace(/([.!?…])\s+/g, '$1 [medium pause] ');
+  // 핵심 숫자(한자어/순우리말 수사 시작) 앞에 [short pause]
+  //   '삼백/구천/이십/한/두/스무' 등 수사 첫 글자 군집 앞에 1회씩(과다 방지: 앞이 공백일 때만)
+  s = s.replace(/(\s)(영|일|이|삼|사|오|육|칠|팔|구|십|백|천|만|억|한 |두 |세 |네 |다섯|여섯|일곱|여덟|아홉|열|스무)/g,
+    '$1[short pause] $2');
+  // 중복/과도 정리
+  s = s.replace(/\[short pause\]\s*\[short pause\]/g, '[short pause]')
+       .replace(/\[medium pause\]\s*\[short pause\]/g, '[medium pause]')
+       .replace(/\s{2,}/g, ' ').trim();
+  return s;
+}
+
+// 한 카드 대본(Client/Director 2줄)을 정규화+멈춤태그+스타일 지시로 다듬어 Gemini 페이로드용 텍스트로.
+//   cardScript: "Client: ...\nDirector: ..."  (raw, 화면 표시와 동일 wording)
+function __dmBuildTtsPayloadText(cardScript) {
+  const lines = String(cardScript || '').split('\n');
+  const out = [];
+  for (const ln of lines) {
+    const mC = ln.match(/^Client:\s*(.*)$/);
+    const mD = ln.match(/^Director:\s*(.*)$/);
+    if (mC) { out.push('Client: ' + __dmInsertPauses(normalizeKR(mC[1]))); }
+    else if (mD) { out.push('Director: ' + __dmInsertPauses(normalizeKR(mD[1]))); }
+    else if (ln.trim()) { out.push(__dmInsertPauses(normalizeKR(ln))); }
+  }
+  return __DM_STYLE_INSTRUCTION + '\n' + out.join('\n');
+}
+
+// 단일 카드 대화 1조각을 제미나이 멀티스피커 TTS(여=Aoede 고객/남=Charon 디렉터)로 생성 → base64 PCM
+//   [STEP 3+4] 발화 문자열만 normalizeKR + 멈춤태그 + 스타일 지시 적용(화면 텍스트 불변).
+async function _genCardClip(cardScript, apiKey) {
+  try {
+    const payloadText = __dmBuildTtsPayloadText(cardScript);
+    const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: payloadText }] }],
+        generationConfig: {
+          responseModalities: ['AUDIO'],
+          speechConfig: { multiSpeakerVoiceConfig: { speakerVoiceConfigs: [
+            { speaker: 'Client',   voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Aoede' } } },
+            { speaker: 'Director', voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Charon' } } }
+          ] } }
+        }
+      })
+    });
+    const result = await resp.json();
+    return result?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || null;
+  } catch (e) { return null; }
+}
+
+// ─────────────────────────────────────────────────────────────
+// [2026-06-16] AI 디렉터 PPT 씬 빌더
+//   디렉터가 말하는 한 마디 == 화면에 뜨는 한 장의 깔끔한 슬라이드.
+//   리포트 원본 카드(Card01..14)는 그대로 두고, 디렉터 모달 우측 무대만 SceneView 로 교체.
+//   각 씬 = { id, card, template, data, narration, clientQ, clientQLen, cardScript }.
+//   data 는 여기서(부모) 실데이터로 완전히 결정해 iframe 으로 전달 → iframe 은 재계산 0.
+//   ★빈값 금지: 데이터가 없으면 그 씬을 생략(부분 출력)하되, NaN/"-"/빈 슬라이드는 만들지 않는다.
+//   ★숫자 포맷·내러티브는 리포트 화면 표기와 일관(억/만원/명/%/개).
+// ─────────────────────────────────────────────────────────────
+const __DS_ACCENT = '#4C7BE4';
+function __dsN(v) { const n = Number(v); return (typeof n === 'number' && isFinite(n)) ? n : 0; }
+// 만원 단위 → 억/만원 한국식 짧은 표기
+function __dsManToWon(man) {
+  const v = Math.round(__dsN(man));
+  if (v <= 0) return '';
+  if (v >= 10000) {
+    const e = Math.floor(v / 10000); const m = Math.round(v % 10000);
+    return m > 0 ? `${e}억 ${m.toLocaleString('ko-KR')}만원` : `${e}억원`;
+  }
+  return `${v.toLocaleString('ko-KR')}만원`;
+}
+function __dsComma(v) { return Math.round(__dsN(v)).toLocaleString('ko-KR'); }
+function __dsDeltaPct(mine, base) {
+  const m = __dsN(mine), b = __dsN(base);
+  if (b <= 0) return null;
+  return Math.round(((m - b) / b) * 100);
+}
+// 시계열 values 추출 — 여러 후보 경로(차트 labels/values, monthlyTrend 등)에서 안전하게.
+function __dsSeries(body) {
+  const cd = (body && body.chartData) || {};
+  if (Array.isArray(cd.values) && cd.values.length >= 2) {
+    return { labels: cd.labels || [], values: cd.values.map(__dsN) };
+  }
+  // {label,value}[] 형태
+  const arr = (Array.isArray(cd.items) && cd.items.length >= 2 && cd.items.every(x => x && x.value != null))
+    ? cd.items : null;
+  if (arr) return { labels: arr.map(x => x.label || ''), values: arr.map(x => __dsN(x.value)) };
+  return null;
+}
+
+// 한 카드 body 에서 그 카드의 PPT 씬들(0~2장)을 만든다. 데이터 없으면 그 씬 생략.
+function __dsScenesForCard(cardN, body, allBodies) {
+  const bd = (body && body.bodyData) || {};
+  const cd = (body && body.chartData) || {};
+  const top = body || {};
+  const out = [];
+  const push = (template, data) => { if (data) out.push({ card: cardN, template, data }); };
+  const getBody = (i) => (allBodies && allBodies[i]) ? allBodies[i] : {};
+
+  switch (cardN) {
+    case '01': {
+      const cafes = __dsN(top.cafeCount) || __dsN(bd.cafes) || __dsN(top.cafes);
+      const fran = __dsN(top.franchise) || __dsN(bd.franchise);
+      const indi = __dsN(top.individual) || __dsN(bd.individual);
+      if (cafes > 0) {
+        const stats = [{ value: __dsComma(cafes), unit: '개', name: '반경 500m 카페' }];
+        if (fran > 0) stats.push({ value: __dsComma(fran), unit: '개', name: '프랜차이즈' });
+        if (indi > 0) stats.push({ value: __dsComma(indi), unit: '개', name: '개인 카페' });
+        push('kpiQuad', { label: '이 자리 카페 구성', stats });
+      }
+      if (fran > 0 && indi > 0) {
+        push('ratioSplitBar', {
+          a: { label: '프랜차이즈', value: fran }, b: { label: '개인 카페', value: indi },
+          unit: '개', note: indi >= fran ? '개인 카페 비중이 더 큰 동네예요.' : '프랜차이즈가 더 촘촘한 동네예요.',
+        });
+      }
+      break;
+    }
+    case '02': {
+      const topAge = String(top.topAge || bd.topAge || '').replace(/\s*\([^)]*\)\s*$/, '').trim();
+      const male = __dsN(top.maleRatio); const female = __dsN(top.femaleRatio);
+      const regular = __dsN(bd.regular) || __dsN(bd.regularPct);
+      const newC = __dsN(bd.newCustomer) || __dsN(bd.newPct);
+      {
+        const stats = [];
+        if (topAge && topAge !== '-') stats.push({ value: topAge, name: '주요 연령대' });
+        if (male > 0 && female > 0) stats.push({ value: `${Math.round(male)}:${Math.round(female)}`, name: '남:여 성비' });
+        if (regular > 0) stats.push({ value: `${Math.round(regular)}`, unit: '%', name: '단골 비중' });
+        if (newC > 0) stats.push({ value: `${Math.round(newC)}`, unit: '%', name: '신규 비중' });
+        if (stats.length >= 2) push('kpiQuad', { label: '손님 결', stats: stats.slice(0, 4) });
+      }
+      if (male > 0 && female > 0) {
+        push('ratioSplitBar', {
+          a: { label: '남성', value: male }, b: { label: '여성', value: female }, unit: '%',
+          note: Math.abs(male - female) <= 8 ? '거의 반반, 누구나 편하게 드나드는 자리예요.' : '',
+        });
+      }
+      break;
+    }
+    case '03': {
+      const s1 = __dsN(bd.survivalRate1y) || 65;
+      const s3 = __dsN(bd.survivalRate3y) || 39;
+      const s5 = __dsN(bd.survivalRate5y) || 28;
+      push('kpiQuad', { label: '버티는 힘 (생존율)', stats: [
+        { value: `${Math.round(s1)}`, unit: '%', name: '1년' },
+        { value: `${Math.round(s3)}`, unit: '%', name: '3년' },
+        { value: `${Math.round(s5)}`, unit: '%', name: '5년' },
+      ] });
+      const now = __dsN(bd.cafesNow) || __dsN(getBody(0).cafeCount) || __dsN(getBody(0).cafes);
+      const ago = __dsN(bd.cafes5yAgo);
+      const series = __dsSeries(body);
+      if (now > 0 && (series || ago > 0)) {
+        const vals = series ? series.values : [ago, now];
+        const rate = ago > 0 ? Math.round(((now - ago) / ago) * 100) : (__dsN(bd.cafes5yChangeRate) || 0);
+        push('trendArea', {
+          id: 'c3', value: `${__dsComma(now)}개`, label: '현재 카페 수',
+          values: vals, labels: series ? series.labels : ['5년 전', '현재'],
+          deltaText: ago > 0 ? `5년 전 ${__dsComma(ago)}개 → ${rate >= 0 ? '+' : ''}${rate}%` : '',
+          deltaPositive: rate >= 0,
+        });
+      }
+      break;
+    }
+    case '04': {
+      let items = Array.isArray(cd.items) ? cd.items : (Array.isArray(bd.brandBarItems) ? bd.brandBarItems : []);
+      items = items.filter(x => x && x.name).slice(0, 5).map(x => {
+        const c = __dsN(x.count) || __dsN(x.value);
+        return { name: x.name, value: c, valueText: c > 0 ? `${__dsComma(c)}개` : '' };
+      });
+      if (items.length) push('rankingList', { label: '주요 프랜차이즈', items });
+      const fShare = __dsN(bd.franchiseShare) || __dsN(top.franchiseShare);
+      const iShare = __dsN(bd.independentShare) || (fShare > 0 ? 100 - fShare : 0);
+      if (fShare > 0) push('percentRing', {
+        value: fShare, label: '프랜차이즈 점유율',
+        sub: iShare > 0 ? `개인 카페 ${Math.round(iShare)}%` : '',
+      });
+      break;
+    }
+    case '05': {
+      const monthly = __dsN(bd.monthly) || __dsN(getBody(5).monthly);
+      const guAvg = __dsN(bd.guAvg) || __dsN(getBody(5).guAvg);
+      if (monthly > 0) {
+        const delta = __dsDeltaPct(monthly, guAvg);
+        push('compareValue', {
+          value: __dsManToWon(monthly), label: '카페 월평균 매출',
+          base: { label: guAvg > 0 ? '구 평균' : '평균', value: guAvg }, mine: { value: monthly },
+          mineCaption: __dsManToWon(monthly), baseCaption: guAvg > 0 ? __dsManToWon(guAvg) : '',
+          deltaText: (delta != null) ? `구 평균보다 ${delta >= 0 ? '+' : ''}${delta}%` : '',
+          deltaPositive: (delta == null) || delta >= 0,
+        });
+        const series = __dsSeries(body);
+        const pyr = __dsN(bd.prevYearRate);
+        if (series) push('trendArea', {
+          id: 'c5', value: __dsManToWon(monthly), label: '월매출 추이',
+          values: series.values, labels: series.labels,
+          deltaText: pyr ? `전년 대비 ${pyr >= 0 ? '+' : ''}${Math.round(pyr)}%` : '',
+          deltaPositive: pyr >= 0,
+        });
+      }
+      break;
+    }
+    case '06': {
+      const iShare = __dsN(top.indieShare) || __dsN(bd.indieShare);
+      const iCount = __dsN(top.indieCount) || __dsN(bd.indieCount);
+      if (iShare > 0) push('percentRing', {
+        value: iShare, label: '개인 카페 비중',
+        sub: iCount > 0 ? `반경 내 개인 카페 ${__dsComma(iCount)}개` : '',
+      });
+      const iPrice = __dsN(top.indieAvgPrice) || __dsN(bd.americanoAvg);
+      if (iPrice > 0 && iPrice < 100000) {
+        const sb = 4700; const delta = __dsDeltaPct(iPrice, sb);
+        push('compareValue', {
+          value: `${__dsComma(iPrice)}원`, label: '개인 카페 아메리카노 평균',
+          base: { label: '스타벅스 톨', value: sb }, mine: { value: iPrice },
+          mineCaption: `${__dsComma(iPrice)}원`, baseCaption: `${__dsComma(sb)}원`,
+          deltaText: (delta != null) ? `스타벅스보다 ${delta >= 0 ? '+' : ''}${delta}%` : '',
+          deltaPositive: (delta != null) && delta < 0,
+        });
+      }
+      break;
+    }
+    case '07': {
+      const totalPop = __dsN(bd.totalPop) || __dsN(bd.dailyPopulation);
+      const series = __dsSeries(body);
+      if (totalPop > 0) push('trendArea', {
+        id: 'c7', value: `${__dsComma(totalPop)}명`, label: '일평균 유동인구',
+        values: series ? series.values : [], labels: series ? series.labels : [],
+        deltaText: '', deltaPositive: true,
+      });
+      const wd = __dsN(bd.weekdayPct); const we = __dsN(bd.weekendPct);
+      if (wd > 0 && we > 0) push('ratioSplitBar', {
+        a: { label: '주중', value: wd }, b: { label: '주말', value: we }, unit: '%',
+        note: bd.popPeakDay ? `가장 붐비는 요일: ${bd.popPeakDay}` : (wd >= we ? '직장 수요가 중심이 되는 자리예요.' : ''),
+      });
+      break;
+    }
+    case '08': {
+      const rentPy = __dsN(bd.rentPerPyeongManwon);
+      const kosisCafe = (cd.kosisCafe && __dsN(cd.kosisCafe.rentPerPyeong)) || 0;
+      if (rentPy > 0) push('compareValue', {
+        value: `${__dsComma(rentPy)}만원`, label: '평당 월세',
+        base: { label: kosisCafe > 0 ? '전국 카페 평균' : '평균', value: kosisCafe }, mine: { value: rentPy },
+        mineCaption: `${__dsComma(rentPy)}만원`, baseCaption: kosisCafe > 0 ? `${__dsComma(kosisCafe)}만원` : '',
+        deltaText: kosisCafe > 0 ? (() => { const d = __dsDeltaPct(rentPy, kosisCafe); return d != null ? `전국 평균보다 ${d >= 0 ? '+' : ''}${d}%` : ''; })() : '',
+        deltaPositive: false,
+      });
+      const total = __dsN(bd.totalStartupCostManwon);
+      const dep = __dsN(bd.depositManwon);
+      {
+        const stats = [];
+        if (total > 0) stats.push({ value: __dsManToWon(total), name: '총 창업비(15평)' });
+        if (dep > 0) stats.push({ value: __dsManToWon(dep), name: '보증금' });
+        if (rentPy > 0) stats.push({ value: `${__dsComma(rentPy)}만원`, name: '평당 월세' });
+        if (stats.length >= 2) push('kpiQuad', { label: '들어가는 돈', stats: stats.slice(0, 4) });
+      }
+      break;
+    }
+    case '09': {
+      const vac = __dsN(top.vacancy) || __dsN(bd.vacancy);
+      if (vac > 0) push('percentRing', {
+        value: vac, label: '공실률', accent: __DS_ACCENT,
+        sub: '낮을수록 빈 점포가 적다는 신호',
+      });
+      const newOpen = __dsN(top.newOpen) || __dsN(bd.newOpen) || __dsN(bd.recentOpen);
+      const closed = __dsN(top.closed) || __dsN(bd.closed) || __dsN(bd.recentClose);
+      const iPct = __dsN(top.individualPct) || __dsN(bd.individualPct);
+      {
+        const stats = [];
+        if (newOpen > 0) stats.push({ value: __dsComma(newOpen), unit: '곳', name: '최근 개업' });
+        if (closed > 0) stats.push({ value: __dsComma(closed), unit: '곳', name: '최근 폐업' });
+        if (iPct > 0) stats.push({ value: `${Math.round(iPct)}`, unit: '%', name: '개인 카페 비중' });
+        if (stats.length >= 2) push('kpiQuad', { label: '상권 활력 신호', stats: stats.slice(0, 4) });
+      }
+      break;
+    }
+    case '10': {
+      const avg = __dsN(bd.searchAvgPrice);
+      if (avg >= 1000 && avg < 100000) {
+        // 주변 동네 평균(있으면)
+        let nearAvg = 0;
+        const nd = Array.isArray(bd.nearbyDongs) ? bd.nearbyDongs : [];
+        const vals = nd.map(x => __dsN(x && (x.avgPrice || x.value))).filter(v => v > 0);
+        if (vals.length) nearAvg = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+        push('compareValue', {
+          value: `${__dsComma(avg)}원`, label: '배달 객단가',
+          base: { label: nearAvg > 0 ? '주변 동네 평균' : '매장 단가', value: nearAvg || avg }, mine: { value: avg },
+          mineCaption: `${__dsComma(avg)}원`, baseCaption: nearAvg > 0 ? `${__dsComma(nearAvg)}원` : '',
+          deltaText: nearAvg > 0 ? (() => { const d = __dsDeltaPct(avg, nearAvg); return d != null ? `주변보다 ${d >= 0 ? '+' : ''}${d}%` : ''; })() : '',
+          deltaPositive: true,
+        });
+      }
+      const sales = __dsN(bd.searchSales);
+      const mt = Array.isArray(bd.monthlyTrend) ? bd.monthlyTrend : [];
+      if (sales > 0) {
+        const series = mt.length >= 2 ? { labels: mt.map(x => x.label || ''), values: mt.map(x => __dsN(x.value)) } : __dsSeries(body);
+        const dt = bd.deliveryTrend && bd.deliveryTrend.salesChange;
+        push('trendArea', {
+          id: 'c10', value: `${__dsManToWon(sales)}`, label: '월 배달 매출',
+          values: series ? series.values : [], labels: series ? series.labels : [],
+          deltaText: dt ? `${dt}` : '', deltaPositive: !String(dt || '').includes('-'),
+        });
+      }
+      break;
+    }
+    case '11': {
+      const pos = __dsN(bd.positiveRatio);
+      const neg = __dsN(bd.negativeRatio);
+      if (pos > 0) push('percentRing', {
+        value: pos, label: 'SNS 긍정 비율',
+        sub: neg > 0 ? `부정 ${Math.round(neg)}%` : '',
+      });
+      let kws = Array.isArray(bd.keywords) ? bd.keywords : [];
+      kws = kws.map(k => (typeof k === 'string' ? k : (k && (k.keyword || k.name || k.text)))).filter(Boolean).slice(0, 5);
+      if (kws.length) push('rankingList', { label: '인기 키워드', items: kws.map(k => ({ name: k })) });
+      break;
+    }
+    case '12': {
+      const rain = __dsN(bd.rainImpact) || __dsN(bd.rainSalesChange);
+      const extreme = __dsN(bd.extremeImpact) || __dsN(bd.heatSalesChange);
+      const stats = [];
+      if (rain) stats.push({ value: `${rain >= 0 ? '+' : ''}${Math.round(rain)}`, unit: '%', name: '비 오는 날 매출' });
+      if (extreme) stats.push({ value: `${extreme >= 0 ? '+' : ''}${Math.round(extreme)}`, unit: '%', name: '폭염·폭설 매출' });
+      if (stats.length >= 2) push('kpiQuad', { label: '날씨 영향', stats });
+      else {
+        const wl = String(top.weatherLabel || bd.weatherLabel || '').trim();
+        if (wl) push('statement', { label: '날씨 영향', verdict: wl });
+      }
+      break;
+    }
+    case '13': {
+      const c13 = getBody(13);
+      const axes = (Array.isArray(c13.axes) && c13.axes.length === 5) ? c13.axes : (Array.isArray(top.axes) ? top.axes : []);
+      const validAxes = axes.filter(a => a && __dsN(a.max) > 0).map(a => ({ name: a.label || a.name || '', score: __dsN(a.score), max: __dsN(a.max) }));
+      if (validAxes.length === 5) {
+        const totalScore = __dsN(c13.totalScore) || __dsN(top.totalScore);
+        push('radar5', { label: '경쟁력 5축', axes: validAxes, totalText: totalScore > 0 ? `종합 ${Math.round(totalScore)}점` : '' });
+      }
+      break;
+    }
+    case '14': {
+      const c14 = getBody(13);
+      const totalScore = __dsN(c14.totalScore) || __dsN(c14.overallScore);
+      const verdictRaw = String(c14.recommendation || '').trim();
+      const verdict = verdictRaw || (totalScore >= 60 ? '조건부 진입 추천' : totalScore >= 40 ? '입지 재검토 후 진입' : '차별화 필수');
+      const grade = totalScore > 0
+        ? `종합 ${Math.round(totalScore)}점 · ${totalScore >= 70 ? '적극 검토' : totalScore >= 50 ? '신중 검토' : '재검토'}`
+        : '';
+      const tags = Array.isArray(c14.tags) ? c14.tags.filter(Boolean).slice(0, 4) : [];
+      push('statement', {
+        label: '최종 의견',
+        verdict: `${verdict} — 데이터가 받쳐주는 자리입니다.`,
+        scoreText: grade, chips: tags,
+      });
+      // 종합 KPI(기회/리스크/신뢰) 한 장 추가
+      const opp = __dsN(c14.opportunities); const risk = __dsN(c14.risks);
+      if (opp > 0 || risk > 0) {
+        const stats = [];
+        if (totalScore > 0) stats.push({ value: `${Math.round(totalScore)}`, unit: '점', name: '종합 점수' });
+        if (opp > 0) stats.push({ value: __dsComma(opp), unit: '개', name: '기회 요인' });
+        if (risk > 0) stats.push({ value: __dsComma(risk), unit: '개', name: '리스크' });
+        if (stats.length >= 2) push('kpiQuad', { label: '종합 진단', stats: stats.slice(0, 4) });
+      }
+      break;
+    }
+    default: break;
+  }
+  return out;
+}
+
+// 씬별 의뢰인 질문(여) — 카드/템플릿 성격에 맞는 짧고 따뜻한 한 마디.
+const __DS_CLIENT_Q = {
+  '01': ['자리부터 좀 볼까요?', '개인이 많아요, 브랜드가 많아요?'],
+  '02': ['손님들은 어떤 분들이에요?', '남녀 비율은 어때요?'],
+  '03': ['이 동네 분위기는 어떻게 변하고 있어요?', '가게가 늘고 있나요, 줄고 있나요?'],
+  '04': ['경쟁 매장은 많은가요?', '브랜드들이 얼마나 차지해요?'],
+  '05': ['매출은 좀 나오는 자리예요?', '매출 흐름은 어때요?'],
+  '06': ['개인 카페들은 어때요?', '커피값은 어느 정도예요?'],
+  '07': ['사람은 얼마나 다녀요?', '평일이 세요, 주말이 세요?'],
+  '08': ['들어가는 돈은 어느 정도예요?', '전부 합치면 얼마예요?'],
+  '09': ['기회로 볼 만한 신호가 있을까요?', '새로 생기는 가게는 있어요?'],
+  '10': ['배달은 챙길 만한가요?', '배달 매출은 늘고 있어요?'],
+  '11': ['온라인 반응은 어때요?', '사람들은 뭐라고 말해요?'],
+  '12': ['날씨도 영향이 있나요?', ''],
+  '13': ['종합하면 경쟁력은 어느 정도예요?', ''],
+  '14': ['그래서 결론은 어떻게 가는 게 좋을까요?', ''],
+};
+
+// 씬 data + 템플릿 → 그 화면 내용과 정확히 일치하는 디렉터 한 마디(내러티브).
+function __dsNarration(cardN, template, data) {
+  const d = data || {};
+  switch (template) {
+    case 'percentRing':
+      return `${d.label}이 ${Math.round(__dsN(d.value))}%${d.sub ? `, ${d.sub}` : ''}입니다.`;
+    case 'ratioSplitBar':
+      return `${d.a.label} ${Math.round(__dsN(d.a.value))}${d.unit || ''} 대 ${d.b.label} ${Math.round(__dsN(d.b.value))}${d.unit || ''}${d.note ? ` — ${d.note}` : '입니다.'}`;
+    case 'trendArea':
+      return `${d.label}는 ${d.value}${d.deltaText ? `, ${d.deltaText}` : ''}입니다.`;
+    case 'compareValue':
+      return `${d.label}는 ${d.value}${d.deltaText ? `로, ${d.deltaText}` : '입니다'}.`;
+    case 'rankingList': {
+      const names = (d.items || []).slice(0, 3).map(x => x.name).filter(Boolean);
+      return `${d.label}는 ${names.join(', ')} 순입니다.`;
+    }
+    case 'kpiQuad': {
+      const parts = (d.stats || []).map(s => `${s.name} ${s.value}${s.unit || ''}`);
+      return `${d.label} — ${parts.join(', ')}입니다.`;
+    }
+    case 'radar5':
+      return `${d.label}으로 보면 강점과 약점이 한눈에 드러납니다${d.totalText ? `. ${d.totalText}` : ''}.`;
+    case 'statement':
+      return `${d.verdict}${d.scoreText ? ` ${d.scoreText}.` : ''}`;
+    default: return d.label || '';
+  }
+}
+
+// cardsArr(스왑된 body 배열) → scenes[]. 14카드 순서로 각 카드 0~2장씩.
+function buildDirectorScenes(cardsArr) {
+  if (!Array.isArray(cardsArr)) return [];
+  const bodies = cardsArr.map(c => (c && c.body) || {});
+  const scenes = [];
+  __DM_CARD_ORDER.forEach((cardN) => {
+    const body = bodies[parseInt(cardN, 10) - 1] || {};
+    const cardScenes = __dsScenesForCard(cardN, body, bodies);
+    const qbank = __DS_CLIENT_Q[cardN] || [];
+    cardScenes.forEach((s, k) => {
+      const narration = __dsNarration(cardN, s.template, s.data);
+      const clientQ = (qbank[k] || qbank[0] || '이건 어떤가요?');
+      scenes.push({
+        id: `${cardN}-${k}`,
+        card: cardN,
+        template: s.template,
+        data: s.data,
+        narration,
+        clientQ,
+        clientQLen: clientQ.length,
+        cardScript: `Client: ${clientQ}\nDirector: ${narration}`,
+        audioBase64: null,
+      });
+    });
+  });
+  return scenes;
+}
+
 // ─────────────────────────────────────────────
 // UnifiedLayout Component
 // ─────────────────────────────────────────────
@@ -4427,67 +5212,45 @@ export default function UnifiedLayout({
           return '';
         };
         switch (i) {
-          case 0: { // 상권 분석 리포트
+          case 0: { // 상권 분석 리포트 — 렌즈: 구성·밀도 분해
             const cafes = _num(hfBody.cafeCount) || _num(_bd.cafes);
             const indi = _num(hfBody.individual) || _num(_bd.individual);
+            const fran = Math.max(0, cafes - indi);
             const indiPct = cafes > 0 ? Math.round((indi / cafes) * 100) : 0;
-            // [교차·적응형] 상권분석: [SNS긍정 HIGH] → [개인가격차 BIG] → [매출 HIGH] → (폴백) 기존 SNS 고정절.
-            const _crossSns = _pickCross([
-              [_gSnsHigh, _clSnsHigh],
-              [_gPriceBig, _clPriceBig],
-              [_gSalesHigh, _clSalesHigh],
-              [_xPos > 0, _clSns70],
-            ]);
             if (cafes >= 15) {
-              if (indiPct >= 50) {
-                _sum = `카페가 ${_n(cafes)}곳이나 빽빽한데도 개인 카페가 ${indiPct}%로 버틴다는 건, 브랜드 인지도보다 콘셉트로 손님이 갈리는 시장이라는 뜻이에요. 무난하면 묻히고, 색이 분명하면 자리를 잡습니다.`
-                  + _crossSns;
-              } else {
-                _sum = `반경 ${radius}m에 카페 ${_n(cafes)}곳, 프랜차이즈 비중이 높은 검증된 수요처예요. 대형 브랜드가 못 채우는 빈틈(특화 콘셉트·공간)을 파고드는 게 개인 카페의 자리입니다.`
-                  + _crossSns;
-              }
+              _sum = `반경 ${radius}m에 카페 ${_n(cafes)}곳 — 개인 ${_n(indi)}·프랜차이즈 ${_n(fran)}로 개인 비중 ${indiPct}%. `
+                + (indiPct >= 50
+                    ? '높은 밀도와 개인 우위가 겹친 구성. 브랜드보다 콘셉트로 갈리는 판세.'
+                    : '밀도는 높고 프랜차이즈가 입지를 검증한 구성.');
             } else if (cafes > 0) {
-              _sum = `반경 ${radius}m에 카페가 ${_n(cafes)}곳뿐이라 아직 손이 덜 탄 시장이에요. 경쟁이 붙기 전에 먼저 색깔을 박아두면 동네 대표 자리를 선점할 수 있습니다.`;
+              _sum = `반경 ${radius}m에 카페 ${_n(cafes)}곳 — 개인 ${_n(indi)}·프랜차이즈 ${_n(fran)}. 밀도가 낮은 미성숙 구성으로 선점 여지가 큰 자리.`;
             } else {
-              _sum = '아직 카페가 드문 동네라 선점 효과가 큰 곳이에요. 먼저 자리 잡으면 동네 대표 카페가 될 수 있습니다.';
+              _sum = `반경 ${radius}m 내 카페 표본이 거의 없는 공백 구성. 밀도·경쟁 모두 미형성된 선점형 입지.`;
             }
             break;
           }
-          case 1: { // 고객 분석
+          case 1: { // 고객 분석 — 렌즈: 손님 프로필 스케치
             const age = String(hfBody.topAge || _bd.topAge || '').trim();
-            const fem = _num(hfBody.femaleRatio);
-            const male = _num(hfBody.maleRatio);
-            // [2026-06-15] 성별 비중에 따라 끝문장 변주: 여성우세=분위기·디저트, 남성우세=효율·가성비, 균형=폭넓게
-            const genderTail = (fem > 0 || male > 0)
-              ? (Math.abs(fem - male) <= 5
-                  ? '남녀가 고르게 찾으니 특정 취향에 갇히지 말고 폭넓게 사랑받는 한 잔을 중심에 두세요.'
-                  : (fem > male
-                      ? '여성 손님이 더 많아 분위기와 디저트 완성도에 민감한 층이라, 공간 톤과 비주얼을 갖추면 단골이 빨리 붙습니다.'
-                      : '남성 손님이 더 많아 효율과 가성비를 따지는 층이라, 빠른 응대와 군더더기 없는 메뉴 구성이 통합니다.'))
+            const ageShare = _num(hfBody.topAgeShare) || _num(_bd.topAgeShare);
+            const fem = Math.round(_num(hfBody.femaleRatio));
+            const male = Math.round(_num(hfBody.maleRatio));
+            const revisit = _num(hfBody.revisitRate) || _num(_bd.revisitRate);
+            const ageTxt = age + (ageShare > 0 ? `(${ageShare}%)` : '');
+            const genderTxt = (fem > 0 || male > 0)
+              ? `, 성비 남 ${male} : 여 ${fem}`
               : '';
-            // 연령대 숫자 추출(20·30대 = 젊은층, 40·50대 = 안정·품질 지향)
-            const ageNum = (() => { const m = age.match(/(\d{2})/); return m ? Number(m[1]) : 0; })();
-            // [교차·적응형] 고객분석: [유동평일 notable] → [SNS긍정 HIGH] → [배달 HIGH] → (폴백) 기존 평일 고정절(>=60).
-            const _crossFlow = _pickCross([
-              [_gWeekday, _clWeekday],
-              [_gSnsHigh, _clSnsHigh],
-              [_gDeliveryHigh, _clDelivery],
-              [_xWeekday >= 60, () => ` 평일 비중도 ${_xWeekday}%로 높아 직장인 중심이니, 평일을 촘촘히 잡는 운영이 맞습니다.`],
-            ]);
-            if (age && (ageNum === 20 || ageNum === 30)) {
-              _sum = `${age}가 주축인 동네 — 가격보다 경험(공간·퀄리티)에 지갑을 여는 층이라, 싸게 파는 것보다 '값을 하는 한 잔'이 통합니다.`
-                + (genderTail ? ' ' + genderTail : '')
-                + _crossFlow;
-            } else if (age && (ageNum === 40 || ageNum === 50 || ageNum >= 40)) {
-              _sum = `${age}가 주축인 동네 — 자극적인 트렌드보다 품질과 편안함을 중시하는 안정 지향 손님이라, 꾸준한 맛과 머무르기 좋은 자리가 단골을 만듭니다.`
-                + (genderTail ? ' ' + genderTail : '')
-                + _crossFlow;
-            } else if (age) {
-              _sum = `${age} 손님이 가장 많은 동네예요.`
-                + (genderTail ? ' ' + genderTail : ' 이 고객층의 생활 패턴에 맞춘 운영이면 단골로 이어집니다.')
-                + _crossFlow;
+            const revisitTxt = revisit > 0 ? `, 재방문 ${Math.round(revisit)}%` : '';
+            // 성별 편향 한 줄 판정(자기 카드 값만)
+            const skew = (fem > 0 || male > 0)
+              ? (Math.abs(fem - male) <= 5 ? '한쪽에 치우치지 않는 폭넓은 손님층.'
+                  : (fem > male ? '여성 쪽으로 기운 손님층.' : '남성 쪽으로 기운 손님층.'))
+              : '';
+            if (age) {
+              _sum = `주 연령 ${ageTxt}${genderTxt}${revisitTxt}.` + (skew ? ' ' + skew : '');
+            } else if (fem > 0 || male > 0) {
+              _sum = `성비 남 ${male} : 여 ${fem}${revisitTxt}.` + (skew ? ' ' + skew : '');
             } else {
-              _sum = '다양한 연령대가 고르게 찾는 동네예요. 폭넓게 사랑받는 시그니처 한 잔이면 안정적인 단골을 만들 수 있습니다.';
+              _sum = '특정 연령·성별로 쏠리지 않는 고른 손님 분포.';
             }
             break;
           }
@@ -4501,67 +5264,45 @@ export default function UnifiedLayout({
             //   → 이 경우 strategic 절반을 trend(성장/정체/쇠퇴)·신규vs폐업·5년 점포증감률로 변주한다.
             const survivalRegional = !!_bd.survivalIsRegional;
             const chg5 = Math.round(_num(_bd.cafes5yChangeRate) * 10) / 10;
-            const isGrowing = /성장|증가/.test(trend) || (open > 0 && close > 0 && open > close) || chg5 >= 5;
-            const isShrinking = /쇠퇴|감소|축소/.test(trend) || (open > 0 && close > 0 && close > open) || chg5 <= -5;
-            // trend 기반 전략 절반(생존율이 일반 폴백이거나, 평균선 구간일 때 사용)
-            const trendTail = isGrowing
-              ? '신규가 폐업보다 많은, 커가는 상권이라 흐름을 탈 때 들어가면 유리합니다.'
-              : isShrinking
-                ? '가게 교체가 잦은 상권이라 초기 안착(자금·운영)이 성패를 가릅니다.'
-                : '꾸준히 유지되는 상권이라 차근차근 준비하면 안착할 수 있습니다.';
-            // [교차·적응형] 상권변화: [경쟁 EXTREME] → [공실 notable] → [매출 HIGH] → (폴백) 기존 경쟁 고정절.
-            const _crossCompet = _pickCross([
-              [_gCompetExtr, _clCompet],
-              [_gVacNotable, _clVac],
-              [_gSalesHigh, _clSalesHigh],
-              [!!_xCompetLevel, _clCompet],
-            ]);
-            if (s3 >= 50 && survivalRegional) {
-              _sum = `3년 생존율 ${s3}%는 업종 평균을 웃도는 수치 — 한번 자리 잡으면 쉽게 흔들리지 않는 단단한 상권이에요. 진입 문턱만 넘으면 오래 가져갈 수 있는 동네입니다.`
-                + (open > 0 ? ` 최근 신규 개업도 ${_n(open)}곳 이어져 흐름이 살아 있습니다.` : '')
-                + _crossCompet;
-            } else if (s3 > 0 && s3 < 30 && survivalRegional) {
-              _sum = `3년 생존율 ${s3}%로 부침이 큰 시장이에요 — 만만히 들어가면 위험하지만, 그만큼 어설픈 경쟁자가 빨리 빠지는 곳이기도 합니다. 초반 자금 여력과 운영 설계가 생사를 가릅니다.`
-                + _crossCompet;
+            const net = open - close;
+            const hasFlow = open > 0 && close > 0;
+            // [2026-06-16] 국면 판정 = 화면에 보이는 '순증(신규-폐업)'과 어긋나지 않게.
+            //   신규·폐업이 함께 보일 땐 그 순증 부호로 판정(폐업>신규인데 '확장'이라 적던 모순 제거).
+            //   둘 다 없을 때만 추세/5년증감으로 폴백.
+            const phase = hasFlow
+              ? (net > 0 ? '외형이 커지는 확장 국면.'
+                 : net < 0 ? '신규보다 폐업이 많아 솎아지는 정리 국면.'
+                 : '들고 나는 교체가 활발한 국면.')
+              : ((/성장|증가/.test(trend) || chg5 >= 5) ? '장기적으로 외형이 커진 확장 흐름.'
+                 : (/쇠퇴|감소|축소/.test(trend) || chg5 <= -5) ? '장기적으로 솎아진 정리 흐름.'
+                 : '외형은 유지되나 안에서 회전이 도는 국면.');
+            // 신규·폐업 절(둘 다 있을 때만 순증 명시)
+            const flowTxt = (open > 0 && close > 0)
+              ? ` 최근 신규 ${_n(open)}·폐업 ${_n(close)}로 순증 ${net > 0 ? '+' : ''}${_n(net)}.`
+              : (open > 0 ? ` 최근 신규 ${_n(open)}곳.` : (close > 0 ? ` 최근 폐업 ${_n(close)}곳.` : ''));
+            if (s3 > 0 && survivalRegional) {
+              _sum = `3년 생존율 ${s3}%${s3 >= 50 ? '로 평균을 웃돈다' : (s3 < 30 ? '로 부침이 큰 편' : '로 평균선 수준')}.${flowTxt} ${phase}`;
             } else if (s3 > 0) {
-              // 생존율이 전국 폴백(≈39%)이거나 평균선 구간 → 같은 문장 수렴 방지: trend로 전략 절반을 변주.
-              _sum = `3년 생존율 ${s3}%는 업종 평균선 수준 — `
-                + trendTail
-                + (isGrowing && open > 0
-                    ? ` 최근 신규 개업이 ${_n(open)}곳 이어집니다.`
-                    : (isShrinking && close > 0 ? ` 최근 폐업이 ${_n(close)}곳 나온 만큼 입지 검증이 중요합니다.` : ''))
-                + _crossCompet;
+              // 생존율이 전국 폴백(≈39%) 구간 → 생존율 단정 약화, 신규·폐업·추세로 국면 판정.
+              _sum = `3년 생존율 ${s3}% 안팎(업종 평균선).${flowTxt} ${phase}`;
             } else {
-              // 생존율 데이터 자체가 없을 때도 trend로 변주.
-              _sum = isGrowing
-                ? '신규가 폐업보다 많은, 커가는 상권이에요. 흐름을 탈 때 들어가 초반을 버틸 설계만 갖추면 오래 가는 카페를 만들 수 있습니다.'
-                : isShrinking
-                  ? '가게 교체가 잦은 상권이에요. 초기 안착을 위한 자금·운영 설계를 탄탄히 하면 빈자리를 기회로 바꿀 수 있습니다.'
-                  : '상권이 꾸준히 돌아가는 동네예요. 흐름을 읽고 초반을 버틸 설계만 갖추면 오래 가는 카페를 만들 수 있습니다.';
+              // 생존율 데이터 자체가 없을 때 → 신규·폐업·추세로만 국면 판정.
+              _sum = flowTxt
+                ? `최근 흐름${flowTxt} ${phase}`
+                : phase;
             }
             break;
           }
-          case 3: { // 프랜차이즈 현황
+          case 3: { // 프랜차이즈 현황 — 렌즈: 입지 검증 관점
             const fc = _num(_bd.franchiseCount);
             const share = Math.round(_num(_bd.franchiseShare) * 10) / 10;
-            // [교차·적응형] 프랜차이즈: [개인가격차 BIG] → [SNS긍정 HIGH] → [매출 HIGH] → (폴백) 기존 가격 고정절(>=200 / 평균값).
-            const _crossPrice = _pickCross([
-              [_gPriceBig, _clPriceBig],
-              [_gSnsHigh, _clSnsHigh],
-              [_gSalesHigh, _clSalesHigh],
-              [_xIndieGap >= 200, () => ` 개인 카페 아메리카노는 프랜차이즈보다 약 ${_n(_xIndieGap)}원 싸니, 가격이 아니라 개성으로 비켜 가는 게 맞습니다.`],
-              [_xIndieAmAvg > 0, () => ` 개인 카페 아메리카노가 평균 ${_n(_xIndieAmAvg)}원 선이라 가격 경쟁은 이미 바닥, 개성으로 승부해야 합니다.`],
-            ]);
+            const shareTxt = share > 0 ? `·점유 ${share}%` : '';
             if (fc >= 5) {
-              _sum = `프랜차이즈만 ${_n(fc)}곳`
-                + (share > 0 ? `(${share}%)` : '')
-                + ` — 대기업이 입지 분석 끝에 들어온 '검증 도장'이에요. 정면 승부는 불리하니, 그들이 안 하는 개성·동네 밀착으로 비켜 가는 게 정석입니다.`
-                + _crossPrice;
+              _sum = `프랜차이즈 ${_n(fc)}곳${shareTxt}. 대형 브랜드가 입지 검증을 끝내고 들어온 비율이 높은 자리.`;
             } else if (fc > 0) {
-              _sum = `프랜차이즈는 ${_n(fc)}곳뿐, 대형 브랜드 손이 덜 닿은 동네예요. 개인 카페가 개성으로 무대를 차지하기 좋은 자리이니 색깔 있는 브랜딩이 곧 무기입니다.`
-                + _crossPrice;
+              _sum = `프랜차이즈 ${_n(fc)}곳${shareTxt}. 대형 브랜드 검증이 옅게만 들어온, 개인 우위의 자리.`;
             } else {
-              _sum = '아직 프랜차이즈가 없는 동네라 개인 카페만의 무대예요. 색깔 있는 브랜딩이면 동네 대표가 될 수 있습니다.';
+              _sum = '프랜차이즈 표본 0곳. 브랜드 검증이 아직 닿지 않은 개인 단독 구성.';
             }
             break;
           }
@@ -4573,24 +5314,16 @@ export default function UnifiedLayout({
             const indiePrice = _num(cmp && cmp.indie);
             const franchPrice = _num(cmp && cmp.franch);
             const gap = (indiePrice > 0 && franchPrice > 0) ? (franchPrice - indiePrice) : 0;
-            // [교차·적응형] 개인카페: [매출 편차 EXTREME] → [프랜점유 높음] → [매출 HIGH] → (폴백) 기존 매출 고정절(>0).
-            const _crossSales = _pickCross([
-              [_gSalesSpread, _clSalesSpread],
-              [_gFranHigh, _clFranHigh],
-              [_gSalesHigh, _clSalesHigh],
-              [_xMonthly > 0, () => ` 동네 카페 월매출이 ${_manToWon(_xMonthly)} 안팎이라 '되는 집'에 들면 충분히 받쳐주니, 가격이 아니라 콘셉트로 상위권에 드는 게 핵심입니다.`],
-            ]);
             if (indiePrice > 0 && franchPrice > 0 && gap >= 200) {
-              _sum = `개인 카페 아메리카노가 평균 ${_n(indiePrice)}원으로 프랜차이즈보다 약 ${_n(gap)}원 싸요 — 가격으로 붙으면 제 살 깎기예요. '이 집만의 한 잔'으로 값을 올려 받을 명분을 만드는 게 생존법입니다.`
-                + _crossSales;
+              _sum = `개인 아메리카노 평균 ${_n(indiePrice)}원으로 프랜차이즈보다 약 ${_n(gap)}원 낮다. 가격은 앞서지만 그만큼 단가 여력은 좁은 구조.`;
+            } else if (indiePrice > 0 && franchPrice > 0) {
+              _sum = `개인 아메리카노 평균 ${_n(indiePrice)}원으로 프랜차이즈(${_n(franchPrice)}원)와 격차 ${_n(gap)}원. 가격 포지션이 거의 겹쳐 단가보다 콘셉트로 갈리는 구조.`;
             } else if (amAvg > 0) {
-              _sum = `주변 개인 카페 아메리카노 평균이 ${_n(amAvg)}원 선이에요 — 가격은 이미 바닥 경쟁이라 더 내릴 여지가 없습니다. 검증된 동네에서 한 끗 다른 콘셉트로 값을 올려 받는 게 상위권으로 가는 길입니다.`
-                + _crossSales;
+              _sum = `개인 아메리카노 평균 ${_n(amAvg)}원. 이미 바닥에 가까운 가격대로 추가 인하 여력이 좁은 포지션.`;
             } else if (indi > 0) {
-              _sum = `주변에 개인 카페가 ${_n(indi)}곳이나 영업 중인, 개성으로 갈리는 시장이에요. 무난한 한 잔은 묻히니, 이 집만의 색이 분명해야 상위권을 노려볼 수 있습니다.`
-                + _crossSales;
+              _sum = `개인 카페 ${_n(indi)}곳이 형성한 가격대. 단가 경쟁보다 개성으로 갈리는 포지션.`;
             } else {
-              _sum = '개인 카페가 드물어 개성으로 승부하기 좋은 동네예요. 나만의 시그니처로 먼저 자리 잡으면 단골이 따라옵니다.';
+              _sum = '개인 카페 표본이 얕아 가격 포지션이 미형성된 구간.';
             }
             break;
           }
@@ -4610,26 +5343,15 @@ export default function UnifiedLayout({
               (maxS > 0 && minS > 0 && maxS >= minS * 2)
               || (maxS > 0 && monthly > 0 && maxS >= monthly * 1.5)
             );
-            // [교차·적응형] 매출: [임대평당 HIGH/LOW] → [개인가격차 BIG] → [유동평일 notable] → (폴백) 기존 임대 고정절(>0).
-            const _crossRent = _pickCross([
-              [_gRentNotable, _clRent],
-              [_gPriceBig, _clPriceBig],
-              [_gWeekday, _clWeekday],
-              [_xRentPy > 0, () => ` 임대 평당 ${_manToWon(_xRentPy)} 부담은 객단가를 받쳐주는 콘셉트로 상쇄하는 게 관건입니다.`],
-            ]);
+            const unitTxt = unit ? ` 객단가 ${unit}.` : '';
             if (wideSpread) {
-              _sum = `동네 카페 월매출이 평균 ${_manToWon(monthly)}이지만 최고 ${_manToWon(maxS)}`
+              _sum = `월매출 평균 ${_manToWon(monthly)}이나 최고 ${_manToWon(maxS)}`
                 + (minS > 0 ? `~최저 ${_manToWon(minS)}` : '')
-                + `으로 편차가 극심해요 — '되는 집'과 '안 되는 집'이 갈리는 시장이라, 평균만 보고 안심하면 안 되고 상위권에 드는 차별화가 필수입니다.`
-                + _crossRent;
+                + `. 평균보다 '편차'가 이 동네 매출의 본질.${unitTxt}`;
             } else if (monthly > 0) {
-              _sum = `동네 카페 월매출이 ${_manToWon(monthly)} 안팎으로 가게별 편차가 크지 않은, 평균만 해도 먹고사는 안정적인 시장이에요. `
-                + (unit
-                    ? `객단가 ${unit}만 지켜도 꾸준한 수익을 기대할 수 있습니다.`
-                    : '객단가만 지켜도 꾸준한 수익을 기대할 수 있습니다.')
-                + _crossRent;
+              _sum = `월매출 평균 ${_manToWon(monthly)}, 가게별 편차는 좁은 편. 평균값 자체가 시장의 기준선이 되는 구조.${unitTxt}`;
             } else {
-              _sum = '꾸준한 카페 매출이 받쳐주는 동네예요. 객단가를 지키는 시그니처면 안정적인 수익을 기대할 수 있습니다.';
+              _sum = '동별 매출 표본이 얕아 평균·편차를 단정하기 이른 구간.';
             }
             break;
           }
@@ -4646,30 +5368,17 @@ export default function UnifiedLayout({
             const peakHourNum = (() => { const m = peak.match(/(\d{1,2})\s*시/); return m ? Number(m[1]) : -1; })();
             const isLunchPeak = peakHourNum >= 11 && peakHourNum <= 15;
             const isEveningPeak = peakHourNum >= 16;
-            // [교차·적응형·flagship] 유동인구: [배달 HIGH] → [연령 SKEW] → [매출 HIGH] → (폴백) 기존 배달 고정절(>0).
-            //   가장 적응적인 카드: 배달 강세 지역은 배달을, 연령 쏠림 지역은 고객을 골라 연결한다.
-            const _crossDelivery = _pickCross([
-              [_gDeliveryHigh, _clDelivery],
-              [_gAgeSkew, _clAge],
-              [_gSalesHigh, _clSalesHigh],
-              [_xDeliveryAvg > 0, () => ` 배달 객단가도 ${_n(_xDeliveryAvg)}원(모임·사무실 주문 신호)이라, 점심 빠른 회전에 더해 오후 미팅·배달 채널로 객단가를 끌어올릴 수 있습니다.`],
-            ]);
-            if (wd >= 60 && isLunchPeak) {
-              _sum = `평일 ${wdR}%에 점심시간이 가장 붐비는 오피스 상권 — 손님 대부분이 시간 쫓기는 직장인이에요. 점심엔 빠른 회전, 오후엔 미팅·작업 공간으로 객단가를 올리는 '두 얼굴' 운영이 맞습니다.`
-                + _crossDelivery;
-            } else if (wd >= 60) {
-              _sum = `평일 비중이 ${wdR}%로 높은, 직장인이 주도하는 상권이에요 — 출근·점심·퇴근 동선을 타는 손님이 대부분이라, 평일 시간대를 촘촘히 잡고 주말 빈 시간을 어떻게 채울지가 관건입니다.`
-                + _crossDelivery;
+            const peakTxt = (peak && peak !== '-') ? `, 피크 ${peak}` : '';
+            if (wd >= 60) {
+              _sum = `유동 평일 ${wdR}%·주말 ${weR}%${peakTxt}. ${isLunchPeak ? '주중 낮 수요가 절대적인 직장형 동선.' : '평일에 무게가 쏠린 직장형 동선.'}`;
             } else if (we > 0 && we >= wd) {
-              _sum = `주말 비중이 ${weR}%로 높고${isEveningPeak ? ' 오후·저녁에 붐비는' : ''} 동네 — 가족·여가 손님이 '머무는' 곳이라, 좌석 회전보다 오래 앉게 만드는 공간이 매출을 만듭니다.`;
+              _sum = `유동 평일 ${wdR}%·주말 ${weR}%${peakTxt}. ${isEveningPeak ? '주말 오후·저녁에 체류하는 여가형 동선.' : '주말로 무게가 쏠린 여가형 동선.'}`;
             } else if (wd > 0 && we > 0) {
-              _sum = `평일 직장인(${wdR}%)과 주말 동네 손님(${weR}%)이 반반 — 시간대마다 얼굴이 달라, 평일 점심 회전과 주말 체류형 운영을 함께 준비해야 빈 시간이 없습니다.`;
+              _sum = `유동 평일 ${wdR}%·주말 ${weR}%${peakTxt}. 평일·주말이 맞물려 시간대마다 얼굴이 바뀌는 혼합형 동선.`;
             } else if (pop > 0) {
-              _sum = `하루 약 ${_n(pop)}명이 지나가는 동네예요`
-                + (peak && peak !== '-' ? `, ${peak}에 사람이 가장 몰려요` : '')
-                + `. 이 사람들이 어떤 목적으로 지나가는지(출근·점심·여가)에 맞춰 시간대 운영을 짜면 자연 유입을 매출로 바꿀 수 있습니다.`;
+              _sum = `하루 통행 약 ${_n(pop)}명${peakTxt}. 시간대 집중이 동선의 성격을 가르는 구조.`;
             } else {
-              _sum = '꾸준한 발길이 이어지는 동네예요. 손님이 몰리는 시간대와 그들의 목적(직장·여가)에 맞춰 운영을 설계하면 빈 시간 없이 자리를 채울 수 있습니다.';
+              _sum = '시간대별 유동 표본이 얕아 동선 성격을 단정하기 이른 구간.';
             }
             break;
           }
@@ -4683,30 +5392,31 @@ export default function UnifiedLayout({
             const premium = premWon > 0 ? Math.round(premWon / 10000) : _num(_bd.premiumCost);
             // 평당 임대료가 높은지 판정(서울 핵심 상권 평당 30만원/월 이상을 '비싼' 기준선으로)
             const highRent = rentPy >= 30;
-            // [교차·적응형] 임대: [매출 HIGH] → [유동평일 notable] → [공실 notable] → (폴백) 기존 매출 고정절(>0).
-            const _crossMonthly = _pickCross([
-              [_gSalesHigh, () => ` 동네 카페 월매출이 ${_manToWon(_xMonthly)} 안팎으로 받쳐주니, 작은 평수의 회전으로 평당 부담을 충분히 상쇄할 수 있습니다.`],
-              [_gWeekday, _clWeekday],
-              [_gVacNotable, _clVac],
-              [_xMonthly > 0, () => ` 동네 카페 월매출이 ${_manToWon(_xMonthly)} 안팎으로 받쳐주니, 작은 평수의 회전으로 평당 부담을 충분히 상쇄할 수 있습니다.`],
-            ]);
+            // [2026-06-16] 총창업비 = 인테리어(평당×15) + 권리금. 보증금 제외(환급성).
+            //   cards-b Card08 시뮬레이터·bcOneLineSummary 의 정의와 동일하게 통일한다.
+            //   (AI totalStartupCostManwon 은 보증금 포함값이라 새 정의와 어긋나 더 이상 쓰지 않음.)
+            const _c7kc = (hfBody.chartData && hfBody.chartData.kosisCafe) || {};
+            const _interiorPerPy = _num(_c7kc.interiorPerPyeong);
+            const _interior15 = _interiorPerPy > 0 ? Math.round(_interiorPerPy * 15) : 0;
+            const startupRaw = (_interior15 + (premium > 0 ? premium : 0)) > 0 ? _interior15 + (premium > 0 ? premium : 0) : 0;
+            const startupTxt = startupRaw > 0 ? `, 총창업비 ${_manToWon(startupRaw)}` : '';
             if (rentPy > 0 && (highRent || premium >= 3000)) {
-              _sum = `평당 ${_manToWon(rentPy)}`
-                + (premium > 0 ? `에 권리금 ${_manToWon(premium)}까지` : '으로')
-                + ` 초기 비용이 만만치 않은 입지예요 — 그만큼 수요가 검증됐다는 뜻이기도 합니다. 작은 평수로 회전을 높이거나 객단가를 받쳐줄 콘셉트로 평당 비용을 상쇄하는 게 핵심입니다.`
-                + _crossMonthly;
+              _sum = `평당 월세 ${_manToWon(rentPy)}`
+                + (premium > 0 ? `, 권리금 ${_manToWon(premium)}` : '')
+                + `${startupTxt}. 초기 진입 비용이 높은 축의 입지.`;
             } else if (rentPy > 0) {
-              _sum = `평당 ${_manToWon(rentPy)} 선으로 임대 조건이 비교적 합리적인 동네 — 무리한 평수보다 콘셉트에 맞는 규모로 시작하면 고정비 부담을 줄일 수 있습니다.`
-                + _crossMonthly;
+              _sum = `평당 월세 ${_manToWon(rentPy)}`
+                + (premium > 0 ? `, 권리금 ${_manToWon(premium)}` : '')
+                + `${startupTxt}. 진입 비용이 부담스럽지 않은 축의 입지.`;
             } else if (_num(_bd.deposit) > 0 || premium > 0) {
-              // [2026-06-15] 평당 KOSIS 데이터가 없을 때(D 경로): 합리적 문장 복붙 대신 보증금/권리금을 근거로 변주.
+              // 평당 KOSIS 데이터가 없을 때(D 경로): 보증금/권리금으로 비용 등급 판정.
               const _dep = _num(_bd.deposit);
               _sum = (_dep > 0
-                ? `보증금 ${_manToWon(_dep)}${premium > 0 ? `에 권리금 ${_manToWon(premium)}` : ''} 수준으로 초기 진입 부담이 큰 편은 아닌 동네예요`
-                : `권리금 ${_manToWon(premium)} 안팎으로 초기 진입 부담이 큰 편은 아닌 동네예요`)
-                + ` — 콘셉트에 맞는 규모로 시작해 고정비를 낮추면 초반 자금 압박을 줄일 수 있습니다.`;
+                ? `보증금 ${_manToWon(_dep)}${premium > 0 ? `, 권리금 ${_manToWon(premium)}` : ''}`
+                : `권리금 ${_manToWon(premium)}`)
+                + `${startupTxt}. 초기 진입 비용이 낮은 축의 입지.`;
             } else {
-              _sum = '임대 조건이 비교적 합리적인 동네예요. 무리한 평수보다 콘셉트에 맞는 규모로 시작하면 고정비 부담을 줄일 수 있습니다.';
+              _sum = '임대·권리금 표본이 얕아 진입 비용 등급을 단정하기 이른 구간.';
             }
             break;
           }
@@ -4717,36 +5427,25 @@ export default function UnifiedLayout({
             const newOpen = _num(hfBody.newOpen);
             // [2026-06-15] 비중/생존율은 소수1자리로 정리(raw float 노출 방지).
             const indiPct = Math.round(_num(hfBody.individualPct) * 10) / 10;
-            // [교차·적응형] 카페기회: [경쟁 EXTREME] → [공실 notable] → [개인비중 높음] → (폴백) 기존 경쟁 고정절.
-            const _crossCompet8 = _pickCross([
-              [_gCompetExtr, () => ` 경쟁은 ${_xCompetLevel} 수준이지만, 색이 분명한 콘셉트면 비집고 들어갈 여지가 있습니다.`],
-              [_gVacNotable, _clVac],
-              [_gIndieHigh, _clIndieHigh],
-              [!!_xCompetLevel, () => ` 경쟁은 ${_xCompetLevel} 수준이지만, 색이 분명한 콘셉트면 비집고 들어갈 여지가 있습니다.`],
-            ]);
             if (vac > 0 && vac <= 8 && newOpen > 0) {
-              _sum = `공실률 ${vacR}%로 빈 상가가 적고 신규 개업이 꾸준한, 들어오려는 사람이 줄 선 동네 — 좋은 자리는 빨리 빠지니 매물·권리금 협상의 속도와 정보력이 곧 경쟁력입니다.`
-                + _crossCompet8;
+              _sum = `공실 ${vacR}%로 빈 상가가 적고 신규 ${_n(newOpen)}곳이 꾸준. 자리는 귀하고 회전은 빠른, 선점이 관건인 타이밍.`;
             } else if (vac > 0 && vac <= 8) {
-              // [2026-06-15] 공실 낮음(자리 귀함) — newOpen 유무와 무관하게 별도 분기.
-              _sum = `공실률 ${vacR}%로 빈 상가가 귀한 동네예요 — 자리 자체가 매물로 잘 안 나오니, 좋은 입지가 뜨면 빠르게 잡을 수 있게 정보력과 자금 준비를 미리 갖추는 게 곧 경쟁력입니다.`
-                + _crossCompet8;
+              _sum = `공실 ${vacR}%로 빈 상가가 귀한 구간. 매물이 드물어 좋은 자리는 뜨는 즉시 갈리는 선점형 타이밍.`;
             } else if (vac > 12) {
-              _sum = `공실률이 ${vacR}%로 빈 상가가 눈에 띄는 동네예요 — 뒤집어 보면 임대인이 아쉬운 쪽이라 임대료·권리금을 깎을 여지가 큽니다. 급할 것 없이 조건을 따져 좋은 자리를 싸게 잡는 게 기회입니다.`;
+              _sum = `공실 ${vacR}%로 빈 상가가 두드러진 구간. 임대인 우위가 풀린, 조건 협상이 열린 타이밍.`;
             } else if (indiPct >= 60) {
-              // [2026-06-15] 공실 데이터 없을 때(B/C/D) 생존율39 폴백 의존 제거 → 실값(개인비중·신규)으로 변주.
-              //   개인 카페가 주도하는 동네: 콘셉트 경쟁의 여지.
-              _sum = `개인 카페 비중이 ${indiPct}%로 동네 카페판을 개인이 주도하는 시장이에요 — 브랜드 인지도보다 콘셉트로 손님이 갈리니, 색이 분명한 한 잔이면 비집고 들어갈 여지가 충분합니다.`
-                + (newOpen > 0 ? ` 신규 개업도 ${_n(newOpen)}곳 이어집니다.` : '');
+              // 공실 데이터 없을 때(B/C/D): 개인비중·신규로 타이밍 판정.
+              _sum = `개인 비중 ${indiPct}%로 개인이 주도하는 판`
+                + (newOpen > 0 ? `, 신규 ${_n(newOpen)}곳이 이어지는 흐름` : '')
+                + `. 콘셉트 경쟁으로 비집고 들어갈 여지가 열린 타이밍.`;
             } else if (newOpen > 0) {
-              // 신규가 이어지는 활기
-              _sum = `최근 신규 개업이 ${_n(newOpen)}곳 이어지는, 들어오려는 수요가 살아 있는 동네예요`
-                + (indiPct > 0 ? ` (개인 카페 비중 ${indiPct}%)` : '')
-                + ` — 활기가 있는 만큼 차별화 포인트 하나만 분명하면 그 흐름에 올라타 자리를 잡을 수 있습니다.`;
+              _sum = `신규 ${_n(newOpen)}곳이 이어지는 활기`
+                + (indiPct > 0 ? `(개인 비중 ${indiPct}%)` : '')
+                + `. 진입 수요가 살아 있는, 흐름에 올라탈 타이밍.`;
             } else if (indiPct > 0) {
-              _sum = `개인 카페 비중 ${indiPct}%로 개성으로 갈리는 시장이에요 — 무난한 한 잔은 묻히지만, 이 집만의 색이 분명하면 비집고 들어갈 기회가 충분합니다.`;
+              _sum = `개인 비중 ${indiPct}%로 콘셉트로 갈리는 판. 차별점 하나로 비집고 들어갈 여지가 있는 타이밍.`;
             } else {
-              _sum = '신규 진입 여지가 넉넉한 동네예요. 분명한 차별화 포인트 하나면 동네 카페 지도를 새로 그릴 수 있습니다.';
+              _sum = '진입 여지가 넉넉한 미형성 구간. 선점 효과가 큰 타이밍.';
             }
             break;
           }
@@ -4755,24 +5454,16 @@ export default function UnifiedLayout({
             const dong = String(_bd.searchDongName || '').trim();
             // [2026-06-15] 1인주문 구간(avg<12000)을 주문량으로 변주: 주문이 많으면 박리다매형(회전), 적으면 단가 끌어올리기형.
             const orders = _num(_bd.searchOrders) || _num((hfBody.bodyData || {}).searchOrders);
-            // [교차·적응형] 배달: [유동평일 notable] → [연령 SKEW] → [매출 HIGH] → (폴백) 기존 평일 고정절(>=60).
-            const _crossWeekday = _pickCross([
-              [_gWeekday, () => ` 유동인구도 평일 ${_xWeekday}%로 직장인 중심이니, 점심·사무실 배달을 정조준하면 효과가 큽니다.`],
-              [_gAgeSkew, _clAge],
-              [_gSalesHigh, _clSalesHigh],
-              [_xWeekday >= 60, () => ` 유동인구도 평일 ${_xWeekday}%로 직장인 중심이니, 점심·사무실 배달을 정조준하면 효과가 큽니다.`],
-            ]);
+            const dongTxt = dong ? `${dong} ` : '';
+            const orderTxt = orders > 0 ? `, 주문 ${_n(orders)}건` : '';
             if (avg >= 12000) {
-              _sum = `배달 객단가가 ${_n(avg)}원으로 매장보다 훨씬 높아요 — 1인분보다 사무실·모임 단위 주문이 많다는 신호예요. 세트·다인 구성과 점심 배달을 잡으면 오피스 수요를 매출 한 축으로 굳힐 수 있습니다.`
-                + _crossWeekday;
+              _sum = `배달 객단가 ${_n(avg)}원${orderTxt}으로 매장 단가를 크게 웃돈다. 1인보다 사무실·다인 주문이 끄는 채널.`;
             } else if (avg > 0 && orders >= 1000) {
-              _sum = `${dong ? dong + ' ' : '이 동네 '}배달은 객단가 약 ${_n(avg)}원의 1인 주문이 많지만 주문 건수 자체가 두터운 동네예요 — 빠른 조리·포장 회전으로 박리다매를 받쳐주면 배달이 든든한 매출 한 축이 됩니다.`
-                + _crossWeekday;
+              _sum = `${dongTxt}배달 객단가 약 ${_n(avg)}원·주문 ${_n(orders)}건. 단가는 1인급이나 물량이 두터운 회전형 채널.`;
             } else if (avg > 0) {
-              _sum = `${dong ? dong + ' ' : '이 동네 '}배달 객단가는 약 ${_n(avg)}원으로 대체로 1인 주문 위주예요 — 세트·디저트 묶음으로 한 건당 단가를 끌어올리면 배달만으로도 매출 한 축을 세울 수 있습니다.`
-                + _crossWeekday;
+              _sum = `${dongTxt}배달 객단가 약 ${_n(avg)}원${orderTxt}. 1인 주문이 주축인 채널.`;
             } else {
-              _sum = '배달 수요가 살아있는 동네예요. 세트·디저트 구성으로 객단가를 올리면 배달이 든든한 매출 한 축이 됩니다.';
+              _sum = '배달 주문 표본이 얕아 채널 성격을 단정하기 이른 구간.';
             }
             break;
           }
@@ -4781,24 +5472,18 @@ export default function UnifiedLayout({
             // [2026-06-15] 긍정 비율은 소수1자리로 정리(카드 KPI와 일치, raw float 방지).
             const pos = Math.round(_num(_bd.positiveRatio) * 10) / 10;
             const kwTxt = kws.slice(0, 3).map(k => (typeof k === 'string' ? k : (k && k.text) || k && k.name || '')).filter(Boolean).join('·');
-            // [교차·적응형] SNS: [연령 SKEW] → [유동평일 notable] → [개인가격차 BIG] → (폴백) 기존 연령 고정절.
-            const _crossAge = _pickCross([
-              [_gAgeSkew, _clAge],
-              [_gWeekday, _clWeekday],
-              [_gPriceBig, _clPriceBig],
-              [!!_xTopAge, () => ` 주 고객이 ${_xTopAge}라, 비주얼·감성 한 컷이 그대로 입소문으로 이어집니다.`],
-            ]);
             if (pos >= 70) {
-              _sum = `SNS에서 긍정 반응 ${pos}%로 회자되는, '검색해서 찾아오는' 손님이 많은 동네 — 사진 한 장 잘 나오는 비주얼 시그니처가 광고비를 대신합니다.`
-                + (kwTxt ? ` (${kwTxt} 키워드가 도는 중)` : '')
-                + _crossAge;
+              _sum = `SNS 긍정 ${pos}%`
+                + (kwTxt ? `, 키워드는 ${kwTxt}` : '')
+                + `. 검색해서 찾아오는 '보여주는' 수요가 큰 동네.`;
             } else if (kwTxt) {
-              _sum = `SNS에서 ${kwTxt} 같은 키워드로 입소문이 도는 동네예요`
-                + (pos > 0 ? `(긍정 반응 ${pos}%)` : '')
-                + ` — 이 흐름에 올라탄 비주얼 한 컷이면 별도 광고 없이도 찾아오는 손님을 만들 수 있습니다.`
-                + _crossAge;
+              _sum = `SNS 키워드는 ${kwTxt}`
+                + (pos > 0 ? `, 긍정 ${pos}%` : '')
+                + `. 검색·해시태그로 회자되는 노출형 수요가 도는 동네.`;
+            } else if (pos > 0) {
+              _sum = `SNS 긍정 ${pos}%. 검색 평판이 받쳐주는 노출형 수요 구간.`;
             } else {
-              _sum = 'SNS에서 카페가 꾸준히 회자되는 동네예요. 사진 잘 나오는 한 컷·시그니처면 입소문이 곧 광고가 되어 매출로 이어집니다.';
+              _sum = 'SNS 신호 표본이 얕아 평판·검색 수요를 단정하기 이른 구간.';
             }
             break;
           }
@@ -4813,31 +5498,28 @@ export default function UnifiedLayout({
             const snowy = Math.round(_num(yd.snowyPct));
             const temp = (yd.avgTemp != null) ? (Math.round(_num(yd.avgTemp) * 10) / 10) : null;
             const winterMin = (yd.winterMin != null) ? (Math.round(_num(yd.winterMin) * 10) / 10) : null;
+            const summerMax = (yd.summerMax != null) ? (Math.round(_num(yd.summerMax) * 10) / 10) : null;
             // 추운 지역: 겨울 최저 -10도 이하 또는 눈 비중 6% 이상 / 온난 지역: 연평균 14도 이상이면서 눈 적음
             const isCold = (winterMin != null && winterMin <= -10) || snowy >= 6;
             const isMild = (temp != null && temp >= 14) && snowy <= 3;
-            // [교차·적응형] 날씨: [배달 HIGH] → [매출 HIGH] → [유동평일 notable] → (폴백) 기존 배달-날씨 고정절(>0).
-            const _crossDeliveryWeather = _pickCross([
-              [_gDeliveryHigh, () => ` 비·겨울엔 무게가 배달·실내 수요로 옮겨가는데, 배달 객단가 ${_n(_xDeliveryAvg)}원(모임·사무실 주문)이 그 채널을 든든히 받쳐줍니다.`],
-              [_gSalesHigh, _clSalesHigh],
-              [_gWeekday, _clWeekday],
-              [_xDeliveryAvg > 0, () => ` 비·겨울엔 무게가 배달·실내 수요로 옮겨가는데, 배달 객단가 ${_n(_xDeliveryAvg)}원이 그 채널을 든든히 받쳐줍니다.`],
-            ]);
             if (isCold) {
-              _sum = `겨울이 길고 추운 동네예요`
-                + (winterMin != null ? `(겨울 최저 ${winterMin}도${snowy > 0 ? `, 눈 ${snowy}%` : ''})` : (snowy > 0 ? `(눈 오는 날 연 ${snowy}%)` : ''))
-                + ` — 따뜻한 음료·디저트와 오래 머물게 하는 실내 공간으로 겨울 비수기를 버티는 구성이 매출을 지킵니다.`
-                + _crossDeliveryWeather;
+              _sum = `겨울 최저 ${winterMin != null ? `${winterMin}도` : '낮음'}`
+                + (snowy > 0 ? `·눈 ${snowy}%` : '')
+                + `로 추위가 긴 편. 겨울 비수기를 버티는 실내 체류·온음료 설계가 변수.`;
             } else if (isMild) {
-              _sum = `연평균 ${temp}도로 사계절 온화한 편이라 날씨에 매출이 크게 출렁이지 않는 동네예요 — 테이크아웃과 시즌 음료를 촘촘히 돌리면 날씨 타는 구간까지 메워 꾸준한 매출을 만들 수 있습니다.`
-                + _crossDeliveryWeather;
+              _sum = `연평균 ${temp}도`
+                + (summerMax != null ? `·여름 최고 ${summerMax}도` : '')
+                + `로 사계절 온화. 날씨에 매출이 덜 출렁이는, 계절 리스크가 낮은 입지.`;
             } else if (rainy > 0) {
-              _sum = `비 오는 날이 연 ${rainy}%인데 카페 매출은 날씨를 크게 타요 — 비·한파엔 배달·실내 수요로, 맑은 날엔 테이크아웃으로 무게가 옮겨갑니다. 날씨별 빠지는 구간을 배달·시즌 메뉴로 메우는 운영이 연매출을 지킵니다.`
-                + _crossDeliveryWeather;
+              _sum = `비 오는 날 연 ${rainy}%`
+                + (winterMin != null ? `·겨울 최저 ${winterMin}도` : '')
+                + `. 비·한파 구간에 수요가 빠지는, 날씨를 타는 입지.`;
             } else if (temp != null) {
-              _sum = `연평균 ${temp}도, 계절 폭이 큰 동네예요 — 더울 땐 시원한 음료·테이크아웃으로, 추울 땐 실내 체류·배달로 손님의 발길 자체가 옮겨갑니다. 계절마다 빠지는 채널을 미리 채워두면 비수기를 매출로 바꿀 수 있습니다.`;
+              _sum = `연평균 ${temp}도`
+                + (winterMin != null ? `·겨울 최저 ${winterMin}도` : '')
+                + `로 계절 폭이 큰 편. 비수기·성수기 진폭이 매출 변수.`;
             } else {
-              _sum = '사계절이 뚜렷한 동네예요 — 날씨에 따라 손님이 테이크아웃과 실내 체류·배달 사이를 오갑니다. 빠지는 구간을 시즌 메뉴와 배달로 미리 메우면 어떤 날씨에도 매출을 지킬 수 있습니다.';
+              _sum = '계절별 기상 표본이 얕아 날씨 리스크를 단정하기 이른 구간.';
             }
             break;
           }
@@ -4853,57 +5535,40 @@ export default function UnifiedLayout({
             const isLow = /양호|낮|여유|한산|느슨/.test(level) || (!level && densityNum > 0 && densityNum <= 30);
             const isMid = /보통|적정|중간/.test(level);
             const isStable = stable >= 40;
-            // [교차·적응형] 상권경쟁: [임대평당 HIGH/LOW] → [매출 HIGH] → [공실 notable] → (폴백) 기존 임대 고정절(>0).
-            const _crossRent12 = _pickCross([
-              [_gRentNotable, _clRent],
-              [_gSalesHigh, _clSalesHigh],
-              [_gVacNotable, _clVac],
-              [_xRentPy > 0, () => ` 임대 평당 ${_manToWon(_xRentPy)} 부담까지 감안하면, 초기 진입 설계가 승부처입니다.`],
-            ]);
+            // 종합점수(레이더 5축 합 또는 카드 종합점수) — 자기 카드 값
+            const score12 = Math.round(_num(_bd.totalScore) || _num(hfBody.totalScore));
+            const scoreTxt = score12 > 0 ? `, 종합 ${score12}점` : '';
+            const stableTxt = stable > 0 ? `, 안정 점포율 ${stable}%` : '';
+            const densityTxt = (!level && densityNum > 0) ? `, 밀도 ${densityNum}곳/km²` : '';
             if (isCrowded) {
-              // 과밀: 진입은 어렵지만 안착하면 버티는 시장 (안정율 있으면 근거로 보강)
-              _sum = (isStable
-                ? `경쟁은 ${level} 수준이지만 한번 자리 잡은 가게(3년 이상 ${stable}%)가 쉽게 안 망하는 동네 — 들어가는 게 어렵지 버티는 건 가능해요. 입지·콘셉트·자금까지 초기 진입 설계에 승부를 거는 게 맞습니다.`
-                : `경쟁이 ${level} 수준으로 카페가 빽빽한 동네예요 — 버티는 건 가능하지만 만만히 들어가면 묻힙니다. 입지·콘셉트·자금까지 초기 진입 설계를 촘촘히 짜야 자리를 잡습니다.`)
-                + _crossRent12;
+              _sum = `경쟁 '${level}'${scoreTxt}${stableTxt}. 버틸 수는 있으나 무난하면 묻히는 밀도.`;
             } else if (isLow) {
-              // 양호/여유: 경쟁이 느슨해 선점 여지가 큰 시장
-              _sum = `경쟁이 빽빽하지 않은 ${level ? level + ' 수준의 ' : ''}동네예요 — 먼저 색깔 있는 카페로 자리를 잡으면 동네 대표가 될 여지가 큽니다. 경쟁자가 붙기 전에 선점하는 게 가장 큰 무기입니다.`;
+              _sum = `경쟁 '${level || '여유'}'${scoreTxt}${stableTxt}${densityTxt}. 느슨한 밀도로 선점 여지가 큰 등급.`;
             } else if (isMid || isStable) {
-              // 보통/안정: 경쟁 적당, 차별화 하나면 안착 (중간 톤)
-              _sum = (isStable
-                ? `오래된 가게(3년 이상 ${stable}%)가 꾸준히 자리를 지키는, 경쟁이 적당한 동네예요`
-                : `경쟁 강도가 ${level || '보통'} 수준으로 과하지도 느슨하지도 않은 동네예요`)
-                + ` — 진입 자체보다 '왜 우리 집인가'를 분명히 하는 차별화 하나면 안정적으로 안착할 수 있습니다.`;
+              _sum = `경쟁 '${level || '보통'}'${scoreTxt}${stableTxt}. 과하지도 느슨하지도 않은, 차별점 하나로 갈리는 등급.`;
             } else if (level) {
-              _sum = `경쟁 강도는 ${level} 수준이에요 — 과하지 않으니 분명한 차별화 하나로 빨리 단골을 만들면 자리를 잡을 수 있습니다.`;
+              _sum = `경쟁 '${level}'${scoreTxt}${stableTxt}. 과밀까지는 아닌 중간 등급.`;
             } else {
-              _sum = '경쟁이 과하지 않은 동네예요. 분명한 차별화 하나면 오래 사랑받는 카페로 자리 잡을 수 있습니다.';
+              _sum = '경쟁 표본이 얕아 등급을 단정하기 이른 구간.';
             }
             break;
           }
-          case 13: { // AI 종합 분석
+          case 13: { // AI 종합 분석 — 렌즈: 의사결정 요약
             // [2026-06-15] 종합 점수는 정수로(카드 종합 점수 표기와 일치).
             const score = Math.round(_num(hfBody.totalScore));
             const opp = _num(hfBody.opportunities);
-            // [교차·적응형] AI종합: {경쟁 EXTREME, 매출 HIGH, SNS HIGH} 중 가장 두드러진 신호 1개 → (폴백) 기존 SNS 고정절(>=70).
-            const _crossSns13 = _pickCross([
-              [_gCompetExtr, () => ` 경쟁이 ${_xCompetLevel} 수준이라는 점이 가장 두드러지니, 이 변수를 초기 진입 설계의 1순위로 두는 게 맞습니다.`],
-              [_gSalesHigh, () => ` 동네 카페 월매출 ${_manToWon(_xMonthly)} 안팎이 받쳐주는 게 강점이라, 콘셉트로 상위권에 들면 점수가 그대로 실적으로 이어집니다.`],
-              [_gSnsHigh, () => ` SNS 긍정 반응 ${_xPos}%가 외부 신호로 가장 또렷하니, 콘셉트만 분명하면 입소문이 그대로 손님으로 이어집니다.`],
-              [_xPos >= 70, () => ` SNS 긍정 반응도 ${_xPos}%라, 콘셉트만 분명하면 입소문이 그대로 손님으로 이어집니다.`],
-            ]);
+            const risk = _num(hfBody.risks);
+            const orTxt = (opp > 0 || risk > 0)
+              ? `, 기회 ${_n(opp)}건·리스크 ${_n(risk)}건`
+              : '';
             if (score >= 70) {
-              _sum = `데이터 종합 ${score}점 — 수요·매출·성장성이 두루 받쳐주는 상위권 입지예요. 강점이 분명한 만큼 '왜 이 동네에 또 한 곳'이 아니라 '왜 우리 집'을 콘셉트로 못 박으면 승산이 큽니다.`
-                + _crossSns13;
+              _sum = `종합 ${score}점${orTxt}. 수요·매출이 점수를 끌어올린 상위권 — 결정 변수는 콘셉트 차별화.`;
             } else if (score > 0 && score < 50) {
-              _sum = `데이터 종합 ${score}점 — 경쟁이나 비용 같은 약점이 눈에 띄는 자리예요. 무난하게 들어가면 묻히지만, 빈틈을 정확히 노린 콘셉트와 탄탄한 초기 설계로 들어가면 오히려 경쟁이 덜한 틈을 차지할 수 있습니다.`;
+              _sum = `종합 ${score}점${orTxt}. 경쟁·비용이 점수를 끌어내린 하위권 — 결정 변수는 빈틈 공략과 초기 자금.`;
             } else if (score > 0) {
-              _sum = `데이터 종합 ${score}점`
-                + (opp > 0 ? `에 포착된 기회 요인이 ${_n(opp)}가지로` : ' —')
-                + ` 수요·매출 같은 '판'은 좋은데 경쟁·생존기반이 발목을 잡는 전형이에요. 강점은 살리고 약점은 콘셉트와 초기 설계로 메우면 충분히 승산 있는 자리입니다.`;
+              _sum = `종합 ${score}점${orTxt}. 수요·매출은 받쳐주나 경쟁·비용이 점수를 깎는 전형 — 결정 변수는 콘셉트와 자금 설계.`;
             } else {
-              _sum = '데이터로 본 전반적 여건이 받쳐주는 동네예요. 강점을 살린 콘셉트로 준비하면 승산 있는 도전입니다.';
+              _sum = '종합 점수 표본이 얕아 등급을 단정하기 이른 구간 — 강점 축을 콘셉트로 좁히는 게 결정 변수.';
             }
             break;
           }
@@ -4992,21 +5657,18 @@ export default function UnifiedLayout({
     // 월 임대료(만원): 15평 기준 = 평당 월세 × 15
     const rentPerPy = num(c8hf.bodyData?.rentPerPyeongManwon) || num(c0.rentPerPyeong);
     const rentMonthly = rentPerPy > 0 ? Math.round(rentPerPy * 15) : 0;
-    // [2026-06-15] 총 창업비(만원, 15평 기준): 임대/창업 카드 시뮬레이터(cards-b Card08)의
-    //   total 계산을 15평 기준으로 그대로 복제한다 — 같은 출처·같은 결과를 보장한다.
-    //   ① totalStartupCostManwon(정규화값) 우선
-    //   ② 없으면 보증금(15평) + 인테리어(평당×15) + 권리금 합산  ← 시뮬레이터의 폴백과 동일
+    // [2026-06-16] 총 창업비(만원, 15평 기준): 임대/창업 카드 시뮬레이터(cards-b Card08)와
+    //   '완전히 동일한 정의'로 통일한다 = 인테리어(평당×15) + 권리금. 같은 출처·같은 결과 보장.
+    //   보증금은 퇴거 시 돌려받는 환급성 비용이라 소멸성 창업비에 넣지 않는다(별도 타일로만 표시).
+    //   → AI totalStartupCostManwon·보증금 모두 제외. (cards-b 의 total = interior + premiumManwon 과 동일.)
     const totalStartup = (() => {
-      const ts = num(c8hf.bodyData?.totalStartupCostManwon) || num(c7.totalStartupCost);
-      if (ts > 0) return Math.round(ts);
-      // 폴백: 보증금 + 인테리어 + 권리금 (전부 만원 단위, 15평)
-      const depositManwon = num(c8hf.bodyData?.depositManwon) || num(c7.deposit);   // 15평 기준 보증금
+      // 인테리어(만원, 15평) = 평당 인테리어 단가 × 15
       const interiorPerPy = num(kc.interiorPerPyeong);
       const interior15 = interiorPerPy > 0 ? Math.round(interiorPerPy * 15) : 0;
       // 권리금(만원): chartData.premium.value(원) → bodyData.premiumCost(만원)
       const premiumWon = num(c8hf.chartData?.premium?.value);
       const premiumManwon = premiumWon > 0 ? Math.round(premiumWon / 10000) : num(c7.premiumCost);
-      const sum = depositManwon + interior15 + premiumManwon;
+      const sum = interior15 + premiumManwon;
       return sum > 0 ? Math.round(sum) : 0;
     })();
 
@@ -5140,6 +5802,58 @@ export default function UnifiedLayout({
     return out;
   }, [bcCardsBodies]);
 
+  // [2026-06-15] AI 디렉터 대화 음성: 검색 지역당 1회 제미나이 생성 → 캐시 → 리포트 주입
+  //   ttsTick: 생성 시작(pending)/완료(ready)/실패(failed) 시 재푸시 트리거
+  const [ttsTick, setTtsTick] = useState(0);
+  useEffect(() => {
+    if (!resultsReady) return;
+    const cardsArr = bcCardsBodiesSwapped;
+    if (!Array.isArray(cardsArr) || !cardsArr[13]) return;
+    const dir = cardsArr[13] && cardsArr[13].body && cardsArr[13].body.chartData && cardsArr[13].body.chartData.director;
+    if (!dir || !(dir.intro || dir.market || dir.closing)) return;
+    const regionKey = `${bcSearchAddress || ''}|${radius}`;
+    if (!bcSearchAddress) return;
+    if (__ttsCache.has(regionKey)) return;     // 이미 생성됨 → 재생성 안 함(비용 가드)
+    if (__ttsInflight.has(regionKey)) return;  // 생성 중 → 중복 호출 방지
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    if (!apiKey) { __ttsCache.set(regionKey, { status: 'failed' }); return; }  // 키 없음 → 폴백
+    // [2026-06-16 REVERT] PPT 씬 레이어 제거. 재생 단위 = 카드별(perCard)만. director.tts.scenes 는 절대 안 만든다.
+    //   (buildDirectorScenes 는 휴면 — 호출하지 않음. iframe 은 항상 풀 리포트 카드를 렌더.)
+    const built = buildDirectorDialogue(cardsArr, dir);
+    if (!built || !built.script) {
+      __ttsCache.set(regionKey, { status: 'failed' }); return;
+    }
+    __ttsInflight.add(regionKey);
+    // 카드별 audioBase64 채울 자리 마련 (scenes 없음)
+    const perCard = (built && built.perCard) ? built.perCard.map(p => ({ card: p.card, area: p.area, chars: p.chars, text: p.text, clientQLen: p.clientQLen, audioBase64: null })) : [];
+    __ttsCache.set(regionKey, { status: 'pending', sampleRate: 24000, perCard });
+    setTtsTick(t => t + 1);   // pending 즉시 푸시 → 아이프레임 폴링 시작(준비될 때까지 브라우저 음성 보류)
+    (async () => {
+      try {
+        // 동시에 일 시키기(병렬) + 실패분만 1회 재시도. 카드별 클립만 생성.
+        const targets = perCard;
+        const scriptOf = (item) => {
+          const pb = built.perCard.find(x => x.card === item.card); return pb ? pb.cardScript : `Director: ${item.text || ''}`;
+        };
+        const datas = await Promise.all(targets.map(it => _genCardClip(scriptOf(it), apiKey)));
+        let anyOk = false;
+        datas.forEach((data, i) => { targets[i].audioBase64 = data || null; if (data) anyOk = true; });
+        // 실패(429 등)한 것만 1회 재시도 — 일부만 무음 되는 것 방지
+        const fails = targets.map((it, i) => (it.audioBase64 ? null : i)).filter(i => i != null);
+        if (fails.length) {
+          const retry = await Promise.all(fails.map(i => _genCardClip(scriptOf(targets[i]), apiKey)));
+          retry.forEach((data, k) => { if (data) { targets[fails[k]].audioBase64 = data; anyOk = true; } });
+        }
+        __ttsCache.set(regionKey, { status: anyOk ? 'ready' : 'failed', sampleRate: 24000, perCard });
+      } catch (e) {
+        __ttsCache.set(regionKey, { status: 'failed', sampleRate: 24000, perCard });
+      } finally {
+        __ttsInflight.delete(regionKey);
+        setTtsTick(t => t + 1);   // ready/failed 재푸시 + __bcRender
+      }
+    })();
+  }, [resultsReady, bcCardsBodiesSwapped, bcSearchAddress, radius]);
+
   // iframe → 시안 데이터 푸시
   const handoffIframeRef = useRef(null);
   // [2026-05-28] iframe 마운트 지연:
@@ -5227,12 +5941,13 @@ export default function UnifiedLayout({
     const win = handoffIframeRef.current?.contentWindow;
     if (!win) return;
     try {
-      win.__BC_DATA__ = { cards: bcCardsBodiesSwapped, address: bcSearchAddress, radius, summary: bcOneLineSummary, dataAsOf: bcDataAsOf };
+      const _rk = `${bcSearchAddress || ''}|${radius}`;
+      win.__BC_DATA__ = { cards: injectTtsIntoCards(bcCardsBodiesSwapped, _rk), address: bcSearchAddress, radius, summary: bcOneLineSummary, dataAsOf: bcDataAsOf };
       if (typeof win.__bcRender === 'function') win.__bcRender();
     } catch (e) {
       // iframe cross-origin/not ready
     }
-  }, [bcCardsBodiesSwapped, resultsReady, bcSearchAddress, radius, bcOneLineSummary, bcDataAsOf]);
+  }, [bcCardsBodiesSwapped, resultsReady, bcSearchAddress, radius, bcOneLineSummary, bcDataAsOf, ttsTick]);
 
   // iframe 안에서 '다시 검색하기' 클릭 시 부모로 전달
   useEffect(() => {
@@ -7694,7 +8409,8 @@ export default function UnifiedLayout({
                       const win = handoffIframeRef.current?.contentWindow;
                       if (!win) return;
                       try {
-                        win.__BC_DATA__ = { cards: bcCardsBodiesSwapped, address: bcSearchAddress, radius, summary: bcOneLineSummary, dataAsOf: bcDataAsOf };
+                        const _rk = `${bcSearchAddress || ''}|${radius}`;
+                        win.__BC_DATA__ = { cards: injectTtsIntoCards(bcCardsBodiesSwapped, _rk), address: bcSearchAddress, radius, summary: bcOneLineSummary, dataAsOf: bcDataAsOf };
                         if (typeof win.__bcRender === 'function') win.__bcRender();
                       } catch (_) {}
                     }}

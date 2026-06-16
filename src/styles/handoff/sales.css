@@ -1766,10 +1766,10 @@
 .dm-stage__card .bc-box,
 .dm-stage__card [data-fx-id] {
   transition:
-    opacity 0.5s cubic-bezier(.22,1,.36,1),
-    filter 0.5s cubic-bezier(.22,1,.36,1),
-    transform 0.65s cubic-bezier(.22,1,.36,1),
-    box-shadow 0.5s cubic-bezier(.22,1,.36,1);
+    opacity 0.4s cubic-bezier(.22,1,.36,1),
+    filter 0.4s cubic-bezier(.22,1,.36,1),
+    transform 0.45s cubic-bezier(.22,1,.36,1),
+    box-shadow 0.4s cubic-bezier(.22,1,.36,1);
 }
 .dm-stage__card[data-focus] .bc-tile,
 .dm-stage__card[data-focus] .bc-box,
@@ -1847,7 +1847,7 @@
   filter: none;
   position: relative;
   z-index: 2;
-  animation: dr-inner-pulse 0.8s cubic-bezier(.22,1,.36,1) both;
+  animation: dr-inner-pulse 0.5s cubic-bezier(.22,1,.36,1) both;
 }
 @keyframes dr-inner-pulse {
   0%   { transform: scale(0.96); }
@@ -1865,7 +1865,7 @@
     0 0 0 1px rgba(76,123,228,0.4),
     0 24px 60px rgba(0,0,0,0.5);
   border-radius: 18px;
-  animation: dr-zoom-center 0.7s cubic-bezier(.22,1,.36,1) both;
+  animation: dr-zoom-center 0.45s cubic-bezier(.22,1,.36,1) both;
 }
 @keyframes dr-zoom-center {
   0%   { transform: translate3d(0,0,0) scale(1); opacity: 1; }
@@ -1880,42 +1880,42 @@
   0%   { transform: translate3d(0, 40px, 0) scale(0.94); opacity: 0; }
   100% { transform: translate3d(var(--fx-tx), var(--fx-ty), 0) scale(var(--fx-scale)); opacity: 1; }
 }
-[data-fx-active][data-fx-anim~="rise"] { animation: dr-rise 0.75s cubic-bezier(.22,1,.36,1) both !important; }
+[data-fx-active][data-fx-anim~="rise"] { animation: dr-rise 0.45s cubic-bezier(.22,1,.36,1) both !important; }
 
 /* fall — 위에서 묵직하게 내려오며 등장 */
 @keyframes dr-fall {
   0%   { transform: translate3d(0, -40px, 0) scale(0.94); opacity: 0; }
   100% { transform: translate3d(var(--fx-tx), var(--fx-ty), 0) scale(var(--fx-scale)); opacity: 1; }
 }
-[data-fx-active][data-fx-anim~="fall"] { animation: dr-fall 0.75s cubic-bezier(.22,1,.36,1) both !important; }
+[data-fx-active][data-fx-anim~="fall"] { animation: dr-fall 0.45s cubic-bezier(.22,1,.36,1) both !important; }
 
 /* drift-l — 왼쪽에서 미끄러져 들어옴 */
 @keyframes dr-drift-l {
   0%   { transform: translate3d(-60px, 0, 0) scale(0.94); opacity: 0; }
   100% { transform: translate3d(var(--fx-tx), var(--fx-ty), 0) scale(var(--fx-scale)); opacity: 1; }
 }
-[data-fx-active][data-fx-anim~="drift-l"] { animation: dr-drift-l 0.75s cubic-bezier(.22,1,.36,1) both !important; }
+[data-fx-active][data-fx-anim~="drift-l"] { animation: dr-drift-l 0.45s cubic-bezier(.22,1,.36,1) both !important; }
 
 /* drift-r — 오른쪽에서 미끄러져 들어옴 */
 @keyframes dr-drift-r {
   0%   { transform: translate3d(60px, 0, 0) scale(0.94); opacity: 0; }
   100% { transform: translate3d(var(--fx-tx), var(--fx-ty), 0) scale(var(--fx-scale)); opacity: 1; }
 }
-[data-fx-active][data-fx-anim~="drift-r"] { animation: dr-drift-r 0.75s cubic-bezier(.22,1,.36,1) both !important; }
+[data-fx-active][data-fx-anim~="drift-r"] { animation: dr-drift-r 0.45s cubic-bezier(.22,1,.36,1) both !important; }
 
 /* dolly — 카메라가 앞으로 다가오듯 깊이감으로 줌업 */
 @keyframes dr-dolly {
   0%   { transform: translate3d(0, 0, 0) scale(0.82); opacity: 0; }
   100% { transform: translate3d(var(--fx-tx), var(--fx-ty), 0) scale(var(--fx-scale)); opacity: 1; }
 }
-[data-fx-active][data-fx-anim~="dolly"] { animation: dr-dolly 0.75s cubic-bezier(.22,1,.36,1) both !important; }
+[data-fx-active][data-fx-anim~="dolly"] { animation: dr-dolly 0.45s cubic-bezier(.22,1,.36,1) both !important; }
 
 /* focus — 흐릿함이 또렷해지며 등장 (DOF / 카메라 포커스 풀) */
 @keyframes dr-focus {
   0%   { transform: translate3d(0, 0, 0) scale(0.9); opacity: 0; filter: blur(8px); }
   100% { transform: translate3d(var(--fx-tx), var(--fx-ty), 0) scale(var(--fx-scale)); opacity: 1; filter: blur(0); }
 }
-[data-fx-active][data-fx-anim~="focus"] { animation: dr-focus 0.8s cubic-bezier(.22,1,.36,1) both !important; }
+[data-fx-active][data-fx-anim~="focus"] { animation: dr-focus 0.5s cubic-bezier(.22,1,.36,1) both !important; }
 
 /* 자막 안에서 현재 강조 중인 phrase */
 .dr-phrase {

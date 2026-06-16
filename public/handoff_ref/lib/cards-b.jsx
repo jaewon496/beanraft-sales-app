@@ -39,10 +39,11 @@ function Card08({ body = {} }) {
   const deposit = depositPerPy > 0 ? pyeong * depositPerPy : 0;
   const interiorPerPy = kc?.interiorPerPyeong > 0 ? kc.interiorPerPyeong : 0;
   const interior = interiorPerPy > 0 ? pyeong * interiorPerPy : 0;
-  // total: 시뮬레이터 - totalStartupCost 또는 deposit+interior+premium 합산
-  const total = totalStartupCost > 0
-    ? (totalStartupCost * pyeong / 15)
-    : ((deposit + interior + premiumManwon) > 0 ? deposit + interior + premiumManwon : 0);
+  // [2026-06-16] 총 창업비 = 인테리어(평균시공 ×1.0) + 권리금 만 합산.
+  //   보증금은 퇴거 시 돌려받는 환급성 비용이라 '소멸성 창업비'에 넣지 않고 별도 타일로만 표시.
+  //   (AI totalStartupCost·보증금 모두 제외 → 지역마다 일관된 단순합으로 통일.)
+  //   ※ UnifiedLayout.jsx bcOneLineSummary 의 totalStartup 정의와 반드시 동일해야 함.
+  const total = (interior + premiumManwon) > 0 ? interior + premiumManwon : 0;
   return (
     <CardShell n="08" id="08"
       bruSummary={body.bruSummary}
@@ -51,7 +52,7 @@ function Card08({ body = {} }) {
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
         <StatTile id="c8.tile1" tone="blue"  label="통합 평당 월세" value={rentPerPyeong > 0 ? String(rentPerPyeong) : '-'} unit={rentPerPyeong > 0 ? '만원' : ''} hero/>
         <StatTile id="c8.tile2" tone="lilac" label="평균 보증금"   value={depositPerPy > 0 ? Math.round(depositPerPy).toLocaleString() : '-'} unit={depositPerPy > 0 ? '만/평' : ''}/>
-        <StatTile id="c8.tile3" tone="mint"  label="총 창업 (15평)" value={total > 0 ? (total >= 10000 ? (total / 10000).toFixed(1) : Math.round(total).toLocaleString()) : '-'} unit={total > 0 ? (total >= 10000 ? '억' : '만원') : ''}/>
+        <StatTile id="c8.tile3" tone="mint"  label="총 창업 (15평·보증금별도)" value={total > 0 ? (total >= 10000 ? (total / 10000).toFixed(1) : Math.round(total).toLocaleString()) : '-'} unit={total > 0 ? (total >= 10000 ? '억' : '만원') : ''}/>
         <StatTile id="c8.tile4" tone="rose"  label="권리금"  value={premiumManwon > 0 ? (premiumManwon >= 10000 ? (premiumManwon / 10000).toFixed(1) : Math.round(premiumManwon).toLocaleString()) : '-'} unit={premiumManwon > 0 ? (premiumManwon >= 10000 ? '억' : '만원') : ''}/>
       </div>
 
@@ -158,7 +159,7 @@ function Card08({ body = {} }) {
               <div style={{fontSize:22, fontWeight:700, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{deposit > 0 ? (window.bcFmtMan(deposit) || `${Math.round(deposit).toLocaleString()}만원`) : '-'}</div>
             </div>
             <div style={{padding:"16px 18px", background:"rgba(76, 123, 228,0.10)", borderRadius:10, border:"1px solid rgba(76, 123, 228,0.45)"}}>
-              <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:6, fontWeight:500}}>총 창업비</div>
+              <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:6, fontWeight:500}}>총 창업비 <span style={{fontSize:11, color:"var(--matte-fg-4)", fontWeight:400}}>(보증금 별도)</span></div>
               <div style={{fontSize:22, fontWeight:700, color:"#4C7BE4", fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{total > 0 ? (window.bcFmtMan(total) || `${Math.round(total).toLocaleString()}만원`) : '-'}</div>
             </div>
           </div>
@@ -166,6 +167,7 @@ function Card08({ body = {} }) {
           {premiumManwon > 0 && kosisRegion && (
             <div style={{marginTop:14, fontSize:13, color:"var(--matte-fg-3)"}}>{kosisRegion} 기준 권리금 평균 {premiumManwon.toLocaleString()}만원 포함</div>
           )}
+          <div style={{marginTop:premiumManwon > 0 && kosisRegion ? 4 : 14, fontSize:12, color:"var(--matte-fg-4)"}}>보증금은 가게를 뺄 때 돌려받는 돈이라, 실제로 들어가는 인테리어·권리금만 ‘총 창업비’로 묶었어요.</div>
         </div>
       </div>
     </CardShell>

@@ -76,6 +76,15 @@
   <script type="text/babel" src="lib/cards-a.jsx"></script>
   <script type="text/babel" src="lib/cards-b.jsx"></script>
   <script type="text/babel" src="lib/cards-c.jsx"></script>
+  <script type="text/babel" src="lib/director-scenes.jsx"></script>
+  <!-- [STEP 6] rough-notation (ESM CDN) → window.__rough 노출. circle/box 주석 마크용.
+       로드 실패해도 director-modal.jsx 가 SVG 폴백으로 동작(무해). -->
+  <script type="module">
+    try {
+      const m = await import("https://unpkg.com/rough-notation@0.5.1/lib/rough-notation.esm.js");
+      window.__rough = { annotate: m.annotate, annotationGroup: m.annotationGroup };
+    } catch (e) { /* 폴백: director-modal.jsx 가 SVG 테두리로 대체 */ }
+  </script>
   <script type="text/babel" src="lib/director-modal.jsx"></script>
 
   <script type="text/babel">

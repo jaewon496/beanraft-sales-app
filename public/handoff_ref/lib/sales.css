@@ -1732,6 +1732,34 @@
   background: #a5cdff;
 }
 
+/* ── 재생 속도 버튼 (0.75 / 1 / 1.25x) — 기존 푸터 버튼 톤과 맞춤 ── */
+.dm-speed {
+  display: flex; align-items: center; gap: 6px;
+  justify-content: center;
+  margin-top: 10px;
+}
+.dm-speed__btn {
+  min-width: 44px; height: 28px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,0.04);
+  color: var(--fg-3);
+  font-size: 12px; font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background 0.15s cubic-bezier(.4,0,.2,1), color 0.15s cubic-bezier(.4,0,.2,1), border-color 0.15s cubic-bezier(.4,0,.2,1);
+}
+.dm-speed__btn:hover {
+  background: rgba(255,255,255,0.10);
+  color: #fff;
+}
+.dm-speed__btn.on {
+  background: var(--snow-blue-light);
+  color: #0d1014;
+  border-color: transparent;
+}
+
 /* ── Right stage ── */
 .dm-stage {
   position: relative;
@@ -1752,6 +1780,18 @@
 }
 
 .dm-stage__perspective { position: relative; flex: 1; perspective: 1400px; }
+/* PPT 씬(SceneView)은 perspective 영역을 꽉 채운다. 두 레이어를 겹쳐 진짜 크로스페이드. */
+.dm-stage__scene { position: absolute; inset: 0; display: flex; }
+.dm-stage__scene > * { flex: 1; min-width: 0; }
+.dm-stage__scene--enter { z-index: 1; }
+.dm-stage__scene--exit {
+  z-index: 0; pointer-events: none;
+  animation: ds-scene-out 0.38s cubic-bezier(.4,0,.6,1) both;
+}
+@keyframes ds-scene-out {
+  from { opacity: 1; transform: none; }
+  to   { opacity: 0; transform: translateY(-8px) scale(0.99); }
+}
 .dm-stage__card {
   position: relative;
   flex: 1;
@@ -1759,170 +1799,68 @@
 }
 .dm-stage__card--exit {
   position: absolute; inset: 0;
-  animation: dm-card-exit 0.28s cubic-bezier(.4,0,.6,1) both;
+  animation: dm-card-exit 0.38s cubic-bezier(.4,0,.6,1) both;
   pointer-events: none;
   z-index: 0;
 }
-.dm-stage__card--enter { animation: dm-card-enter 0.36s cubic-bezier(.22,1,.36,1) both; z-index: 1; }
-@keyframes dm-card-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-@keyframes dm-card-exit  { from { opacity: 1; } to { opacity: 0; transform: translateY(-8px); } }
+.dm-stage__card--enter { animation: dm-card-enter 0.42s cubic-bezier(.22,1,.36,1) both; z-index: 1; }
+/* 젠틀 돌리(가벼운 줌+슬라이드) — 하드컷 대신 부드러운 전환 */
+@keyframes dm-card-enter { from { opacity: 0; transform: translateY(10px) scale(0.985); } to { opacity: 1; transform: none; } }
+@keyframes dm-card-exit  { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(-8px) scale(1.012); } }
 
-/* ─── beat 강조 시: 포커스가 아닌 요소 dim
-   부드러운 전환 — opacity/filter/transform 모두 transition 으로 복귀 ─── */
-.dm-stage__card .bc-tile,
-.dm-stage__card .bc-box,
-.dm-stage__card [data-fx-id] {
-  transition:
-    opacity 0.5s cubic-bezier(.22,1,.36,1),
-    filter 0.5s cubic-bezier(.22,1,.36,1),
-    transform 0.65s cubic-bezier(.22,1,.36,1),
-    box-shadow 0.5s cubic-bezier(.22,1,.36,1);
+/* ══════════════════════════════════════════════════════════════
+   [STEP 6 · 단순·확실 스포트라이트] 카드는 scale 1.0 으로 항상 안정.
+   하이라이트 = ①카드 전체를 덮는 딤 오버레이 1장(초점 빼고 전부 어둡게)
+              ②초점 요소만 오버레이 위로 올리고(z-index) pop(scale)+glow.
+   화려한 마크(circle/box/swipe/underline/arrow/zoom/countup) 전부 제거 → 항상 보이고 안 깨짐.
+   ══════════════════════════════════════════════════════════════ */
+
+/* 차트가 잘리지 않도록 stage 는 overflow 허용 (카드는 그대로 — transform 안 함) */
+.dm-stage,
+.dm-stage__perspective { overflow: visible; }
+.dm-stage__card { position: relative; }
+
+/* ── ① 단일 딤 오버레이 — 카드(.dm-stage__card) 전체를 덮음. 기본은 숨김(투명).
+   data-fx-dim 켜질 때만 보이게(검정 0.55), 340ms 페이드. 초점(z 50)보다 아래(z 40). */
+.dm-dim-overlay {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,0.55);
+  border-radius: 20px;          /* 카드 라운드와 맞춤 */
+  pointer-events: none;
+  z-index: 40;                  /* 카드 내용 위, 초점(50) 아래 */
+  opacity: 0;
+  transition: opacity 340ms cubic-bezier(.22,1,.36,1);
 }
-.dm-stage__card[data-focus] .bc-tile,
-.dm-stage__card[data-focus] .bc-box,
-.dm-stage__card[data-focus] [data-fx-id] {
-  opacity: 0.16;
-  filter: saturate(0.3) brightness(0.7);
+.dm-stage__card[data-fx-dim] .dm-dim-overlay { opacity: 1; }
+
+/* ── ② 초점 요소: 오버레이 위로 올리고 pop+glow. 카드 자체 transform 은 절대 안 건드림 ──
+   data-fx-lift = position:relative + z-index(오버레이 40 위). */
+.dm-stage__card [data-fx-lift] {
+  position: relative;
+  z-index: 50;                  /* 딤 오버레이(40) 위 → 초점만 밝게 */
 }
-/* 포커스 대상 + 그 조상 + 그 자손 모두 회복 (자손이 차트 wrapper 인 경우) */
-.dm-stage__card[data-focus] [data-fx-active],
-.dm-stage__card[data-focus] [data-fx-active] [data-fx-id],
-.dm-stage__card[data-focus] [data-fx-active] .bc-tile,
-.dm-stage__card[data-focus] [data-fx-active] .bc-box,
-.dm-stage__card[data-focus] :is(.bc-tile, .bc-box):has([data-fx-active]),
-.dm-stage__card[data-focus] [data-fx-id]:has([data-fx-active]) {
-  opacity: 1;
-  filter: none;
+/* pop + accent glow — scale(1.08) + 파란 테두리 글로우. 한 번에 하나만 붙음. */
+.dm-stage__card .dm-focal-pop {
+  transform: scale(1.08);
+  border-radius: 12px;
+  box-shadow: 0 0 0 2px #4C7BE4, 0 0 24px rgba(76,123,228,0.6);
+  transition: transform 0.32s ease-out, box-shadow 0.32s ease-out;
 }
-/* 포커스 대상 — 강한 시각 강조 */
-.dm-stage__card[data-focus] [data-fx-active] {
-  z-index: 10;
-  box-shadow:
-    0 0 0 2px rgba(76,123,228,0.55),
-    0 0 38px rgba(76,123,228,0.45),
-    0 18px 36px rgba(0,0,0,0.45);
-  border-radius: 16px;
-}
-.bc-tile[data-fx-active],
-.bc-box[data-fx-active] {
-  background: linear-gradient(180deg, rgba(76,123,228,0.10), rgba(76,123,228,0.04));
-}
-.dm-stage__card[data-focus] .bc-card__header { opacity: 0.65; transition: opacity 0.35s; }
+
+/* 자막 동기화(데이터-포커스) — 카드 헤더만 살짝 죽임(레이아웃 영향 없음) */
+.dm-stage__card[data-focus] .bc-card__header { opacity: 0.7; transition: opacity 0.35s; }
 .dm-stage__card .bc-card__header { transition: opacity 0.35s; }
 
-/* ──────────────────────────────────────────────────────────────
-   확장 모션 — data-fx-anim 토큰 단위로 매칭 (React 안전)
-   ────────────────────────────────────────────────────────────── */
+/* ── 구버전 화려한 마크 무력화(잔존 셀렉터가 영향 못 주게 명시 제거) ── */
+.dm-fx-overlay,
+.dm-mark,
+.dm-mark--swipe,
+.dm-mark--underline,
+.dm-mark--note,
+.dm-mark--note-fallback,
+.dm-mark--arrow { display: none !important; }
 
-/* ─── 강조 중 — 차트가 잘리지 않도록 부모들 overflow 풀어줌 ─── */
-.dm-stage__card[data-focus],
-.dm-stage__card[data-focus] .bc-card,
-.dm-stage__card[data-focus] .bc-card__body,
-.dm-stage__card[data-focus] .bc-box,
-.dm-stage__card[data-focus] .bc-tile,
-.dm-stage[data-focus],
-.dm-stage {
-  overflow: visible;
-}
-/* 백드롭: 강조 중 카드 전체를 어둡게 덮어 포커스 격리 */
-.dm-stage__card[data-focus] {
-  position: relative;
-}
-.dm-stage__card[data-focus]::before {
-  content: ""; position: absolute; inset: -40px;
-  background: radial-gradient(ellipse at center, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.78) 60%);
-  pointer-events: none;
-  z-index: 5;
-  animation: dr-backdrop-in 0.55s ease-out both;
-}
-@keyframes dr-backdrop-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-/* 강조 대상은 백드롭 위로 — z-index 충돌 방지 */
-.dm-stage__card[data-focus] [data-fx-active] { z-index: 50; }
-
-/* ─── 같은 박스 내부의 다음 비트: 박스는 그대로 두고 안쪽 아이템만 강조 ─── */
-/* 박스 안의 다른 [data-fx-id] 형제는 어둡게, [data-fx-inner] 하나만 또렷이 */
-.dm-stage__card [data-fx-active] [data-fx-id]:not([data-fx-inner]) {
-  opacity: 0.35;
-  filter: saturate(0.4);
-  transition: opacity 0.45s cubic-bezier(.22,1,.36,1), filter 0.45s, transform 0.5s;
-}
-.dm-stage__card [data-fx-active] [data-fx-id][data-fx-inner] {
-  opacity: 1;
-  filter: none;
-  position: relative;
-  z-index: 2;
-  animation: dr-inner-pulse 0.8s cubic-bezier(.22,1,.36,1) both;
-}
-@keyframes dr-inner-pulse {
-  0%   { transform: scale(0.96); }
-  40%  { transform: scale(1.06); }
-  100% { transform: scale(1.04); }
-}
-.dm-stage__card[data-focus] [data-fx-active] {
-  --fx-scale: 1.6;
-  --fx-tx: 0px;
-  --fx-ty: 0px;
-  z-index: 50;
-  position: relative;
-  will-change: transform, opacity, filter;
-  box-shadow:
-    0 0 0 1px rgba(76,123,228,0.4),
-    0 24px 60px rgba(0,0,0,0.5);
-  border-radius: 18px;
-  animation: dr-zoom-center 0.7s cubic-bezier(.22,1,.36,1) both;
-}
-@keyframes dr-zoom-center {
-  0%   { transform: translate3d(0,0,0) scale(1); opacity: 1; }
-  100% { transform: translate3d(var(--fx-tx), var(--fx-ty), 0) scale(var(--fx-scale)); opacity: 1; }
-}
-
-/* ─── 진입 모션 6종 — 차분한 motion design, 데코 효과 없음 ─── */
-/* 모두 같은 종착점(중앙·--fx-scale), 차이는 "오는 방향"·"오는 방식" 뿐 */
-
-/* rise — 아래에서 부드럽게 떠오르며 등장 (가장 차분) */
-@keyframes dr-rise {
-  0%   { transform: translate3d(0, 40px, 0) scale(0.94); opacity: 0; }
-  100% { transform: translate3d(var(--fx-tx), var(--fx-ty), 0) scale(var(--fx-scale)); opacity: 1; }
-}
-[data-fx-active][data-fx-anim~="rise"] { animation: dr-rise 0.75s cubic-bezier(.22,1,.36,1) both !important; }
-
-/* fall — 위에서 묵직하게 내려오며 등장 */
-@keyframes dr-fall {
-  0%   { transform: translate3d(0, -40px, 0) scale(0.94); opacity: 0; }
-  100% { transform: translate3d(var(--fx-tx), var(--fx-ty), 0) scale(var(--fx-scale)); opacity: 1; }
-}
-[data-fx-active][data-fx-anim~="fall"] { animation: dr-fall 0.75s cubic-bezier(.22,1,.36,1) both !important; }
-
-/* drift-l — 왼쪽에서 미끄러져 들어옴 */
-@keyframes dr-drift-l {
-  0%   { transform: translate3d(-60px, 0, 0) scale(0.94); opacity: 0; }
-  100% { transform: translate3d(var(--fx-tx), var(--fx-ty), 0) scale(var(--fx-scale)); opacity: 1; }
-}
-[data-fx-active][data-fx-anim~="drift-l"] { animation: dr-drift-l 0.75s cubic-bezier(.22,1,.36,1) both !important; }
-
-/* drift-r — 오른쪽에서 미끄러져 들어옴 */
-@keyframes dr-drift-r {
-  0%   { transform: translate3d(60px, 0, 0) scale(0.94); opacity: 0; }
-  100% { transform: translate3d(var(--fx-tx), var(--fx-ty), 0) scale(var(--fx-scale)); opacity: 1; }
-}
-[data-fx-active][data-fx-anim~="drift-r"] { animation: dr-drift-r 0.75s cubic-bezier(.22,1,.36,1) both !important; }
-
-/* dolly — 카메라가 앞으로 다가오듯 깊이감으로 줌업 */
-@keyframes dr-dolly {
-  0%   { transform: translate3d(0, 0, 0) scale(0.82); opacity: 0; }
-  100% { transform: translate3d(var(--fx-tx), var(--fx-ty), 0) scale(var(--fx-scale)); opacity: 1; }
-}
-[data-fx-active][data-fx-anim~="dolly"] { animation: dr-dolly 0.75s cubic-bezier(.22,1,.36,1) both !important; }
-
-/* focus — 흐릿함이 또렷해지며 등장 (DOF / 카메라 포커스 풀) */
-@keyframes dr-focus {
-  0%   { transform: translate3d(0, 0, 0) scale(0.9); opacity: 0; filter: blur(8px); }
-  100% { transform: translate3d(var(--fx-tx), var(--fx-ty), 0) scale(var(--fx-scale)); opacity: 1; filter: blur(0); }
-}
-[data-fx-active][data-fx-anim~="focus"] { animation: dr-focus 0.8s cubic-bezier(.22,1,.36,1) both !important; }
+/* phrase 자막 강조(기존 유지) */
 
 /* 자막 안에서 현재 강조 중인 phrase */
 .dr-phrase {
@@ -1976,6 +1914,230 @@
 @media (max-width: 1100px) {
   .dm-root { grid-template-columns: 380px 1fr; }
   .dm-stage { padding: 24px 32px; }
+}
+
+/* ============================================================
+   AI 디렉터 PPT 슬라이드 (SceneView) — director-scenes.jsx
+   ─────────────────────────────────────────────────────────
+   다크 무대(#0f1216) + accent(#4C7BE4). 큰 초점 1개. 오버플로우 0.
+   디렉터가 말하는 한 마디 = 이 한 장. 모든 값은 tabular-nums + keep-all.
+   ============================================================ */
+.ds-stage {
+  --dm-accent: #4C7BE4;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 28px;
+  box-sizing: border-box;
+  background: radial-gradient(ellipse at 50% 36%, #14181f 0%, #0f1216 70%);
+  overflow: hidden;
+  animation: ds-scene-in 0.45s cubic-bezier(.22,1,.36,1) both;
+  /* [fix] 초점 숫자 clamp 기준을 화면폭(vw)이 아닌 '무대 폭'으로 — cqw 가
+     실제 우측 컬럼 폭에 맞아 노트북/태블릿에서 과대 렌더 + 오버플로우 방지 */
+  container-type: inline-size;
+  container-name: ds-stage;
+}
+@keyframes ds-scene-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.99); }
+  to   { opacity: 1; transform: none; }
+}
+.ds-scene {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: #e6eaf0;
+  font-family: Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+}
+.ds-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.45;
+  white-space: nowrap;
+}
+.ds-pill--up   { color: #5dd6a0; background: rgba(93,214,160,0.14); }
+.ds-pill--down { color: #f0997b; background: rgba(240,153,123,0.14); }
+
+/* ── percentRing ── */
+.ds-ring { gap: 18px; }
+.ds-ring__label {
+  font-size: 16px; font-weight: 600; color: #c5ccd6; letter-spacing: .2px;
+  text-align: center; max-width: 420px; word-break: keep-all;
+}
+.ds-ring__wrap { position: relative; width: 260px; height: 260px; }
+.ds-ring__svg { width: 260px; height: 260px; transform: rotate(-90deg); }
+.ds-ring__track { fill: none; stroke: #20262f; stroke-width: 9; }
+.ds-ring__prog {
+  fill: none; stroke-width: 9; stroke-linecap: round;
+  transition: stroke-dashoffset 0.9s cubic-bezier(.22,1,.36,1);
+}
+.ds-ring__center {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.ds-ring__num {
+  font-size: clamp(54px, 11cqw, 84px); font-weight: 700; color: #fff;
+  font-variant-numeric: tabular-nums; line-height: 1;
+}
+.ds-ring__pct { font-size: 0.42em; margin-left: 2px; vertical-align: baseline; color: #aeb6c2; }
+.ds-ring__sub {
+  font-size: 14px; font-weight: 400; color: #8b93a0;
+  max-width: 360px; text-align: center; line-height: 1.5; word-break: keep-all;
+}
+
+/* ── ratioSplitBar ── */
+.ds-split { gap: 18px; max-width: 560px; }
+.ds-split__row { display: flex; width: 100%; gap: 16px; }
+.ds-split__col {
+  flex: 1 1 0; min-width: 0;
+  display: flex; flex-direction: column; gap: 4px; align-items: flex-start;
+}
+.ds-split__col--right { align-items: flex-end; text-align: right; }
+.ds-split__lbl { font-size: 14px; font-weight: 500; color: #8b93a0; }
+.ds-split__val {
+  font-size: clamp(30px, 7cqw, 48px); font-weight: 700;
+  font-variant-numeric: tabular-nums; line-height: 1.05; white-space: nowrap;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+}
+.ds-split__val--a { color: var(--dm-accent); }
+.ds-split__val--b { color: #aeb6c2; }
+.ds-split__bar {
+  width: 100%; height: 16px; border-radius: 8px; overflow: hidden;
+  display: flex;
+}
+.ds-split__seg { height: 100%; min-width: 0; transition: width 0.7s cubic-bezier(.22,1,.36,1); }
+.ds-split__seg--a { background: var(--dm-accent); }
+.ds-split__seg--b { background: #3a424e; }
+.ds-split__note {
+  font-size: 13px; font-weight: 400; color: #8b93a0;
+  text-align: center; line-height: 1.5; word-break: keep-all;
+}
+
+/* ── trendArea ── */
+.ds-trend { gap: 16px; max-width: 600px; align-items: stretch; }
+.ds-trend__head { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.ds-trend__label { font-size: 15px; font-weight: 600; color: #c5ccd6; }
+.ds-trend__value {
+  font-size: clamp(36px, 8.4cqw, 64px); font-weight: 700; color: #fff;
+  font-variant-numeric: tabular-nums; line-height: 1.05; word-break: keep-all;
+  max-width: 100%;
+}
+.ds-trend__svg { width: 100%; height: 150px; display: block; }
+
+/* ── compareValue ── */
+.ds-cmp { gap: 20px; max-width: 560px; align-items: stretch; }
+.ds-cmp__head { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.ds-cmp__label { font-size: 15px; font-weight: 600; color: #c5ccd6; }
+.ds-cmp__value {
+  font-size: clamp(36px, 8cqw, 60px); font-weight: 700; color: #fff;
+  font-variant-numeric: tabular-nums; line-height: 1.05; word-break: keep-all;
+  max-width: 100%;
+}
+.ds-cmp__bars { display: flex; flex-direction: column; gap: 14px; }
+.ds-cmp__row { display: flex; align-items: center; gap: 12px; }
+.ds-cmp__name { width: 90px; flex-shrink: 0; font-size: 13px; font-weight: 500; color: #8b93a0; }
+.ds-cmp__track {
+  flex: 1; height: 12px; border-radius: 6px; background: #20262f; overflow: hidden;
+  display: block;
+}
+.ds-cmp__fill { display: block; height: 100%; border-radius: 6px; transition: width 0.8s cubic-bezier(.22,1,.36,1); }
+.ds-cmp__fill--mine { background: var(--dm-accent); }
+.ds-cmp__fill--base { background: #525c69; }
+.ds-cmp__cap {
+  font-size: 13px; font-variant-numeric: tabular-nums; color: #c5ccd6; text-align: right;
+  min-width: 60px; max-width: 120px; flex-shrink: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ── rankingList ── */
+.ds-rank { gap: 14px; max-width: 560px; align-items: stretch; }
+.ds-rank__label { font-size: 15px; font-weight: 600; color: #c5ccd6; }
+.ds-rank__list { display: flex; flex-direction: column; gap: 12px; }
+.ds-rank__row { display: flex; align-items: flex-start; gap: 12px; }
+.ds-rank__chip {
+  flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(76,123,228,0.16); color: var(--dm-accent);
+  font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.ds-rank__main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.ds-rank__line { display: flex; align-items: baseline; gap: 10px; }
+.ds-rank__name {
+  flex: 1; min-width: 0; font-size: 16px; font-weight: 500; color: #e6eaf0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ds-rank__val { font-size: 15px; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.ds-rank__bar { height: 6px; border-radius: 3px; background: #20262f; overflow: hidden; }
+.ds-rank__bar > i { display: block; height: 100%; background: var(--dm-accent); border-radius: 3px; transition: width 0.8s cubic-bezier(.22,1,.36,1); }
+.ds-rank__sub {
+  font-size: 13px; font-weight: 400; color: #8b93a0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ── kpiQuad ── */
+.ds-kpi { gap: 18px; max-width: 600px; align-items: stretch; }
+.ds-kpi__label { font-size: 15px; font-weight: 600; color: #c5ccd6; text-align: center; }
+.ds-kpi__grid { display: grid; gap: 14px; }
+.ds-kpi__grid--1 { grid-template-columns: 1fr; }
+.ds-kpi__grid--2 { grid-template-columns: repeat(2, 1fr); }
+.ds-kpi__grid--3 { grid-template-columns: repeat(3, 1fr); }
+.ds-kpi__tile {
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 14px; padding: 18px 16px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; min-height: 104px; min-width: 0;
+  /* [fix] 값 폰트가 '뷰포트'가 아닌 '타일 폭'에 맞게 줄어들도록 — 2열 타일(≈218px)에서
+     "1억 9,571만원" 같은 긴 한글 금액이 타일 밖으로 넘치던 blocker 해결 */
+  container-type: inline-size;
+}
+.ds-kpi__name { font-size: 13px; font-weight: 500; color: #8b93a0; text-align: center; word-break: keep-all; }
+.ds-kpi__val {
+  font-size: clamp(20px, 13cqw, 34px); font-weight: 700; color: #fff;
+  font-variant-numeric: tabular-nums; line-height: 1.05; white-space: nowrap; word-break: keep-all;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+}
+.ds-kpi__unit { font-size: 0.5em; color: #aeb6c2; margin-left: 2px; }
+
+/* ── radar5 ── */
+.ds-radar { gap: 14px; max-width: 560px; }
+.ds-radar__label { font-size: 15px; font-weight: 600; color: #c5ccd6; text-align: center; }
+.ds-radar__svg { width: 320px; max-width: 100%; height: auto; }
+.ds-radar__ring { fill: none; stroke: #2a323d; stroke-width: 1; }
+.ds-radar__spoke { stroke: #2a323d; stroke-width: 1; }
+.ds-radar__data { stroke-width: 2; }
+.ds-radar__axislbl { font-size: 13px; font-weight: 600; fill: #c5ccd6; }
+.ds-radar__axislbl tspan:last-child { fill: #8b93a0; font-weight: 500; }
+.ds-radar__total { font-size: 14px; color: #8b93a0; text-align: center; }
+
+/* ── statement ── */
+.ds-stmt { gap: 16px; max-width: 620px; align-items: flex-start; }
+.ds-stmt__label { font-size: 14px; font-weight: 600; color: var(--dm-accent); letter-spacing: .4px; }
+.ds-stmt__verdict {
+  font-size: clamp(24px, 3vw, 38px); font-weight: 600; line-height: 1.4; color: #f2f5f9;
+  word-break: keep-all;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.ds-stmt__score {
+  font-size: 16px; font-weight: 500; color: #aeb6c2;
+  border-left: 3px solid var(--dm-accent); padding-left: 12px;
+}
+.ds-stmt__chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.ds-stmt__chip {
+  background: rgba(76,123,228,0.14); color: #9bb8f5;
+  font-size: 13px; font-weight: 500; padding: 6px 12px; border-radius: 18px;
+  word-break: keep-all;
+}
+
+@media (max-width: 1100px) {
+  .ds-stage { padding: 22px 18px; }
+  .ds-ring__wrap, .ds-ring__svg { width: 220px; height: 220px; }
 }
 
 /* ============================================================
