@@ -44,6 +44,52 @@ function parsePolygonWKT(wkt) {
 
 const DATA_GO_KR_API_KEY = '02ca822d8e1bf0357b1d782a02dca991192a1b0a89e6cf6ff7e6c4368653cbcb';
 
+const SBIZ_RELAY = 'https://bc-vercel-mu.vercel.app/api/relay?url=';
+// 소상공인 bigdata 는 해외 IP 차단 → 한국(서울) 중계 경유. 중계 실패 시 직접호출로 폴백.
+// bigdata.sbiz.or.kr 로 가는 GET 요청만 중계로 감싼다. 다른 호스트는 절대 손대지 않는다.
+const isBigdataUrl = (url) => typeof url === 'string' && url.indexOf('bigdata.sbiz.or.kr') !== -1;
+const relayWrap = (url) => SBIZ_RELAY + encodeURIComponent(url);
+
+// 단일 GET 호출 (raw): URL 그대로 https/http get → { status, body } (본문 문자열). gzip/deflate 해제 포함.
+function rawGet(url, { useHttp = false, headers = {}, timeout = 15000 } = {}) {
+  return new Promise((resolve) => {
+    const protocol = useHttp ? http : https;
+    const req = protocol.get(url, {
+      rejectUnauthorized: false,
+      headers: { 'Accept': 'application/json', 'Accept-Encoding': 'gzip, deflate', 'User-Agent': 'Mozilla/5.0', ...headers },
+      timeout
+    }, (res) => {
+      const encoding = (res.headers['content-encoding'] || '').toLowerCase();
+      let stream = res;
+      if (encoding === 'gzip') { stream = res.pipe(zlib.createGunzip()); }
+      else if (encoding === 'deflate') { stream = res.pipe(zlib.createInflate()); }
+      const chunks = [];
+      stream.on('data', chunk => chunks.push(chunk));
+      stream.on('end', () => resolve({ status: res.statusCode, body: Buffer.concat(chunks).toString('utf-8') }));
+      stream.on('error', () => resolve({ status: 0, body: null }));
+    });
+    req.on('error', () => resolve({ status: 0, body: null }));
+    req.on('timeout', () => { req.destroy(); resolve({ status: 0, body: null }); });
+  });
+}
+
+// bigdata GET 전용 relay 경유 + graceful fallback.
+// bigdata 가 아니면 그대로 직접 호출(동작 무변경). bigdata 면 중계 먼저, 실패/비200 시 직접호출 폴백.
+// 반환: { status, body }
+async function bigdataGet(url, opts = {}) {
+  if (!isBigdataUrl(url)) {
+    return rawGet(url, opts);
+  }
+  // 1) 중계 경유 (중계 호스트로 https GET). bigdata 의 Referer/UA 헤더는 직접호출용이라 중계엔 보내지 않음.
+  const relayResp = await rawGet(relayWrap(url), { useHttp: false, headers: {}, timeout: opts.timeout || 15000 });
+  if (relayResp && relayResp.status === 200 && relayResp.body != null && relayResp.body !== '') {
+    return relayResp;
+  }
+  console.warn('[sbiz-relay] 중계 실패(status=' + (relayResp && relayResp.status) + '), 직접호출 폴백:', url.substring(0, 120));
+  // 2) 직접호출 폴백 (기존과 동일 동작)
+  return rawGet(url, opts);
+}
+
 const SBIZ_OPEN_API_KEYS = {
   snsAnaly: 'd46f5d518688912176484b6f894664c5d0b252967d92f4bafc690904381d7ff5',
   simple: 'bb51c6d3d3f93e8172c7888e73eb19afb9120c9f61676c658648ee2853f88e85',
@@ -106,33 +152,11 @@ function wgs84ToTM(lat, lng) {
   return { x, y: yVal };
 }
 
-function fetchJsonSimple(url) {
-  return new Promise((resolve, reject) => {
-    const req = https.get(url, {
-      rejectUnauthorized: false,
-      headers: { 'Accept': 'application/json', 'Accept-Encoding': 'gzip, deflate', 'User-Agent': 'Mozilla/5.0' },
-      timeout: 15000
-    }, (res) => {
-      const encoding = (res.headers['content-encoding'] || '').toLowerCase();
-      let stream = res;
-      if (encoding === 'gzip') {
-        stream = res.pipe(zlib.createGunzip());
-      } else if (encoding === 'deflate') {
-        stream = res.pipe(zlib.createInflate());
-      }
-      // [버그 수정] 청크를 Buffer로 모은 후 마지막에 UTF-8 디코딩
-      // 한글 멀티바이트가 청크 경계에 걸리면 fffd로 깨지는 문제 방지
-      const chunks = [];
-      stream.on('data', chunk => chunks.push(chunk));
-      stream.on('end', () => {
-        const body = Buffer.concat(chunks).toString('utf-8');
-        try { resolve(JSON.parse(body)); } catch(e) { resolve(null); }
-      });
-      stream.on('error', () => resolve(null));
-    });
-    req.on('error', () => resolve(null));
-    req.on('timeout', () => { req.destroy(); resolve(null); });
-  });
+// bigdata GET 은 중계 경유(+직접 폴백), 그 외 호스트는 직접 호출. JSON 파싱 실패 시 null.
+async function fetchJsonSimple(url) {
+  const resp = await bigdataGet(url, { timeout: 15000 });
+  if (!resp || resp.body == null) return null;
+  try { return JSON.parse(resp.body); } catch (e) { return null; }
 }
 
 // POST 방식 JSON fetch (소상공인365 GIS API용)
@@ -427,28 +451,14 @@ exports.handler = async (event, context) => {
           });
           const dlvUrl = `https://bigdata.sbiz.or.kr/gis/delivery/getAdmAnlsByCty.json?${dlvParams.toString()}`;
           console.log('[프록시] delivery GIS:', dlvUrl);
-          return new Promise((resolve) => {
-            const req = https.get(dlvUrl, {
-              rejectUnauthorized: false,
-              headers: {
-                'Accept': 'application/json',
-                'User-Agent': 'Mozilla/5.0',
-                'X-Requested-With': 'XMLHttpRequest',
-                'Referer': 'https://bigdata.sbiz.or.kr/gis/delivery'
-              },
-              timeout: 15000
-            }, (res) => {
-              // [버그 수정] 청크를 Buffer로 모은 후 마지막에 UTF-8 디코딩
-              // 한글 멀티바이트가 청크 경계에 걸리면 fffd로 깨지는 문제 방지
-              const chunks = [];
-              res.on('data', chunk => chunks.push(chunk));
-              res.on('end', () => {
-                const body = Buffer.concat(chunks).toString('utf-8');
-                try { resolve({ status: res.statusCode, data: JSON.parse(body), usedYm: ym }); } catch(e) { resolve({ status: res.statusCode, data: body, usedYm: ym }); }
-              });
-            });
-            req.on('error', () => resolve({ status: 500, data: null, usedYm: ym }));
-            req.on('timeout', () => { req.destroy(); resolve({ status: 504, data: null, usedYm: ym }); });
+          // bigdata GET → 중계 경유(+직접 폴백). 한글 멀티바이트는 rawGet 내부에서 안전 디코딩.
+          return bigdataGet(dlvUrl, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Referer': 'https://bigdata.sbiz.or.kr/gis/delivery' },
+            timeout: 15000
+          }).then((resp) => {
+            const status = resp && resp.status ? resp.status : 500;
+            if (!resp || resp.body == null) return { status, data: null, usedYm: ym };
+            try { return { status, data: JSON.parse(resp.body), usedYm: ym }; } catch(e) { return { status, data: resp.body, usedYm: ym }; }
           });
         };
 
@@ -701,20 +711,12 @@ exports.handler = async (event, context) => {
       for (const margin of margins) {
         const range = getCoordRange(tm.x, tm.y, margin);
         const coordUrl = `https://bigdata.sbiz.or.kr/gis/api/getCoordToAdmPoint.json?minXAxis=${range.minXAxis}&maxXAxis=${range.maxXAxis}&minYAxis=${range.minYAxis}&maxYAxis=${range.maxYAxis}&mapLevel=14`;
-        const coordData = await new Promise((resolve, reject) => {
-          const req = https.get(coordUrl, { rejectUnauthorized: false, headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://bigdata.sbiz.or.kr/' }, timeout: 15000 }, (res) => {
-            // [버그 수정] 청크를 Buffer로 모은 후 마지막에 UTF-8 디코딩
-            // 한글 멀티바이트가 청크 경계에 걸리면 fffd로 깨지는 문제 방지
-            const chunks = [];
-            res.on('data', chunk => chunks.push(chunk));
-            res.on('end', () => {
-              const body = Buffer.concat(chunks).toString('utf-8');
-              try { resolve(JSON.parse(body)); } catch(e) { resolve([]); }
-            });
-          });
-          req.on('error', () => resolve([]));
-          req.on('timeout', () => { req.destroy(); resolve([]); });
-        });
+        // bigdata GET → 중계 경유(+직접 폴백).
+        const coordData = await (async () => {
+          const resp = await bigdataGet(coordUrl, { headers: { 'Referer': 'https://bigdata.sbiz.or.kr/' }, timeout: 15000 });
+          if (!resp || resp.body == null) return [];
+          try { return JSON.parse(resp.body); } catch(e) { return []; }
+        })();
         if (Array.isArray(coordData) && coordData.length > 0) {
           coordResult = coordData;
           usedMargin = margin;
@@ -736,7 +738,7 @@ exports.handler = async (event, context) => {
       if (indsLclsCd) urlParams.append('indsLclsCd', indsLclsCd);
       if (indsMclsCd) urlParams.append('indsMclsCd', indsMclsCd);
       if (indsSclsCd) urlParams.append('indsSclsCd', indsSclsCd);
-      targetUrl = `http://apis.data.go.kr/B553077/api/open/sdsc/storeListInDong?${urlParams.toString()}`;
+      targetUrl = `http://apis.data.go.kr/B553077/api/open/sdsc2/storeListInDong?${urlParams.toString()}`;
     }
     else if (api === 'storeRadius') {
       useHttp = true;
@@ -746,7 +748,7 @@ exports.handler = async (event, context) => {
       if (indsLclsCd) urlParams.append('indsLclsCd', indsLclsCd);
       if (indsMclsCd) urlParams.append('indsMclsCd', indsMclsCd);
       if (indsSclsCd) urlParams.append('indsSclsCd', indsSclsCd);
-      targetUrl = `http://apis.data.go.kr/B553077/api/open/sdsc/storeListInRadius?${urlParams.toString()}`;
+      targetUrl = `http://apis.data.go.kr/B553077/api/open/sdsc2/storeListInRadius?${urlParams.toString()}`;
     }
     else if (api === 'storeInds') {
       useHttp = true;
@@ -755,7 +757,7 @@ exports.handler = async (event, context) => {
       if (indsLclsCd) urlParams.append('indsLclsCd', indsLclsCd);
       if (indsMclsCd) urlParams.append('indsMclsCd', indsMclsCd);
       if (indsSclsCd) urlParams.append('indsSclsCd', indsSclsCd);
-      targetUrl = `http://apis.data.go.kr/B553077/api/open/sdsc/storeListByIndsMclasCd?${urlParams.toString()}`;
+      targetUrl = `http://apis.data.go.kr/B553077/api/open/sdsc2/storeListByIndsMclasCd?${urlParams.toString()}`;
     }
     // 6. 서울시 열린데이터 (추정매출, 유동인구 등)
     else if (api === 'seoul') {
@@ -1081,20 +1083,15 @@ exports.handler = async (event, context) => {
 
     console.log('[프록시]', api, targetUrl?.substring(0, 200));
 
-    const data = await new Promise((resolve, reject) => {
-      const protocol = useHttp ? http : https;
-      const req = protocol.get(targetUrl, { rejectUnauthorized: false, headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://bigdata.sbiz.or.kr/' }, timeout: 30000 }, (res) => {
-        // [버그 수정] 청크를 Buffer로 모은 후 마지막에 UTF-8 디코딩
-        const chunks = [];
-        res.on('data', chunk => chunks.push(chunk));
-        res.on('end', () => {
-          const body = Buffer.concat(chunks).toString('utf-8');
-          try { resolve({ status: res.statusCode, data: JSON.parse(body) }); } catch(e) { resolve({ status: res.statusCode, data: body }); }
-        });
-      });
-      req.on('error', reject);
-      req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
+    // bigdata 호스트면 중계 경유(+직접 폴백), 그 외(data.go.kr 등)는 직접 호출 — 동작 무변경.
+    const resp = await bigdataGet(targetUrl, {
+      useHttp,
+      headers: { 'Referer': 'https://bigdata.sbiz.or.kr/' },
+      timeout: 30000
     });
+    let parsed;
+    try { parsed = JSON.parse(resp.body); } catch (e) { parsed = resp.body; }
+    const data = { status: resp.status, data: parsed };
 
     return { statusCode: 200, headers: corsHeaders, body: JSON.stringify({ success: true, status: data.status, data: data.data, elapsedMs: Date.now() - startTime }) };
   } catch (error) {
