@@ -495,12 +495,17 @@ exports.handler = async (event) => {
     const checkUrl = `https://m.nicebizmap.co.kr/api/explorer/summary/check-analyzability?admiCd=${admiCd}&upjong3Cd=${upjong3Cd}`;
     let checkData = null;
     try {
-      checkData = await fetchJsonGet(checkUrl, {
+      const checkRaw = await fetchJsonGet(checkUrl, {
         'Referer': 'https://m.nicebizmap.co.kr/',
         'Origin': 'https://m.nicebizmap.co.kr',
         'X-Requested-With': 'XMLHttpRequest'
       });
-      console.log(`[nicebizmap-proxy] check-analyzability admiCd=${admiCd} status=${checkData?.analysisStatus || 'N/A'} yyyymm=${checkData?.yyyymm || 'N/A'} expanded=${(checkData?.expandedAdmiRegions || []).length}`);
+      // [2026-06-24 회귀 수정] 응답이 { success, code, message, data:{...}, timestamp } 봉투로 옴.
+      //   기존 코드는 최상위에서 analysisStatus/yyyymm/expandedAdmiRegions 를 읽어 전부 undefined →
+      //   로그 status=N/A yyyymm=N/A, STEP6 미발동 → admiCdList 없이 BASIC(본인 동만)으로 호출돼
+      //   매출이 동 단위(예: 불광2동 16점포 901만원)로 낮게 나왔음. data 봉투를 벗겨 읽는다.
+      checkData = (checkRaw && checkRaw.data && typeof checkRaw.data === 'object') ? checkRaw.data : checkRaw;
+      console.log(`[nicebizmap-proxy] check-analyzability admiCd=${admiCd} status=${checkData?.analysisStatus || 'N/A'} yyyymm=${checkData?.yyyymm || 'N/A'} expandedAnalyzable=${checkData?.expandedAnalyzable} basicStore=${checkData?.basicStoreCount} expandedStore=${checkData?.expandedStoreCount} expanded=${(checkData?.expandedAdmiRegions || []).length}`);
     } catch (e) {
       console.warn('[nicebizmap-proxy] check-analyzability 실패 (무시):', e.message);
     }
@@ -532,8 +537,13 @@ exports.handler = async (event) => {
     if (requestBody.xAxis == null) requestBody.xAxis = null;
     if (requestBody.yAxis == null) requestBody.yAxis = null;
 
-    // STEP 6: admiCdList 자동 생성 (EXPANDED_ANALYZABLE 시 본인 + 인접동)
-    if (checkData?.analysisStatus === 'EXPANDED_ANALYZABLE') {
+    // STEP 6: admiCdList 자동 생성 (확장 분석 가능 시 본인 + 인접동)
+    // [2026-06-24 회귀 수정] 현재 API 는 analysisStatus 를 'BASIC_ANALYZABLE' 로 주면서
+    //   별도 boolean expandedAnalyzable=true 로 확장 가능 여부를 알려준다(예: 불광2동·역삼1동 둘 다).
+    //   기존 코드는 analysisStatus === 'EXPANDED_ANALYZABLE' 만 봐서 영영 발동 안 함 → 본인 동만 분석.
+    //   확장 가능(expandedAnalyzable=true 또는 status가 EXPANDED)이고 인접동이 있으면 admiCdList 를 보낸다.
+    const _canExpand = (checkData?.expandedAnalyzable === true) || (checkData?.analysisStatus === 'EXPANDED_ANALYZABLE');
+    if (_canExpand) {
       const expanded = (checkData.expandedAdmiRegions || []).map(r => r.admiCd).filter(Boolean);
       const merged = Array.from(new Set([...expanded, admiCd]));
       if (merged.length > 1) {
@@ -545,7 +555,16 @@ exports.handler = async (event) => {
 
     console.log(`[nicebizmap-proxy] POST ${targetUrl} admiCd=${admiCd} upjong3Cd=${requestBody.upjong3Cd} yyyymm=${requestBody.yyyymm || 'N/A'} prev=${requestBody.prevYyyymm || 'N/A'} admiCdList=${requestBody.admiCdList ? requestBody.admiCdList.length : 0}`);
 
-    let result = await fetchJsonPost(targetUrl, requestBody);
+    // ═══════════════════════════════════════════════════════════════
+    // [단일 호출] summary-report 는 검색당 단 1회만 호출한다.
+    //   ※ 재시도(같은 admiCd 재호출) 제거됨(2026-06-24):
+    //     - 서버가 같은 admiCd 연속 호출에 캐시가 아니라 빈 응답(throttle)을 줘서
+    //       두 번째 호출이 0/9 빈 응답으로 와 첫 호출의 완전응답을 못 쓰게 만들었다.
+    //     - 막힌 서버를 더 두드리면 차단(ECONNRESET/GeoIP) 위험만 커지고 효과 없음.
+    //   완전응답(9/9, averageSalesList 포함)을 못 받아도 그대로 반환 →
+    //   누락 키는 App.jsx 의 localStorage 완전응답 캐시(부분보충)가 메운다(가짜 폴백 없음).
+    // ═══════════════════════════════════════════════════════════════
+    const result = await fetchJsonPost(targetUrl, requestBody);
 
     // [세션 회전 캡처] summary-report 응답에 새 SESSION 쿠키가 왔으면 Blobs current 갱신
     // (heartbeat 와 동일 방식. 데이터 로직 무영향 — 회전 감지만. 로컬/미배포면 store=null → 스킵.)

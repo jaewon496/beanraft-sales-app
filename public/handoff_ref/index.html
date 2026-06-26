@@ -258,6 +258,9 @@
                   {(() => {
                     /* [2026-06-15] 데이터 기준월 캡션 — __BC_DATA__.dataAsOf (top-level 우선, 없으면 summary.dataAsOf).
                        값이 없으면(undefined/빈문자) 캡션 자체를 렌더하지 않는다(빈 캡션 금지). */
+                    /* [2026-06-25] 카테고리 필터/단일 카드(좁은 칸)에서는 캡션이 한 글자씩 세로로 깨져
+                       나오므로 전체 보기(넓은 화면)에서만 렌더한다. */
+                    if (filterCategory || singleCardN) return null;
                     const _d = window.__BC_DATA__ || {};
                     const _asOf = (typeof _d.dataAsOf === 'string' && _d.dataAsOf.trim())
                       || (_d.summary && typeof _d.summary.dataAsOf === 'string' && _d.summary.dataAsOf.trim())
@@ -424,6 +427,32 @@
         return a.dom - b.dom;
       });
       return mapped;
+    }
+
+    // [릴스 공개 우편함] 캡처 중 만들어진 카드별 canvas 를 JPEG dataURL 로 부모(앱)에 전송.
+    //   - 기존 PDF/JPG 출력/다운로드는 절대 건드리지 않고, '추가 전송'만 한다.
+    //   - 전체 try/catch — 실패해도 캡처 흐름에 전혀 영향 없음.
+    function bcReelEmit(canvas, id, label){
+      try {
+        if (!canvas || !canvas.toBlob) return;
+        canvas.toBlob(function(b){
+          try {
+            if (!b) return;
+            var fr = new FileReader();
+            fr.onload = function(){
+              try {
+                (window.parent || window).postMessage({
+                  type: "bc:reelimg",
+                  id: id,
+                  title: label || "",
+                  dataUrl: fr.result
+                }, "*");
+              } catch(_){}
+            };
+            fr.readAsDataURL(b);
+          } catch(_){}
+        }, "image/jpeg", 0.92);
+      } catch(e){}
     }
 
     // 필터/단일카드 모드면 전체 14장이 DOM 에 없을 수 있음 → "전체 보고서" 클릭해 모두 펼침
@@ -916,6 +945,8 @@
           ctx.drawImage(big, 0, srcY, bigW, srcH, 0, 0, bigW, srcH);
 
           addImagePage(tmp);
+          // [릴스 공개 우편함] PDF 카드 canvas 를 부모로 추가 전송 (출력/다운로드 무변경)
+          bcReelEmit(tmp, card && card.id, (card && card.label) || "");
           // 임시 캔버스 메모리 회수 힌트
           tmp.width = tmp.height = 0;
         }
@@ -1135,7 +1166,8 @@
           if (srcY > bigH) continue;
           if (srcY + srcH > bigH) srcH = bigH - srcY;
           if (srcH <= 0) continue;
-          out.push({ srcY: srcY, srcH: srcH });
+          // id/label 도 함께 보관 → 릴스 전송에서 카드 식별에 사용 (기존 srcY/srcH 소비처 무영향)
+          out.push({ srcY: srcY, srcH: srcH, id: selected[i].id, label: selected[i].label });
         }
         return out;
       }
@@ -1175,6 +1207,18 @@
           if (dh <= 0) dh = 1;
           try {
             ctx.drawImage(big, 0, s.srcY, bigW, s.srcH, 0, dy, outW, dh);
+          } catch(_){}
+          // [릴스 공개 우편함] 카드 1장을 별도 canvas 로 떠서 부모로 추가 전송 (stitched 출력 무변경)
+          try {
+            var rt = document.createElement("canvas");
+            rt.width = bigW;
+            rt.height = Math.max(1, s.srcH);
+            var rctx = rt.getContext("2d");
+            rctx.fillStyle = bg;
+            rctx.fillRect(0, 0, rt.width, rt.height);
+            rctx.drawImage(big, 0, s.srcY, bigW, s.srcH, 0, 0, bigW, s.srcH);
+            bcReelEmit(rt, s.id, s.label || "");
+            rt.width = rt.height = 0;
           } catch(_){}
           y += s.srcH + gapPx;
         }

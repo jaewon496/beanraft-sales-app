@@ -9,7 +9,11 @@ export default function Card05({ body = {} }) {
   const chartData = body.chartData || {};
   const kosis = body.kosisBoxData || {};
 
-  const monthly = Number(bodyData.monthly) || 0;       // 카페 월매출 (만원)
+  const monthly = Number(bodyData.monthly) || 0;       // 카페 월매출 (만원, 단일월)
+  // [2026-06-24] ★ '월평균 매출' 단일 진실값 = 비즈맵 분위 평균(monthlyAvgSales). 헤드라인이 분위 '평균'과 같은 값을 쓰게 통일.
+  //   없으면 안정 동평균 → 단일월(monthly) 폴백.
+  const monthlyAvgSales = Number(bodyData.monthlyAvgSales) > 0 ? Number(bodyData.monthlyAvgSales)
+    : (Number(bodyData.dongCafeAvgStable) > 0 ? Number(bodyData.dongCafeAvgStable) : monthly);
   const dongAvg = Number(bodyData.dongAvg) || 0;
   const guAvg = Number(bodyData.guAvg) || 0;
   const dongMax = Number(bodyData.dongMaxSales) || 0;
@@ -82,7 +86,7 @@ export default function Card05({ body = {} }) {
       date={null}
       sources={["소상공인진흥공단", "비즈맵", "한국은행 (KOSIS 301)"]}>
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
-        <StatTile id="c5.tile1" tone="blue"  label="월평균 매출"   value={monthly > 0 ? monthly.toLocaleString() : '-'} unit={monthly > 0 ? '만원' : ''} delta={prevYearRate ? `${prevYearRate > 0 ? '+' : ''}${prevYearRate.toFixed(1)}` : undefined} deltaPositive={prevYearRate >= 0} hero accent/>
+        <StatTile id="c5.tile1" tone="blue"  label="월평균 매출"   value={monthlyAvgSales > 0 ? monthlyAvgSales.toLocaleString() : '-'} unit={monthlyAvgSales > 0 ? '만원' : ''} delta={prevYearRate ? `${prevYearRate > 0 ? '+' : ''}${prevYearRate.toFixed(1)}` : undefined} deltaPositive={prevYearRate >= 0} hero accent/>
         <StatTile id="c5.tile2" tone="mint"  label="월 매출 건수"  value={dongSaleCnt > 0 ? dongSaleCnt.toLocaleString() : '-'} unit={dongSaleCnt > 0 ? '건' : ''}/>
         <StatTile id="c5.tile3" tone="lilac" label="객단가"        value={unitPrice}/>
         <StatTile id="c5.tile4" tone="cream" label="매출 순위"     value={cafeSalesRank ? cafeSalesRank.split(' /')[0] : '-'} delta={prevMonRate ? `${prevMonRate > 0 ? '+' : ''}${prevMonRate.toFixed(1)}` : undefined} deltaPositive={prevMonRate >= 0}/>

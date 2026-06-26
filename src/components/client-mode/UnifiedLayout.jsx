@@ -33,6 +33,7 @@ import '../../styles/handoff/sales.css';
 // matte.css: 시안의 정식 매트 다크 톤 (사용자가 OK한 색감). 파스텔 알록달록 차단.
 import '../../styles/handoff/matte.css';
 import AINarrationEngine from './AINarrationEngine';
+import { database, storage } from '../../firebase';
 import { COLORS, TIMING, BLUR, LAYOUT } from './constants';
 import {
   mapCollectedDataToCards,
@@ -53,6 +54,8 @@ import {
   extractConsumerSentimentSeries,
   buildIntegratedRent,
 } from './dataMapper';
+// [2026-06-25] 통합 AI 진단(배너 한 줄·AI종합 진단·14카드 한 줄). 캐시+폴백 내장.
+import { getUnifiedDiagnosis } from './aiDiagnosis';
 
 // [2026-06-15] AI 디렉터 대화 음성: 생성기(buildDirectorDialogue)·캐시(__ttsCache/__ttsInflight)는
 //   아래 컴포넌트 바로 위 모듈 블록에 정의됨. 여기선 리포트 주입 헬퍼만 둔다.
@@ -4404,7 +4407,7 @@ function __dsScenesForCard(cardN, body, allBodies) {
       const validAxes = axes.filter(a => a && __dsN(a.max) > 0).map(a => ({ name: a.label || a.name || '', score: __dsN(a.score), max: __dsN(a.max) }));
       if (validAxes.length === 5) {
         const totalScore = __dsN(c13.totalScore) || __dsN(top.totalScore);
-        push('radar5', { label: '경쟁력 5축', axes: validAxes, totalText: totalScore > 0 ? `종합 ${Math.round(totalScore)}점` : '' });
+        push('radar5', { label: '투자 대비 수익률 5축', axes: validAxes, totalText: totalScore > 0 ? `종합 ${Math.round(totalScore)}점` : '' });
       }
       break;
     }
@@ -4724,12 +4727,13 @@ export default function UnifiedLayout({
         hfBody.risks = card.bodyData?.risks || 0;
         hfBody.recommendation = card.bodyData?.recommendation || '';
         const c13bd = cards[12]?.bodyData || {};
+        // [2026-06-25 ROI] 레이더 5축 = 수익성30·투자회수25·경쟁여건20·생존안정15·성장성10
         hfBody.axes = [
-          { label: '시장 매력도', max: 20, score: Number(c13bd.scoreMarket) || 0 },
-          { label: '경쟁 환경', max: 20, score: Number(c13bd.scoreCompete) || 0 },
-          { label: '시장 변화', max: 15, score: Number(c13bd.scoreChange) || 0 },
-          { label: '생존 기반', max: 30, score: Number(c13bd.scoreSurvival) || 0 },
-          { label: '비용 부담', max: 15, score: Number(c13bd.scoreCost) || 0 },
+          { label: '수익성', max: 30, score: Number(c13bd.scoreMarket) || 0 },
+          { label: '투자 회수', max: 25, score: Number(c13bd.scoreCompete) || 0 },
+          { label: '경쟁 여건', max: 20, score: Number(c13bd.scoreChange) || 0 },
+          { label: '생존 안정', max: 15, score: Number(c13bd.scoreSurvival) || 0 },
+          { label: '성장성', max: 10, score: Number(c13bd.scoreCost) || 0 },
         ];
         const sig = card.chartData?.signals || [];
         if (Array.isArray(sig) && sig.length > 0) {
@@ -4759,12 +4763,18 @@ export default function UnifiedLayout({
         // [2026-05-18] 카드 13 "3년 생존" KPI는 카드 03(card12) survivalRate3y와 동일하게 표시
         // 카드 03이 폴백(전국평균 39%)까지 포함해 항상 값을 보장하므로 c2bd 우선
         hfBody.survival3y = c2bd.survivalRate3y || bd.survival3yr || 0;
-        hfBody.cafeSales = bd.cafeSales || c5bd.monthly || 0;
+        // [2026-06-24] 경쟁분석·시장매력도 '월매출'도 매출카드와 같은 단일 진실값(monthlyAvgSales=비즈맵 분위 평균).
+        //   없으면 안정 동평균→단일월 폴백. '시군구 평균 대비 %'는 이 값(guAvg 기준) 그대로 재계산됨.
+        hfBody.cafeSales = bd.cafeSales || c5bd.monthlyAvgSales || c5bd.dongCafeAvgStable || c5bd.monthly || 0;
         hfBody.guAvg = bd.guAvg || c5bd.guAvg || 0;
         hfBody.cafeCount = bd.cafeCount || bd.totalCafes || c1bd.cafes || 0;
         // [2026-05-19] 시장 변화 폴백용: 신규/폐업 수 주입 (cards-c.jsx Card13 scoreChange 폴백)
         hfBody.openCount = Number(c2bd.openCount) || Number(c1bd.newOpen) || 0;
         hfBody.closeCount = Number(c2bd.closeCount) || Number(c1bd['폐업 매장']) || 0;
+        // [2026-06-25] 성장성 headline 근거를 메뉴 대신 진짜 driver(신폐·5년·YoY)로 — 그 폴백 값 주입.
+        //   ② 5년 점포 변화율(card12=cards[2]), ③ 전년 대비(YoY) 시장 추세(card5=cards[5]).
+        hfBody.cafes5yChangeRate = Number(c2bd.cafes5yChangeRate) || 0;
+        hfBody.prevYearRate = Number(c5bd.prevYearRate) || 0;
         hfBody.franchiseCount = bd.franchiseCount || c1bd.franchise || 0;
         hfBody.individualCount = bd.indieCount || bd.independentCount || c1bd.individual || 0;
         hfBody.avgRent = bd.avgRent || (kosisBoxData?.integratedRent?.value || 0);
@@ -4797,7 +4807,9 @@ export default function UnifiedLayout({
         hfBody.closed = Number(bd.recentClose) || Number(bd.closeCount)
           || Number(c12bd.closeCount) || Number(c11bd.recentClose)
           || Number(c1bd['폐업 매장']) || 0;
-        hfBody.cafeMonthly = (cards[5]?.bodyData?.monthly) || 0;
+        // [2026-06-24] 카드09 핵심발견 '시장 매력도'도 매출/AI카드와 같은 단일 진실값(monthlyAvgSales=901, 분위 평균) 사용.
+        //   예전엔 monthly(단일월 1086)를 읽어 시군구 평균 대비 -41%로 표기됐으나, 표준값 901 기준 -51%로 통일.
+        hfBody.cafeMonthly = (cards[5]?.bodyData?.monthlyAvgSales) || (cards[5]?.bodyData?.monthly) || 0;
         hfBody.guAvg = (cards[5]?.bodyData?.guAvg) || 0;
         hfBody.individualPct = (() => {
           if (bd.totalCafes > 0) return Math.round(((bd.independentCount || 0) / bd.totalCafes) * 100);
@@ -5101,8 +5113,8 @@ export default function UnifiedLayout({
         const _xWeekday = (() => { const v = Math.round(_num(_cBd(6).weekdayPct)); return (v > 0 && v <= 100) ? v : 0; })();
         // 상권 경쟁 강도 라벨 — cards[12].level ∈ {매우 과밀, 과밀, 보통, 양호}.
         const _xCompetLevel = String(_cBd(12).level || '').trim();
-        // 동네 카페 월매출(만원) — cards[5].monthly.
-        const _xMonthly = (() => { const v = _num(_cBd(5).monthly); return v > 0 ? v : 0; })();
+        // 동네 카페 월매출(만원) — '월평균 매출' 단일 진실값(monthlyAvgSales=비즈맵 분위 평균). 없으면 안정 동평균→단일월.
+        const _xMonthly = (() => { const v = _num(_cBd(5).monthlyAvgSales) || _num(_cBd(5).dongCafeAvgStable) || _num(_cBd(5).monthly); return v > 0 ? v : 0; })();
         // 통합 평당 월세(만원/평) — 카드 0/7 KPI(integratedRent)와 동일하게 산출.
         const _xRentPy = (() => {
           const _ir = kosisBoxData && kosisBoxData.integratedRent;
@@ -5143,8 +5155,9 @@ export default function UnifiedLayout({
         //   ★null-safe: 모든 후보 게이트가 실패하면 교차 절을 안 붙임(단일 카드 문장 그대로, 빈칸/NaN 불가).
         // ──────────────────────────────────────────────────────────
         // 매출 동별 스프레드(편차 극심 판정) — cards[5]. 데이터 점 3곳 이상일 때만 유효.
-        const _xDongMax = (() => { const v = _num(_cBd(5).dongMaxSales); return v > 0 ? v : 0; })();
-        const _xDongMin = (() => { const v = _num(_cBd(5).dongMinSales); return v > 0 ? v : 0; })();
+        // [2026-06-24] 동별 편차 인용도 분위 상위20%/하위20%로 통일(없으면 소상공인 동최고/최저 폴백).
+        const _xDongMax = (() => { const v = _num(_cBd(5).bizmapTopSalesNum) || _num(_cBd(5).dongMaxSales); return v > 0 ? v : 0; })();
+        const _xDongMin = (() => { const v = _num(_cBd(5).bizmapBottomSalesNum) || _num(_cBd(5).dongMinSales); return v > 0 ? v : 0; })();
         const _xDongCount = (() => {
           const l = _cBd(5).topFiveDongsList;
           return Array.isArray(l) ? l.filter(Boolean).length : 0;
@@ -5327,31 +5340,48 @@ export default function UnifiedLayout({
             }
             break;
           }
-          case 5: { // 매출 분석
-            const monthly = _num(_bd.monthly);
-            const maxS = _num(_bd.dongMaxSales);
-            const minS = _num(_bd.dongMinSales);
-            const unit = String(_bd.bizmapAvgUnitPrice || '').trim();
-            // [2026-06-15] "편차 극심" 오발화 방지 가드.
-            //   소도시처럼 동/점포가 적으면 단 하나의 이상치 동만으로 max가 평균의 1.5배를 넘어 "편차 극심"이 잘못 뜸.
-            //   → topFiveDongsList(매출 상위 동 목록)가 3곳 이상으로 충분할 때만 "편차 극심" 표현 허용.
-            //     데이터가 얕으면 안정·월매출 프레이밍으로 부드럽게 처리.
-            const dongList = Array.isArray(_bd.topFiveDongsList) ? _bd.topFiveDongsList.filter(Boolean) : [];
-            const enoughDongs = dongList.length >= 3;
-            // 편차 판정: 최고가 최저의 2배 이상이거나 최고가 평균의 1.5배 이상 — 단, 데이터 점이 충분할 때만.
-            const wideSpread = enoughDongs && (
-              (maxS > 0 && minS > 0 && maxS >= minS * 2)
-              || (maxS > 0 && monthly > 0 && maxS >= monthly * 1.5)
-            );
-            const unitTxt = unit ? ` 객단가 ${unit}.` : '';
-            if (wideSpread) {
-              _sum = `월매출 평균 ${_manToWon(monthly)}이나 최고 ${_manToWon(maxS)}`
-                + (minS > 0 ? `~최저 ${_manToWon(minS)}` : '')
-                + `. 평균보다 '편차'가 이 동네 매출의 본질.${unitTxt}`;
+          case 5: { // 매출 분석 — [2026-06-25] 1차원(숫자 나열) 탈피.
+            // 해석축: 평균은 낮아도 상위20%가 높으면 = 입지가 아니라 '운영력'이 매출을 가른다
+            //   → 차별화하면 상위권이 열린다(저매출 지역도 희망 톤). 결론부터, 처방으로 닫는다.
+            // 교차 인용: 형제 카드(주 고객 연령 / 유동 평일목적 / 경쟁 밀도 / 임대 부담) 중
+            //   이 지역 데이터에서 가장 또렷한 1개를 결정적으로 골라 전략에 연결(난수/Date/AI 없음).
+            const monthly = _num(_bd.monthlyAvgSales) || _num(_bd.dongCafeAvgStable) || _num(_bd.monthly);
+            const topS = _num(_bd.bizmapTopSalesNum) || _num(_bd.dongMaxSales);
+            const botS = _num(_bd.bizmapBottomSalesNum) || _num(_bd.dongMinSales);
+            // 분위(상위20%)가 평균을 충분히 웃돌면 = 운영력으로 갈리는 구조(상위권이 '열려 있음').
+            const hasQuant = topS > 0 && monthly > 0;
+            const topOverAvg = hasQuant && topS >= monthly * 1.4; // 상위20%가 평균의 1.4배+ → 격차 또렷
+            // ── 형제 카드 교차 처방 절(결정적 우선순위: 연령 → 평일목적 → 경쟁밀도 → 임대부담) ──
+            //   매출 카드 톤에 맞춰 '상위권으로 가는 운영 처방'으로 연결. 후보 전부 없으면 일반 처방.
+            const _clSalesAge = () => ` 주 고객이 ${_xTopAge}로 또렷한 만큼, 그 취향을 정조준한 시그니처 한 잔으로 차별화하면 상위권이 충분히 열립니다.`;
+            const _clSalesWeekday = () => ` 유동인구가 평일 ${_xWeekday}%로 직장인 중심이라, 평일 점심·사무실 동선을 잡는 운영을 다지면 상위 매출로 올라설 길이 분명합니다.`;
+            const _clSalesCompetLow = () => ` 경쟁이 '${_xCompetLevel}' 수준으로 느슨해, 색이 분명한 콘셉트 하나면 상위권 자리를 선점할 여지가 큽니다.`;
+            const _clSalesCompetHigh = () => ` 경쟁이 '${_xCompetLevel}'로 치열한 만큼, 묻히지 않는 또렷한 콘셉트가 곧 상위 매출의 갈림길입니다.`;
+            const _clSalesRentHigh = () => ` 임대 평당 ${_manToWon(_xRentPy)}로 부담은 있지만 그만큼 수요가 검증된 자리라, 객단가를 받쳐주는 콘셉트면 상위권 매출로 상쇄할 수 있습니다.`;
+            const _clSalesRentLow = () => ` 임대 평당 ${_manToWon(_xRentPy)} 선으로 고정비가 가벼워, 콘셉트에 집중할 여유가 큰 만큼 운영력으로 상위권을 노리기 좋습니다.`;
+            const _crossSales = _pickCross([
+              [!!_xTopAge, _clSalesAge],
+              [_xWeekday >= 60, _clSalesWeekday],
+              [/양호|여유|보통/.test(_xCompetLevel), _clSalesCompetLow],
+              [/매우\s*과밀|과밀/.test(_xCompetLevel), _clSalesCompetHigh],
+              [_xRentPy >= 30, _clSalesRentHigh],
+              [_xRentPy > 0 && _xRentPy <= 14, _clSalesRentLow],
+            ]);
+            if (topOverAvg) {
+              // 평균 대비 상위20%가 또렷 → "입지보다 운영력" 핵심 해석 + 희망 처방.
+              const _avgWord = monthly < 700 ? '평균은 낮은 편이지만' : '평균은 보통 수준이지만';
+              _sum = `이 동네는 ${_avgWord} 상위 카페는 ${_manToWon(topS)}을 벌어, 입지보다 '운영력'이 매출을 가르는 곳입니다.`
+                + (_crossSales || ' 분명한 콘셉트 하나로 차별화하면 상위권이 충분히 열립니다.');
+            } else if (hasQuant) {
+              // 분위는 있으나 격차가 좁음 → 시장 기준선이 또렷, 평균만 넘어도 안정적이라는 희망 톤.
+              _sum = `이 동네는 카페 간 매출 편차가 크지 않아, 평균 수준만 지켜도 안정적으로 자리 잡을 수 있는 곳입니다.`
+                + (_crossSales || ' 기본기를 갖춘 콘셉트면 무난히 시장 기준선에 올라설 수 있습니다.');
             } else if (monthly > 0) {
-              _sum = `월매출 평균 ${_manToWon(monthly)}, 가게별 편차는 좁은 편. 평균값 자체가 시장의 기준선이 되는 구조.${unitTxt}`;
+              // 분위 표본은 없지만 동평균은 있는 지역 → 기존 톤 유지하되 처방형으로.
+              _sum = `이 동네 카페 월매출은 평균 ${_manToWon(monthly)} 수준으로, 운영하기에 따라 충분히 위로 갈 여지가 있는 곳입니다.`
+                + (_crossSales || ' 콘셉트를 또렷이 잡으면 평균을 넘어설 길이 열립니다.');
             } else {
-              _sum = '동별 매출 표본이 얕아 평균·편차를 단정하기 이른 구간.';
+              _sum = '아직 매출 표본은 얕지만 그만큼 자리 잡은 강자가 적은 구간이라, 운영력으로 선점할 여지가 큰 동네입니다.';
             }
             break;
           }
@@ -5523,33 +5553,40 @@ export default function UnifiedLayout({
             }
             break;
           }
-          case 12: { // 상권 경쟁 분석
-            // [2026-06-15] competLevel(dataMapper): 카페수 >80 "매우 과밀" / >40 "과밀" / >15 "보통" / else "양호".
-            //   ★4단계 톤 분리: 매우과밀·과밀 → 버티기 가능·초기 진입 설계 승부 / 보통 → 경쟁 적당·차별화 하나면 자리 /
-            //     양호(여유·낮음·한산) → 경쟁 느슨·선점 여지 큼. "들어오고 나가는 가게가 잦다"(높은 교체율) 오해 제거.
-            const level = String(_bd.level || '').trim();
-            const stable = _num(String(_bd.stableStoreRate || '').replace(/[^0-9.]/g, ''));
-            // 카페 밀도(개/km²) 보조 신호 — level이 비었을 때만 사용
-            const densityNum = _num(String(_bd.cafePerKm2 || '').replace(/[^0-9.]/g, ''));
-            const isCrowded = /매우\s*과밀|과밀|치열|포화/.test(level);
-            const isLow = /양호|낮|여유|한산|느슨/.test(level) || (!level && densityNum > 0 && densityNum <= 30);
-            const isMid = /보통|적정|중간/.test(level);
-            const isStable = stable >= 40;
-            // 종합점수(레이더 5축 합 또는 카드 종합점수) — 자기 카드 값
-            const score12 = Math.round(_num(_bd.totalScore) || _num(hfBody.totalScore));
-            const scoreTxt = score12 > 0 ? `, 종합 ${score12}점` : '';
-            const stableTxt = stable > 0 ? `, 안정 점포율 ${stable}%` : '';
-            const densityTxt = (!level && densityNum > 0) ? `, 밀도 ${densityNum}곳/km²` : '';
-            if (isCrowded) {
-              _sum = `경쟁 '${level}'${scoreTxt}${stableTxt}. 버틸 수는 있으나 무난하면 묻히는 밀도.`;
-            } else if (isLow) {
-              _sum = `경쟁 '${level || '여유'}'${scoreTxt}${stableTxt}${densityTxt}. 느슨한 밀도로 선점 여지가 큰 등급.`;
-            } else if (isMid || isStable) {
-              _sum = `경쟁 '${level || '보통'}'${scoreTxt}${stableTxt}. 과하지도 느슨하지도 않은, 차별점 하나로 갈리는 등급.`;
-            } else if (level) {
-              _sum = `경쟁 '${level}'${scoreTxt}${stableTxt}. 과밀까지는 아닌 중간 등급.`;
+          case 12: { // 상권 경쟁 분석 = 카드13 "투자 대비 수익률 종합"
+            // [2026-06-25 모순2] 부제(파란 박스)를 ROI 종합 관점 한 줄로 교체.
+            //   ★옛 버그: dataMapper competLevel(카페 >80 "매우 과밀")을 그대로 써서, 카드13 경쟁여건 축
+            //     (cafeCount >200 과밀/>80 보통/else 여유)과 등급어가 충돌(예: 139개 → 부제 '매우 과밀' vs 축 '보통').
+            //   → ① 밀집도 등급어는 '경쟁여건 축과 동일한 임계'(>200 과밀/>80 보통/else 여유)로만.
+            //      ② 경쟁 프레이밍("버틸 수는 있으나 무난하면 묻히는 밀도") 제거 → ROI(수익률·회수) 관점.
+            //      ③ ROI 부호(흑자/적자)는 수익성·투자회수 축과 같은 단일 월영업이익(roiMonthlyProfit)을 따른다.
+            const cafeCnt = _num(hfBody.cafeCount) || _num(_bd.cafeCount) || _num(_bd.totalCafes);
+            // 종합점수(레이더 5축 합) — 자기 카드 값
+            const score12 = Math.round(_num(hfBody.totalScore) || _num(_bd.score) || _num(_bd.totalScore));
+            const scoreTxt = score12 > 0 ? `투자 대비 수익률 종합 ${score12}점` : '투자 대비 수익률 종합';
+            // 밀집도 등급어 — 카드13 경쟁여건 축과 100% 동일 임계.
+            const densW = cafeCnt > 0 ? (cafeCnt > 200 ? '과밀' : cafeCnt > 80 ? '보통' : '여유') : '';
+            const densPhrase = densW === '과밀' ? ` 카페 밀집도는 '과밀'이라 콘셉트로 비집고 들어가야 하는 자리.`
+              : densW === '보통' ? ` 카페 밀집도는 '보통'이라 차별화 여지가 있는 자리.`
+              : densW === '여유' ? ` 카페 밀집도는 '여유'라 진입 부담이 낮은 자리.`
+              : '';
+            // ROI 부호 — 수익성/투자회수 축과 같은 단일 월영업이익. 적자=흑자전환 우선(긍정 처방), 흑자=회수 관점.
+            const roiProfit = (_bd.roiMonthlyProfit != null) ? _num(_bd.roiMonthlyProfit) : null;
+            const roiMonths = _num(_bd.roiPaybackMonths);
+            let roiPhrase;
+            if (roiProfit != null && roiProfit <= 0) {
+              roiPhrase = ` 지금 비용 구조에선 흑자 전환이 먼저지만, 객단가·회전율을 끌어올리면 회수가 시작되는 구조.`;
+            } else if (roiProfit != null && roiProfit > 0 && roiMonths > 0) {
+              roiPhrase = ` 투자금은 약 ${roiMonths}개월에 회수되는 구조.`;
             } else {
-              _sum = '경쟁 표본이 얕아 등급을 단정하기 이른 구간.';
+              roiPhrase = ` 초기 투자 규모를 예산에 맞추면 회수가 빨라지는 구조.`;
+            }
+            if (score12 > 0) {
+              _sum = `${scoreTxt}.${roiPhrase}${densPhrase}`;
+            } else if (densW) {
+              _sum = `${scoreTxt}.${densPhrase}`;
+            } else {
+              _sum = '투자 대비 수익률 표본이 얕아 종합 판단은 이른 구간.';
             }
             break;
           }
@@ -5561,14 +5598,16 @@ export default function UnifiedLayout({
             const orTxt = (opp > 0 || risk > 0)
               ? `, 기회 ${_n(opp)}건·리스크 ${_n(risk)}건`
               : '';
+            // [2026-06-25 ROI 톤] 투자 대비 수익률 한줄평 — 균형 처방. 점수 무변경, 표현만.
+            //   낮은 점수도 원인(비용·경쟁)을 정직하게 짚되 만회 레버(빈틈·객단가·자금 설계)로 연결.
             if (score >= 70) {
-              _sum = `종합 ${score}점${orTxt}. 수요·매출이 점수를 끌어올린 상위권 — 결정 변수는 콘셉트 차별화.`;
+              _sum = `종합 ${score}점${orTxt}. 수요·매출이 받쳐주는 수익률 유리한 자리 — 콘셉트 차별화만 더하면 됩니다.`;
             } else if (score > 0 && score < 50) {
-              _sum = `종합 ${score}점${orTxt}. 경쟁·비용이 점수를 끌어내린 하위권 — 결정 변수는 빈틈 공략과 초기 자금.`;
+              _sum = `종합 ${score}점${orTxt}. 초기 비용·경쟁이 수익률 점수를 누르지만, 빈틈 공략과 자금 설계로 만회할 수 있는 구조.`;
             } else if (score > 0) {
-              _sum = `종합 ${score}점${orTxt}. 수요·매출은 받쳐주나 경쟁·비용이 점수를 깎는 전형 — 결정 변수는 콘셉트와 자금 설계.`;
+              _sum = `종합 ${score}점${orTxt}. 수요·매출은 받쳐주는 만큼, 비용 관리와 콘셉트로 객단가를 끌어올리면 수익률은 따라옵니다.`;
             } else {
-              _sum = '종합 점수 표본이 얕아 등급을 단정하기 이른 구간 — 강점 축을 콘셉트로 좁히는 게 결정 변수.';
+              _sum = '종합 점수 표본이 얕아 단정은 이르지만, 강점 축을 콘셉트로 좁히면 비집고 들어갈 여지는 분명합니다.';
             }
             break;
           }
@@ -5636,11 +5675,25 @@ export default function UnifiedLayout({
     const sChange = num(c12.scoreChange);
     const sSurvival = num(c12.scoreSurvival);
     const sCost = num(c12.scoreCost);
-    const survivalRatio = sSurvival > 0 ? sSurvival / 30 : 0;   // 생존 기반 만점 30
+    const survivalRatio = sSurvival > 0 ? sSurvival / 15 : 0;   // [2026-06-25 ROI] 생존 안정 만점 15
     const survival3y = num(c2.survivalRate3y);
 
     // ── 핵심 입력값 ──
-    const monthly = num(c5.monthly);                 // 동네 카페 월평균 매출 (만원)
+    // [2026-06-24] AI종합 한장요약(예상 월매출·동네 월매출)도 매출카드 헤드라인과 같은
+    //   단일 진실값(monthlyAvgSales=비즈맵 분위 평균). 없으면 안정 동평균→단일월 자연 폴백.
+    const monthly = num(c5.monthlyAvgSales) || num(c5.dongCafeAvgStable) || num(c5.monthly);  // 동네 카페 월평균 매출 (만원)
+    // [2026-06-26 근본감리 displayVsCompute] 회수기간·손익분기·총창업비를 화면(매출분석)·점수(상권경쟁 5축)와
+    //   '같은 단일 진실값(roi*)'으로 통일한다. cards[12](상권경쟁/5축)이 dataMapper에서 산출한 실측 ROI:
+    //     roiMonthlySales(실 월매출, 만원) · roiOpProfitPct(실 영업이익률 %, 음수가능) ·
+    //     roiMonthlyProfit(실 월영업이익, 만원, ≤0 가능) · roiPaybackMonths(실 회수개월, 0=적자/미산출) ·
+    //     roiTotalStartup(인테리어+권리금, 만원).
+    //   → 배너 회수기간은 더 이상 BEP×1.4 가정매출이 아니라 '화면 월매출 × 실측 이익률'로 나온 값을 쓴다.
+    const roiMonthlySales = num(c12.roiMonthlySales);          // 실 월매출(만원, 5축이 쓴 통일값)
+    const roiOpProfitPct  = (c12.roiOpProfitPct != null && isFinite(Number(c12.roiOpProfitPct))) ? Number(c12.roiOpProfitPct) : null; // 실 영업이익률 %(음수 가능)
+    const roiMonthlyProfit = (c12.roiMonthlyProfit != null && isFinite(Number(c12.roiMonthlyProfit))) ? Number(c12.roiMonthlyProfit) : null; // 실 월영업이익(만원)
+    const roiPaybackMonths = num(c12.roiPaybackMonths);        // 실 회수개월(0=적자/미산출)
+    const roiTotalStartup  = num(c12.roiTotalStartup);         // 실 총창업비(만원)
+    const hasRoi = roiOpProfitPct != null;                     // 5축 ROI 산출 성공 여부
     // [2026-06-15] 객단가(원): 임대/창업 카드 시뮬레이터와 BEP 잔수를 일치시키기 위해
     //   시뮬레이터가 쓰는 것과 '동일 출처·동일 우선순위'(전국 카페 평균 → 폴백 4,500원)로 통일한다.
     //   (이전엔 매출분석 비즈맵 객단가(9,853원)를 써서 시뮬레이터(5,856원)와 BEP 잔수가 달라 보였음.)
@@ -5648,9 +5701,10 @@ export default function UnifiedLayout({
       const p = (num(kc.unitPriceAvg) > 0 && num(kc.unitPriceAvg) < 100000) ? Math.round(num(kc.unitPriceAvg)) : 4500;
       return p;
     })();
-    // [2026-06-15] 이익률(%): 시뮬레이터와 동일 — 전국 카페 평균 이익률(없으면 카페 표준 28%).
-    //   (kc.profitMargin은 i===7 hfBody 빌드에서 비즈맵 영업이익률을 이미 흡수함.)
+    // [2026-06-26] 이익률(%): 회수기간이 화면 월매출과 같은 기준이 되도록 5축 ROI의 실측 영업이익률을
+    //   1순위로 쓴다(roiOpProfitPct, 음수 가능). 없을 때만 기존 비즈맵 흡수값(kc.profitMargin)→표준 28% 폴백.
     const profitPct = (() => {
+      if (roiOpProfitPct != null) return roiOpProfitPct;
       const p = num(kc.profitMargin);
       return (p > 0 && p < 80) ? p : 28;
     })();
@@ -5662,6 +5716,9 @@ export default function UnifiedLayout({
     //   보증금은 퇴거 시 돌려받는 환급성 비용이라 소멸성 창업비에 넣지 않는다(별도 타일로만 표시).
     //   → AI totalStartupCostManwon·보증금 모두 제외. (cards-b 의 total = interior + premiumManwon 과 동일.)
     const totalStartup = (() => {
+      // [2026-06-26] 5축 ROI가 산출한 총창업비(roiTotalStartup)가 있으면 그 단일값을 그대로 쓴다
+      //   → 회수기간(roiPaybackMonths)이 나눈 분자와 배너 '총 창업비' 타일이 같은 숫자가 된다.
+      if (roiTotalStartup > 0) return roiTotalStartup;
       // 인테리어(만원, 15평) = 평당 인테리어 단가 × 15
       const interiorPerPy = num(kc.interiorPerPyeong);
       const interior15 = interiorPerPy > 0 ? Math.round(interiorPerPy * 15) : 0;
@@ -5679,13 +5736,17 @@ export default function UnifiedLayout({
     const bepSales = (fixedMonthly > 0 && profitPct > 0) ? Math.round(fixedMonthly / (profitPct / 100)) : 0;
     // ── BEP 하루 잔수: BEP매출(원) / 객단가(원) / 30일 ── (객단가·이익률을 시뮬레이터와 통일 → 잔수 일치)
     const bepCups = (bepSales > 0 && unitPrice > 0) ? Math.ceil((bepSales * 10000) / unitPrice / 30) : 0;
-    // [2026-06-15] 회수기간(개월): 임대/창업 카드 시뮬레이터(cards-b Card08)와 '완전히 동일한 식'으로 통일.
-    //   simulator: assumedMonthlySales = bepSales × 1.4(BEP의 1.4배 매출 가정) → monthlyProfit = ×이익률
-    //              paybackMonths = total / monthlyProfit
-    //   (동네 카페 평균 월매출(monthly)을 그대로 쓰면 대형 프랜차이즈가 섞여 비현실적으로 짧게 나옴 → 시뮬레이터 가정 채택.)
-    const assumedMonthlySales = bepSales > 0 ? Math.round(bepSales * 1.4) : 0;
-    const monthlyProfit = (assumedMonthlySales > 0 && profitPct > 0) ? assumedMonthlySales * (profitPct / 100) : 0;
-    const paybackMonths = (totalStartup > 0 && monthlyProfit > 0) ? Math.round(totalStartup / monthlyProfit) : 0;
+    // [2026-06-26 근본감리] 회수기간(개월): 화면이 보여주는 '실제 동네 월매출 × 실측 영업이익률'로 계산한다.
+    //   (이전엔 손익분기 BEP×1.4 가정매출로 계산해 화면 월매출과 회수기간의 매출 기준이 달랐다.)
+    //   1순위: 5축 ROI가 이미 같은 식(roiTotalStartup ÷ 실 월영업이익)으로 낸 roiPaybackMonths를 그대로 사용
+    //          → 화면 월매출·점수·배너 회수기간이 한 매출/이익률 기준으로 일치. 적자(월이익≤0)면 0(=회수 표기 안 함).
+    //   폴백(5축 ROI 미산출 지역만): 화면 월매출(monthly) × 이익률(profitPct)로 직접 계산.
+    const monthlyProfit = hasRoi
+      ? (roiMonthlyProfit != null ? roiMonthlyProfit : 0)
+      : ((monthly > 0 && profitPct > 0) ? Math.round(monthly * (profitPct / 100)) : 0);
+    const paybackMonths = hasRoi
+      ? roiPaybackMonths                                   // 0이면 적자/미산출 → 배너가 회수개월 표기 안 함
+      : ((totalStartup > 0 && monthlyProfit > 0) ? Math.round(totalStartup / monthlyProfit) : 0);
 
     // ── 권고 한 줄(결론) — 5축/생존율 기반 결정적 룰 ──
     //   생존 기반이 임계(40% = 점수 12/30) 미만이면 점수 무관 "차별화 필수".
@@ -5704,8 +5765,10 @@ export default function UnifiedLayout({
       verdict = '차별화 필수';
       verdictTone = 'warn';
     } else {
-      verdict = '조건부 진입 추천';
-      verdictTone = 'good';
+      // [2026-06-26 근본감리 emptyOrFabricated] 점수 데이터가 0/없음인데 "진입 추천" 같은 결론을 내던 폴백 제거.
+      //   거짓 결론 금지 — 데이터가 없으면 보류로 정직하게 표시한다.
+      verdict = '데이터 부족 · 분석 보류';
+      verdictTone = 'mid';
     }
     // 근거 2~3개 (실제 데이터로)
     const reasons = [];
@@ -5720,40 +5783,68 @@ export default function UnifiedLayout({
     if (reasons.length < 2 && total > 0) reasons.push(`종합 ${total}점`);
 
     // 긍정·창업유도 톤의 결론 문장
+    // [2026-06-25 ROI 톤] 균형 처방. 점수·계산 무변경, 표현만.
+    //   '입지 재검토'(40~60·강남류 낮은 수익률 점수)는 비용이 점수를 누른다는 원인을 정직하게 짚되
+    //   동네 월매출(실데이터)·운영 레버로 만회 경로를 함께 제시 → 절망적으로 안 읽히게.
     const verdictLine = (() => {
+      if (verdict === '데이터 부족 · 분석 보류') {
+        return '이 지역은 분석에 필요한 데이터가 충분히 모이지 않았어요. 결론을 내기보다, 추가 자료가 확보되면 다시 분석하는 것이 정확합니다.';
+      }
       if (verdict === '조건부 진입 추천') {
         return '여건이 받쳐주는 동네예요. 콘셉트만 분명하면 충분히 승산 있는 진입입니다.';
       }
       if (verdict === '입지 재검토 후 진입') {
-        return '잠재력 있는 동네예요. 입지·규모를 한 번 더 다듬으면 안정적으로 시작할 수 있습니다.';
+        const _mkt = monthly > 0 ? `동네 월매출 ${fmtMan(monthly)}이 받쳐주는 자리라, ` : '시장이 받쳐주는 자리라, ';
+        return `초기 투자·임대 부담이 수익률 점수를 누르지만, ${_mkt}객단가와 회전율을 끌어올리면 충분히 만회되는 구조예요.`;
       }
-      return '경쟁이 만만치 않은 동네지만, 한 끗 다른 콘셉트면 비집고 들어갈 자리가 분명히 있습니다.';
+      return '초기 비용이 큰 자리라 수익률 점수는 낮게 나오지만, 한 끗 다른 콘셉트로 객단가를 끌어올리면 비집고 들어갈 여지가 분명히 있어요.';
     })();
 
     // 핵심 리스크 한 줄 (가장 약한 축 또는 비용/생존)
     const riskLine = (() => {
+      // [2026-06-25 ROI] 새 5축 = 수익성30·투자회수25·경쟁여건20·생존안정15·성장성10
       const axes = [
-        ['시장 매력도', sMarket, 20],
-        ['경쟁 환경', sCompete, 20],
-        ['시장 변화', sChange, 15],
-        ['생존 기반', sSurvival, 30],
-        ['비용 부담', sCost, 15],
+        ['수익성', sMarket, 30],
+        ['투자 회수', sCompete, 25],
+        ['경쟁 여건', sChange, 20],
+        ['생존 안정', sSurvival, 15],
+        ['성장성', sCost, 10],
       ].filter(a => a[2] > 0 && a[1] >= 0);
       const scored = axes.filter(a => a[1] > 0);
       if (scored.length > 0) {
         const weakest = scored.reduce((m, a) => (a[1] / a[2] < m[1] / m[2] ? a : m));
         const tip = {
-          '시장 매력도': '시그니처 한 잔으로 객단가를 끌어올리면 만회됩니다',
-          '경쟁 환경': '명확한 콘셉트로 차별화하면 충분히 자리 잡습니다',
-          '시장 변화': '트렌드에 맞춘 메뉴로 흐름을 타면 됩니다',
-          '생존 기반': '탄탄한 단골 전략으로 버티는 힘을 키우면 됩니다',
-          '비용 부담': '규모를 예산에 맞춰 정하면 부담을 줄일 수 있습니다',
+          '수익성': '시그니처 한 잔으로 객단가를 끌어올리면 남는 폭이 커집니다',
+          '투자 회수': '초기 투자(인테리어·권리금)를 예산에 맞추면 회수가 빨라집니다',
+          '경쟁 여건': '명확한 콘셉트로 차별화하면 손님을 끌어올 수 있습니다',
+          '생존 안정': '탄탄한 단골 전략으로 버티는 힘을 키우면 됩니다',
+          '성장성': '트렌드에 맞춘 메뉴로 시장 흐름을 타면 됩니다',
         }[weakest[0]] || '콘셉트로 보완할 수 있습니다';
         return `${weakest[0]} 부분이 상대적 약점 — ${tip}`;
       }
       if (rentMonthly > 0) return `고정비 관리가 관건 — 규모를 예산에 맞추면 됩니다`;
       return '뚜렷한 콘셉트로 차별화하면 충분히 승산 있습니다';
     })();
+
+    // [2026-06-26 근본감리 추정배지] dataMapper가 카드별 bodyData._estimated(추정으로 채운 키 이름 배열)를
+    //   내보내면, 배너에 노출되는 같은 개념이 추정값일 때 옆에 "(추정)"을 붙인다(실측과 구분, 거짓 실측 금지).
+    //   계약: bodyData._estimated 가 배열이고 그 안에 해당 키가 있으면 추정. 아직 없으면(현행) 아무 배지도 안 붙어 무해.
+    const _estOf = (bd) => (bd && Array.isArray(bd._estimated)) ? bd._estimated : [];
+    const _hasEst = (bd, ...keys) => {
+      const arr = _estOf(bd);
+      if (arr.length === 0) return false;
+      return keys.some((k) => arr.includes(k));
+    };
+    //   예상 월매출: 매출분석(c5)·5축 매출(c12 roiMonthlySales) 중 하나라도 추정으로 표기됐으면 추정.
+    const monthlyEstimated = _hasEst(c5, 'monthlyAvgSales', 'dongCafeAvgStable', 'monthly') || _hasEst(c12, 'roiMonthlySales');
+    //   손익분기·회수기간: 이익률(c12 영업이익률) 또는 임대(c0/c8hf)가 추정이면 그 파생값도 추정.
+    const _profitEst = _hasEst(c12, 'roiOpProfitPct', 'roiMonthlyProfit') || _hasEst(c7, 'profitMargin');
+    const _rentEst = _hasEst(c0, 'rentPerPyeong') || _hasEst(c8hf.bodyData, 'rentPerPyeongManwon');
+    const bepEstimated = _profitEst || _rentEst;
+    const paybackEstimated = bepEstimated || monthlyEstimated || _hasEst(c12, 'roiPaybackMonths');
+    //   총창업비: 5축 ROI 총창업비 또는 인테리어/권리금이 추정이면 추정.
+    const totalStartupEstimated = _hasEst(c12, 'roiTotalStartup') || _hasEst(c7, 'totalStartupCost', 'premiumCost');
+    const _estTag = (txt, on) => (on && txt) ? `${txt} (추정)` : txt;
 
     return {
       address: bcSearchAddress,
@@ -5764,13 +5855,17 @@ export default function UnifiedLayout({
       reasons: reasons.slice(0, 3),
       stats: {
         monthly,                  // 만원
-        monthlyText: monthly > 0 ? fmtMan(monthly) : '',
+        monthlyText: _estTag(monthly > 0 ? fmtMan(monthly) : '', monthlyEstimated),
+        monthlyEstimated,
         bepSales,                 // 만원
-        bepSalesText: bepSales > 0 ? fmtMan(bepSales) : '',
+        bepSalesText: _estTag(bepSales > 0 ? fmtMan(bepSales) : '', bepEstimated),
+        bepEstimated,
         bepCups,                  // 하루 잔수
         paybackMonths,            // 개월
+        paybackEstimated,
         totalStartup,             // 만원
-        totalStartupText: totalStartup > 0 ? fmtMan(totalStartup) : '',
+        totalStartupText: _estTag(totalStartup > 0 ? fmtMan(totalStartup) : '', totalStartupEstimated),
+        totalStartupEstimated,
         fixedMonthly,             // 만원
         fixedMonthlyText: fixedMonthly > 0 ? fmtMan(fixedMonthly) : '',
         unitPrice,                // 원
@@ -5801,6 +5896,11 @@ export default function UnifiedLayout({
     if (out[5]) out[5] = { ...out[5], n: '06' };
     return out;
   }, [bcCardsBodies]);
+
+  // [2026-06-25] 통합 AI 진단 결과 상태 (배너 한 줄·AI종합 진단·14카드 한 줄).
+  //   null = 아직 없음/폴백 → 호출부가 기존 결정적 텍스트(bruSummary·verdictLine)를 그대로 쓴다.
+  const [aiDiag, setAiDiag] = useState(null);
+  const aiDiagKeyRef = useRef(null);  // 같은 지역 중복 호출 방지
 
   // [2026-06-15] AI 디렉터 대화 음성: 검색 지역당 1회 제미나이 생성 → 캐시 → 리포트 주입
   //   ttsTick: 생성 시작(pending)/완료(ready)/실패(failed) 시 재푸시 트리거
@@ -5856,6 +5956,8 @@ export default function UnifiedLayout({
 
   // iframe → 시안 데이터 푸시
   const handoffIframeRef = useRef(null);
+  // [릴스 공개 우편함] 같은 행정동에 숫자를 중복 기록하지 않도록 마지막으로 쓴 dongCd 보관
+  const reelsLastDongRef = useRef(null);
   // [2026-05-28] iframe 마운트 지연:
   //   결과 화면 진입 시 카드 모션(opacity+x 슬라이드) 500ms와 iframe src 로딩이
   //   동시에 시작되면 메인 스레드가 막혀 frame drop이 발생한다.
@@ -5936,18 +6038,271 @@ export default function UnifiedLayout({
     return `${now.getFullYear()}년 ${now.getMonth() + 1}월`;
   }, [collectedData, kosisBoxData]);
 
+  // [2026-06-25] 통합 AI 진단 1회 호출(지역당). 캐시 우선 → 없으면 제미나이 temp 0.
+  //   실패/빈응답이면 setAiDiag(null) 유지 → 화면은 기존 결정적 텍스트로 폴백(절대 안 깨짐).
+  //   ★bcDataAsOf 선언 뒤에 둬야 TDZ 안 남(이 효과가 bcDataAsOf 를 의존).
+  useEffect(() => {
+    if (!resultsReady) return;
+    if (!Array.isArray(cards) || cards.length === 0) return;
+    const _dongCd = collectedData?.dongInfo?.dongCd;
+    const _key = `${_dongCd || ''}|${bcSearchAddress || ''}|${radius}`;
+    if (aiDiagKeyRef.current === _key) return;   // 같은 지역 = 재호출 없음(결정적)
+    aiDiagKeyRef.current = _key;
+    let cancelled = false;
+    (async () => {
+      const res = await getUnifiedDiagnosis({
+        cards,
+        kosisBoxData,
+        collectedData,
+        dataAsOf: bcDataAsOf,
+        address: bcSearchAddress,
+        radius,
+      });
+      if (cancelled) return;
+      if (res && (res.bannerLine || res.diagnosis || (Array.isArray(res.cardLines) && res.cardLines.some(Boolean)))) {
+        setAiDiag(res);
+        try { console.log('[AI진단] 적용:', res._source, '— 배너/진단/카드' + (res.cardLines ? res.cardLines.filter(Boolean).length : 0) + '줄'); } catch (e) {}
+      } else {
+        setAiDiag(null);  // 폴백
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [resultsReady, cards, kosisBoxData, collectedData, bcSearchAddress, radius, bcDataAsOf]);
+
   useEffect(() => {
     if (!resultsReady) return;
     const win = handoffIframeRef.current?.contentWindow;
     if (!win) return;
     try {
       const _rk = `${bcSearchAddress || ''}|${radius}`;
-      win.__BC_DATA__ = { cards: injectTtsIntoCards(bcCardsBodiesSwapped, _rk), address: bcSearchAddress, radius, summary: bcOneLineSummary, dataAsOf: bcDataAsOf };
+      let _cardsForReport = injectTtsIntoCards(bcCardsBodiesSwapped, _rk);
+
+      // [2026-06-25] 통합 AI 진단 배선 — 있을 때만 덮고, 없으면(폴백) 기존 결정적 텍스트 그대로.
+      //   ★스왑 주의: bcCardsBodiesSwapped 는 화면자리(idx4↔5 스왑)지만 aiDiag.cardLines 는
+      //     데이터 인덱스(0..13, 4=개인 5=매출) 기준. 화면자리→데이터인덱스로 되돌려 매핑.
+      let _summaryForReport = bcOneLineSummary;
+      if (aiDiag && (aiDiag.bannerLine || aiDiag.diagnosis || (Array.isArray(aiDiag.cardLines) && aiDiag.cardLines.some(Boolean)))) {
+        // 14카드 한 줄: AI 줄이 있으면 그 카드 bruSummary 만 덮어쓴다(나머지 body 불변).
+        const _lines = Array.isArray(aiDiag.cardLines) ? aiDiag.cardLines : [];
+        _cardsForReport = _cardsForReport.map((el, screenIdx) => {
+          // 화면자리 → 데이터 인덱스 (4↔5만 스왑)
+          const dataIdx = screenIdx === 4 ? 5 : (screenIdx === 5 ? 4 : screenIdx);
+          const line = (typeof _lines[dataIdx] === 'string' && _lines[dataIdx].trim()) ? _lines[dataIdx].trim() : '';
+          if (!line || !el || !el.body) return el;
+          return { ...el, body: { ...el.body, bruSummary: line } };
+        });
+        // 배너 한 줄 + AI종합 진단 단락: summary 에 얹는다(폴백 필드는 그대로 보존).
+        _summaryForReport = { ...(bcOneLineSummary || {}) };
+        if (aiDiag.bannerLine) _summaryForReport.bannerLine = aiDiag.bannerLine;
+        if (aiDiag.diagnosis) _summaryForReport.diagnosis = aiDiag.diagnosis;
+      }
+
+      win.__BC_DATA__ = { cards: _cardsForReport, address: bcSearchAddress, radius, summary: _summaryForReport, dataAsOf: bcDataAsOf };
       if (typeof win.__bcRender === 'function') win.__bcRender();
     } catch (e) {
       // iframe cross-origin/not ready
     }
-  }, [bcCardsBodiesSwapped, resultsReady, bcSearchAddress, radius, bcOneLineSummary, bcDataAsOf, ttsTick]);
+  }, [bcCardsBodiesSwapped, resultsReady, bcSearchAddress, radius, bcOneLineSummary, bcDataAsOf, ttsTick, aiDiag]);
+
+  // [릴스 공개 우편함] 새 분석 카드가 준비되면 RTDB reels/{dongCd} 에 숫자를 1회 미러링.
+  //   - 로그인 없이 맥 릴스 제작앱이 지역(행정동)명으로 14카드 숫자를 가져갈 수 있게 한다.
+  //   - 기존 검색/캡처/리포트 로직과 무관(추가 쓰기만). 전체 try/catch — Storage/규칙 미설정에도 앱은 정상.
+  //   ────────────────────────────────────────────────────────────
+  //   [2026-06-23] 합의된 데이터 계약(맥 릴스앱 리더가 이미 이 모양으로 읽음)에 정확히 맞춤.
+  //     reels/<dongCd>.cards = { "1":{title,values}, ... "14":{title,values} }  (화면/사이드바 순서 = badge 1~14)
+  //       title  = 그 카드의 실제 제목 문자열
+  //       values = 한글 라벨 → 그 카드 화면에 실제로 표시되는 숫자(단위 포함 문자열 허용)
+  //     images 키도 "1"~"14"(메시지 핸들러에서 정규화) → cards 키와 동일 번호체계.
+  //   ★데이터 매핑 규칙(허위 생성 금지): bcCardsBodiesSwapped[idx].body / .body.bodyData / .body.chartData 에서
+  //     "화면 카드가 실제로 읽는 그 필드"만 사용. 값이 없으면 그 라벨은 통째로 생략(지어내지 않음).
+  //   ★bcCardsBodiesSwapped 는 컴포넌트 n(01..14)-1 인덱스 배열(엘리먼트 = {n, body}), 단 인덱스 4↔5 스왑됨
+  //     (cards-a 가 window.Card05=매출함수·window.Card06=개인함수로 스왑하기 때문):
+  //       idx4 = 매출분석 body, idx5 = 개인카페 body.
+  //   ★화면 순서(badge) → 배열 인덱스 맵(IDX_BY_SCREEN)·컴포넌트 n 맵(N_BY_SCREEN)은 shared.jsx CARDS 와 일치.
+  useEffect(() => {
+    const dongCd = collectedData?.dongInfo?.dongCd;
+    if (!dongCd) return;
+    if (!Array.isArray(bcCardsBodiesSwapped) || bcCardsBodiesSwapped.length === 0) return;
+    if (reelsLastDongRef.current === dongCd) return;  // 같은 행정동이면 중복 쓰기 skip
+    try {
+      // ── 값 추출 헬퍼: 숫자/문자 그대로 통과, 무의미값(null/0/'-'/NaN)은 라벨 생략용으로 걸러냄 ──
+      const _num = (v) => { const n = Number(v); return (typeof n === 'number' && isFinite(n)) ? n : null; };
+      const _str = (v) => {
+        if (v === undefined || v === null) return null;
+        const s = String(v).trim();
+        if (!s || s === '-' || s === '–') return null;
+        return s;
+      };
+      // values 객체에 라벨→값 추가(값이 null/빈값이면 생략 — 화면에 '-'로 뜨는 항목은 미러에서도 안 넣음)
+      const put = (obj, label, val) => { if (val !== undefined && val !== null && val !== '') obj[label] = val; };
+      // 화면 표기 보조 포맷(억/만원) — 화면 StatTile 과 동일 규칙
+      const fmtMan = (man) => {
+        const v = _num(man); if (v == null || v <= 0) return null;
+        return v >= 10000 ? `${(v / 10000).toFixed(1)}억` : `${Math.round(v).toLocaleString('ko-KR')}만원`;
+      };
+
+      // 화면 순서(badge 1..14) → bcCardsBodiesSwapped 배열 인덱스 (shared.jsx CARDS 기준, 4↔5 스왑 반영)
+      const IDX_BY_SCREEN = { 1:0, 2:2, 3:6, 4:7, 5:1, 6:10, 7:11, 8:3, 9:5, 10:12, 11:4, 12:8, 13:9, 14:13 };
+
+      const cards = {};
+      for (let screen = 1; screen <= 14; screen++) {
+        const idx = IDX_BY_SCREEN[screen];
+        const entry = bcCardsBodiesSwapped[idx] || {};
+        const body = entry.body || {};
+        const bd = body.bodyData || {};
+        const cd = body.chartData || {};
+        const values = {};
+        let title = '';
+
+        if (screen === 1) {            // 상권 분석
+          title = '상권 분석 리포트';
+          const cafeCount = _num(body.cafeCount) || 0;
+          const bakery = _num(body.bakery) || 0;
+          const totalStores = cafeCount + bakery;       // 화면 "총 매장"
+          put(values, '총 매장', totalStores > 0 ? totalStores : null);
+          put(values, '프랜차이즈', _num(body.franchise));
+          put(values, '개인카페', _num(body.individual));
+          put(values, '평당월세', (_num(body.rentPerPyeong) > 0) ? `${_num(body.rentPerPyeong)}만원` : null);
+          { const vr = _num(body.vacancyRate); put(values, '공실률', (vr > 0) ? `${vr.toFixed(1)}%` : null); }
+        } else if (screen === 2) {     // 상권 변화 추이
+          title = '상권 변화 추이';
+          const openCnt = _num(bd.openCount) || 0;
+          const closeCnt = _num(bd.closeCount) || 0;
+          const netChg = _num(bd.netChange) != null ? _num(bd.netChange) : (openCnt - closeCnt);
+          const trend = _str(bd.trend) || (netChg > 2 ? '성장' : netChg < -2 ? '쇠퇴' : '정체');
+          put(values, '추세', trend);
+          put(values, '신규', openCnt > 0 || closeCnt > 0 ? openCnt : null);
+          put(values, '폐업', openCnt > 0 || closeCnt > 0 ? closeCnt : null);
+          { const s1 = _num(bd.survivalRate1y); put(values, '1년 생존율', s1 > 0 ? `${s1}%` : null); }
+          { const s3 = _num(bd.survivalRate3y); put(values, '3년 생존율', s3 > 0 ? `${s3}%` : null); }
+          { const s5 = _num(bd.survivalRate5y); put(values, '5년 생존율', s5 > 0 ? `${s5}%` : null); }
+        } else if (screen === 3) {     // 유동인구
+          title = '유동인구';
+          const monthlyPop = _num(bd.dongDailyPop) || _num(bd.totalPop);
+          put(values, '월간유동인구', monthlyPop > 0 ? monthlyPop.toLocaleString('ko-KR') : null);
+          put(values, '최다요일', _str(bd.popPeakDay) || _str(bd.bizmapPeakDay) || _str(bd.dayOfWeek && bd.dayOfWeek.peakDay));
+          put(values, '최다시간대', _str(bd.peakHour) || _str(bd.popPeakHour));
+          { const tp = _num(bd.totalPop); put(values, '일평균', tp > 0 ? tp.toLocaleString('ko-KR') : null); }
+        } else if (screen === 4) {     // 임대 / 창업 (컴포넌트 n=08)
+          title = '임대/창업 정보';
+          const _ir = (body.kosisBoxData && body.kosisBoxData.integratedRent) || null;
+          const irManwon = (_ir && _num(_ir.value))
+            ? ((typeof _ir.unit === 'string' && _ir.unit.indexOf('만원') >= 0) ? Math.round(_ir.value) : Math.round(_ir.value / 10000))
+            : 0;
+          const rentPy = _num(bd.rentPerPyeongManwon) || irManwon || _num(bd.rentPerPyeong) || 0;
+          put(values, '평당월세', rentPy > 0 ? `${rentPy}만원` : null);
+          // 화면 KPI = 평균 보증금(평당) = depositManwon / 15
+          { const dep = _num(bd.depositManwon) || _num(bd.deposit) || 0; const perPy = dep > 0 ? Math.round(dep / 15) : 0; put(values, '보증금', perPy > 0 ? `${perPy.toLocaleString('ko-KR')}만/평` : null); }
+          // 권리금(만원) — premium.value(원) 또는 premiumCost(만원)
+          const premiumValue = _num((cd.premium && cd.premium.value)) || _num(bd.premiumCost) || 0;
+          const premiumManwon = premiumValue > 0 ? ((cd.premium && cd.premium.value) ? premiumValue / 10000 : premiumValue) : 0;
+          put(values, '권리금', fmtMan(premiumManwon));
+          // 총 창업비(15평) = 인테리어(평당×15) + 권리금 — 화면 산식과 동일
+          const kc = cd.kosisCafe || null;
+          const interiorPerPy = (kc && _num(kc.interiorPerPyeong) > 0) ? _num(kc.interiorPerPyeong) : 0;
+          const interior = interiorPerPy > 0 ? 15 * interiorPerPy : 0;
+          const totalStartup = (interior + premiumManwon) > 0 ? (interior + premiumManwon) : 0;
+          put(values, '총창업비', fmtMan(totalStartup));
+        } else if (screen === 5) {     // 고객 분석 (컴포넌트 n=02)
+          title = '고객 분석';
+          put(values, '주요연령대', _str(body.topAge) || _str(bd.topAge));
+          { const m = _num(body.maleRatio) != null ? _num(body.maleRatio) : _num(bd.male);
+            const f = _num(body.femaleRatio) != null ? _num(body.femaleRatio) : _num(bd.female);
+            put(values, '성비', (m != null && f != null && (m + f) > 0) ? `${m} : ${f}` : null); }
+          { const r = _num(bd.regular); put(values, '재방문율', r > 0 ? `${r}%` : null); }
+          { const nc = _num(bd.newCustomer); put(values, '신규비율', nc > 0 ? `${nc}%` : null); }
+        } else if (screen === 6) {     // SNS 트렌드 (컴포넌트 n=11)
+          title = 'SNS 트렌드';
+          const pos = _num(bd.positiveRatio) || _num(cd.sentimentPos) || 0;
+          const neg = _num(bd.negativeRatio) != null && _num(bd.negativeRatio) > 0 ? _num(bd.negativeRatio) : (pos > 0 ? 100 - pos : 0);
+          put(values, '긍정비율', pos > 0 ? `${pos}%` : null);
+          put(values, '부정비율', neg > 0 ? `${neg}%` : null);
+          // 화면 "총 키워드" = keywords 를 12개로 자른 길이
+          const kwLen = Array.isArray(bd.keywords) ? Math.min(12, bd.keywords.length) : 0;
+          put(values, '키워드수', kwLen > 0 ? kwLen : null);
+        } else if (screen === 7) {     // 날씨 영향 (컴포넌트 n=12) — 화면값은 chartData.items
+          title = '날씨 영향 분석';
+          const itemVal = (label) => { const it = (Array.isArray(cd.items) ? cd.items : []).find(i => i && i.label === label); return _num(it && it.value); };
+          { const v = itemVal('맑음'); put(values, '맑음일수', v > 0 ? v : null); }
+          { const v = itemVal('흐림'); put(values, '흐림일수', v > 0 ? v : null); }
+          { const v = itemVal('비');   put(values, '비일수',   v > 0 ? v : null); }
+          { const v = itemVal('눈');   put(values, '눈일수',   v > 0 ? v : null); }
+        } else if (screen === 8) {     // 프랜차이즈 현황 (컴포넌트 n=04)
+          title = '프랜차이즈 현황';
+          put(values, '매장수', _num(bd.franchiseCount));
+          { const fr = _num(bd.franchiseShare); put(values, '점유율', fr > 0 ? `${Math.round(fr)}%` : null); }
+        } else if (screen === 9) {     // 개인 카페 (컴포넌트 n=06)
+          title = '개인 카페 분석';
+          const indie = _num(bd.independentCount) || 0;
+          const total = _num(bd.totalCafes) || 0;
+          put(values, '개인카페수', indie > 0 ? indie : null);
+          put(values, '비중', (total > 0 && indie > 0) ? `${Math.round(indie / total * 100)}%` : null);
+          { const am = _num(bd.americanoAvg); put(values, '아메리카노가', (am > 0) ? `${Math.round(am).toLocaleString('ko-KR')}원` : null); }
+        } else if (screen === 10) {    // 상권 경쟁 분석 (컴포넌트 n=13)
+          title = '상권 경쟁 분석';
+          const total = _num(body.totalScore) || 0;
+          const grade = total >= 80 ? '매우 좋음' : total >= 60 ? '좋음' : total >= 40 ? '보통' : total >= 20 ? '주의' : '낮음';
+          put(values, '종합점수', total > 0 ? total : null);
+          put(values, '등급', total > 0 ? grade : null);
+        } else if (screen === 11) {    // 매출 분석 (컴포넌트 n=05)
+          title = '매출 분석';
+          const monthly = _num(bd.monthly) || 0;
+          put(values, '월평균매출', monthly > 0 ? (monthly >= 10000 ? `${(monthly / 10000).toFixed(1)}억` : `${monthly.toLocaleString('ko-KR')}만원`) : null);
+          // 객단가 = 화면 unitPriceDisplay 우선순위(비즈맵 → 가중평균)
+          const unitPrice = (() => {
+            const bizStr = _str(bd.bizmapAvgUnitPrice); if (bizStr) return bizStr;
+            const pay = _num(bd.bizmapAvgPayment); if (pay > 0 && pay < 100000) return `${Math.round(pay).toLocaleString('ko-KR')}원`;
+            const exp = _num(bd.unitPrice) || _num(bd.avgUnitPrice) || 0; if (exp > 0 && exp < 100000) return `${Math.round(exp).toLocaleString('ko-KR')}원`;
+            const wavg = _num(bd.popularMenuWeightedAvg); if (wavg > 0) return `${wavg.toLocaleString('ko-KR')}원`;
+            return null;
+          })();
+          put(values, '객단가', unitPrice);
+          // 매출순위 = "5위 / 12개" 중 화면은 앞부분("5위")만 표시
+          { const rank = _str(bd.cafeSalesRank); put(values, '매출순위', rank ? String(rank).split(' /')[0] : null); }
+        } else if (screen === 12) {    // 카페 기회 (컴포넌트 n=09)
+          title = '카페 기회';
+          { const vac = _num(body.vacancy) || _num(body.kosisBoxData && body.kosisBoxData.vacancy && body.kosisBoxData.vacancy.value) || 0;
+            put(values, '공실률', vac > 0 ? `${vac.toFixed(1)}%` : null); }
+          { const no = _num(body.newOpen) != null ? _num(body.newOpen) : (_num(bd.recentOpen) || _num(bd.openCount) || 0);
+            put(values, '1년신규', no > 0 ? no : null); }
+          { const cl = _num(body.closed) != null ? _num(body.closed) : (_num(bd.recentClose) || _num(bd.closeCount) || 0);
+            put(values, '1년폐업', cl > 0 ? cl : null); }
+        } else if (screen === 13) {    // 배달 객단가 (컴포넌트 n=10)
+          title = '배달 객단가';
+          { const ap = _num(bd.searchAvgPrice); put(values, '배달객단가', ap > 0 ? `${ap.toLocaleString('ko-KR')}원` : null); }
+          { const ss = _num(bd.searchSales); put(values, '월배달매출', ss > 0 ? `${ss.toLocaleString('ko-KR')}만원` : null); }
+          { const so = _num(bd.searchOrders); put(values, '건수', so > 0 ? `${so.toLocaleString('ko-KR')}건` : null); }
+        } else if (screen === 14) {    // AI 종합 분석 (컴포넌트 n=14)
+          title = 'AI 종합 분석';
+          const total = _num(body.totalScore) || 0;
+          put(values, '종합점수', total > 0 ? total : null);
+          { const op = _num(body.opportunities); put(values, '기회', op > 0 ? op : null); }
+          { const rk = _num(body.risks); put(values, '리스크', rk > 0 ? rk : null); }
+          // 신뢰점수 = 화면 trustScore 산식(50 + 축/시그널/태그 보너스)
+          const axesArr = Array.isArray(body.axes) ? body.axes : [];
+          const signalsArr = Array.isArray(body.signals) ? body.signals : [];
+          const tagsArr = Array.isArray(body.tags) ? body.tags : [];
+          let trust = 50;
+          if (axesArr.length === 5 && axesArr.every(a => _num(a && a.score) > 0)) trust += 30;
+          if (signalsArr.length >= 5) trust += 10;
+          if (tagsArr.length >= 8) trust += 10;
+          put(values, '신뢰점수', Math.min(100, trust));
+        }
+
+        cards[String(screen)] = { title, values };
+      }
+
+      database.ref('reels/' + dongCd).set({
+        region: bcSearchAddress || '',
+        dongCd: dongCd,
+        updatedAt: Date.now(),
+        cards: cards
+      });
+      reelsLastDongRef.current = dongCd;  // 성공 시에만 기록 → 실패 시 다음 변화에서 재시도 가능
+    } catch (e) {
+      try { console.warn('[reels] number mirror skipped:', e && e.message); } catch (_) {}
+    }
+  }, [collectedData, bcCardsBodiesSwapped, bcSearchAddress]);
 
   // iframe 안에서 '다시 검색하기' 클릭 시 부모로 전달
   useEffect(() => {
@@ -5989,11 +6344,51 @@ export default function UnifiedLayout({
           if (typeof window.__bcToast === 'function') window.__bcToast(msg);
           else if (typeof window.alert === 'function') window.alert(msg);
         } catch (_) {}
+      } else if (ev.data && ev.data.type === 'bc:reelimg') {
+        // [릴스 공개 우편함] 캡처 시 iframe 이 카드별 JPEG(dataURL)을 보내옴.
+        //   → Storage reels/{dongCd}/card{id}.jpg 업로드 후 다운로드 URL 을 RTDB reels/{dongCd}/images/{id} 에 기록.
+        //   전체 try/catch, 실패는 console.warn 만 — 캡처/리포트 흐름은 절대 막지 않는다.
+        //   ★[2026-06-23] 키 정규화: iframe 의 id 는 data-card(=컴포넌트 n "01".."14")로 옴.
+        //     숫자 미러 cards 키는 화면순서("1".."14")라 둘이 안 맞음 → 컴포넌트 n → 화면순서로 변환해
+        //     images 키를 cards 키와 동일 번호체계("1".."14")로 맞춘다. (맥앱이 같은 키로 매칭)
+        try {
+          const dongCd = collectedData?.dongInfo?.dongCd;
+          if (!dongCd) return;
+          const rawId = ev.data.id;
+          if (rawId === undefined || rawId === null || rawId === '') return;
+          // 컴포넌트 n(01..14) → 화면순서(1..14). shared.jsx CARDS 와 일치(매출/개인 스왑 포함).
+          const SCREEN_BY_N = { '01':'1','02':'5','03':'2','04':'8','05':'11','06':'9','07':'3','08':'4','09':'12','10':'13','11':'6','12':'7','13':'10','14':'14' };
+          const nKey = String(rawId).padStart(2, '0');         // "1"/"01" 모두 "01" 로 정규화
+          const id = SCREEN_BY_N[nKey] || String(parseInt(rawId, 10) || rawId);  // 미지의 id 는 숫자만 남겨 폴백
+          const dataUrl = ev.data.dataUrl;
+          if (typeof dataUrl !== 'string' || dataUrl.indexOf('data:') !== 0) return;
+          // dataURL → Blob 변환
+          const parts = dataUrl.split(',');
+          const meta = parts[0] || '';
+          const mimeMatch = meta.match(/data:([^;]+)/);
+          const mime = (mimeMatch && mimeMatch[1]) || 'image/jpeg';
+          const binStr = atob(parts[1] || '');
+          const len = binStr.length;
+          const bytes = new Uint8Array(len);
+          for (let bi = 0; bi < len; bi++) bytes[bi] = binStr.charCodeAt(bi);
+          const blob = new Blob([bytes], { type: mime });
+          const ref = storage.ref('reels/' + dongCd + '/card' + id + '.jpg');
+          ref.put(blob)
+            .then(function () { return ref.getDownloadURL(); })
+            .then(function (url) {
+              try { database.ref('reels/' + dongCd + '/images/' + id).set(url); } catch (_) {}
+            })
+            .catch(function (err) {
+              try { console.warn('[reels] image upload skipped:', err && err.message); } catch (_) {}
+            });
+        } catch (e) {
+          try { console.warn('[reels] image handler skipped:', e && e.message); } catch (_) {}
+        }
       }
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [resultsReady, onSearch, radius]);
+  }, [resultsReady, onSearch, radius, collectedData]);
 
   // ── Card navigation state (toss-style one-card-per-viewport) ──
   const [activeCardIndex, setActiveCardIndex] = useState(0);
@@ -8519,14 +8914,14 @@ export default function UnifiedLayout({
                             hfBody.opportunities = card.bodyData?.opportunities || 0;
                             hfBody.risks = card.bodyData?.risks || 0;
                             hfBody.recommendation = card.bodyData?.recommendation || '';
-                            // 5축 점수 - Card13(상권경쟁)의 axes 점수에서 가져옴
+                            // [2026-06-25 ROI] 5축 = 수익성30·투자회수25·경쟁여건20·생존안정15·성장성10
                             const c13bd = cards[12]?.bodyData || {};
                             hfBody.axes = [
-                              { label: '시장 매력도', max: 20, score: Number(c13bd.scoreMarket) || 0 },
-                              { label: '경쟁 환경', max: 20, score: Number(c13bd.scoreCompete) || 0 },
-                              { label: '시장 변화', max: 15, score: Number(c13bd.scoreChange) || 0 },
-                              { label: '생존 기반', max: 30, score: Number(c13bd.scoreSurvival) || 0 },
-                              { label: '비용 부담', max: 15, score: Number(c13bd.scoreCost) || 0 },
+                              { label: '수익성', max: 30, score: Number(c13bd.scoreMarket) || 0 },
+                              { label: '투자 회수', max: 25, score: Number(c13bd.scoreCompete) || 0 },
+                              { label: '경쟁 여건', max: 20, score: Number(c13bd.scoreChange) || 0 },
+                              { label: '생존 안정', max: 15, score: Number(c13bd.scoreSurvival) || 0 },
+                              { label: '성장성', max: 10, score: Number(c13bd.scoreCost) || 0 },
                             ];
                             // 시그널 = collectedData.aiData에서, 폴백으로 c14의 Opps/Risks
                             const sig = card.chartData?.signals || [];
@@ -8570,12 +8965,17 @@ export default function UnifiedLayout({
                             // [2026-05-18] 정답지: 나머지 카드의 3년 생존율 = 카드 03 survivalRate3y와 동일해야 함
                             // 카드 13 자체값(bd.survival3yr)이 다르게 들어오는 경우 카드 03 값을 우선
                             hfBody.survival3y = c2bd.survivalRate3y || bd.survival3yr || 0;
-                            hfBody.cafeSales = bd.cafeSales || c5bd.monthly || 0;
+                            // [2026-06-24] 경쟁분석·시장매력도 '월매출'도 매출카드와 같은 단일 진실값(monthlyAvgSales=비즈맵 분위 평균).
+                            //   없으면 안정 동평균→단일월 폴백. '시군구 평균 대비 %'는 이 값(guAvg 기준) 그대로 재계산됨.
+                            hfBody.cafeSales = bd.cafeSales || c5bd.monthlyAvgSales || c5bd.dongCafeAvgStable || c5bd.monthly || 0;
                             hfBody.guAvg = bd.guAvg || c5bd.guAvg || 0;
                             hfBody.cafeCount = bd.cafeCount || bd.totalCafes || c1bd.cafes || 0;
                             // [2026-05-19] 시장 변화 축 폴백용: openCount/closeCount 주입
                             hfBody.openCount = Number(c2bd.openCount) || Number(c1bd.newOpen) || 0;
                             hfBody.closeCount = Number(c2bd.closeCount) || Number(c1bd['폐업 매장']) || 0;
+                            // [2026-06-25] 성장성 headline 근거를 메뉴 대신 진짜 driver(신폐·5년·YoY)로 — 폴백 값 주입.
+                            hfBody.cafes5yChangeRate = Number(c2bd.cafes5yChangeRate) || 0;
+                            hfBody.prevYearRate = Number(c5bd.prevYearRate) || 0;
                             hfBody.franchiseCount = bd.franchiseCount || c1bd.franchise || 0;
                             hfBody.individualCount = bd.indieCount || bd.independentCount || c1bd.individual || 0;
                             hfBody.avgRent = bd.avgRent || (kosisBoxData?.integratedRent?.value || 0);
@@ -8620,7 +9020,8 @@ export default function UnifiedLayout({
                             hfBody.closed = Number(bd.recentClose) || Number(bd.closeCount)
                               || Number(c12bd.closeCount) || Number(c11bd.recentClose)
                               || Number(c1bd['폐업 매장']) || 0;
-                            hfBody.cafeMonthly = (cards[5]?.bodyData?.monthly) || 0;
+                            // [2026-06-24] 카드09 핵심발견도 단일 진실값(monthlyAvgSales=901) 사용. monthly(1086) 폴백.
+                            hfBody.cafeMonthly = (cards[5]?.bodyData?.monthlyAvgSales) || (cards[5]?.bodyData?.monthly) || 0;
                             hfBody.guAvg = (cards[5]?.bodyData?.guAvg) || 0;
                             // [2026-05-18] individualPct 폴백: card8.bodyData에 없으면 card1(cafes/individual)에서 계산
                             hfBody.individualPct = (() => {

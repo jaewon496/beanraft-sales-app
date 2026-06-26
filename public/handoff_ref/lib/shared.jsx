@@ -32,7 +32,19 @@ function bcFmtCount(n, unit = "") {
   if (v == null || isNaN(v) || !isFinite(v)) return null;
   return `${Math.round(v).toLocaleString()}${unit}`;
 }
-Object.assign(window, { bcFmtMan, bcFmtWon, bcFmtCount });
+/* bcFmtPct(value, decimals=1): 퍼센트 숫자 포맷. 소수부가 전부 0이면 정수로(12.0→"12"),
+   아니면 그대로(36.9→"36.9"). 숫자 아니거나 NaN이면 null. 음수/delta(-0.7) 안전.
+   부호(+/-)는 호출측에서 붙이거나 값에 포함시킨다. */
+function bcFmtPct(value, decimals = 1) {
+  const v = Number(value);
+  if (value == null || isNaN(v) || !isFinite(v)) return null;
+  const d = Math.max(0, decimals | 0);
+  let s = v.toFixed(d);
+  // 소수점 끝의 0 제거 (12.0→"12", 12.30→"12.3", 36.9→"36.9")
+  if (s.indexOf(".") !== -1) s = s.replace(/0+$/, "").replace(/\.$/, "");
+  return s === "-0" ? "0" : s;
+}
+Object.assign(window, { bcFmtMan, bcFmtWon, bcFmtCount, bcFmtPct });
 
 /* ============================================================
    UnitTag — 큰 숫자의 "범위" 표시용 작은 회색 배지 (신뢰성)
@@ -60,6 +72,50 @@ function UnitTag({ text, style }) {
     >{t}</span>
   );
 }
+
+/* ============================================================
+   추정(estimate) 공통 약속 — 2026-06-26
+   데이터층이 bodyData._estimated 에 "추정/폴백으로 채운 값의 필드명"을 담아 보낸다.
+   형태는 배열(["객단가","원가율"]) 또는 객체({객단가:true, 원가율:true}) 둘 다 허용.
+   bcIsEst(estSet, ...keys): 그 필드 중 하나라도 추정이면 true. (실측이면 false → 배지 없음)
+   EstBadge: 실측과 시각 구분용 작은 회색 "추정" 배지(UnitTag와 같은 톤, 더 흐리게).
+   값/계산은 절대 안 바꾼다. 표시(배지)만 덧붙인다.
+   ============================================================ */
+function bcEstSet(bd) {
+  // bodyData._estimated 를 빠른 조회용 Set 으로 정규화. 없으면 빈 Set.
+  const e = (bd && bd._estimated) || null;
+  if (!e) return new Set();
+  if (Array.isArray(e)) return new Set(e.map(k => String(k)));
+  if (typeof e === "object") {
+    // 객체면 truthy 값만 추정으로 취급
+    return new Set(Object.keys(e).filter(k => e[k]).map(k => String(k)));
+  }
+  return new Set();
+}
+function bcIsEst(estSet, ...keys) {
+  if (!estSet || typeof estSet.has !== "function" || estSet.size === 0) return false;
+  return keys.some(k => k != null && estSet.has(String(k)));
+}
+function EstBadge({ when = true, text = "추정", style }) {
+  if (!when) return null;
+  return (
+    <span
+      className="bc-estbadge"
+      style={{
+        display:"inline-flex", alignItems:"center",
+        fontSize:11, fontWeight:600, lineHeight:1.3,
+        color:"var(--matte-fg-4)",
+        background:"rgba(255,255,255,0.035)",
+        border:"1px dashed var(--matte-line)",
+        borderRadius:6, padding:"1px 6px",
+        letterSpacing:"-0.005em", whiteSpace:"nowrap",
+        verticalAlign:"middle", marginLeft:6,
+        ...(style || {}),
+      }}
+    >{text}</span>
+  );
+}
+Object.assign(window, { bcEstSet, bcIsEst, EstBadge });
 
 /* ============================================================
    14 cards — 카테고리 순서대로 1-14 연속 번호
@@ -544,7 +600,7 @@ function CardShell({ n, title, sub, date = "2026.05.13", sources = [], headerRig
    Uses count-up animation on mount; if `id` given, re-animates on tour trigger.
    Flavor classes (sparkle/glow/float/hot/roulette/bounce/glitch) come from seq.anim.
    ============================================================ */
-function StatTile({ tone = "blue", label, value, unit, delta, deltaPositive = true, hero, id, accent = false, sub, deltaPrefixDisabled = false, tag }) {
+function StatTile({ tone = "blue", label, value, unit, delta, deltaPositive = true, hero, id, accent = false, sub, deltaPrefixDisabled = false, tag, est = false }) {
   const fx = id ? (window.useFx?.(id) ?? { n: 0, anim: [] }) : { n: 0, anim: [] };
   const [hot, setHot] = useState(false);
   useEffect(() => {
@@ -564,6 +620,7 @@ function StatTile({ tone = "blue", label, value, unit, delta, deltaPositive = tr
       <div className="label" style={{display:"flex", alignItems:"center", gap:6, flexWrap:"wrap"}}>
         <span>{label}</span>
         {tag ? <UnitTag text={tag}/> : null}
+        {est ? <EstBadge/> : null}
       </div>
       <div className="row">
         <span className={"value " + (hero ? "value-hero" : "")}>
@@ -659,11 +716,14 @@ function CountUp({ value, duration = 1500, id }) {
 /* ============================================================
    Dark inline data box (for source/data displays inside card body)
    ============================================================ */
-function Box({ label, value, unit, sub, src, tone }) {
+function Box({ label, value, unit, sub, src, tone, est = false }) {
   const color = tone === "good" ? "var(--st-good)" : tone === "bad" ? "var(--st-bad)" : tone === "mid" ? "var(--st-mid)" : "var(--fg)";
   return (
     <div className="bc-box">
-      <div className="label">{label}</div>
+      <div className="label" style={{display:"flex", alignItems:"center", gap:6, flexWrap:"wrap"}}>
+        <span>{label}</span>
+        {est ? <EstBadge/> : null}
+      </div>
       <div className="value" style={{color}}>
         <CountUp value={value}/>{unit && <span className="unit">{unit}</span>}
       </div>

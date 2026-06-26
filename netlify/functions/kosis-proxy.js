@@ -71,6 +71,11 @@ const EXTERNAL_TABLES = {
 
   // 한국은행 301 (월별, prdSe=M)
   consumerSentiment: { orgId: '301', tblId: 'DT_511Y004', name: '소비자동향조사 지역', unit: '점', prdSe: 'M', objLevels: 2 },
+
+  // 통계청 101 지역소득 (연간, prdSe=A) - 시도별 1인당 개인소득.
+  // 카드2 고객분석 '평균 소득(월)' 폴백용. 전국 17개 시도 커버.
+  // ITM "1인당 개인소득"(천원/년) → dataMapper에서 만원/월로 환산. objLevels=1 (C1=시도).
+  regionIncome:      { orgId: '101', tblId: 'DT_1C86',            name: '시도별 1인당 개인소득',          unit: '천원',    prdSe: 'A', objLevels: 1 },
 };
 
 const corsHandler = corsHeaders;

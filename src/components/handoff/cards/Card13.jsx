@@ -8,7 +8,12 @@ import { DrStagger } from '../director/DirectorAnim.jsx';
 export default function Card13({ body = {} }) {
   const total = Number(body.totalScore) || 0;
   const survival3y = Number(body.survival3y) || 0;
-  const cafeSales = Number(body.cafeSales) || 0;
+  // [2026-06-24] 경쟁분석 '월매출' = 매출카드와 같은 단일 진실값(monthlyAvgSales=비즈맵 분위 평균). 없으면 안정 동평균→단일월 폴백.
+  const cafeSales = Number(body.cafeSales)
+    || Number(body.bodyData?.monthlyAvgSales)
+    || Number(body.bodyData?.dongCafeAvgStable)
+    || Number(body.bodyData?.monthly)
+    || 0;
   const guAvg = Number(body.guAvg) || 0;
   const sigungu = body.sigungu || '';
   const cafeCount = Number(body.cafeCount) || 0;

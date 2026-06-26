@@ -85,7 +85,8 @@ export async function handler(event) {
           try {
             // 에이전트별 모델 선택 (기본 flash, pro 지정 가능)
             const modelName = agent.model === 'pro' ? 'gemini-2.5-pro' : 'gemini-2.5-flash';
-            const agentTemp = agent.temperature || 0.7;
+            // [2026-06-25] temperature:0(결정적) 보존 — 0이 falsy라 || 0.7로 덮이던 버그 수정.
+            const agentTemp = (typeof agent.temperature === 'number') ? agent.temperature : 0.7;
             // Pro 모델은 thinkingBudget 최소 128 필수 (0이면 에러)
             let agentThinking = agent.thinkingBudget != null ? agent.thinkingBudget : (agent.grounding ? 1024 : 0);
             if (agent.model === 'pro' && agentThinking < 128) agentThinking = 8192;
@@ -95,6 +96,8 @@ export async function handler(event) {
                 temperature: agentTemp,
                 maxOutputTokens: agent.maxOutputTokens || 1000,
                 ...(agent.grounding ? {} : { responseMimeType: 'application/json' }),
+                // [2026-06-25] 구조화 출력 스키마 통과(있을 때만). grounding 시엔 스키마 미지원이라 제외.
+                ...((!agent.grounding && agent.responseSchema) ? { responseSchema: agent.responseSchema } : {}),
                 thinkingConfig: { thinkingBudget: agentThinking },
               }
             };
