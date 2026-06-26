@@ -116,6 +116,46 @@ function isExpiredResponse(j) {
   return false;
 }
 
+// ── Vercel 카카오 직원 호출 (2026-06-26) ──
+// 카카오 계정은 자체 비번 relogin() 이 안 먹힘 → Vercel 에 있는 카카오 로그인 직원
+// (브라우저 자동화)에게 "다시 로그인해줘"라고 GET 으로 부른다. 직원이 새 세션을 잡으면
+// nicebizmap-set-session 으로 우리 Blobs current 에 저장 → 다음 틱부터 정상.
+//   - URL 은 env KAKAO_KEEPER_URL (예: https://bc-vercel-mu.vercel.app/api/kakao-login).
+//   - 응답 { ok, reason } 만 본다. ok:false reason captcha → '사람 개입 필요' 로그(알림 훅 자리).
+//   - heartbeat 가 죽으면 안 되므로 절대 throw 하지 않음.
+function callKakaoKeeper(keeperUrl) {
+  return new Promise((resolve) => {
+    let urlObj;
+    try { urlObj = new URL(keeperUrl); }
+    catch (e) { return resolve({ ok: false, reason: 'bad_keeper_url' }); }
+    const req = https.get({
+      hostname: urlObj.hostname,
+      port: urlObj.port || 443,
+      path: urlObj.pathname + urlObj.search,
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'beancraft-heartbeat'
+      }
+    }, res => {
+      const chunks = [];
+      res.on('data', c => chunks.push(c));
+      res.on('end', () => {
+        let json = null;
+        try { json = JSON.parse(Buffer.concat(chunks).toString('utf-8')); } catch (e) { json = null; }
+        if (json && typeof json === 'object') {
+          resolve({ ok: json.ok !== false, reason: json.reason || null, status: res.statusCode });
+        } else {
+          // 비-JSON 응답: 2xx 면 성공으로 간주
+          resolve({ ok: res.statusCode >= 200 && res.statusCode < 300, reason: 'non_json', status: res.statusCode });
+        }
+      });
+    });
+    req.on('error', e => resolve({ ok: false, reason: 'network_error:' + e.message }));
+    req.setTimeout(20000, () => { req.destroy(); resolve({ ok: false, reason: 'timeout' }); });
+    req.end();
+  });
+}
+
 exports.handler = async (event) => {
   const store = await getBlobStore(); // 로컬/미배포면 null → env 폴백
   const { sessionId, source } = await resolveSessionId(store);
@@ -152,19 +192,44 @@ exports.handler = async (event) => {
   // ── 만료 감지 ──
   const expired = isExpiredResponse(step1.json) || isExpiredResponse(step2.json);
 
-  // ── 만료 시 자동 재로그인 "직원" 호출 (2026-06-26) ──
-  // 사람이 손으로 다시 로그인하던 일을 자동화. heartbeat 가 5분마다 도니
-  //   만료되면 다음 틱에 자동 복구된다. 같은 Blobs store 를 재사용해 current 를 갱신.
-  //   재로그인 실패(자격증명 오류 등)해도 heartbeat 는 죽지 않는다(try/catch).
+  // ── 만료 시 자동 복구 (2026-06-26) ──
+  // 카카오 계정 전환: 자체 비번 relogin() 은 카카오 OAuth 계정엔 안 먹힌다.
+  //   → 1순위로 Vercel 카카오 직원(KAKAO_KEEPER_URL)을 GET 으로 부른다(만료 감지 시 1회만).
+  //     직원이 새 세션을 잡아 nicebizmap-set-session 으로 우리 Blobs current 에 저장 →
+  //     다음 틱에 세션 정상.
+  //   → KAKAO_KEEPER_URL 미설정이고 자체 비번 자격증명이 있으면 폴백으로 relogin() 시도
+  //     (구 자체계정 호환용. 카카오계정이면 사실상 의미 없음).
+  //   무한 호출 방지: 둘 다 만료 감지 시 1회만. heartbeat 는 절대 안 죽는다(try/catch).
+  let keeperResult = null;
   let reloginResult = null;
   if (expired) {
     await blobSetJSON(store, 'expired', { value: true, at: new Date().toISOString() });
-    try {
-      const { relogin } = require('./nicebizmap-relogin');
-      reloginResult = await relogin(store); // store 재사용 → current/expired 갱신
-      console.log('[nicebizmap-heartbeat] 자동 재로그인 결과:', reloginResult.ok ? 'OK' : ('FAIL:' + reloginResult.reason));
-    } catch (e) {
-      console.warn('[nicebizmap-heartbeat] 자동 재로그인 호출 실패(무시):', e.message);
+    const keeperUrl = process.env.KAKAO_KEEPER_URL;
+    if (keeperUrl) {
+      try {
+        keeperResult = await callKakaoKeeper(keeperUrl); // 만료당 1회만
+        if (keeperResult.ok) {
+          console.log('[nicebizmap-heartbeat] 카카오 직원 호출 OK → 다음 틱에 세션 정상 예상');
+        } else if (keeperResult.reason && /captcha/i.test(keeperResult.reason)) {
+          // 알림 훅 자리: 캡차는 자동 통과 불가 → 사람이 직접 로그인해야 함
+          console.warn('[nicebizmap-heartbeat] !! 사람 개입 필요(캡차) — 카카오 직원이 자동 로그인 못 함');
+        } else {
+          console.warn('[nicebizmap-heartbeat] 카카오 직원 호출 실패:', keeperResult.reason);
+        }
+      } catch (e) {
+        console.warn('[nicebizmap-heartbeat] 카카오 직원 호출 예외(무시):', e.message);
+      }
+    } else if (process.env.NICEBIZMAP_LOGIN_ID && process.env.NICEBIZMAP_LOGIN_PW) {
+      // 폴백: KAKAO_KEEPER_URL 없을 때만 구 자체계정 비번 재로그인 시도
+      try {
+        const { relogin } = require('./nicebizmap-relogin');
+        reloginResult = await relogin(store); // store 재사용 → current/expired 갱신
+        console.log('[nicebizmap-heartbeat] (폴백)자체 재로그인 결과:', reloginResult.ok ? 'OK' : ('FAIL:' + reloginResult.reason));
+      } catch (e) {
+        console.warn('[nicebizmap-heartbeat] (폴백)자체 재로그인 호출 실패(무시):', e.message);
+      }
+    } else {
+      console.warn('[nicebizmap-heartbeat] 만료됐으나 복구 경로 없음(KAKAO_KEEPER_URL/자격증명 모두 미설정)');
     }
   } else if (step1.json || step2.json) {
     // 정상 응답을 한 번이라도 받았으면 expired:false 로 정리
@@ -174,6 +239,7 @@ exports.handler = async (event) => {
   console.log(
     `[nicebizmap-heartbeat] session ${expired ? 'expired' : 'alive'}, keepAlive:${keepAlive}, rotated:${rotated}`
     + ` (src:${source}, step1:${aliveStatus}, step2:${activityOk}, loginId:${step1.json?.data?.loginId || ''})`
+    + (keeperResult ? `, keeper:${keeperResult.ok ? 'ok' : keeperResult.reason}` : '')
     + (reloginResult ? `, relogin:${reloginResult.ok ? 'ok' : reloginResult.reason}` : '')
   );
 
@@ -184,6 +250,7 @@ exports.handler = async (event) => {
       keepAlive,
       rotated,
       expired,
+      keeper: keeperResult ? { ok: keeperResult.ok, reason: keeperResult.reason || null } : null,
       relogin: reloginResult ? { ok: reloginResult.ok, reason: reloginResult.reason || null } : null,
       source,
       loginId: step1.json?.data?.loginId || null
