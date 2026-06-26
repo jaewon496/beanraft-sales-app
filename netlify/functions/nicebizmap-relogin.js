@@ -33,14 +33,34 @@ const UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0
 
 // ── Netlify Blobs 헬퍼 (동적 import: v10 은 ESM, 이 파일은 CommonJS) ──
 // heartbeat.js / proxy.js 와 동일 패턴. 실패해도 throw 하지 않음.
-async function getBlobStore() {
+// ★ v10 + 레거시(V1 Lambda) 함수 핵심: getStore('이름') 만 부르면 컨텍스트(siteID/token)가
+//   "자동 주입되지 않아" MissingBlobsEnvironmentError 로 throw → 항상 null 폴백이었다.
+//   해결: 핸들러 event 를 connectLambda(event) 로 먼저 넘겨 컨텍스트를 깔아준다(공식 V1 방식).
+//   ※ heartbeat/proxy 에서 relogin(preStore) 로 부를 땐 이미 컨텍스트가 깔린 store 를 재사용하므로
+//     여기 getBlobStore 는 standalone handler(직접 GET 호출) 폴백용. event 가 있으면 넘긴다.
+//   connectLambda 가 없거나 실패하면 수동 siteID/token(env)로 폴백한다.
+async function getBlobStore(event) {
+  let getStore, connectLambda;
   try {
-    const { getStore } = await import('@netlify/blobs');
-    return getStore('bizmap-session');
+    ({ getStore, connectLambda } = await import('@netlify/blobs'));
   } catch (e) {
-    console.warn('[nicebizmap-relogin] Blobs getStore 불가(로컬/미배포 추정) → env 폴백:', e.message);
+    console.warn('[nicebizmap-relogin] @netlify/blobs import 실패 → env 폴백:', e.message);
     return null;
   }
+  try {
+    if (typeof connectLambda === 'function' && event) connectLambda(event);
+    return getStore('bizmap-session');
+  } catch (e) {
+    console.warn('[nicebizmap-relogin] connectLambda/getStore 자동 컨텍스트 실패 → 수동/ env 폴백:', e.message);
+  }
+  try {
+    const siteID = process.env.NETLIFY_BLOBS_SITE_ID || process.env.SITE_ID || process.env.NETLIFY_SITE_ID;
+    const token = process.env.NETLIFY_BLOBS_TOKEN || process.env.NETLIFY_API_TOKEN || process.env.NETLIFY_AUTH_TOKEN;
+    if (siteID && token) return getStore({ name: 'bizmap-session', siteID, token });
+  } catch (e) {
+    console.warn('[nicebizmap-relogin] 수동 siteID/token getStore 실패 → env 폴백:', e.message);
+  }
+  return null;
 }
 async function blobSetJSON(store, key, value) {
   if (!store) return false;
@@ -117,8 +137,9 @@ function postLogin(loginId, password, rememberMe) {
 //   - 성공: { ok:true, sessionId, loginEndpoint, savedToBlobs }
 //   - 실패: { ok:false, reason, loginEndpoint }  (비밀번호는 절대 안 실음)
 // preStore: 이미 열어둔 Blobs store 를 넘기면 재사용(없으면 내부에서 연다).
+// event: standalone 호출 시 connectLambda 컨텍스트 주입용(없어도 됨).
 // ─────────────────────────────────────────────────────────────────────────
-async function relogin(preStore) {
+async function relogin(preStore, event) {
   const loginId = process.env.NICEBIZMAP_LOGIN_ID;
   const password = process.env.NICEBIZMAP_LOGIN_PW;
   // 자격증명 미설정 → 비번 노출 없이 사유만
@@ -145,7 +166,7 @@ async function relogin(preStore) {
   // 성공 판정: success:true 이고 UUID 형 sessionId 확보
   const loginOk = !!(res.json && res.json.success === true);
   if (loginOk && sessionId) {
-    const store = preStore || await getBlobStore();
+    const store = preStore || await getBlobStore(event);
     const saved = await blobSetJSON(store, 'current', {
       sessionId,
       updatedAt: new Date().toISOString(),
@@ -180,7 +201,7 @@ exports.handler = async (event) => {
     return { statusCode: 200, headers: corsHeaders, body: '' };
   }
 
-  const r = await relogin();
+  const r = await relogin(null, event); // ★ event 전달: connectLambda 로 컨텍스트 주입
   return {
     statusCode: 200,
     headers: corsHeaders,

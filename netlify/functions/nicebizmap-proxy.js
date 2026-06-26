@@ -26,14 +26,42 @@ function nbmSessionCookie() {
 }
 
 // Netlify Blobs store 가져오기 (동적 import + try/catch — 로컬/미배포면 null)
-async function getBlobStore() {
+// ★ v10 + 레거시(V1 Lambda) 함수 핵심: getStore('이름') 만 부르면 컨텍스트(siteID/token)가
+//   "자동 주입되지 않아" MissingBlobsEnvironmentError 로 throw → 지금까지 항상 null 폴백(=env)이었다.
+//   해결: 핸들러 event 를 connectLambda(event) 로 먼저 넘겨 컨텍스트를 깔아준다(공식 V1 방식).
+//   connectLambda 가 없거나 실패하면 수동 siteID/token(env)로 폴백한다.
+let LAST_BLOB_ERROR = null;
+async function getBlobStore(event) {
+  LAST_BLOB_ERROR = null;
+  let getStore, connectLambda;
   try {
-    const { getStore } = await import('@netlify/blobs');
-    return getStore('bizmap-session');
+    ({ getStore, connectLambda } = await import('@netlify/blobs'));
   } catch (e) {
-    console.warn('[nicebizmap-proxy] Blobs getStore 불가(로컬/미배포 추정) → env 폴백:', e.message);
+    LAST_BLOB_ERROR = 'import_failed:' + e.message;
+    console.warn('[nicebizmap-proxy] @netlify/blobs import 실패 → env 폴백:', e.message);
     return null;
   }
+  // 1순위: connectLambda(event) 로 V1 함수에 Blobs 컨텍스트 주입 후 getStore
+  try {
+    if (typeof connectLambda === 'function' && event) connectLambda(event);
+    return getStore('bizmap-session');
+  } catch (e) {
+    LAST_BLOB_ERROR = 'auto_context:' + e.message;
+    console.warn('[nicebizmap-proxy] connectLambda/getStore 자동 컨텍스트 실패 → 수동/ env 폴백:', e.message);
+  }
+  // 2순위: 수동 siteID/token (env)
+  try {
+    const siteID = process.env.NETLIFY_BLOBS_SITE_ID || process.env.SITE_ID || process.env.NETLIFY_SITE_ID;
+    const token = process.env.NETLIFY_BLOBS_TOKEN || process.env.NETLIFY_API_TOKEN || process.env.NETLIFY_AUTH_TOKEN;
+    if (siteID && token) {
+      return getStore({ name: 'bizmap-session', siteID, token });
+    }
+    LAST_BLOB_ERROR = (LAST_BLOB_ERROR || 'no_context') + '; no_manual_siteid_token';
+  } catch (e) {
+    LAST_BLOB_ERROR = 'manual_context:' + e.message;
+    console.warn('[nicebizmap-proxy] 수동 siteID/token getStore 실패 → env 폴백:', e.message);
+  }
+  return null;
 }
 
 // Blobs current → sessionId 조회해 RESOLVED_SESSION_ID 갱신 (없거나 에러면 env 유지)
@@ -371,7 +399,7 @@ exports.handler = async (event) => {
   // [세션 소스 보강] 비즈맵 호출 전에 Blobs current 우선 조회 (없거나 에러 시 env 폴백 유지).
   // 데이터 로직은 그대로 — 쿠키 헬퍼가 읽을 세션 값만 결정한다.
   // store 는 회전 캡처(maybeRotateNbmSession)에서도 재사용. 로컬/미배포면 null → env 로 동작.
-  const blobStore = await getBlobStore();
+  const blobStore = await getBlobStore(event); // ★ event 전달: connectLambda 로 컨텍스트 주입
   await resolveNbmSession(blobStore);
 
   try {

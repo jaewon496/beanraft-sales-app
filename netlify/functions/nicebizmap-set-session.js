@@ -19,14 +19,43 @@ const UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0
 
 // ── Netlify Blobs 헬퍼 (동적 import: v10 은 ESM, 이 파일은 CommonJS) ──
 // heartbeat.js / relogin.js / proxy.js 와 동일 패턴. 실패해도 throw 하지 않음.
-async function getBlobStore() {
+// ★ v10 + 레거시(V1 Lambda) 함수 핵심: getStore('이름') 만 부르면 컨텍스트(siteID/token)가
+//   "자동 주입되지 않아" MissingBlobsEnvironmentError 로 throw → 지금까지 항상 null 폴백이었다.
+//   해결: 핸들러 event 를 connectLambda(event) 로 먼저 넘겨 컨텍스트를 깔아준다(공식 V1 방식).
+//   connectLambda 가 없거나 실패하면 수동 siteID/token(env)로 폴백한다.
+//   진단용으로 마지막 실패 사유를 모듈 변수에 담는다(비밀 미노출).
+let LAST_BLOB_ERROR = null;
+async function getBlobStore(event) {
+  LAST_BLOB_ERROR = null;
+  let getStore, connectLambda;
   try {
-    const { getStore } = await import('@netlify/blobs');
-    return getStore('bizmap-session');
+    ({ getStore, connectLambda } = await import('@netlify/blobs'));
   } catch (e) {
-    console.warn('[nicebizmap-set-session] Blobs getStore 불가(로컬/미배포 추정):', e.message);
+    LAST_BLOB_ERROR = 'import_failed:' + e.message;
+    console.warn('[nicebizmap-set-session] @netlify/blobs import 실패:', e.message);
     return null;
   }
+  // 1순위: connectLambda(event) 로 V1 함수에 Blobs 컨텍스트 주입 후 getStore
+  try {
+    if (typeof connectLambda === 'function' && event) connectLambda(event);
+    return getStore('bizmap-session');
+  } catch (e) {
+    LAST_BLOB_ERROR = 'auto_context:' + e.message;
+    console.warn('[nicebizmap-set-session] connectLambda/getStore 자동 컨텍스트 실패:', e.message);
+  }
+  // 2순위: 수동 siteID/token (env) — 자동 컨텍스트가 안 될 때만
+  try {
+    const siteID = process.env.NETLIFY_BLOBS_SITE_ID || process.env.SITE_ID || process.env.NETLIFY_SITE_ID;
+    const token = process.env.NETLIFY_BLOBS_TOKEN || process.env.NETLIFY_API_TOKEN || process.env.NETLIFY_AUTH_TOKEN;
+    if (siteID && token) {
+      return getStore({ name: 'bizmap-session', siteID, token });
+    }
+    LAST_BLOB_ERROR = (LAST_BLOB_ERROR || 'no_context') + '; no_manual_siteid_token';
+  } catch (e) {
+    LAST_BLOB_ERROR = 'manual_context:' + e.message;
+    console.warn('[nicebizmap-set-session] 수동 siteID/token getStore 실패:', e.message);
+  }
+  return null;
 }
 async function blobSetJSON(store, key, value) {
   if (!store) return false;
@@ -107,7 +136,7 @@ exports.handler = async (event) => {
   }
 
   // ── 저장: current 갱신 + expired 정리 (heartbeat/relogin 와 동일 패턴) ──
-  const store = await getBlobStore();
+  const store = await getBlobStore(event); // ★ event 전달: connectLambda 로 컨텍스트 주입
   const saved = await blobSetJSON(store, 'current', {
     sessionId,
     updatedAt: new Date().toISOString(),
@@ -124,7 +153,9 @@ exports.handler = async (event) => {
       ok: true,
       sessionId: mask(sessionId),  // 마스킹: 앞 4자만
       savedToBlobs: saved,
-      source: 'kakao-oauth'
+      source: 'kakao-oauth',
+      // 진단용(비밀 미노출): Blobs 저장 실패 시 실제 사유. 성공이면 null.
+      blobError: saved ? null : (LAST_BLOB_ERROR || null)
     })
   };
 };
