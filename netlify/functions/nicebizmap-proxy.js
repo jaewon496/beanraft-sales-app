@@ -88,6 +88,25 @@ async function maybeRotateNbmSession(store, setCookie) {
   }
 }
 
+// summary-report 응답이 "세션 만료/로그인 필요"를 의미하는지 판정 (heartbeat 와 동일 규칙)
+//   봉투가 { success, code, message } 또는 { data:{...} } 양쪽으로 올 수 있어 둘 다 본다.
+//   code 1002/9999 또는 message 에 "로그인" 포함 시 만료로 본다.
+function isLoginExpired(result) {
+  if (!result || result.parseError) return false;
+  const env = result.data && typeof result.data === 'object' ? result.data : result;
+  const j = env || result;
+  if (j && j.success === false) {
+    const code = String(j.code ?? j.errorCode ?? j.resultCode ?? '');
+    if (code === '1002' || code === '9999') return true;
+    if (typeof j.message === 'string' && /로그인/.test(j.message)) return true;
+  }
+  // 최상위에도 code/message 가 올 수 있음
+  const topCode = String(result.code ?? result.errorCode ?? result.resultCode ?? '');
+  if (topCode === '1002' || topCode === '9999') return true;
+  if (typeof result.message === 'string' && /로그인/.test(result.message)) return true;
+  return false;
+}
+
 function fetchJsonGet(url, headers = {}) {
   return new Promise((resolve, reject) => {
     const urlObj = new URL(url);
@@ -564,7 +583,31 @@ exports.handler = async (event) => {
     //   완전응답(9/9, averageSalesList 포함)을 못 받아도 그대로 반환 →
     //   누락 키는 App.jsx 의 localStorage 완전응답 캐시(부분보충)가 메운다(가짜 폴백 없음).
     // ═══════════════════════════════════════════════════════════════
-    const result = await fetchJsonPost(targetUrl, requestBody);
+    let result = await fetchJsonPost(targetUrl, requestBody);
+
+    // ═══════════════════════════════════════════════════════════════
+    // [자동 재로그인 1회 + summary-report 1회 재시도] (2026-06-26)
+    //   응답이 9999/"로그인 해주세요"(세션 만료)면 → 재로그인 직원 1회 호출 →
+    //   새 sessionId 를 쿠키 변수에 즉시 반영 → summary-report 1회만 재시도.
+    //   ★무한루프 방지: 단 1회만. (같은 admiCd 연타 throttle 과는 별개 — 만료 복구 전용.)
+    //   재로그인 실패하면 원래 만료 응답 그대로 진행(가짜 폴백 안 함).
+    // ═══════════════════════════════════════════════════════════════
+    if (isLoginExpired(result)) {
+      console.warn('[nicebizmap-proxy] summary-report 세션 만료 감지 → 재로그인 1회 시도');
+      try {
+        const { relogin } = require('./nicebizmap-relogin');
+        const re = await relogin(blobStore); // Blobs current 갱신 + store 재사용
+        if (re && re.ok && re.sessionId) {
+          RESOLVED_SESSION_ID = re.sessionId; // 이번 재시도에 새 세션 즉시 적용
+          console.log('[nicebizmap-proxy] 재로그인 성공 → summary-report 1회 재시도');
+          result = await fetchJsonPost(targetUrl, requestBody);
+        } else {
+          console.warn('[nicebizmap-proxy] 재로그인 실패 → 원응답 그대로:', re && re.reason);
+        }
+      } catch (e) {
+        console.warn('[nicebizmap-proxy] 재로그인 호출 실패(무시):', e.message);
+      }
+    }
 
     // [세션 회전 캡처] summary-report 응답에 새 SESSION 쿠키가 왔으면 Blobs current 갱신
     // (heartbeat 와 동일 방식. 데이터 로직 무영향 — 회전 감지만. 로컬/미배포면 store=null → 스킵.)

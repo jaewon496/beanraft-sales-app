@@ -151,8 +151,21 @@ exports.handler = async (event) => {
 
   // ── 만료 감지 ──
   const expired = isExpiredResponse(step1.json) || isExpiredResponse(step2.json);
+
+  // ── 만료 시 자동 재로그인 "직원" 호출 (2026-06-26) ──
+  // 사람이 손으로 다시 로그인하던 일을 자동화. heartbeat 가 5분마다 도니
+  //   만료되면 다음 틱에 자동 복구된다. 같은 Blobs store 를 재사용해 current 를 갱신.
+  //   재로그인 실패(자격증명 오류 등)해도 heartbeat 는 죽지 않는다(try/catch).
+  let reloginResult = null;
   if (expired) {
     await blobSetJSON(store, 'expired', { value: true, at: new Date().toISOString() });
+    try {
+      const { relogin } = require('./nicebizmap-relogin');
+      reloginResult = await relogin(store); // store 재사용 → current/expired 갱신
+      console.log('[nicebizmap-heartbeat] 자동 재로그인 결과:', reloginResult.ok ? 'OK' : ('FAIL:' + reloginResult.reason));
+    } catch (e) {
+      console.warn('[nicebizmap-heartbeat] 자동 재로그인 호출 실패(무시):', e.message);
+    }
   } else if (step1.json || step2.json) {
     // 정상 응답을 한 번이라도 받았으면 expired:false 로 정리
     await blobSetJSON(store, 'expired', { value: false, at: new Date().toISOString() });
@@ -161,6 +174,7 @@ exports.handler = async (event) => {
   console.log(
     `[nicebizmap-heartbeat] session ${expired ? 'expired' : 'alive'}, keepAlive:${keepAlive}, rotated:${rotated}`
     + ` (src:${source}, step1:${aliveStatus}, step2:${activityOk}, loginId:${step1.json?.data?.loginId || ''})`
+    + (reloginResult ? `, relogin:${reloginResult.ok ? 'ok' : reloginResult.reason}` : '')
   );
 
   return {
@@ -170,6 +184,7 @@ exports.handler = async (event) => {
       keepAlive,
       rotated,
       expired,
+      relogin: reloginResult ? { ok: reloginResult.ok, reason: reloginResult.reason || null } : null,
       source,
       loginId: step1.json?.data?.loginId || null
     })
