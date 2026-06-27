@@ -131,24 +131,30 @@ function Card13({ body = {} }) {
       label: "경쟁 여건",
       max: 20,
       score: Number(body.scoreChange) || 0,
-      // [2026-06-28 단위 정합] 카페 1곳당 배후 거주인구(perStorePop) 기준: ≥1500 여유·800~1500 보통·536~800 포화 주의·<536 과밀.
-      //   업계 과밀선 536명은 '거주(배후)인구' 단위 → 거주인구 기준일 때만 이 임계 사용.
-      //   거주인구가 없어 일유동으로 폴백한 경우(basis='flow')는 유동 스케일 임계(≥400/250/150)와 '(유동 기준)' 라벨.
-      //   perStorePop 없으면 옛 카페수 문구로 폴백.
+      // [2026-06-28 신뢰지표 정합] 경쟁 한줄평 = '반경 내 카페 수(밀집도)' 기반.
+      //   ★폐기: 점포당 배후인구(perStorePop) 기반 문구. 인구·유동 데이터가 불안정해 4·8명 같은 무의미값이
+      //     나오던 결함 → 채점에서도 빠졌고(dataMapper), 한줄평에서도 빼고 카페 수 밀집도 등급으로 표현한다.
+      //   밀집도 등급: ≤15 여유 · ≤40 보통 · ≤80 다소 밀집 · ≤150 밀집 · ≤250 고밀 · 그 이상 초고밀.
+      //   + 개인 카페 비중(%)을 '차별화 여지'로 붙여 만회 경로 제시.
+      //   perStorePop은 신뢰범위(점포당 ≥50명, dataMapper에서 이미 게이트)일 때만 보조 표시로 괄호 추가.
       headline: (() => {
+        if (!(cafeCount > 0)) return '경쟁 데이터 수집 중';
+        const _grade = cafeCount <= 15 ? '여유'
+          : cafeCount <= 40 ? '보통'
+          : cafeCount <= 80 ? '다소 밀집'
+          : cafeCount <= 150 ? '밀집'
+          : cafeCount <= 250 ? '고밀'
+          : '초고밀';
+        const _diff = individualCount > 0
+          ? ` — 개인 ${Math.round(individualCount / cafeCount * 100)}% 차별화 여지`
+          : '';
+        // 보조: 점포당 배후인구(신뢰범위일 때만 값이 옴). 채점 아님, 참고용 괄호.
         const _psp = (body.perStorePop != null) ? Number(body.perStorePop) : null;
         const _basis = body.perStorePopBasis || null;
-        if (_psp != null && isFinite(_psp) && _psp > 0) {
-          if (_basis === 'flow') {
-            const _grade = _psp >= 400 ? '여유' : _psp >= 250 ? '보통' : _psp >= 150 ? '포화 주의' : '과밀';
-            return `카페당 유동 ${_psp.toLocaleString()}명 (유동 기준) — ${_grade}`;
-          }
-          const _grade = _psp >= 1500 ? '여유' : _psp >= 800 ? '보통' : _psp >= 536 ? '포화 주의' : '과밀';
-          return `카페당 배후 ${_psp.toLocaleString()}명 — ${_grade}`;
-        }
-        return cafeCount > 0
-          ? `카페 ${cafeCount}개 ${cafeCount > 200 ? '과밀' : cafeCount > 80 ? '보통' : '여유'}${individualCount > 0 ? ` — 개인 ${Math.round(individualCount/cafeCount*100)}% 차별화 여지` : ''}`
-          : '경쟁 데이터 수집 중';
+        const _pspNote = (_psp != null && isFinite(_psp) && _psp > 0)
+          ? ` (점포당 ${_psp.toLocaleString()}명${_basis === 'flow' ? ' 유동' : ''})`
+          : '';
+        return `반경 내 카페 ${cafeCount}개 — ${_grade}${_diff}${_pspNote}`;
       })(),
     },
     {

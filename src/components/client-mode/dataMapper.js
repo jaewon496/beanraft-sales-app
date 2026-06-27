@@ -4076,55 +4076,49 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   }
   console.log(`[ROI] 투자회수 ${_scoreCompete}/15 = ${_roiPaybackMonths > 0 && _roiPaybackMonths < 999 ? '회수 ' + _roiPaybackMonths + '개월' : (_roiPaybackMonths === 999 ? '적자→회수불가(낮은점수)' : '미수집폴백')} (투자 ${_roiTotalStartup}만[인테리어 ${_roiInterior15} + 권리금 ${_roiPremiumManwon} + 시설장비 ${_roiFacilityManwon}, 보증금제외] ÷ 진짜수익 ${Math.round(_roiActualMonthlyProfit)}만)`);
 
-  // [축 3] 경쟁 여건 (20점) — ★[2026-06-28 단위 정합] '카페 1곳당 배후 거주인구'(반경내 거주인구 ÷ 카페수).
-  //   업계 과밀기준 "카페 1곳당 536명"은 일유동이 아니라 '배후 거주인구' 개념 → 단위를 거주인구로 맞춘다.
-  //   1순위 = 소상공인365 popCnt 거주인구(residentialPop). 없으면 → 일유동 ÷ 카페로 폴백하되 임계를
-  //   유동 스케일로 재보정하고 라벨에 '유동 기준' 명시(섞어 쓰면 8명 같은 엉뚱한 값이 536과 비교되는 버그).
-  //   거주인구 임계(명/카페): ≥1500 만점(20) · 800~1500 보통(12~20) · 536(과밀선)~800 주의(6~12) · <536(과밀) 0~6.
-  //   유동 폴백 임계(명/카페, 일유동 분포에 맞춰 ↓조정): ≥400 만점 · 250~400 보통 · 150~250 주의 · <150 과밀.
-  //   ★거주인구·유동 둘 다 없거나 카페수 0 → 그 축 null(0점으로 깔지 않음 — 정직 처리, 합산에서 0 취급).
-  // [2026-06-28] 거주인구 우선 소스: residentialPop(rsdntCnt류) → 없으면 totalPopulation(ppltnCnt류).
-  //   둘 다 같은 '반경내 거주인구' 단위(536 기준과 동일)라 폴백해도 단위 일관.
+  // [축 3] 경쟁 여건 (20점) — ★[2026-06-28 신뢰지표 정합] '반경 내 카페 밀집도'(카페 수) 기반 현실적 곡선.
+  //   ★폐기: '점포당 배후인구(perStorePop)'를 점수 driver로 쓰던 방식 폐기. 우리 앱의 반경 인구·유동
+  //     데이터가 불안정해(연신내 유동1112·거주556 → 점포당 4~8명 같은 무의미값) 경쟁여건이 0점으로 과도하게
+  //     깔리는 결함이 있었음. perStorePop은 더 이상 채점에 쓰지 않고, '참고 표시'로만(아래 신뢰범위 게이트).
+  //   ★카페 수 기반 밀집도 곡선 — 업계 지적(절대개수로 강남339=0점 만드는 결함) 회피:
+  //     카페가 많을수록 경쟁↑(점수↓)이되, 아무리 많아도 0으로 떨어뜨리지 않고 '바닥점(floor 5)'을 보장.
+  //     도심 고밀도라도 시장이 그만큼 크다는 뜻이라 최소 점수는 준다(+ 흑자면 아래 수익검증 보정으로 회복).
+  //   밀집도 구간(반경 내 카페 수): ≤15 여유(20) · 15~40 보통(20→16) · 40~80 다소밀(16→12)
+  //                              · 80~150 밀집(12→8) · 150~250 고밀(8~5) · >250 초고밀(floor 5).
+  //   ★카페 수 0(수집 실패)일 때만 null(0점으로 깔지 않음 — 정직 처리, 합산에서 0 취급).
+  let _scoreChange = null;         // 경쟁여건 (null=데이터 없음 → 산정 보류)
+  if (_selfTotalCafes > 0) {
+    const _n = _selfTotalCafes;
+    let _cv;
+    if (_n <= 15) _cv = 20;                                  // 여유 (경쟁 적음)
+    else if (_n <= 40) _cv = _lerpScore(_n, 15, 40, 20, 16); // 보통
+    else if (_n <= 80) _cv = _lerpScore(_n, 40, 80, 16, 12); // 다소 밀집
+    else if (_n <= 150) _cv = _lerpScore(_n, 80, 150, 12, 8);// 밀집
+    else if (_n <= 250) _cv = _lerpScore(_n, 150, 250, 8, 5);// 고밀
+    else _cv = 5;                                            // 초고밀 — 바닥점 보장(0으로 안 떨어뜨림)
+    _scoreChange = Math.max(5, Math.min(20, Math.round(_cv)));
+  }
+  // [참고 표시 전용] 점포당 배후인구(perStorePop) — 채점에 안 씀. 신뢰범위(점포당 ≥50명)일 때만 노출.
+  //   1순위 거주인구(residentialPop→totalPopulation) ÷ 카페, 없으면 일유동 ÷ 카페.
+  //   ★게이트: <50명이면 인구·유동 소스가 비정상으로 작게 잡힌 것 → 4·8명 같은 오해값 표시 금지(null).
   const _roiBackingPop = (typeof residentialPop === 'number' && residentialPop > 0) ? residentialPop
     : (typeof totalPopulation === 'number' && totalPopulation > 0) ? totalPopulation
     : 0;
-  let _roiPopPerCafe = 0;          // 점포당 배후인구(명/카페) — 거주 우선, 없으면 유동
-  let _roiPopBasis = null;         // 'resident' | 'flow' (한줄평 라벨용)
-  let _scoreChange = null;         // 경쟁여건 (null=데이터 없음 → 산정 보류)
+  let _roiPopPerCafe = 0;          // 점포당 배후인구(명/카페) — 표시 전용
+  let _roiPopBasis = null;         // 'resident' | 'flow' (표시 라벨용)
   if (_selfTotalCafes > 0 && _roiBackingPop > 0) {
-    // ── 거주인구 기준(업계 536 기준과 동일 단위) ──
     _roiPopPerCafe = Math.round(_roiBackingPop / _selfTotalCafes);
     _roiPopBasis = 'resident';
-    let _cv;
-    if (_roiPopPerCafe >= 1500) _cv = 20;                                   // 여유
-    else if (_roiPopPerCafe >= 800) _cv = _lerpScore(_roiPopPerCafe, 800, 1500, 12, 20);  // 보통
-    else if (_roiPopPerCafe >= 536) _cv = _lerpScore(_roiPopPerCafe, 536, 800, 6, 12);    // 주의(과밀선~)
-    else _cv = _lerpScore(_roiPopPerCafe, 0, 536, 0, 6);                    // 과밀
-    _scoreChange = Math.max(0, Math.min(20, Math.round(_cv)));
   } else if (_selfTotalCafes > 0 && _selfDailyPop > 0) {
-    // ── 폴백: 일유동 기준(거주인구 없음). 임계를 유동 스케일로 재보정 ──
     _roiPopPerCafe = Math.round(_selfDailyPop / _selfTotalCafes);
     _roiPopBasis = 'flow';
-    // [2026-06-28] 비상식 가드: 일유동÷카페가 한 자릿수(<30)이면 유동 소스가 비정상으로
-    //   작게 잡힌 것(반경 유동 누락 등) → 8명 같은 오해값을 표시·채점하느니 null로 보류.
-    if (_roiPopPerCafe < 30) {
-      _roiPopPerCafe = 0;
-      _roiPopBasis = null;
-      _scoreChange = null;
-    } else {
-      let _cv;
-      if (_roiPopPerCafe >= 400) _cv = 20;                                    // 여유
-      else if (_roiPopPerCafe >= 250) _cv = _lerpScore(_roiPopPerCafe, 250, 400, 12, 20);  // 보통
-      else if (_roiPopPerCafe >= 150) _cv = _lerpScore(_roiPopPerCafe, 150, 250, 6, 12);   // 주의
-      else _cv = _lerpScore(_roiPopPerCafe, 0, 150, 0, 6);                    // 과밀
-      _scoreChange = Math.max(0, Math.min(20, Math.round(_cv)));
-    }
   }
-  // 호환용 sub-score(scoreDetails 표시): 점포당 배후인구 단일 지표라 density/diversity로 분리 표기만 유지.
-  const _s_cv_popPerCafe = _scoreChange === null ? 0 : _scoreChange;
-  const _s_cv_density = 0;
+  if (_roiPopPerCafe < 50) { _roiPopPerCafe = 0; _roiPopBasis = null; } // 신뢰범위 미달 → 표시 숨김
+  // 호환용 sub-score(scoreDetails 표시): 밀집도 단일 지표라 density로만 표기.
+  const _s_cv_density = _scoreChange === null ? 0 : _scoreChange;
+  const _s_cv_popPerCafe = 0;
   // (변수명 호환: _scoreChange = 경쟁여건. 아래 cap 단계에서 _scoreCompeteFinal로 사용)
-  console.log(`[ROI] 경쟁여건 ${_scoreChange === null ? 'null(데이터없음)' : _scoreChange + '/20'} = 점포당 배후인구 ${_roiPopPerCafe}명/카페 (${_roiPopBasis === 'resident' ? `거주인구 ${_roiBackingPop} ÷ 카페 ${_selfTotalCafes}개; ≥1500여유·536과밀선` : _roiPopBasis === 'flow' ? `유동 기준 ${_selfDailyPop} ÷ 카페 ${_selfTotalCafes}개; ≥400여유·150과밀선` : '데이터없음'})`);
+  console.log(`[ROI] 경쟁여건 ${_scoreChange === null ? 'null(데이터없음)' : _scoreChange + '/20'} = 카페밀집도 ${_selfTotalCafes}개 곡선(≤15여유20·>250초고밀 floor5) [수익검증 보정 전] / 참고표시 점포당인구 ${_roiPopPerCafe || '숨김'}${_roiPopBasis ? '('+_roiPopBasis+')' : ''}`);
 
   // [축 5] 성장성 (10점) - "시장(상권)이 커지는 흐름인가" — ★순수 '시장 단위' 신호만.
   //   ※변수명 _s_change_*·_scoreCost(성장성)로 매핑. 합산 만점 15 → 10점으로 비례 환산.
@@ -4707,8 +4701,9 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   const _scoreCompeteFinal = (_scoreCompete === null) ? null : Math.max(0, Math.min(15, _scoreCompete));
   // 축3 경쟁여건(20): [2026-06-26 사장님 확정] 외부 '영업력' 가산(_ext_competeBonus = 비즈맵 창업기상도 경쟁력지수) 제거.
   //   창업기상도 영업력은 불투명·추정 외부지수라 ROI 원칙(외부지수=참고표시만, 점수 driver 금지)에 어긋난다.
-  //   생존안정(축4)에서 안정성·날씨 상수를 뺀 것과 같은 class. 경쟁여건 점수는 실집계 신호(카페당 유동·과밀완화 등 기존 driver)만으로 결정한다.
-  //   환산은 생존안정과 동일 — 외부 가산만 빼고 만점(20) 그대로 유지(_scoreChange는 이미 0~20 driver 합산값). 창업기상도 '영업력' 표시는 다른 카드/marketMapScores에 그대로 유지, 경쟁여건 점수에서만 뺀다.
+  //   생존안정(축4)에서 안정성·날씨 상수를 뺀 것과 같은 class. 경쟁여건 점수는 실집계 신호(반경 내 카페 밀집도 곡선)만으로 결정한다.
+  //   [2026-06-28] base = 카페 수 밀집도 곡선(≤15 여유20 … >250 초고밀 floor5, 절대 0으로 안 깖). 점포당인구는 채점에서 폐기.
+  //   환산은 생존안정과 동일 — 외부 가산만 빼고 만점(20) 그대로 유지(_scoreChange는 이미 5~20 밀집도 점수). 창업기상도 '영업력' 표시는 다른 카드/marketMapScores에 그대로 유지, 경쟁여건 점수에서만 뺀다.
   //   ★[2026-06-26 사장님 확정] '수익 검증' 보정: 카페 수만 세어 0점을 주는 결함 교정.
   //     과밀해도 그 지역 카페들이 실제로 흑자(평균 영업이익률>0)면 = 시장이 경쟁을 흡수하는 좋은 자리라는 증거.
   //     수익성 축이 쓰는 그 단일 실측 영업이익률(_roiOpProfitPct)을 재사용(새 출처 만들지 않음).
@@ -5111,9 +5106,10 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       //   기존엔 한 장 요약 배너(낙관 가정 assumedMonthlySales×1.4)의 paybackMonths를 읽어 적자인데 회수개월이 떴음.
       //   → 적자(월이익≤0)면 회수개월 0(표기 금지·흑자전환 우선), 흑자면 실제 회수개월(수익성과 부호 일치).
       roiPaybackMonths: (_roiPaybackMonths > 0 && _roiPaybackMonths < 999) ? _roiPaybackMonths : 0,  // 개월(0=적자/미산출 → 회수개월 표기 안 함)
-      // [2026-06-28] 경쟁 한줄평용 점포당 배후인구(명, 정수). 1순위 거주인구÷카페, 폴백 일유동÷카페. 없으면 null.
+      // [2026-06-28] 점포당 배후인구(명, 정수) — ★참고 표시 전용(채점 X). 신뢰범위(점포당 ≥50명)일 때만 값,
+      //   아니면 null(인구·유동 소스가 비정상으로 작게 잡힌 경우 4·8명 같은 오해값 표시 금지). 위에서 이미 게이트됨.
       perStorePop: (_roiPopPerCafe > 0) ? _roiPopPerCafe : null,
-      // 'resident'(거주인구 기준) | 'flow'(유동 기준 폴백) | null — 한줄평 단위/임계 라벨용.
+      // 'resident'(거주인구 기준) | 'flow'(유동 기준 폴백) | null — 참고표시 단위 라벨용.
       perStorePopBasis: (_roiPopPerCafe > 0) ? _roiPopBasis : null,
       roiTotalStartup: _roiTotalStartup,          // 총 창업비(만원) = 인테리어 + 권리금 + 시설장비(보증금 제외)
       roiInteriorCost: _roiInterior15,            // 인테리어비(만원, 규모별 평당×면적)
