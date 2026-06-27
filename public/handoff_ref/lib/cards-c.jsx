@@ -20,6 +20,14 @@ function bcJosa(word, withJong, noJong) {
 
 function Card13({ body = {} }) {
   const total = Number(body.totalScore) || 0;
+  // [2026-06-26 매출 미수집 보류] 데이터층 약속: 매출 미수집(차단/비수도권)이면 ROI 종합점수를
+  //   가짜로 채우지 않고 bodyData._roiUnavailable=true + _roiUnavailableReason 을 보낸다.
+  //   이때 수익성·투자회수 축 점수=null, 종합점수=null(경쟁/생존/성장 3축은 정상값 있음).
+  //   → 종합점수/게이지/등급/두 축을 '보류'로 표기. (false/없음이면 기존과 100% 동일)
+  const _roiUnavail = (body.bodyData && body.bodyData._roiUnavailable === true);
+  const _roiUnavailReason = (_roiUnavail && body.bodyData && body.bodyData._roiUnavailableReason)
+    ? String(body.bodyData._roiUnavailableReason)
+    : '매출 미수집(차단/미제공 가능) — 재검색 권장';
   // [2026-06-26] 추정 배지 약속 — 데이터층이 bodyData._estimated에 추정/폴백 값의 필드명을 담아 보냄.
   //   그 필드를 그릴 때만 옆에 회색 '추정' 배지. 실측이면 배지 없음. (값/계산 무변경)
   const _estSet13 = (window.bcEstSet ? window.bcEstSet(body.bodyData || {}) : new Set());
@@ -40,6 +48,17 @@ function Card13({ body = {} }) {
     || Number(body.bodyData?.monthly)
     || 0;
   const guAvg = Number(body.guAvg) || 0;
+  // [2026-06-27 ROI 업계기준] 수익 2줄 — 사장 본인 인건비 반영.
+  //   데이터층이 bodyData(또는 top-level)에 넣어줌: ownerWageMonthly(216) · accountingProfitMonthly(회계 월영업이익) · realProfitMonthly(사장월급 뺀 진짜 월수익).
+  //   점수(수익성/투자회수)는 이미 realProfit 기준으로 계산돼 옴. 화면은 두 줄(회계이익 / 진짜수익)만 정직하게 보여준다. null이면 줄 자체 숨김.
+  const _bd13 = body.bodyData || {};
+  const _accProfit = (body.accountingProfitMonthly != null) ? Number(body.accountingProfitMonthly)
+    : (_bd13.accountingProfitMonthly != null ? Number(_bd13.accountingProfitMonthly) : null);
+  const _realProfit = (body.realProfitMonthly != null) ? Number(body.realProfitMonthly)
+    : (_bd13.realProfitMonthly != null ? Number(_bd13.realProfitMonthly) : null);
+  const _ownerWage = (body.ownerWageMonthly != null) ? Number(body.ownerWageMonthly)
+    : (_bd13.ownerWageMonthly != null ? Number(_bd13.ownerWageMonthly) : null);
+  const _hasProfitRows = (_accProfit != null && isFinite(_accProfit)) && (_realProfit != null && isFinite(_realProfit)) && !_roiUnavail;
   const sigungu = body.sigungu || "";
   const cafeCount = Number(body.cafeCount) || 0;
   const individualCount = Number(body.individualCount) || 0;
@@ -54,16 +73,19 @@ function Card13({ body = {} }) {
   const weatherScore = Number(body.weatherScore) || 0;
   const externalIndicators = body.externalIndicators || null;
 
-  // [2026-06-25 ROI 재설계] 5축 = 수익성30·투자회수25·경쟁여건20·생존안정15·성장성10
+  // [2026-06-28 ROI 가중치 정합] 5축 = 수익성25·투자회수15·경쟁여건20·생존안정20·성장성20 (합=100)
   //   한 장 요약 배너 값(__BC_DATA__.summary.stats: 회수기간·손익분기 등)을 headline에 인용해 모순 0건.
   const _roiSt = (typeof window !== 'undefined' && window.__BC_DATA__ && window.__BC_DATA__.summary && window.__BC_DATA__.summary.stats) || {};
   const axes = [
     {
       key: "profit",
       label: "수익성",
-      max: 30,
-      score: Number(body.scoreMarket) || 0,
+      max: 25,
+      // 매출 미수집이면 점수 미산정(null) — 막대/숫자 대신 '미산정' 표기.
+      score: _roiUnavail ? null : (Number(body.scoreMarket) || 0),
+      unavail: _roiUnavail,
       headline: (() => {
+        if (_roiUnavail) return '매출 미수집 — 수익성 미산정 (재검색 권장)';
         const _opPct = (body.roiOpProfitPct != null) ? Number(body.roiOpProfitPct) : null;
         const _opProfit = (body.roiMonthlyProfit != null) ? Number(body.roiMonthlyProfit) : null;
         const _sales = Number(body.roiMonthlySales) || cafeSales || 0;
@@ -80,13 +102,16 @@ function Card13({ body = {} }) {
     {
       key: "payback",
       label: "투자 회수",
-      max: 25,
-      score: Number(body.scoreCompete) || 0,
+      max: 15,
+      // 매출 미수집이면 점수 미산정(null) — 막대/숫자 대신 '미산정' 표기.
+      score: _roiUnavail ? null : (Number(body.scoreCompete) || 0),
+      unavail: _roiUnavail,
       // [2026-06-25 모순1] 투자 회수도 수익성과 '동일한 단일 월영업이익(roiMonthlyProfit)'을 따라간다.
       //   적자(월이익 ≤ 0) → 회수 불가 → "회수 N개월" 표기 금지, '흑자 전환 우선'(정직+긍정톤).
       //   흑자(월이익 > 0) → dataMapper가 같은 이익으로 계산한 실제 회수개월(roiPaybackMonths)을 표기.
       //   ※ 옛 낙관 배너값(_roiSt.paybackMonths, assumedMonthlySales×1.4)은 더 이상 안 씀(수익성과 부호 불일치 원천).
       headline: (() => {
+        if (_roiUnavail) return '매출 미수집 — 회수기간 미산정 (재검색 권장)';
         const _profit = (body.roiMonthlyProfit != null) ? Number(body.roiMonthlyProfit) : null;
         const _months = Number(body.roiPaybackMonths) || 0;
         const _startupTxt = body.roiTotalStartupText || _roiSt.totalStartupText || '';
@@ -106,14 +131,30 @@ function Card13({ body = {} }) {
       label: "경쟁 여건",
       max: 20,
       score: Number(body.scoreChange) || 0,
-      headline: cafeCount > 0
-        ? `카페 ${cafeCount}개 ${cafeCount > 200 ? '과밀' : cafeCount > 80 ? '보통' : '여유'}${individualCount > 0 ? ` — 개인 ${Math.round(individualCount/cafeCount*100)}% 차별화 여지` : ''}`
-        : '경쟁 데이터 수집 중',
+      // [2026-06-28 단위 정합] 카페 1곳당 배후 거주인구(perStorePop) 기준: ≥1500 여유·800~1500 보통·536~800 포화 주의·<536 과밀.
+      //   업계 과밀선 536명은 '거주(배후)인구' 단위 → 거주인구 기준일 때만 이 임계 사용.
+      //   거주인구가 없어 일유동으로 폴백한 경우(basis='flow')는 유동 스케일 임계(≥400/250/150)와 '(유동 기준)' 라벨.
+      //   perStorePop 없으면 옛 카페수 문구로 폴백.
+      headline: (() => {
+        const _psp = (body.perStorePop != null) ? Number(body.perStorePop) : null;
+        const _basis = body.perStorePopBasis || null;
+        if (_psp != null && isFinite(_psp) && _psp > 0) {
+          if (_basis === 'flow') {
+            const _grade = _psp >= 400 ? '여유' : _psp >= 250 ? '보통' : _psp >= 150 ? '포화 주의' : '과밀';
+            return `카페당 유동 ${_psp.toLocaleString()}명 (유동 기준) — ${_grade}`;
+          }
+          const _grade = _psp >= 1500 ? '여유' : _psp >= 800 ? '보통' : _psp >= 536 ? '포화 주의' : '과밀';
+          return `카페당 배후 ${_psp.toLocaleString()}명 — ${_grade}`;
+        }
+        return cafeCount > 0
+          ? `카페 ${cafeCount}개 ${cafeCount > 200 ? '과밀' : cafeCount > 80 ? '보통' : '여유'}${individualCount > 0 ? ` — 개인 ${Math.round(individualCount/cafeCount*100)}% 차별화 여지` : ''}`
+          : '경쟁 데이터 수집 중';
+      })(),
     },
     {
       key: "survival",
       label: "생존 안정",
-      max: 15,
+      max: 20,
       score: Number(body.scoreSurvival) || 0,
       headline: survival3y > 0
         ? `3년 생존율 ${survival3y}% — ${survival3y >= 60 ? '상위' : survival3y >= 40 ? '평균' : '주의'}`
@@ -122,7 +163,7 @@ function Card13({ body = {} }) {
     {
       key: "growth",
       label: "성장성",
-      max: 10,
+      max: 20,
       // [2026-06-25 사장님 확정] 성장성은 '시장(상권) 단위' 신호만. 근거에서 메뉴 완전 제거.
       //   메뉴(시그니처/급상승)는 '매장 단위' 강점이라 상권 성장성의 근거가 될 수 없다.
       //   진짜 driver 순서: ①신규/폐업 순증 ②5년 점포 변화율 ③전년 대비(YoY) 시장 추세.
@@ -151,9 +192,11 @@ function Card13({ body = {} }) {
     },
   ];
 
-  const strengths = axes.filter(a => a.score / a.max >= 0.6).sort((a, b) => (b.score/b.max) - (a.score/a.max));
-  const weaknesses = axes.filter(a => a.score / a.max < 0.6).sort((a, b) => (a.score/a.max) - (b.score/b.max));
-  const maxRatio = axes.reduce((m, a) => Math.max(m, a.score/a.max), 0);
+  // [2026-06-26 보류] 미산정(score=null) 축은 강·약점/최대비율 산정에서 제외해 0점으로 오분류·NaN 정렬 방지.
+  const _scoredAxes = axes.filter(a => a.score != null && isFinite(Number(a.score)));
+  const strengths = _scoredAxes.filter(a => a.score / a.max >= 0.6).sort((a, b) => (b.score/b.max) - (a.score/a.max));
+  const weaknesses = _scoredAxes.filter(a => a.score / a.max < 0.6).sort((a, b) => (a.score/a.max) - (b.score/b.max));
+  const maxRatio = _scoredAxes.reduce((m, a) => Math.max(m, a.score/a.max), 0);
 
   // [2026-06-14] 우리 5축 점수 비율 → 우리 자체 등급 (외부 95점/외부 A등급 대체)
   //   85%↑ 우수 / 65%↑ 양호 / 45%↑ 보통 / 25%↑ 보완 여지 / 그 미만 보완 필요
@@ -211,12 +254,15 @@ function Card13({ body = {} }) {
     const _gradeKr = total >= 80 ? '유리' : total >= 60 ? '무난' : total >= 40 ? '보통' : total >= 20 ? '비용 관리 관건' : '보완 필요';
     if (total > 0) items.push(['투자 대비 수익률', `${total}점 · ${_gradeKr}`, true]);
     // 2) 우리 5축을 점수 비율 내림차순으로 → 우리 등급(우수/양호/보통/주의/취약)으로 표기
+    //    미산정 축(score=null)은 등급 대신 '미산정' 표기, 정렬은 최하위로(0 취급).
     if (total > 0) {
-      const ranked = [...axes].sort((a, b) => (b.score/b.max) - (a.score/a.max));
+      const _ax = (a) => (a.score != null && isFinite(Number(a.score)) && a.max > 0) ? a.score / a.max : -1;
+      const ranked = [...axes].sort((a, b) => _ax(b) - _ax(a));
       ranked.forEach(a => {
         if (items.length < 6) {
-          const _r = a.max > 0 ? a.score / a.max : 0;
-          items.push([a.label, axisGrade(_r), false]);
+          const _u = (a.unavail === true) || a.score == null || !isFinite(Number(a.score));
+          const _r = a.max > 0 ? (a.score || 0) / a.max : 0;
+          items.push([a.label, _u ? '미산정' : axisGrade(_r), false]);
         }
       });
     }
@@ -231,14 +277,23 @@ function Card13({ body = {} }) {
 
       <div style={{display:"grid", gridTemplateColumns:"320px 1fr", gap:32, alignItems:"center", marginBottom:24, padding:"8px 8px 16px"}}>
         <div style={{display:"flex", justifyContent:"center"}}>
-          <ScoreGauge id="c13.gauge" value={total} max={100} size={300} label={grade} accent/>
+          {_roiUnavail
+            ? <ScoreGauge id="c13.gauge" value={0} max={100} size={300} label="종합 보류"/>
+            : <ScoreGauge id="c13.gauge" value={total} max={100} size={300} label={grade} accent/>}
         </div>
         <div>
           <div style={{fontSize:13, color:"var(--matte-fg-3)", fontWeight:600, letterSpacing:"0.10em", textTransform:"uppercase", marginBottom:14}}>한 줄 요약</div>
+          {_roiUnavail ? (
+            <div style={{marginBottom:28}}>
+              <div style={{fontSize:30, fontWeight:700, lineHeight:1.35, color:"var(--matte-fg-2)", letterSpacing:"-0.015em"}}>매출 미수집 · 종합 보류</div>
+              <div style={{fontSize:15, color:"var(--matte-fg-3)", marginTop:10, lineHeight:1.5}}>{_roiUnavailReason}</div>
+            </div>
+          ) : (
           <div style={{fontSize:30, fontWeight:700, lineHeight:1.35, color:"#fff", letterSpacing:"-0.015em", marginBottom:28}}>
             {headline}<br/>
             투자 대비 수익률은 <span style={{color:"#4C7BE4"}}>{grade}</span>로 봅니다.
           </div>
+          )}
           <div style={{display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:14}}>
             {[
               ["3년 생존", survival3y > 0 ? String(survival3y) : '-', survival3y > 0 ? '%' : '', survival3y > 0 ? `전국 평균 대비 ${survival3y >= 39 ? '+' : ''}${(survival3y - 39).toFixed(1)}%${survival3y >= 39 ? '↑' : '↓'}` : '', survival3y >= 60, survival3y > 0 && _isEst13('survival3y', 'survival')],
@@ -259,30 +314,40 @@ function Card13({ body = {} }) {
       <div className="bc-box" style={{padding:32}}>
         <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:24}}>
           <div style={{fontSize:20, fontWeight:700, letterSpacing:"-0.01em"}}>한눈에 보기</div>
-          <div style={{fontSize:14, color:"var(--matte-fg-3)"}}>항목 점수 합 = 종합 <strong style={{color:"var(--matte-fg)", fontSize:17, marginLeft:4}}>{total}</strong>점</div>
+          {_roiUnavail
+            ? <div style={{fontSize:14, color:"var(--matte-fg-3)"}}>종합 <strong style={{color:"var(--matte-fg-2)", fontSize:15, marginLeft:4}}>보류</strong> (매출 미수집)</div>
+            : <div style={{fontSize:14, color:"var(--matte-fg-3)"}}>항목 점수 합 = 종합 <strong style={{color:"var(--matte-fg)", fontSize:17, marginLeft:4}}>{total}</strong>점</div>}
         </div>
 
         <window.DrStagger id="c13.axes" delay={140} style={{display:"flex", flexDirection:"column"}}>
         {axes.map((a, idx) => {
-          const pct = a.max > 0 ? a.score / a.max : 0;
-          const isMax = a.max > 0 && pct === maxRatio && maxRatio > 0;
+          // [2026-06-26 보류] 미산정 축(score=null): 막대/숫자/비율 대신 '미산정'(회색).
+          const _unavail = (a.unavail === true) || a.score == null || !isFinite(Number(a.score));
+          const pct = (!_unavail && a.max > 0) ? a.score / a.max : 0;
+          const isMax = !_unavail && a.max > 0 && pct === maxRatio && maxRatio > 0;
           const barColor = isMax ? "#4C7BE4" : "#FFFFFF";
           return (
             <div key={a.key} style={{padding:"20px 0", borderTop: idx > 0 ? "1px solid var(--matte-line)" : "none"}}>
               <div style={{display:"grid", gridTemplateColumns:"180px 1fr 130px", gap:20, alignItems:"center"}}>
                 <div>
-                  <div style={{fontSize:17, fontWeight:700, color: isMax ? "#4C7BE4" : "#fff", letterSpacing:"-0.01em", marginBottom:4}}>{a.label}</div>
+                  <div style={{fontSize:17, fontWeight:700, color: isMax ? "#4C7BE4" : (_unavail ? "var(--matte-fg-3)" : "#fff"), letterSpacing:"-0.01em", marginBottom:4}}>{a.label}</div>
                   <div style={{fontSize:13, color:"var(--matte-fg-3)", fontVariantNumeric:"tabular-nums"}}>만점 {a.max}점</div>
                 </div>
                 <div>
                   <div className="bc-bar" style={{height:14, background:"rgba(255,255,255,0.05)", marginBottom:10}}>
-                    <div style={{width:`${pct*100}%`, background:barColor, height:"100%", borderRadius:"inherit", transition:"width 0.9s var(--ease)"}}></div>
+                    {!_unavail && <div style={{width:`${pct*100}%`, background:barColor, height:"100%", borderRadius:"inherit", transition:"width 0.9s var(--ease)"}}></div>}
                   </div>
                   <div style={{fontSize:14, color:"var(--matte-fg-2)", lineHeight:1.5}}>{a.headline}</div>
                 </div>
                 <div style={{textAlign:"right"}}>
-                  <div style={{fontSize:36, fontWeight:700, color: isMax ? "#4C7BE4" : "var(--matte-fg)", fontVariantNumeric:"tabular-nums", letterSpacing:"-0.02em", lineHeight:1}}>{a.score}</div>
-                  <div style={{fontSize:13, color:"var(--matte-fg-3)", marginTop:8}}>비율 <strong style={{color:"var(--matte-fg-2)", fontWeight:700}}>{Math.round(pct*100)}%</strong></div>
+                  {_unavail ? (
+                    <div style={{fontSize:18, fontWeight:700, color:"var(--matte-fg-3)", letterSpacing:"-0.01em", lineHeight:1}}>미산정</div>
+                  ) : (
+                    <>
+                      <div style={{fontSize:36, fontWeight:700, color: isMax ? "#4C7BE4" : "var(--matte-fg)", fontVariantNumeric:"tabular-nums", letterSpacing:"-0.02em", lineHeight:1}}>{a.score}</div>
+                      <div style={{fontSize:13, color:"var(--matte-fg-3)", marginTop:8}}>비율 <strong style={{color:"var(--matte-fg-2)", fontWeight:700}}>{Math.round(pct*100)}%</strong></div>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -290,6 +355,33 @@ function Card13({ body = {} }) {
         })}
         </window.DrStagger>
       </div>
+
+      {/* [2026-06-27 ROI 업계기준] 수익 2줄 — 사장 본인 인건비 반영.
+            (a) 회계상 영업이익 (b) 사장 월급(216만) 뺀 진짜 수익 = 점수 기준.
+            진짜수익이 음수/소액이면 회색 경고 톤(담담히, doom 금지). null이면 블록 자체 숨김. */}
+      {_hasProfitRows && (() => {
+        const _wageTxt = (_ownerWage != null && isFinite(_ownerWage)) ? `${Math.round(_ownerWage).toLocaleString()}만` : '216만';
+        const _accTxt = `${_accProfit >= 0 ? '+' : ''}${Math.round(_accProfit).toLocaleString()}만원`;
+        const _realTxt = `${_realProfit >= 0 ? '+' : ''}${Math.round(_realProfit).toLocaleString()}만원`;
+        const _warn = _realProfit < 100; // 음수 또는 소액(100만 미만)이면 담담한 회색 안내
+        return (
+          <div className="bc-box" style={{padding:"22px 28px", marginTop:16}}>
+            <div style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:600, letterSpacing:"-0.005em", marginBottom:16}}>월 수익 (사장 본인 인건비 반영)</div>
+            <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, alignItems:"stretch"}}>
+              <div style={{padding:"18px 20px", background:"rgba(255,255,255,0.03)", borderRadius:10, border:"1px solid var(--matte-line)"}}>
+                <div style={{fontSize:13, color:"var(--matte-fg-3)", fontWeight:500, marginBottom:8}}>회계상 영업이익</div>
+                <div style={{fontSize:28, fontWeight:700, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.02em", color: _accProfit >= 0 ? "var(--matte-fg)" : "var(--matte-fg-2)", lineHeight:1.05}}>{_accTxt}</div>
+                <div style={{fontSize:12, color:"var(--matte-fg-4)", marginTop:8, lineHeight:1.5}}>사장 월급을 빼기 전 장부상 이익</div>
+              </div>
+              <div style={{padding:"18px 20px", background: _warn ? "rgba(255,255,255,0.03)" : "rgba(76, 123, 228,0.08)", borderRadius:10, border: _warn ? "1px solid var(--matte-line)" : "1px solid rgba(76, 123, 228,0.40)"}}>
+                <div style={{fontSize:13, color: _warn ? "var(--matte-fg-3)" : "#4C7BE4", fontWeight:600, marginBottom:8}}>진짜 수익 <span style={{fontSize:11, color:"var(--matte-fg-4)", fontWeight:400}}>(사장 월급 {_wageTxt} 뺀 값)</span></div>
+                <div style={{fontSize:28, fontWeight:700, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.02em", color: _warn ? "var(--matte-fg-2)" : "#4C7BE4", lineHeight:1.05}}>{_realTxt}</div>
+                <div style={{fontSize:12, color:"var(--matte-fg-4)", marginTop:8, lineHeight:1.5}}>{_warn ? '사장 본인 인건비까지 반영한 수치 — 점수 기준' : '점수(수익성·투자 회수)는 이 값을 기준으로 매겨집니다'}</div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 강점 / 약점 — 자동 분류 (mock 활용/대응 박스 제거) */}
       <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginTop:16}}>
@@ -367,7 +459,9 @@ function Card14({ body = {}, onOpenDirector }) {
   // [2026-06-25 ROI 톤] 수익률 등급 — 균형 처방 톤. 점수 무변경, 표현만.
   const recommendation = body.recommendation || (total >= 80 ? '수익률 유리' : total >= 60 ? '수익률 무난' : total >= 40 ? '보통 — 운영이 관건' : total >= 20 ? '비용 관리 관건' : '보완 필요');
   const grade = total >= 80 ? 'A' : total >= 70 ? 'A-' : total >= 60 ? 'B+' : total >= 50 ? 'B' : total >= 40 ? 'C+' : 'C';
-  const axesArr = Array.isArray(body.axes) ? body.axes : [];
+  // [2026-06-28 단일출처] 레이더·초점축도 카드 막대와 같은 로컬 axes(새 만점 25/15/20/20/20)를 쓴다.
+  //   기존 body.axes(데이터층)는 옛 만점(30/25/15/10)이라 레이더에 '수익성 2/30'식 옛 라벨이 떴음 → 통일.
+  const axesArr = (Array.isArray(axes) && axes.length === 5) ? axes : (Array.isArray(body.axes) ? body.axes : []);
   const radarAxes = axesArr.length === 5
     ? axesArr.map(a => ({ label: a?.label || '-', max: Number(a?.max) > 0 ? Number(a.max) : 1 }))
     : [];

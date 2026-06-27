@@ -5663,6 +5663,14 @@ export default function UnifiedLayout({
     const c9 = cards[9]?.bodyData || {};
     const c12 = cards[12]?.bodyData || {};
     const c13 = cards[13]?.bodyData || {};
+    // [2026-06-26 매출 미수집 보류] 데이터층 약속: 매출 미수집(차단/비수도권)이면 ROI를 가짜로
+    //   채우지 않고 5축 카드(cards[12]) bodyData._roiUnavailable=true + _roiUnavailableReason 을 보낸다.
+    //   → 배너의 종합점수/등급/회수기간/손익분기 결론을 '보류'로(거짓 결론·가짜 점수 금지).
+    //   false/없음이면(정상 지역) 아래 모든 계산은 기존과 100% 동일.
+    const _roiUnavail = (c12._roiUnavailable === true);
+    const _roiUnavailReason = (_roiUnavail && c12._roiUnavailableReason)
+      ? String(c12._roiUnavailableReason)
+      : '매출 미수집(차단/미제공 가능) — 재검색 권장';
     const c8hf = bcCardsBodies[7]?.body || {};       // 임대/창업 (단위 정규화된 hfBody)
     const c5hf = bcCardsBodies[5]?.body?.bodyData || {};
     const kc = c7?.kosisCafe || (bcCardsBodies[7]?.body?.chartData?.kosisCafe) || {};
@@ -5692,8 +5700,17 @@ export default function UnifiedLayout({
     const roiOpProfitPct  = (c12.roiOpProfitPct != null && isFinite(Number(c12.roiOpProfitPct))) ? Number(c12.roiOpProfitPct) : null; // 실 영업이익률 %(음수 가능)
     const roiMonthlyProfit = (c12.roiMonthlyProfit != null && isFinite(Number(c12.roiMonthlyProfit))) ? Number(c12.roiMonthlyProfit) : null; // 실 월영업이익(만원)
     const roiPaybackMonths = num(c12.roiPaybackMonths);        // 실 회수개월(0=적자/미산출)
-    const roiTotalStartup  = num(c12.roiTotalStartup);         // 실 총창업비(만원)
+    const roiTotalStartup  = num(c12.roiTotalStartup);         // 실 총창업비(=인테리어+권리금+시설장비, 만원)
     const hasRoi = roiOpProfitPct != null;                     // 5축 ROI 산출 성공 여부
+    // [2026-06-27 ROI 업계기준] 사장 본인 인건비 반영 — 데이터층이 넣어준 3값을 그대로 읽는다.
+    //   회계상 월영업이익(accountingProfitMonthly) · 사장 본인 인건비(ownerWageMonthly=216만/월) ·
+    //   진짜 월수익(realProfitMonthly=회계이익−사장월급, 음수 가능). 점수·회수기간은 진짜수익 기준.
+    //   null(매출 미산출)이면 0으로 안전 처리 → 표기 안 함(거짓 숫자 금지).
+    const ownerWageMonthly = (c12.ownerWageMonthly != null && isFinite(Number(c12.ownerWageMonthly))) ? Math.round(Number(c12.ownerWageMonthly)) : 0;
+    const accountingProfitMonthly = (c12.accountingProfitMonthly != null && isFinite(Number(c12.accountingProfitMonthly))) ? Math.round(Number(c12.accountingProfitMonthly)) : null;
+    const realProfitMonthly = (c12.realProfitMonthly != null && isFinite(Number(c12.realProfitMonthly)))
+      ? Math.round(Number(c12.realProfitMonthly))
+      : (roiMonthlyProfit != null ? Math.round(roiMonthlyProfit) : null);  // 폴백: 진짜수익 = roiMonthlyProfit(동일 정의)
     // [2026-06-15] 객단가(원): 임대/창업 카드 시뮬레이터와 BEP 잔수를 일치시키기 위해
     //   시뮬레이터가 쓰는 것과 '동일 출처·동일 우선순위'(전국 카페 평균 → 폴백 4,500원)로 통일한다.
     //   (이전엔 매출분석 비즈맵 객단가(9,853원)를 써서 시뮬레이터(5,856원)와 BEP 잔수가 달라 보였음.)
@@ -5732,8 +5749,12 @@ export default function UnifiedLayout({
     // ── 월 고정비(만원): 임대료 + 인건비/관리비 간단 추정(임대료의 2.2배). 임대료 없으면 0. ──
     //   (시뮬레이터 fixedMonthly와 동일 계수 2.2)
     const fixedMonthly = rentMonthly > 0 ? Math.round(rentMonthly * 2.2) : 0;
-    // ── 손익분기 매출(만원): 고정비 / 이익률 ── (시뮬레이터 bepSales와 동일 식)
-    const bepSales = (fixedMonthly > 0 && profitPct > 0) ? Math.round(fixedMonthly / (profitPct / 100)) : 0;
+    // ── 손익분기 매출(만원): 고정비 ÷ 공헌이익률 ──
+    // [2026-06-27 ROI 업계기준 BEP 교정] 손익분기 = 고정비 ÷ 공헌이익률(=1−변동비율).
+    //   기존엔 영업이익률(profitPct≈10~20%)로 나눠 손익분기가 약 3배 부풀려졌다(CVP 표준 위반).
+    //   카페 변동비(원두·우유·부자재)는 매출의 약 35% → 공헌이익률 0.65로 통일(고정비만 분모).
+    const CONTRIBUTION_MARGIN = 0.65;
+    const bepSales = (fixedMonthly > 0) ? Math.round(fixedMonthly / CONTRIBUTION_MARGIN) : 0;
     // ── BEP 하루 잔수: BEP매출(원) / 객단가(원) / 30일 ── (객단가·이익률을 시뮬레이터와 통일 → 잔수 일치)
     const bepCups = (bepSales > 0 && unitPrice > 0) ? Math.ceil((bepSales * 10000) / unitPrice / 30) : 0;
     // [2026-06-26 근본감리] 회수기간(개월): 화면이 보여주는 '실제 동네 월매출 × 실측 영업이익률'로 계산한다.
@@ -5741,12 +5762,23 @@ export default function UnifiedLayout({
     //   1순위: 5축 ROI가 이미 같은 식(roiTotalStartup ÷ 실 월영업이익)으로 낸 roiPaybackMonths를 그대로 사용
     //          → 화면 월매출·점수·배너 회수기간이 한 매출/이익률 기준으로 일치. 적자(월이익≤0)면 0(=회수 표기 안 함).
     //   폴백(5축 ROI 미산출 지역만): 화면 월매출(monthly) × 이익률(profitPct)로 직접 계산.
-    const monthlyProfit = hasRoi
-      ? (roiMonthlyProfit != null ? roiMonthlyProfit : 0)
-      : ((monthly > 0 && profitPct > 0) ? Math.round(monthly * (profitPct / 100)) : 0);
-    const paybackMonths = hasRoi
-      ? roiPaybackMonths                                   // 0이면 적자/미산출 → 배너가 회수개월 표기 안 함
-      : ((totalStartup > 0 && monthlyProfit > 0) ? Math.round(totalStartup / monthlyProfit) : 0);
+    // [2026-06-27 ROI 업계기준] 회수기간은 '사장 월급(216만)을 뺀 진짜 월수익(realProfitMonthly)' 기준.
+    //   회계상 이익으로 회수기간을 내면 사장 본인 인건비를 회수에 쓴 셈이라 회수가 거짓으로 빨라진다.
+    //   진짜수익을 1순위로, 없으면 roiMonthlyProfit(동일 정의), 그래도 없으면 화면 월매출×이익률 폴백.
+    const monthlyProfit = (realProfitMonthly != null)
+      ? realProfitMonthly
+      : (hasRoi
+          ? (roiMonthlyProfit != null ? Math.round(roiMonthlyProfit) : 0)
+          : ((monthly > 0 && profitPct > 0) ? Math.round(monthly * (profitPct / 100)) : 0));
+    // 진짜수익이 0 이하(=사장 월급도 못 건짐)면 회수개월을 만들지 않는다(거짓 회수 금지 → "회수 보류").
+    //   5축 ROI가 같은 식으로 낸 roiPaybackMonths(흑자일 때만 >0)를 1순위로 재사용 → 화면·점수와 한 기준.
+    const paybackMonths = (monthlyProfit <= 0)
+      ? 0                                                  // 0 = 회수 보류(흑자전환 우선) — 배너가 회수개월 표기 안 함
+      : (hasRoi && roiPaybackMonths > 0
+          ? roiPaybackMonths
+          : ((totalStartup > 0) ? Math.round(totalStartup / monthlyProfit) : 0));
+    // 회수 보류 사유: 진짜수익이 0 이하라 회수개월을 낼 수 없는 상태인지 플래그.
+    const paybackOnHold = (monthlyProfit != null && monthlyProfit <= 0 && totalStartup > 0);
 
     // ── 권고 한 줄(결론) — 5축/생존율 기반 결정적 룰 ──
     //   생존 기반이 임계(40% = 점수 12/30) 미만이면 점수 무관 "차별화 필수".
@@ -5846,6 +5878,56 @@ export default function UnifiedLayout({
     const totalStartupEstimated = _hasEst(c12, 'roiTotalStartup') || _hasEst(c7, 'totalStartupCost', 'premiumCost');
     const _estTag = (txt, on) => (on && txt) ? `${txt} (추정)` : txt;
 
+    // [2026-06-26 매출 미수집 보류] 매출 미수집(차단/비수도권)이면 종합 결론·매출 의존 값을 '보류'로.
+    //   거짓 결론·가짜 점수 금지. 매출과 무관한 값(총 창업비=인테리어+권리금)은 그대로 둔다.
+    //   ※ 이 분기는 _roiUnavail 일 때만 — 정상 지역은 아래 기본 return 과 100% 동일.
+    if (_roiUnavail) {
+      return {
+        address: bcSearchAddress,
+        radius,
+        verdict: '매출 미수집 · 종합 보류',
+        verdictTone: 'mid',
+        verdictLine: `${_roiUnavailReason}. 매출 데이터가 확보되면 다시 분석하면 정확합니다.`,
+        roiUnavailable: true,
+        roiUnavailableReason: _roiUnavailReason,
+        reasons: reasons.slice(0, 3),
+        stats: {
+          monthly: 0,
+          monthlyText: '',          // 매출 미수집 → 보류
+          monthlyEstimated: false,
+          bepSales: 0,
+          bepSalesText: '',         // 매출/이익률 의존 → 보류
+          bepEstimated: false,
+          bepCups: 0,
+          paybackMonths: 0,         // 매출 의존 → 회수기간 표기 안 함
+          paybackEstimated: false,
+          paybackOnHold: false,     // 매출 미수집 → 보류(흑자/적자 판단 불가)
+          // 사장 월급 2줄 — 매출 미수집이라 회계이익/진짜수익 모두 보류
+          ownerWageMonthly: 0,
+          ownerWageText: '',
+          accountingProfitMonthly: null,
+          accountingProfitText: '',
+          realProfitMonthly: null,
+          realProfitText: '',
+          realProfitNote: '',
+          totalStartup,             // 만원 — 매출 무관(인테리어+권리금+시설장비)이라 유지
+          totalStartupText: _estTag(totalStartup > 0 ? fmtMan(totalStartup) : '', totalStartupEstimated),
+          totalStartupEstimated,
+          fixedMonthly,             // 만원 — 임대 기반(매출 무관)
+          fixedMonthlyText: fixedMonthly > 0 ? fmtMan(fixedMonthly) : '',
+          unitPrice,                // 원
+          profitPct: 0,             // 영업이익률 보류
+        },
+        riskLine,
+        consult: {
+          pyeong: 15,
+          totalStartup,
+          monthly: 0,
+          verdict: '매출 미수집 · 종합 보류',
+        },
+      };
+    }
+
     return {
       address: bcSearchAddress,
       radius,
@@ -5861,9 +5943,25 @@ export default function UnifiedLayout({
         bepSalesText: _estTag(bepSales > 0 ? fmtMan(bepSales) : '', bepEstimated),
         bepEstimated,
         bepCups,                  // 하루 잔수
-        paybackMonths,            // 개월
+        paybackMonths,            // 개월 (0 = 회수 보류)
         paybackEstimated,
-        totalStartup,             // 만원
+        paybackOnHold,            // 진짜수익 ≤ 0 → "회수 보류/흑자전환 우선"
+        // [2026-06-27 ROI 업계기준] 사장 월급 2줄 표시용 — 회계상 영업이익 / 사장월급 뺀 진짜 월수익
+        ownerWageMonthly,                                                                  // 만원/월 (사장 본인 인건비 216)
+        ownerWageText: ownerWageMonthly > 0 ? fmtMan(ownerWageMonthly) : '',
+        accountingProfitMonthly,                                                           // 만원 (사장월급 전, 음수 가능)
+        accountingProfitText: (accountingProfitMonthly != null)
+          ? _estTag((accountingProfitMonthly >= 0 ? '' : '-') + fmtMan(Math.abs(accountingProfitMonthly)), bepEstimated)
+          : '',
+        realProfitMonthly,                                                                 // 만원 (회계이익−사장월급, 음수 가능)
+        realProfitText: (realProfitMonthly != null)
+          ? _estTag((realProfitMonthly >= 0 ? '' : '-') + fmtMan(Math.abs(realProfitMonthly)), bepEstimated)
+          : '',
+        // 진짜수익이 음수/소액이면 정직하게(담담히) 사장 본인 인건비도 못 건지는 수준임을 드러낸다.
+        realProfitNote: (realProfitMonthly != null && realProfitMonthly <= 0)
+          ? '사장 본인 인건비도 못 건지는 수준 — 흑자전환이 먼저'
+          : '',
+        totalStartup,             // 만원 (=인테리어+권리금+시설장비)
         totalStartupText: _estTag(totalStartup > 0 ? fmtMan(totalStartup) : '', totalStartupEstimated),
         totalStartupEstimated,
         fixedMonthly,             // 만원

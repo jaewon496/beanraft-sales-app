@@ -42,11 +42,13 @@ function Card08({ body = {} }) {
   const deposit = depositPerPy > 0 ? pyeong * depositPerPy : 0;
   const interiorPerPy = kc?.interiorPerPyeong > 0 ? kc.interiorPerPyeong : 0;
   const interior = interiorPerPy > 0 ? pyeong * interiorPerPy : 0;
-  // [2026-06-16] 총 창업비 = 인테리어(평균시공 ×1.0) + 권리금 만 합산.
+  // [2026-06-27 ROI 업계기준] 시설·장비비(만원) — 개인카페 기준 약 2,500만 상수 추정(데이터층 facilityCost/equipmentCost).
+  //   총창업비 = 인테리어 + 권리금 + 시설장비 (보증금은 환급성이라 제외 유지) → 5축 ROI roiTotalStartup·AI종합 배너와 같은 정의.
+  const facilityManwon = Number(bd.roiFacilityCost) || Number(bd.facilityCost) || Number(bd.equipmentCost) || 2500;
+  // [2026-06-16→06-27] 총 창업비 = 인테리어(평균시공 ×1.0) + 권리금 + 시설·장비.
   //   보증금은 퇴거 시 돌려받는 환급성 비용이라 '소멸성 창업비'에 넣지 않고 별도 타일로만 표시.
-  //   (AI totalStartupCost·보증금 모두 제외 → 지역마다 일관된 단순합으로 통일.)
-  //   ※ UnifiedLayout.jsx bcOneLineSummary 의 totalStartup 정의와 반드시 동일해야 함.
-  const total = (interior + premiumManwon) > 0 ? interior + premiumManwon : 0;
+  //   ※ UnifiedLayout.jsx bcOneLineSummary 의 totalStartup(roiTotalStartup=인테리어+권리금+시설장비) 정의와 동일.
+  const total = (interior + premiumManwon + facilityManwon) > 0 ? interior + premiumManwon + facilityManwon : 0;
   return (
     <CardShell n="08" id="08"
       bruSummary={body.bruSummary}
@@ -167,10 +169,26 @@ function Card08({ body = {} }) {
             </div>
           </div>
 
+          {/* [2026-06-27 ROI 업계기준] 총창업비 항목 분해 — 인테리어 + 권리금 + 시설·장비 (보증금 별도). 0이거나 미상이면 그 줄만 숨김. */}
+          {total > 0 && (
+            <div style={{marginTop:16, paddingTop:14, borderTop:"1px solid var(--matte-line)", display:"flex", flexDirection:"column", gap:9}}>
+              {[
+                ['인테리어', interior, _isEst('interiorPerPyeong', 'interiorAvg')],
+                ['권리금', premiumManwon, _isEst('premiumCost', 'premium')],
+                ['시설·장비', facilityManwon, true],
+              ].filter(([, v]) => v > 0).map(([l, v, est]) => (
+                <div key={l} style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", fontSize:13}}>
+                  <span style={{color:"var(--matte-fg-3)", fontWeight:500, display:"flex", alignItems:"center", gap:6}}>{l}{est && window.EstBadge ? <window.EstBadge/> : null}</span>
+                  <span style={{color:"var(--matte-fg-2)", fontWeight:700, fontVariantNumeric:"tabular-nums"}}>{window.bcFmtMan(v) || `${Math.round(v).toLocaleString()}만원`}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
           {premiumManwon > 0 && kosisRegion && (
             <div style={{marginTop:14, fontSize:13, color:"var(--matte-fg-3)"}}>{kosisRegion} 기준 권리금 평균 {premiumManwon.toLocaleString()}만원 포함</div>
           )}
-          <div style={{marginTop:premiumManwon > 0 && kosisRegion ? 4 : 14, fontSize:12, color:"var(--matte-fg-4)"}}>보증금은 가게를 뺄 때 돌려받는 돈이라, 실제로 들어가는 인테리어·권리금만 ‘총 창업비’로 묶었어요.</div>
+          <div style={{marginTop:premiumManwon > 0 && kosisRegion ? 4 : 14, fontSize:12, color:"var(--matte-fg-4)"}}>보증금은 가게를 뺄 때 돌려받는 돈이라, 실제로 들어가는 인테리어·권리금·시설장비만 ‘총 창업비’로 묶었어요.</div>
         </div>
       </div>
     </CardShell>

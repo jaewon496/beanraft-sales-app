@@ -263,27 +263,32 @@ function buildKosisCafeStats(kosisData) {
   };
 }
 
-// ─── 시도별 권리금 정적 매핑 (중소벤처기업부 상가건물임대차실태조사 2023, 5년주기, 다음 갱신 2028) ───
+// ─── 시도별 권리금 정적 매핑 ───
+// [2026-06-27 ROI 업계기준 교체] 옛 표(서울4066 < 인천7820·대구5194, 거꾸로) 오염 폐기.
+//   한국부동산원 상업용부동산 임대동향(2024) 시도별 권리금 × 카페보정 1.11 로 재산정.
+//   스펙 검증값(만원): 서울5456 · 경기4334 · 인천3282 · 대구3022 · 대전2936 / 전국폴백3818.
+//   정렬 서울>경기>인천 검증 통과. 나머지 시도는 같은 출처(부동산원2024×1.11)로 일관 산정.
+//   receivePct(권리금 수수 비율, 표시용)는 기존 값 유지(점수·창업비에 미사용).
 const SIDO_PREMIUM_2023 = {
-  '서울': { avg: 4066, receivePct: 59.5 },
-  '부산': { avg: 3140, receivePct: 77.5 },
-  '대구': { avg: 5194, receivePct: 44.0 },
-  '인천': { avg: 7820, receivePct: 73.1 },
-  '광주': { avg: 1869, receivePct: 17.4 },
-  '대전': { avg: 3572, receivePct: 23.3 },
-  '울산': { avg: 4223, receivePct: 67.3 },
-  '세종': { avg: 3170, receivePct: 44.0 },
-  '경기': { avg: 4392, receivePct: 58.9 },
-  '강원': { avg: 4475, receivePct: 65.1 },
-  '충북': { avg: 1962, receivePct: 60.0 },
-  '충남': { avg: 4373, receivePct: 29.8 },
-  '전북': { avg: 1638, receivePct: 27.9 },
-  '전남': { avg: 1679, receivePct: 65.6 },
-  '경북': { avg: 4532, receivePct: 62.9 },
-  '경남': { avg: 2851, receivePct: 71.9 },
-  '제주': { avg: 2845, receivePct: 72.0 },
+  '서울': { avg: 5456, receivePct: 59.5 },
+  '부산': { avg: 3486, receivePct: 77.5 },
+  '대구': { avg: 3022, receivePct: 44.0 },
+  '인천': { avg: 3282, receivePct: 73.1 },
+  '광주': { avg: 2075, receivePct: 17.4 },
+  '대전': { avg: 2936, receivePct: 23.3 },
+  '울산': { avg: 3140, receivePct: 67.3 },
+  '세종': { avg: 3520, receivePct: 44.0 },
+  '경기': { avg: 4334, receivePct: 58.9 },
+  '강원': { avg: 2664, receivePct: 65.1 },
+  '충북': { avg: 2442, receivePct: 60.0 },
+  '충남': { avg: 2620, receivePct: 29.8 },
+  '전북': { avg: 2331, receivePct: 27.9 },
+  '전남': { avg: 2220, receivePct: 65.6 },
+  '경북': { avg: 2398, receivePct: 62.9 },
+  '경남': { avg: 2775, receivePct: 71.9 },
+  '제주': { avg: 3153, receivePct: 72.0 },
 };
-const NATIONAL_PREMIUM_2023 = { avg: 3828, receivePct: 57.4, foodAvg: 3584, foodReceivePct: 66.3 };
+const NATIONAL_PREMIUM_2023 = { avg: 3818, receivePct: 57.4, foodAvg: 3584, foodReceivePct: 66.3 };
 // dongCd 앞 2자리 (행정표준코드) → 시도 키
 const SIDO_CD_TO_KEY = {
   '11': '서울', '26': '부산', '27': '대구', '28': '인천', '29': '광주',
@@ -705,14 +710,21 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   }
 
   // ── 주거인구 / 세대 (popCnt) ──
-  const popCntRads = apis.popCnt?.data?.rads;
+  // [2026-06-28 단위버그 수정] getMapRadsPopCnt 응답은 반경(rads)내 거주인구다.
+  //   ★App.jsx(입지 카드, 정상동작)는 popCnt 응답 형태(rads/ data/ 바로배열)와 필드명
+  //   (ppltnCnt/popCnt/rsdntCnt/cnt/totPpltn)을 전부 폴백으로 잡는데, 여기선 rsdntCnt 한 개만
+  //   읽어서 API가 다른 키를 주면 residentialPop=0 → 경쟁여건이 유동 폴백으로 떨어져
+  //   '점포당 8명' 같은 엉뚱한 값이 나왔다. App.jsx와 동일한 폴백 체인으로 통일한다.
+  const popCntRaw = apis.popCnt?.data;
+  const popCntRads = Array.isArray(popCntRaw) ? popCntRaw : (popCntRaw?.rads || popCntRaw?.data || null);
   let residentialPop = 0;
   let totalHouseholds = 0;
   let totalPopulation = 0;
   if (Array.isArray(popCntRads) && popCntRads.length > 0) {
-    residentialPop = popCntRads.reduce((s, r) => s + (parseInt(r.rsdntCnt) || 0), 0);
-    totalHouseholds = popCntRads.reduce((s, r) => s + (parseInt(r.hhCnt) || 0), 0);
-    totalPopulation = popCntRads.reduce((s, r) => s + (parseInt(r.ppltnCnt) || 0), 0);
+    // 거주인구(상주): API 버전마다 키가 달라 다중 폴백 (App.jsx _popVal과 동일)
+    residentialPop = popCntRads.reduce((s, r) => s + (parseInt(r.rsdntCnt) || parseInt(r.popCnt) || parseInt(r.ppltnCnt) || parseInt(r.cnt) || parseInt(r.totPpltn) || 0), 0);
+    totalHouseholds = popCntRads.reduce((s, r) => s + (parseInt(r.hhCnt) || parseInt(r.hhldCnt) || 0), 0);
+    totalPopulation = popCntRads.reduce((s, r) => s + (parseInt(r.ppltnCnt) || parseInt(r.popCnt) || parseInt(r.rsdntCnt) || parseInt(r.cnt) || parseInt(r.totPpltn) || 0), 0);
   }
   // 1인가구 비율 추정: 세대수 > 인구수일 수 없으므로, (세대수 / 인구수)가 높을수록 1인가구 비율 높음
   // 소상공인365 popCnt에는 1인가구 직접 필드가 없으므로 세대당 인구수로 간접 추정
@@ -1693,7 +1705,7 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     if (_saUnit > 0 && _saUnit < 100000) {
       card5UnitPriceStr = `${_saUnit.toLocaleString()}원`;
     } else {
-      card5UnitPriceStr = '5,160원'; // 비즈맵 전국 카페 평균 객단가(추정)
+      card5UnitPriceStr = '5,500원'; // [2026-06-27 ROI 업계기준] 일반 카페 객단가 폴백 5,500원(추정)
       // [2026-06-26 HIGH-1 키통일] 객단가 추정 → 렌더 정식 키(unitPrice=카드 타일, avgPrice=신뢰타일) 함께 등록.
       _card5Estimated.push('unitPrice', 'avgPrice');
     }
@@ -2454,13 +2466,26 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   }
 
   // 시간대 비중에서 최고 시간대 찾기
+  // [2026-06-26 수정3 칸폭 공정화] 6칸 중 '0~6시'·'12~18시'만 폭이 6시간(나머지 3시간)이라
+  //   원시 비중(%) 최댓값으로 뽑으면 폭 넓은 12~18시가 거의 항상 1등인 불공정이 있었다.
+  //   → 각 칸 비중을 '그 칸의 시간 수'로 나눈 "시간당 비중"으로 비교해 진짜 피크를 고른다.
+  //   라벨/표시 비중(popPeakHourPct)은 원시 비중 그대로(시간당 환산은 비교에만 사용).
+  //   hourLabels=['0~6시','6~9시','9~12시','12~18시','18~21시','21~24시'] → 시간 수 [6,3,3,6,3,3].
   let popPeakHour = '';
   let popPeakHourPct = 0;
   if (hourlyPctChart && hourlyPctChart.values.length > 0) {
-    const max = Math.max(...hourlyPctChart.values);
-    const idx = hourlyPctChart.values.indexOf(max);
-    popPeakHour = hourlyPctChart.labels[idx];
-    popPeakHourPct = max;
+    const _hourWidths = [6, 3, 3, 6, 3, 3]; // 각 칸의 시간 수(라벨 순서와 일치)
+    let _bestIdx = -1;
+    let _bestPerHour = -Infinity;
+    hourlyPctChart.values.forEach((v, i) => {
+      const w = _hourWidths[i] || 1;        // 길이가 다르면 폭 1로 안전 처리(원시 비중 비교)
+      const perHour = (Number(v) || 0) / w; // 시간당 비중
+      if (perHour > _bestPerHour) { _bestPerHour = perHour; _bestIdx = i; }
+    });
+    if (_bestIdx >= 0) {
+      popPeakHour = hourlyPctChart.labels[_bestIdx];
+      popPeakHourPct = hourlyPctChart.values[_bestIdx]; // 표시는 원시 비중 그대로
+    }
   }
 
   // ── [세션무관 폴백] 카드6 매출집중 피크 시간대/요일: 라이브 비즈맵(세션) 비면 → 소상공인365 비중차트(세션 X) ──
@@ -3878,14 +3903,16 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     const etc = pick('etcCstRt', '기타');
     return { profit, material, labor, etc };
   })();
-  // 영업이익률(%): 비즈맵 실측(profitRt) 1순위 → KOSIS 카페 평균 → (없으면) 폴백 20%(추정).
+  // 영업이익률(%): 비즈맵 실측(profitRt) 1순위 → KOSIS 카페 평균 → (없으면) 폴백 10%(추정).
+  // [2026-06-27 ROI 업계기준] 외식 실제 8.7~11.6%(통계청/KREI 2024) 반영:
+  //   폴백 20→10, 상한 80→26(상한 26% 초과 실측은 카페 업종에 비현실적이라 폴백 처리).
   const _roiProfitPct = (() => {
-    if (_roiCost && _roiCost.profit > 0 && _roiCost.profit < 80) return _roiCost.profit;   // 비즈맵 실측
+    if (_roiCost && _roiCost.profit > 0 && _roiCost.profit < 26) return _roiCost.profit;   // 비즈맵 실측(상한 26%)
     const p = Number(_roiKc.profitMargin) || 0;
-    if (p > 0 && p < 80) return p;                                                          // KOSIS 평균
+    if (p > 0 && p < 26) return p;                                                          // KOSIS 평균(상한 26%)
     // [2026-06-26 HIGH-1 키통일] 영업이익률 추정 → 렌더가 검사하는 정식 키(roiOpProfitPct=배너, opProfitPct=신뢰타일)로 함께 등록.
     _roiEstimated.push('profitPct', 'roiOpProfitPct', 'roiMonthlyProfit', 'opProfitPct', 'roiPaybackMonths');
-    return 20;                                                                              // 폴백(추정)
+    return 10;                                                                              // 폴백(추정)
   })();
   // ★운영비율(임대 제외, 매출 대비 비용 비중) = 재료비+인건비+기타비.
   //   [2026-06-26 가짜상수] 0.65 상수 제거 → 비즈맵 실측 원가구조(재료+인건+기타) 합으로 산출.
@@ -3917,19 +3944,48 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   const _roiRentMonthly = _roiPerPyeong > 0
     ? Math.round(_roiPerPyeong * 15)
     : (_selfAvgRent > 0 ? Math.round(_selfAvgRent) : 0);               // 매물 평균월세(roneRent) 폴백 = 15평 월세로 간주
-  // ── 총 창업비(만원, 15평) ── ★사장님 확정(2026-06-25): 회수 대상 투자 = 인테리어 + 권리금.
+  // ── 총 창업비(만원) ── ★사장님 확정(2026-06-25): 회수 대상 투자 = 인테리어 + 권리금 + 시설·장비.
   //   보증금은 퇴거 시 환급되므로 제외. (한 장 요약 totalStartup·cards-b 시뮬레이터와 동일 정의.)
-  const _roiInterior15 = (Number(_roiKc.interiorPerPyeong) > 0) ? Math.round(Number(_roiKc.interiorPerPyeong) * 15) : 0;
+  // [2026-06-27 ROI 업계기준] 인테리어 평당단가 = '작을수록 비쌈'(고정비=주방·바·화장실·간판·설계가
+  //   적은 평수에 몰림). 규모별 평당(만원/평): ≤10평 200·≤20평 180·≤30평 160·≤50평 145·50평+ 130.
+  //   면적 출처: KOSIS 카페 평균 면적(avgAreaPyeong). 면적 미상이면 30평 가정. 폴백 평당 200.
+  //   최종 평당단가는 120~300으로 클램프. (옛 방식=KOSIS 평균인테리어÷평균면적 350만/평대 과대 폐기.)
+  const _roiAreaPyeong = (() => {
+    const a = Number(_roiKc.avgAreaPyeong) || 0;
+    return (a > 0) ? a : 30;                                            // 면적 미상 → 30평
+  })();
+  const _roiInteriorPerPyeong = (() => {
+    let per;
+    if (_roiAreaPyeong <= 10) per = 200;
+    else if (_roiAreaPyeong <= 20) per = 180;
+    else if (_roiAreaPyeong <= 30) per = 160;
+    else if (_roiAreaPyeong <= 50) per = 145;
+    else per = 130;
+    if (!(per > 0)) per = 200;                                          // 폴백
+    return Math.max(120, Math.min(300, per));                          // 클램프 120~300
+  })();
+  if (!(Number(_roiKc.avgAreaPyeong) > 0)) _roiEstimated.push('interiorCost', 'roiTotalStartup');
+  const _roiInterior15 = Math.round(_roiInteriorPerPyeong * _roiAreaPyeong);
   //   권리금(만원): chartData.premium.value(원, UnifiedLayout 주입) → premium.sidoAvg/nationalAvg(만원)
-  //     → bodyData.premiumCost(만원) 순. 지역별 시도 평균이 그대로 반영됨(서울 4,066 등). 없으면 전국 평균 폴백.
+  //     → bodyData.premiumCost(만원) 순. 지역별 시도 평균이 그대로 반영됨(서울 5,456 등). 없으면 전국 평균 폴백.
+  let _roiPremiumEstimated = false;
   const _roiPremiumManwon = (() => {
     const _pObj = card7?.chartData?.premium || null;
     const pw = Number(_pObj?.value) || 0;                               // 원 (있으면 1순위)
     if (pw > 0) return Math.round(pw / 10000);
-    const pm = Number(_pObj?.sidoAvg) || Number(_pObj?.nationalAvg) || Number(card7?.bodyData?.premiumCost) || 0;  // 만원
-    return pm > 0 ? Math.round(pm) : 0;
+    const sidoPm = Number(_pObj?.sidoAvg) || Number(card7?.bodyData?.premiumCost) || 0; // 만원(시도 실측표)
+    if (sidoPm > 0) return Math.round(sidoPm);
+    const natPm = Number(_pObj?.nationalAvg) || 0;                      // 전국 평균 폴백(추정)
+    if (natPm > 0) { _roiPremiumEstimated = true; return Math.round(natPm); }
+    return 0;
   })();
-  const _roiTotalStartup = (_roiInterior15 + _roiPremiumManwon) > 0 ? (_roiInterior15 + _roiPremiumManwon) : 0;
+  if (_roiPremiumEstimated) _roiEstimated.push('premiumCost', 'roiTotalStartup');
+  // [2026-06-27 ROI 업계기준] 시설·장비비(만원) 신설 — 에스프레소머신·제빙기·주방·집기 등.
+  //   개인카페 기준 약 2,500만원. (총창업비 = 인테리어 + 권리금 + 시설장비, 보증금 제외 유지.)
+  const _roiFacilityManwon = 2500;
+  _roiEstimated.push('facilityCost'); // 시설장비비는 상수 추정값 → 항상 추정 배지
+  const _roiTotalStartup = (_roiInterior15 + _roiPremiumManwon + _roiFacilityManwon) > 0
+    ? (_roiInterior15 + _roiPremiumManwon + _roiFacilityManwon) : 0;
   // ── 월 고정비/손익분기 ── 한 장 요약과 동일 계수·식(배너 손익분기 타일과 일치).
   //   [2026-06-26 가짜상수] 임대×2.2 상수 제거 → 비즈맵 실측 원가구조((인건+기타)%×월매출 + 임대료)로 유도.
   //     인건·공과(기타)는 매출 비례 고정성 비용, 임대료는 절대액 → 합산이 실제 월 고정비에 더 가깝다.
@@ -3955,69 +4011,120 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     return outLo + (outHi - outLo) * tc;
   };
 
-  // [축 1] 수익성 (30점) — 월영업이익률 = (월매출 − 월임대료 − 월매출×원가율) ÷ 월매출
-  //   운영비율(임대 제외)=0.65. 임대료를 '실제 분위 매출' 대비로 별도 차감 → 임대 부담이 자리별로 확 갈림.
-  //   ★실제 월영업이익(만원)도 여기서 산출 → 투자회수 축이 재사용.
-  let _roiOpProfitPct = 0; // % (음수 가능 — 분위 매출은 동평균이라 임대 부담 큰 곳은 음수)
-  let _roiActualMonthlyProfit = 0; // 만원/월 (실제, 지역별)
+  // [축 1] 수익성 (25점) — ★[2026-06-27 ROI 업계기준] '사장 본인 인건비'를 뺀 진짜 수익으로 점수.
+  //   (a) 회계상 월영업이익 = 월매출 − 월임대료 − 월매출×원가율  (accountingProfitMonthly)
+  //   (b) 사장 본인 인건비 ownerWageMonthly = 216만원/월(2026 최저시급 10,320 × 209h)
+  //   (c) 진짜 월수익 realProfitMonthly = (a) − (b)  ← 수익성·투자회수 점수는 이 값 기준
+  //   사장 노동을 비용으로 안 빼면 '내 월급도 못 버는 자리'가 흑자로 둔갑하던 최대 뿌리 교정.
+  const _roiOwnerWageMonthly = 216; // 만원/월 (사장 본인 인건비, 상수 추정)
+  let _roiOpProfitPct = 0; // % (음수 가능) — 진짜수익(realProfit) 기준 이익률 = 점수 근거
+  let _roiAccountingProfit = 0; // 만원/월 (회계상 영업이익, 사장월급 전)
+  let _roiActualMonthlyProfit = 0; // 만원/월 (진짜수익 realProfit = 회계이익 − 사장월급) ← 점수·회수 재사용
   let _roiRentBurdenPct = 0; // 임대료/월매출 ×100
   if (_roiMonthly > 0) {
-    _roiActualMonthlyProfit = _roiMonthly - _roiRentMonthly - (_roiMonthly * _roiCostRate);
+    _roiAccountingProfit = _roiMonthly - _roiRentMonthly - (_roiMonthly * _roiCostRate);
+    _roiActualMonthlyProfit = _roiAccountingProfit - _roiOwnerWageMonthly;   // 사장월급 차감 = 진짜수익
     _roiOpProfitPct = Math.round((_roiActualMonthlyProfit / _roiMonthly) * 1000) / 10;
     _roiRentBurdenPct = Math.round((_roiRentMonthly / _roiMonthly) * 1000) / 10;
   }
-  // [2026-06-25 버그1 재보정] 표기 영업이익률(_roiOpProfitPct) 1개 값을 점수에도 그대로 사용(단일 출처)
-  //   → '적자=낮은 점수' 보장. 구 척도(-40%~+10%)는 너무 후해 적자(-3%대)인데 67%가 나왔음.
-  //   척도(구간 선형보간): ≤ -10% → 0점 / 0%(본전) → 8점 / +10% → 20점 / +18%↑ → 30점.
-  let _scoreMarket = (() => {
+  // [2026-06-25 버그1 재보정] 표기 영업이익률(_roiOpProfitPct=진짜수익률) 1개 값을 점수에도 그대로 사용(단일 출처)
+  //   → '적자=낮은 점수' 보장. realProfit≤0(사장월급도 못 버는 자리)이면 수익성·투자회수 둘 다 낮게.
+  //   척도(구간 선형보간): ≤ -10% → 0점 / 0%(본전) → 7점 / +10% → 17점 / +18%↑ → 25점.
+  // [2026-06-26 수정1 정직처리] 월매출 미수집(_roiMonthly<=0)이면 수익성 점수를 phantom으로 채우지 말고
+  //   null(미산정)로 둔다. 매출이 없으면 영업이익률 자체를 계산할 수 없으므로 점수는 '산정 보류'가 정직하다.
+  const _roiUnavailable = !(_roiMonthly > 0); // 매출 미수집(차단/미제공 가능) → 수익성·투자회수·종합 산정 보류
+  // [2026-06-27 가중치 재분배] 수익성 30→25 (수익성+투자회수 중복 완화).
+  let _scoreMarket = _roiUnavailable ? null : (() => {
     const p = _roiOpProfitPct;
     if (!(typeof p === 'number') || !isFinite(p)) return 0;
     if (p <= -10) return 0;
-    if (p < 0)   return _lerpScore(p, -10, 0, 0, 8);    // -10%~0% → 0~8점
-    if (p < 10)  return _lerpScore(p, 0, 10, 8, 20);    // 0%~+10% → 8~20점
-    return _lerpScore(p, 10, 18, 20, 30);               // +10%~+18%↑ → 20~30점(상한 30)
+    if (p < 0)   return _lerpScore(p, -10, 0, 0, 7);    // -10%~0% → 0~7점
+    if (p < 10)  return _lerpScore(p, 0, 10, 7, 17);    // 0%~+10% → 7~17점
+    return _lerpScore(p, 10, 18, 17, 25);               // +10%~+18%↑ → 17~25점(상한 25)
   })();
-  _scoreMarket = Math.max(0, Math.min(30, Math.round(_scoreMarket)));
-  console.log(`[ROI] 수익성 ${_scoreMarket}/30 = 월영업이익률 ${_roiOpProfitPct}% (매출 ${_roiMonthly}만 − 임대 ${_roiRentMonthly}만[부담 ${_roiRentBurdenPct}%] − 원가 ${Math.round(_roiCostRate*100)}% = 월이익 ${Math.round(_roiActualMonthlyProfit)}만)`);
+  if (_scoreMarket !== null) _scoreMarket = Math.max(0, Math.min(25, Math.round(_scoreMarket)));
+  console.log(`[ROI] 수익성 ${_scoreMarket}/25 = 진짜수익률 ${_roiOpProfitPct}% (매출 ${_roiMonthly}만 − 임대 ${_roiRentMonthly}만[부담 ${_roiRentBurdenPct}%] − 원가 ${Math.round(_roiCostRate*100)}% = 회계이익 ${Math.round(_roiAccountingProfit)}만 − 사장월급 ${_roiOwnerWageMonthly}만 = 진짜수익 ${Math.round(_roiActualMonthlyProfit)}만)`);
 
-  // [축 2] 투자 회수 (25점) — 회수기간(개월) = 총창업비 ÷ 실제 월영업이익(축1 재사용)
-  //   ★수익성 축과 '같은 단일 월영업이익(_roiActualMonthlyProfit)'의 부호를 그대로 따라간다.
-  //     흑자(이익>0) → 회수기간(짧을수록↑) 보간으로 점수.
-  //     적자(이익≤0, 월매출은 있음) → 회수 불가 → '낮은 점수(0~3/25)' 고정. (수익성이 적자로 낮은데
-  //       투자회수만 높은 모순 금지 — 사장님 확정 2026-06-25.) 창업비 규모로 점수 매기지 않는다.
+  // [축 2] 투자 회수 (15점) — 회수기간(개월) = 총창업비 ÷ 진짜 월수익(realProfit, 축1 재사용)
+  //   ★수익성 축과 '같은 단일 진짜수익(_roiActualMonthlyProfit)'의 부호를 그대로 따라간다.
+  //     흑자(realProfit>0) → 회수기간(짧을수록↑) 보간으로 점수.
+  //     적자(realProfit≤0, 월매출은 있음) → 회수 불가 → '낮은 점수(0~2/15)' 고정. (사장월급도 못 버는데
+  //       투자회수만 높은 모순 금지.) 창업비 규모로 점수 매기지 않는다. 회수개월 표기도 금지(999).
   //     창업비/매출 자체가 미수집인 지역만 중간점 폴백.
+  // [2026-06-27 ROI 업계기준] 회수 점수 구간 = 24개월 만점 / 60개월 0점 선형. (카페 평균 38개월=중상)
+  // [2026-06-27 가중치 재분배] 투자회수 25→15 (수익성+투자회수 중복 완화).
   let _roiPaybackMonths = 0; // 개월 (0=미산출, 999=적자 회수불가)
   if (_roiTotalStartup > 0 && _roiActualMonthlyProfit > 0) {
     _roiPaybackMonths = Math.round(_roiTotalStartup / _roiActualMonthlyProfit);
   } else if (_roiTotalStartup > 0 && _roiActualMonthlyProfit <= 0) {
     _roiPaybackMonths = 999;
   }
-  let _scoreCompete = 0; // (변수명 호환 유지; 의미=투자회수)
-  if (_roiPaybackMonths > 0 && _roiPaybackMonths < 999) {
-    // 흑자: 회수기간 보간 72개월→0 … 18개월→25.
-    _scoreCompete = Math.round(_lerpScore(_roiPaybackMonths, 72, 18, 0, 25));
-  } else if (_roiMonthly > 0 && _roiActualMonthlyProfit <= 0) {
-    // 적자: 회수 불가 → 낮은 점수. 적자 폭이 깊을수록(이익률 더 음수) 0점에 가깝게.
-    //   영업이익률 0%(본전 직전)→3점 … -10%↓(깊은 적자)→0점.
-    _scoreCompete = Math.round(_lerpScore(_roiOpProfitPct, -10, 0, 0, 3));
-  } else if (_roiMonthly > 0 || _roiTotalStartup > 0) {
-    _scoreCompete = 12; // 창업비/이익 미수집 지역: 중간점 폴백(부호 판단 불가).
+  // [2026-06-26 수정1 정직처리] 월매출 미수집이면 투자회수도 phantom으로 채우지 말고 null(미산정)로.
+  let _scoreCompete = _roiUnavailable ? null : 0; // (변수명 호환 유지; 의미=투자회수)
+  if (!_roiUnavailable) {
+    if (_roiPaybackMonths > 0 && _roiPaybackMonths < 999) {
+      // 흑자: 회수기간 보간 60개월→0 … 24개월→15(만점).
+      _scoreCompete = Math.round(_lerpScore(_roiPaybackMonths, 60, 24, 0, 15));
+    } else if (_roiMonthly > 0 && _roiActualMonthlyProfit <= 0) {
+      // 적자(사장월급도 못 버는 자리): 회수 불가 → 낮은 점수. 적자 폭이 깊을수록 0점에 가깝게.
+      //   진짜수익률 0%(본전 직전)→2점 … -10%↓(깊은 적자)→0점.
+      _scoreCompete = Math.round(_lerpScore(_roiOpProfitPct, -10, 0, 0, 2));
+    } else if (_roiMonthly > 0 || _roiTotalStartup > 0) {
+      _scoreCompete = 7; // 매출은 있으나 회수기간 산출 불가(부호 판단 가능범위 밖): 중간점 폴백.
+    }
+    _scoreCompete = Math.max(0, Math.min(15, _scoreCompete));
   }
-  _scoreCompete = Math.max(0, Math.min(25, _scoreCompete));
-  console.log(`[ROI] 투자회수 ${_scoreCompete}/25 = ${_roiPaybackMonths > 0 && _roiPaybackMonths < 999 ? '회수 ' + _roiPaybackMonths + '개월' : (_roiPaybackMonths === 999 ? '적자→회수불가(낮은점수)' : '미수집폴백')} (투자 ${_roiTotalStartup}만[인테리어 ${_roiInterior15} + 권리금 ${_roiPremiumManwon}, 보증금제외] ÷ 월이익 ${Math.round(_roiActualMonthlyProfit)}만)`);
+  console.log(`[ROI] 투자회수 ${_scoreCompete}/15 = ${_roiPaybackMonths > 0 && _roiPaybackMonths < 999 ? '회수 ' + _roiPaybackMonths + '개월' : (_roiPaybackMonths === 999 ? '적자→회수불가(낮은점수)' : '미수집폴백')} (투자 ${_roiTotalStartup}만[인테리어 ${_roiInterior15} + 권리금 ${_roiPremiumManwon} + 시설장비 ${_roiFacilityManwon}, 보증금제외] ÷ 진짜수익 ${Math.round(_roiActualMonthlyProfit)}만)`);
 
-  // [축 3] 경쟁 여건 (20점) — 카페당 유동(많을수록↑) + 과밀(낮을수록↑)
-  //   ★현재 "카페 적을수록 무조건↑" 역방향 교정: 프라임=유동 많아 손님확보 유리.
-  // 3-1. 카페당 유동인구 (12점) = 일유동 ÷ 카페수. 80명→0 … 600명→12 보간.
-  const _roiPopPerCafe = (_selfTotalCafes > 0 && _selfDailyPop > 0) ? Math.round(_selfDailyPop / _selfTotalCafes) : 0;
-  let _s_cv_popPerCafe = 0;
-  if (_roiPopPerCafe > 0) _s_cv_popPerCafe = _lerpScore(_roiPopPerCafe, 80, 600, 0, 12);
-  // 3-2. 과밀 완화 (8점) = 카페 수 적을수록 ↑. 20개→8 … 300개→0 보간(과밀 페널티).
-  let _s_cv_density = 0;
-  if (_selfTotalCafes > 0) _s_cv_density = _lerpScore(_selfTotalCafes, 300, 20, 0, 8);
-  let _scoreChange = Math.max(0, Math.min(20, Math.round(_s_cv_popPerCafe + _s_cv_density)));
+  // [축 3] 경쟁 여건 (20점) — ★[2026-06-28 단위 정합] '카페 1곳당 배후 거주인구'(반경내 거주인구 ÷ 카페수).
+  //   업계 과밀기준 "카페 1곳당 536명"은 일유동이 아니라 '배후 거주인구' 개념 → 단위를 거주인구로 맞춘다.
+  //   1순위 = 소상공인365 popCnt 거주인구(residentialPop). 없으면 → 일유동 ÷ 카페로 폴백하되 임계를
+  //   유동 스케일로 재보정하고 라벨에 '유동 기준' 명시(섞어 쓰면 8명 같은 엉뚱한 값이 536과 비교되는 버그).
+  //   거주인구 임계(명/카페): ≥1500 만점(20) · 800~1500 보통(12~20) · 536(과밀선)~800 주의(6~12) · <536(과밀) 0~6.
+  //   유동 폴백 임계(명/카페, 일유동 분포에 맞춰 ↓조정): ≥400 만점 · 250~400 보통 · 150~250 주의 · <150 과밀.
+  //   ★거주인구·유동 둘 다 없거나 카페수 0 → 그 축 null(0점으로 깔지 않음 — 정직 처리, 합산에서 0 취급).
+  // [2026-06-28] 거주인구 우선 소스: residentialPop(rsdntCnt류) → 없으면 totalPopulation(ppltnCnt류).
+  //   둘 다 같은 '반경내 거주인구' 단위(536 기준과 동일)라 폴백해도 단위 일관.
+  const _roiBackingPop = (typeof residentialPop === 'number' && residentialPop > 0) ? residentialPop
+    : (typeof totalPopulation === 'number' && totalPopulation > 0) ? totalPopulation
+    : 0;
+  let _roiPopPerCafe = 0;          // 점포당 배후인구(명/카페) — 거주 우선, 없으면 유동
+  let _roiPopBasis = null;         // 'resident' | 'flow' (한줄평 라벨용)
+  let _scoreChange = null;         // 경쟁여건 (null=데이터 없음 → 산정 보류)
+  if (_selfTotalCafes > 0 && _roiBackingPop > 0) {
+    // ── 거주인구 기준(업계 536 기준과 동일 단위) ──
+    _roiPopPerCafe = Math.round(_roiBackingPop / _selfTotalCafes);
+    _roiPopBasis = 'resident';
+    let _cv;
+    if (_roiPopPerCafe >= 1500) _cv = 20;                                   // 여유
+    else if (_roiPopPerCafe >= 800) _cv = _lerpScore(_roiPopPerCafe, 800, 1500, 12, 20);  // 보통
+    else if (_roiPopPerCafe >= 536) _cv = _lerpScore(_roiPopPerCafe, 536, 800, 6, 12);    // 주의(과밀선~)
+    else _cv = _lerpScore(_roiPopPerCafe, 0, 536, 0, 6);                    // 과밀
+    _scoreChange = Math.max(0, Math.min(20, Math.round(_cv)));
+  } else if (_selfTotalCafes > 0 && _selfDailyPop > 0) {
+    // ── 폴백: 일유동 기준(거주인구 없음). 임계를 유동 스케일로 재보정 ──
+    _roiPopPerCafe = Math.round(_selfDailyPop / _selfTotalCafes);
+    _roiPopBasis = 'flow';
+    // [2026-06-28] 비상식 가드: 일유동÷카페가 한 자릿수(<30)이면 유동 소스가 비정상으로
+    //   작게 잡힌 것(반경 유동 누락 등) → 8명 같은 오해값을 표시·채점하느니 null로 보류.
+    if (_roiPopPerCafe < 30) {
+      _roiPopPerCafe = 0;
+      _roiPopBasis = null;
+      _scoreChange = null;
+    } else {
+      let _cv;
+      if (_roiPopPerCafe >= 400) _cv = 20;                                    // 여유
+      else if (_roiPopPerCafe >= 250) _cv = _lerpScore(_roiPopPerCafe, 250, 400, 12, 20);  // 보통
+      else if (_roiPopPerCafe >= 150) _cv = _lerpScore(_roiPopPerCafe, 150, 250, 6, 12);   // 주의
+      else _cv = _lerpScore(_roiPopPerCafe, 0, 150, 0, 6);                    // 과밀
+      _scoreChange = Math.max(0, Math.min(20, Math.round(_cv)));
+    }
+  }
+  // 호환용 sub-score(scoreDetails 표시): 점포당 배후인구 단일 지표라 density/diversity로 분리 표기만 유지.
+  const _s_cv_popPerCafe = _scoreChange === null ? 0 : _scoreChange;
+  const _s_cv_density = 0;
   // (변수명 호환: _scoreChange = 경쟁여건. 아래 cap 단계에서 _scoreCompeteFinal로 사용)
-  console.log(`[ROI] 경쟁여건 ${_scoreChange}/20 = 카페당유동 ${Math.round(_s_cv_popPerCafe)}(${_roiPopPerCafe}명/카페) + 과밀완화 ${Math.round(_s_cv_density)}(${_selfTotalCafes}개)`);
+  console.log(`[ROI] 경쟁여건 ${_scoreChange === null ? 'null(데이터없음)' : _scoreChange + '/20'} = 점포당 배후인구 ${_roiPopPerCafe}명/카페 (${_roiPopBasis === 'resident' ? `거주인구 ${_roiBackingPop} ÷ 카페 ${_selfTotalCafes}개; ≥1500여유·536과밀선` : _roiPopBasis === 'flow' ? `유동 기준 ${_selfDailyPop} ÷ 카페 ${_selfTotalCafes}개; ≥400여유·150과밀선` : '데이터없음'})`);
 
   // [축 5] 성장성 (10점) - "시장(상권)이 커지는 흐름인가" — ★순수 '시장 단위' 신호만.
   //   ※변수명 _s_change_*·_scoreCost(성장성)로 매핑. 합산 만점 15 → 10점으로 비례 환산.
@@ -4040,12 +4147,13 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   } else if (_selfRecentOpen === 0 && _selfRecentClose > 0) {
     _s_change_newClose = 0;                            // 폐업만 있음 → 0
   }
-  // 3-2. 5년 점포 변화 (5점)
+  // 3-2. 5년 점포 변화 (5점) — [2026-06-27 ROI 업계기준] 만점 기준 = 연 8% 성장(5년 누적 +50%).
+  //   (옛 만점 +20%는 너무 후함. 연 8%/5년 복리 ≈ +47%, 누적 +50%를 만점선으로.)
   let _s_change_5yr = 0;
   if (_cafes5yAgoEarly > 0 && _selfTotalCafes > 0) {
     const _changePct = ((_selfTotalCafes - _cafes5yAgoEarly) / _cafes5yAgoEarly) * 100;
-    if (_changePct >= 20) _s_change_5yr = 5;
-    else if (_changePct >= 10) _s_change_5yr = 3;
+    if (_changePct >= 50) _s_change_5yr = 5;          // 누적 +50%(≈연 8%) → 만점
+    else if (_changePct >= 25) _s_change_5yr = 3;     // 누적 +25%(≈연 4.5%)
     else if (_changePct >= -10) _s_change_5yr = 2;
   }
   // 3-3. [2026-06-26 사장님 확정] 핫플(bizonRnkTop10 NWB/MZ 테마) → 성장성 점수 기여 '완전 0'.
@@ -4061,9 +4169,10 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   // [2026-06-26 성장성 = 투명한 시장 신호만] 성장성 원점수 = 신폐 순증(0~6) + 5년 점포 변화(0~5)뿐.
   //   둘 다 우리 상권의 진짜 수축/성장 신호다. 핫플·메뉴·매출추이·시장전망·창업기상도는 전부 제외.
   //   만점 11(신폐6 + 5년5) → 10점 비례 환산. (이전엔 핫플4 포함 만점15였음.)
+  // [2026-06-27 가중치 재분배] 성장성 10 → 20점(수익성+회수 중복 완화분 재배분).
   const _growthRaw = _s_change_newClose + _s_change_5yr; // 0~11 (핫플·메뉴 제외)
-  let _scoreCost = Math.max(0, Math.min(10, Math.round((_growthRaw / 11) * 10)));
-  console.log(`[ROI] 성장성(시장신호만) 기본 ${_scoreCost}/10 = 신폐순증 ${_s_change_newClose}(신${_selfRecentOpen}/폐${_selfRecentClose}) + 5년 ${_s_change_5yr}(${_cafes5yAgoEarly}→${_selfTotalCafes}) (원점 ${_growthRaw}/11, 핫플·메뉴 0)`);
+  let _scoreCost = Math.max(0, Math.min(20, Math.round((_growthRaw / 11) * 20)));
+  console.log(`[ROI] 성장성(시장신호만) 기본 ${_scoreCost}/20 = 신폐순증 ${_s_change_newClose}(신${_selfRecentOpen}/폐${_selfRecentClose}) + 5년 ${_s_change_5yr}(${_cafes5yAgoEarly}→${_selfTotalCafes}) (원점 ${_growthRaw}/11, 핫플·메뉴 0)`);
 
   // [축 4] 생존 안정 (15점) - "1년·3년·5년 살아남나" (자체 생존율)
   // LOCALDATA 활성/폐업 매장 추출 (위쪽 _ldRowsEarly 등은 변화 축에서 사용, 여기서는 별도 변수명 유지)
@@ -4140,9 +4249,10 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   //   ROI 원칙(외부지수는 참고표시만, 점수 driver 금지)에 따라 생존안정 점수에서 완전히 뺀다.
   //   날씨는 날씨 카드(card11Weather) 정보로만 남기고, 생존안정은 실집계 신호(생존율·폐업수)만으로 산정한다.
   // 생존 원점수 만점을 30 → 28(=비 +2점 제거)로 줄여 비례 환산 유지.
+  // [2026-06-27 가중치 재분배] 생존안정 15 → 20점(수익성+회수 중복 완화분 재배분).
   const _survRaw = _s_surv_1y + _s_surv_3y + _s_surv_5y + _s_surv_closed; // 0~28
-  const _scoreSurvival = Math.max(0, Math.min(15, Math.round((_survRaw / 28) * 15)));
-  console.log(`[ROI] 생존안정 ${_scoreSurvival}/15 = 1년 ${_s_surv_1y}(${_selfSurvival1y}%) + 3년 ${_s_surv_3y}(${_selfSurvival3y}%) + 5년 ${_s_surv_5y}(${_selfSurvival5y}%) + 폐업 ${_s_surv_closed}(${_selfClosedCount}개) (원점 ${_survRaw}/28)`);
+  const _scoreSurvival = Math.max(0, Math.min(20, Math.round((_survRaw / 28) * 20)));
+  console.log(`[ROI] 생존안정 ${_scoreSurvival}/20 = 1년 ${_s_surv_1y}(${_selfSurvival1y}%) + 3년 ${_s_surv_3y}(${_selfSurvival3y}%) + 5년 ${_s_surv_5y}(${_selfSurvival5y}%) + 폐업 ${_s_surv_closed}(${_selfClosedCount}개) (원점 ${_survRaw}/28)`);
 
   // [참고용 raw] 임차료 부담률·자체 영업이익률 — 비용 detail 행/_bizmapOpIncome 폴백에서 계속 사용.
   //   (점수 축은 위 수익성(축1)에 통합됨. 여기선 표시·폴백용 raw 만 유지.)
@@ -4584,14 +4694,17 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   else if (_salesPercentile > 0) _salesPercentileLabel = '매우 부족';
 
   // ─────────────────────────────────────────────────
-  // [2026-06-25 ROI 재설계] 각 축 cap (새 만점: 수익성30·투자회수25·경쟁여건20·생존안정15·성장성10)
+  // [2026-06-27 ROI 가중치 재분배] 각 축 cap (새 만점: 수익성25·투자회수15·경쟁여건20·생존안정20·성장성20=100)
+  //   수익성+투자회수(둘 다 '이익' 파생이라 중복) 합을 55→40으로 줄이고, 경쟁/생존/성장을 키워 균형.
   //   ★수익성·투자회수(자리별 핵심 차별 축)는 외부 가산 없이 순수 ROI 계산값만 → 지역 간 스프레드 보존.
   //   ★[2026-06-26] 경쟁여건·생존안정·성장성도 불투명 외부지수(창업기상도 영업력/안정성, 날씨, 매출추이) 가산 전부 제거 → 5축 모두 실집계 신호만으로 산정. 외부지수는 다른 카드 '표시'로만 유지.
   // ─────────────────────────────────────────────────
-  // 축1 수익성(30): 순수 ROI(월영업이익률) 계산값. 외부 가산 없음 → cap 30.
-  const _scoreMarketFinal = Math.max(0, Math.min(30, _scoreMarket));
-  // 축2 투자회수(25): 순수 회수기간 계산값. 외부 가산 없음 → cap 25.
-  const _scoreCompeteFinal = Math.max(0, Math.min(25, _scoreCompete));
+  // 축1 수익성(25): 순수 ROI(진짜수익률=사장월급 차감 후) 계산값. 외부 가산 없음 → cap 25.
+  //   [2026-06-26 수정1] 매출 미수집이면 _scoreMarket=null → null 그대로 보존(미산정).
+  const _scoreMarketFinal = (_scoreMarket === null) ? null : Math.max(0, Math.min(25, _scoreMarket));
+  // 축2 투자회수(15): 순수 회수기간(진짜수익 기준) 계산값. 외부 가산 없음 → cap 15.
+  //   [2026-06-26 수정1] 매출 미수집이면 _scoreCompete=null → null 그대로 보존(미산정).
+  const _scoreCompeteFinal = (_scoreCompete === null) ? null : Math.max(0, Math.min(15, _scoreCompete));
   // 축3 경쟁여건(20): [2026-06-26 사장님 확정] 외부 '영업력' 가산(_ext_competeBonus = 비즈맵 창업기상도 경쟁력지수) 제거.
   //   창업기상도 영업력은 불투명·추정 외부지수라 ROI 원칙(외부지수=참고표시만, 점수 driver 금지)에 어긋난다.
   //   생존안정(축4)에서 안정성·날씨 상수를 뺀 것과 같은 class. 경쟁여건 점수는 실집계 신호(카페당 유동·과밀완화 등 기존 driver)만으로 결정한다.
@@ -4602,19 +4715,22 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   //       profitFactor = clamp(opProfitPct/30, 0, 1)   // 적자(≤0)면 0 → 보정 없음(과밀 페널티 그대로 = 진짜 나쁜 자리)
   //       보정점수 = base + (20 - base) * profitFactor * 0.6   // 흑자율 비례 회복, 단 최대 60%만(흑자라도 과밀 일부 감점 유지)
   //     데이터 없으면(_roiOpProfitPct 미산출, _roiMonthly<=0) base 그대로.
-  const _scoreChangeBase = Math.max(0, Math.min(20, _scoreChange));
+  // [2026-06-27 정직처리] 경쟁여건 데이터 없으면(_scoreChange===null) null 그대로 보존(0점으로 깔지 않음).
+  const _scoreChangeBase = (_scoreChange === null) ? null : Math.max(0, Math.min(20, _scoreChange));
   let _scoreChangeFinal = _scoreChangeBase;
-  if (_roiMonthly > 0 && typeof _roiOpProfitPct === 'number' && isFinite(_roiOpProfitPct)) {
-    const _profitFactor = Math.max(0, Math.min(1, _roiOpProfitPct / 30));
+  if (_scoreChangeBase !== null && _roiMonthly > 0 && typeof _roiOpProfitPct === 'number' && isFinite(_roiOpProfitPct)) {
+    // 수익 검증 보정: 점포당 배후인구로 과밀(낮은점수)이어도 그 지역 카페가 실제 흑자(진짜수익률>0)면
+    //   시장이 경쟁을 흡수하는 좋은 자리 → 점수 일부 회복(최대 60%). 적자면 보정 없음.
+    const _profitFactor = Math.max(0, Math.min(1, _roiOpProfitPct / 17)); // 분모 30→17(업계 이익률 현실화)
     const _scoreChangeAdj = _scoreChangeBase + (20 - _scoreChangeBase) * _profitFactor * 0.6;
     _scoreChangeFinal = Math.max(0, Math.min(20, Math.round(_scoreChangeAdj)));
-    console.log(`[ROI] 경쟁여건 수익검증 보정 ${_scoreChangeBase}→${_scoreChangeFinal}/20 (영업이익률 ${_roiOpProfitPct}% → factor ${Math.round(_profitFactor*100)/100}, 흑자흡수 회복 최대 60%)`);
+    console.log(`[ROI] 경쟁여건 수익검증 보정 ${_scoreChangeBase}→${_scoreChangeFinal}/20 (진짜수익률 ${_roiOpProfitPct}% → factor ${Math.round(_profitFactor*100)/100}, 흑자흡수 회복 최대 60%)`);
   }
   // 축4 생존안정(15): [2026-06-26 MED-C] 외부 '안정성' 가산(_ext_survivalBonus = 비즈맵 창업기상도 안정성지수) 제거.
   //   창업기상도 안정성은 불투명·추정 외부지수라 ROI 원칙(외부지수=참고표시만, 점수 driver 금지)에 어긋난다.
   //   날씨 상수(위 4-5)와 같은 class. 생존안정 점수는 실집계 신호(생존율·폐업수)만으로 결정한다.
   //   창업기상도 '안정성' 표시는 다른 카드/marketMapScores에 그대로 유지, 생존안정 점수에서만 뺀다.
-  const _scoreSurvivalFinal = Math.max(0, Math.min(15, _scoreSurvival));
+  const _scoreSurvivalFinal = Math.max(0, Math.min(20, _scoreSurvival));
   // 축5 성장성(10): ★[2026-06-26 사장님 확정] 성장성 = 우리 상권의 '진짜 수축/성장 신호'만.
   //   최종 = 신규/폐업 순증 + 5년 점포 변화 (= 기본 _scoreCost 그대로). 그 외 모든 항 제거:
   //     · 핫플(bizonRnkTop10) → 0 (위 _s_change_hotpl=0)
@@ -4625,14 +4741,19 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   //   이전엔 핫플+4·창업기상도+2·추세보정 등이 떠받쳐 연신내(신3/폐10 수축)가 성장성 6점이라는
   //   "수축 국면 6점" 모순을 냈음. 이제 수축 상권은 신폐 순감으로 자동 ≤3점.
   //   (창업기상도·6개월추이·메뉴·핫플 '표시'는 다른 카드에 그대로 유지, 성장성 점수에서만 뺀다.)
-  const _scoreCostFinal = Math.max(0, Math.min(10, _scoreCost));
-  console.log(`[ROI] 성장성 최종 ${_scoreCostFinal}/10 = 신폐순증 + 5년 점포변화만 (기본 ${_scoreCost}, 핫플·메뉴·추세보정·창업기상도(_ext_changeMapBonus=${_ext_changeMapBonus})·6개월추이(_ext_salesTrend=${_ext_salesTrend}) 전부 점수 미반영)`);
+  const _scoreCostFinal = Math.max(0, Math.min(20, _scoreCost));
+  console.log(`[ROI] 성장성 최종 ${_scoreCostFinal}/20 = 신폐순증 + 5년 점포변화만 (기본 ${_scoreCost}, 핫플·메뉴·추세보정·창업기상도(_ext_changeMapBonus=${_ext_changeMapBonus})·6개월추이(_ext_salesTrend=${_ext_salesTrend}) 전부 점수 미반영)`);
 
   // 종합 점수 (0~100) + 3년 생존 가능성
   // [2026-05-19] NaN 가드: 각 축 값 중 하나라도 NaN이면 전체 합산이 NaN이 되어 KPI 0으로 표시되는 버그 수정
   const _safeNum = (v) => (typeof v === 'number' && isFinite(v)) ? v : 0;
-  const _competTotalScore = _safeNum(_scoreMarketFinal) + _safeNum(_scoreCompeteFinal)
-    + _safeNum(_scoreChangeFinal) + _safeNum(_scoreSurvivalFinal) + _safeNum(_scoreCostFinal);
+  // [2026-06-26 수정1·수정2] 매출 미수집(_roiUnavailable)이면 종합점수도 null(산정 보류).
+  //   매출=ROI의 55%(수익성30+투자회수25)라 매출이 없으면 종합점수는 의미가 없다. 경쟁/생존/성장 3축
+  //   값은 그대로 두되(화면이 참고로 보여줄 수 있게), '종합'만 보류한다. 이로써 5축이 0/null일 때
+  //   옛 가중식(c14Density 등 50~60 기본)으로 종합이 ~60점으로 부활하던 폴백(수정2)도 함께 차단된다.
+  const _competTotalScore = _roiUnavailable ? null : (
+    _safeNum(_scoreMarketFinal) + _safeNum(_scoreCompeteFinal)
+    + _safeNum(_scoreChangeFinal) + _safeNum(_scoreSurvivalFinal) + _safeNum(_scoreCostFinal));
   const _survival3yr = Math.round((_fiveYrPct * 0.5) + (Math.min(_avgYearsCompet, 5) / 5 * 30) + ((100 - _ldClosurePct) * 0.2));
 
   // 가산점 (별도 칸) - 카페에 직접 도움되는 정보 위주
@@ -4908,7 +5029,7 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     if (_saUnit > 0) {
       _bizmapPaySafe = _saUnit;
     } else {
-      _bizmapPaySafe = 5856; // KOSIS 외식업체경영실태조사 전국 카페 평균 객단가 (원)
+      _bizmapPaySafe = 5500; // [2026-06-27 ROI 업계기준] 일반 카페 객단가 폴백 5,500원(추정)
     }
   }
 
@@ -4968,20 +5089,36 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       bizmapTopUpjongByStore: bmTopUpjongList,
       // [2026-05-05 v3 / 2026-05-06 외부 지표 가산] 빈크래프트 5축 100점 점수 시스템
       score: _competTotalScore,
+      // [2026-06-26 수정1] 매출 미수집(차단/미제공 가능) 시 수익성·투자회수·종합 '산정 보류' 플래그.
+      //   화면이 이 플래그를 읽어 점수 자리에 가짜 숫자 대신 '재검색 권장' 안내를 띄울 수 있게 한다.
+      //   ★정상 지역(매출>0)은 _roiUnavailable=false라 아무 변화 없음.
+      _roiUnavailable: _roiUnavailable,
+      _roiUnavailableReason: _roiUnavailable ? '매출 미수집(차단/미제공 가능) — 재검색 권장' : null,
       scoreMarket: _scoreMarketFinal,
       scoreCompete: _scoreCompeteFinal,
       scoreChange: _scoreChangeFinal,
       scoreSurvival: _scoreSurvivalFinal,
       scoreCost: _scoreCostFinal,
       // [2026-06-25] 수익성 축(점수) 근거 지표 — 카드13 수익성 headline이 손익분기 병기 대신 이 값을 표기(표시↔점수↔실데이터 한 방향).
-      roiOpProfitPct: _roiOpProfitPct,            // 월영업이익률(%) — 수익성 축 점수 근거(음수 가능)
-      roiMonthlyProfit: Math.round(_roiActualMonthlyProfit),  // 월영업이익(만원) — 점수 근거
+      roiOpProfitPct: _roiOpProfitPct,            // 진짜수익률(%) — 사장월급 차감 후, 수익성 축 점수 근거(음수 가능)
+      roiMonthlyProfit: Math.round(_roiActualMonthlyProfit),  // 진짜 월수익(만원) — 점수 근거(= realProfitMonthly)
       roiMonthlySales: _roiMonthly,               // 수익성 축이 쓴 월매출(통일값, 만원)
+      // [2026-06-27 ROI 업계기준] 사장 본인 인건비 반영 — 화면 2줄(회계이익 / 사장월급 뺀 진짜수익).
+      ownerWageMonthly: (_roiMonthly > 0) ? _roiOwnerWageMonthly : null,              // 사장 본인 인건비(만원/월)
+      accountingProfitMonthly: (_roiMonthly > 0) ? Math.round(_roiAccountingProfit) : null,  // 회계상 월영업이익(사장월급 전, 만원)
+      realProfitMonthly: (_roiMonthly > 0) ? Math.round(_roiActualMonthlyProfit) : null,     // 진짜 월수익(회계이익−사장월급, 만원) — 점수 기준
       // [2026-06-25 모순1] 투자회수 headline도 수익성과 '동일한 단일 월영업이익(_roiActualMonthlyProfit)' 기반으로 표기.
       //   기존엔 한 장 요약 배너(낙관 가정 assumedMonthlySales×1.4)의 paybackMonths를 읽어 적자인데 회수개월이 떴음.
       //   → 적자(월이익≤0)면 회수개월 0(표기 금지·흑자전환 우선), 흑자면 실제 회수개월(수익성과 부호 일치).
       roiPaybackMonths: (_roiPaybackMonths > 0 && _roiPaybackMonths < 999) ? _roiPaybackMonths : 0,  // 개월(0=적자/미산출 → 회수개월 표기 안 함)
-      roiTotalStartup: _roiTotalStartup,          // 총 창업비(만원, 인테리어+권리금)
+      // [2026-06-28] 경쟁 한줄평용 점포당 배후인구(명, 정수). 1순위 거주인구÷카페, 폴백 일유동÷카페. 없으면 null.
+      perStorePop: (_roiPopPerCafe > 0) ? _roiPopPerCafe : null,
+      // 'resident'(거주인구 기준) | 'flow'(유동 기준 폴백) | null — 한줄평 단위/임계 라벨용.
+      perStorePopBasis: (_roiPopPerCafe > 0) ? _roiPopBasis : null,
+      roiTotalStartup: _roiTotalStartup,          // 총 창업비(만원) = 인테리어 + 권리금 + 시설장비(보증금 제외)
+      roiInteriorCost: _roiInterior15,            // 인테리어비(만원, 규모별 평당×면적)
+      roiPremiumCost: _roiPremiumManwon,          // 권리금(만원, 시도 실측표)
+      roiFacilityCost: _roiFacilityManwon,        // 시설·장비비(만원, 2,500 추정)
       roiTotalStartupText: _roiTotalStartup > 0 ? convertAmountsInText(_roiTotalStartup.toLocaleString() + '만원') : '',
       // 기존 (외부 지표 가산 전) 점수 - 디버그/비교용
       scoreBase: {
@@ -5737,14 +5874,19 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
 
   // === 종합 점수: Card 12(상권 경쟁 분석)의 ROI 5축 합산 점수와 일치시켜 카드 간 오해 방지 ===
   // [2026-06-25 ROI] 100점 만점 = 수익성30+투자회수25+경쟁여건20+생존안정15+성장성10. 두 카드 동일 점수.
+  // [2026-06-26 수정2] 매출 미수집(_roiUnavailable)이면 옛 가중식(c14Density 등 50~60 기본)으로
+  //   종합을 ~60점으로 부활시키지 않는다 → null(산정 보류). _roiUnavailable과 일관.
   const _c12Score = card11?.bodyData?.score;
-  const c14OverallScore = (typeof _c12Score === 'number' && _c12Score > 0)
-    ? _c12Score
-    : (aiData?.overallScore
-      ? parseInt(aiData.overallScore) || 0
-      : aiData?.score
-        ? parseInt(aiData.score) || 0
-        : Math.round((c14Density * 0.15 + c14Compet * 0.20 + c14Potential * 0.30 + c14Trend * 0.20 + c14CostRoom * 0.15)));
+  const _c12Unavailable = card11?.bodyData?._roiUnavailable === true;
+  const c14OverallScore = _c12Unavailable
+    ? null
+    : ((typeof _c12Score === 'number' && _c12Score > 0)
+      ? _c12Score
+      : (aiData?.overallScore
+        ? parseInt(aiData.overallScore) || 0
+        : aiData?.score
+          ? parseInt(aiData.score) || 0
+          : Math.round((c14Density * 0.15 + c14Compet * 0.20 + c14Potential * 0.30 + c14Trend * 0.20 + c14CostRoom * 0.15))));
 
   // === 기회 리스트 추출 (collectedData + aiData 양쪽) ===
   const c14Opps = [];
@@ -5805,8 +5947,10 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   }
 
   // === 추천 라벨 (Card 13 종합 점수 라벨과 일치: 매우 좋음/좋음/보통/안좋음/매우 안좋음) ===
+  // [2026-06-26 수정1·2] 매출 미수집(종합 null)이면 '매우 안좋음'으로 떨구지 말고 '산정 보류'로(정직 처리).
   let c14Recommendation = '보통';
-  if (aiData?.recommendation) c14Recommendation = String(aiData.recommendation);
+  if (_c12Unavailable) c14Recommendation = '산정 보류';
+  else if (aiData?.recommendation) c14Recommendation = String(aiData.recommendation);
   else if (c14OverallScore >= 80) c14Recommendation = '매우 좋음';
   else if (c14OverallScore >= 60) c14Recommendation = '좋음';
   else if (c14OverallScore >= 40) c14Recommendation = '보통';
@@ -5815,6 +5959,10 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
 
   // === Headline 생성 (Card 13 종합 점수 라벨과 일치) ===
   const c14Headline = (() => {
+    if (_c12Unavailable) {
+      const dnU = dong.dongNm || '해당 상권';
+      return `${dnU} · 종합 산정 보류 (매출 미수집 — 재검색 권장)`;
+    }
     if (aiData?.regionBrief && typeof aiData.regionBrief === 'string') return String(aiData.regionBrief).substring(0, 80);
     const dn = dong.dongNm || '해당 상권';
     const sc = c14OverallScore;
@@ -6385,13 +6533,13 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     if (typeof raw !== 'number' || !isFinite(raw) || max <= 0) return null;
     return Math.max(0, Math.min(100, Math.round((raw / max) * 100)));
   };
-  // [2026-06-25 ROI] 레이더 5축 = 수익성30·투자회수25·경쟁여건20·생존안정15·성장성10
+  // [2026-06-28 ROI 가중치 정합] 레이더 5축 = 수익성25·투자회수15·경쟁여건20·생존안정20·성장성20 (합=100)
   const _ax5 = (typeof _c12?.score === 'number' && _c12.score > 0) ? [
-    { axis: '수익성', label: '수익성', value: _pct(_c12.scoreMarket, 30) ?? 0, raw: _c12.scoreMarket, max: 30, fullMark: 100 },
-    { axis: '투자회수', label: '투자회수', value: _pct(_c12.scoreCompete, 25) ?? 0, raw: _c12.scoreCompete, max: 25, fullMark: 100 },
+    { axis: '수익성', label: '수익성', value: _pct(_c12.scoreMarket, 25) ?? 0, raw: _c12.scoreMarket, max: 25, fullMark: 100 },
+    { axis: '투자회수', label: '투자회수', value: _pct(_c12.scoreCompete, 15) ?? 0, raw: _c12.scoreCompete, max: 15, fullMark: 100 },
     { axis: '경쟁여건', label: '경쟁여건', value: _pct(_c12.scoreChange, 20) ?? 0, raw: _c12.scoreChange, max: 20, fullMark: 100 },
-    { axis: '생존안정', label: '생존안정', value: _pct(_c12.scoreSurvival, 15) ?? 0, raw: _c12.scoreSurvival, max: 15, fullMark: 100 },
-    { axis: '성장성', label: '성장성', value: _pct(_c12.scoreCost, 10) ?? 0, raw: _c12.scoreCost, max: 10, fullMark: 100 },
+    { axis: '생존안정', label: '생존안정', value: _pct(_c12.scoreSurvival, 20) ?? 0, raw: _c12.scoreSurvival, max: 20, fullMark: 100 },
+    { axis: '성장성', label: '성장성', value: _pct(_c12.scoreCost, 20) ?? 0, raw: _c12.scoreCost, max: 20, fullMark: 100 },
   ] : [
     { axis: '밀집도', label: '밀집도', value: c14Density, fullMark: 100 },
     { axis: '경쟁', label: '경쟁', value: c14Compet, fullMark: 100 },
