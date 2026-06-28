@@ -407,9 +407,18 @@ export function buildDiagnosisBundle({ cards, kosisBoxData, collectedData, dataA
       반경m: _num(radius), 평당월세만원: integratedRentPy,
     }),
     // 1 고객 분석
+    //   ★[2026-06-28] 연령분포(ageGroups: {name,pct}[])도 같이 넘긴다 — pro가 "60대 37%·50대 22%"처럼
+    //     연령대별 %를 근거로 쓰는데 facts에 없으면 PCN이 그 문장을 반려했음. 분포를 facts로 만들 재료.
     _clean({
       주연령: _str(c1.topAge), 여성비율: _num(c1.femaleRatio), 남성비율: _num(c1.maleRatio),
       재방문율: _num(c1.revisitRate), 신규비율: _num(c1.newRatio),
+      연령분포: (() => {
+        const ag = (cards && cards[1] && cards[1].chartData && Array.isArray(cards[1].chartData.ageGroups))
+          ? cards[1].chartData.ageGroups : (Array.isArray(c1.ageGroups) ? c1.ageGroups : null);
+        if (!Array.isArray(ag) || ag.length === 0) return null;
+        return ag.map((g) => _clean({ 연령: _str(g && (g.name || g.label)), 비율: _num(g && g.pct) }))
+                 .filter((g) => g && g.연령 && _num(g.비율) !== null).slice(0, 8);
+      })(),
     }),
     // 2 상권 변화 추이
     _clean({
@@ -436,11 +445,16 @@ export function buildDiagnosisBundle({ cards, kosisBoxData, collectedData, dataA
     //     직전 작업이 없는 이름(sigunguCafeAvg)을 찾아 항상 null → 매출 신호가 통째로 드롭됐었다.
     //     매출 카드 헤드라인 "시군구 평균 대비 -51%"의 바로 그 출처(guAvg=1854)와 동일하게 맞춘다.
     //     guAvg 없으면 dongAvg → siAvg 폴백(매출 카드와 같은 계열 평균).
+    //   ★[2026-06-28] 상위20%/하위20% 분위 매출도 facts 재료로 넘긴다(검증용). pro가 격차를 근거로 쓰는데
+    //     facts에 없으면 PCN이 그 문장을 반려했음. 신호(signals) 입력엔 여전히 안 넣어 '상위20% 대비'로
+    //     매출카드와 어긋나는 비교를 유도하지 않되, 검증 facts 에는 둬서 정상 출력이 통과되게 한다.
     _clean({
       월평균매출만원: _num(c5.monthlyAvgSales) || _num(c5.dongCafeAvgStable) || _num(c5.monthly),
       동평균매출만원: _num(c5.dongCafeAvgStable) || _num(c5.dongAvg),
       시군구평균매출만원: _num(c5.guAvg) || _num(c5.dongAvg) || _num(c5.siAvg),
       전년대비성장: _num(c5.yoyGrowth) || _num(c5.prevYearRate),
+      상위20퍼센트매출만원: _num(c5.top20) || _num(c5.topAvgSlamt) || _num(c5.mercAmtOu20),
+      하위20퍼센트매출만원: _num(c5.bot20) || _num(c5.bottomAvgSlamt) || _num(c5.mercAmtUn20),
     }),
     // 6 유동인구
     _clean({
@@ -516,6 +530,637 @@ export function buildDiagnosisBundle({ cards, kosisBoxData, collectedData, dataA
     menuNote: selected.menuNote,
     signalCount: Array.isArray(selected.signals) ? selected.signals.length : 0,
   });
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// [2026-06-28] AI 추론 엔진 v10 — 3단계(신호 점수화 → 근거 PoT 계산 → 꼬리물기 IQuery)
+//   기존 extractSignals(고정 15% 임계 '프린트')를 진짜 '추론'으로 업그레이드.
+//   기존 함수(extractSignals/buildDiagnosisPrompt/v9 1회 통역)는 그대로 남겨둔다(폴백).
+//   새 경로가 실패/예외면 getUnifiedDiagnosis 가 자동으로 v9 결과를 반환한다.
+// ═════════════════════════════════════════════════════════════════════════
+
+const AI_DIAG_V10_PREFIX = 'bc_ai_diag_v10pro_';  // 종합(배너/진단/설계방향) pro 단일콜 추론 전용 캐시
+//   ★[2026-06-28] 모델 'flash'→'pro'(gemini-2.5-pro, 판단력 최강) 업그레이드. 캐시키도 v10pro로 올려
+//     기존 flash 캐시와 섞이지 않게 함(같은 동은 pro로 1회만 돌고 캐시). 14장 cardLines는 여전히 flash.
+//   ★[2026-06-28 긴급] 4~5홉 순차호출이 504(24초 타임아웃)·과다호출(차단/과금 위험)이라 → pro '단일콜'로 압축.
+//     꼬리물기(누가→언제→왜→빈수요)는 pro의 thinking이 한 콜 안에서 스스로 한다. 검색당 추가 AI콜 = pro 1콜만.
+const REASON_MODEL = 'pro';                        // 추론 전용 모델(중계기: pro→gemini-2.5-pro)
+const REASON_THINKING_BUDGET = 2048;              // ★자동 8192 금지. 2048(품질 좋음, 라이브 검증). 중계기는 >=128이면 그 값 유지.
+const REASON_AGENT_TIMEOUT_MS = 25000;            // ★[2026-06-28] 23000→25000. 라이브 19.8초라 여유 부족 → 상향(중계기 24000 캡, 운영 26초 안).
+//   ★[2026-06-28 핵심 원인] Gemini 2.5는 maxOutputTokens 에 '생각(thinking) 토큰'이 포함된다.
+//     1400이면 thinkingBudget 2048이 출력한도를 다 먹어 본문 0자 → text 빈문자열 → 필드누락 → null 폴백이었음.
+//     6000 = 생각budget 2048 + 답변 여유. 라이브 검증: 6000·2048·pro → 19.8초에 풀 추론(배너+진단+설계방향) 정상 반환.
+const REASON_MAX_TOKENS = 6000;                   // pro 단일콜 출력 토큰 상한(생각 2048 포함 + 배너+진단+설계방향).
+
+// 금지어(doom·마케팅 상투어) — 들어간 '그 문장만' 반려/세탁(전체 null 아님).
+//   ★[2026-06-28] 과민 완화: '잠재력·경쟁·위축' 같은 일반어는 정상 분석에 흔히 쓰여 빼고,
+//     명백한 doom/마케팅 클리셰만 엄격히 막는다(쇠퇴·포화·블루오션·레드오션·붕괴·몰락·대박·핫플 등).
+const BANNED_WORDS = [
+  '쇠퇴', '포화', '블루오션', '레드오션', '붕괴', '몰락',
+  '대박', '필승', '노다지', '핫플',
+];
+
+// ─────────────────────────────────────────────────────────────────────────
+// 1단계 — 신호 점수화 scoreSignals (통계, AI 호출 0)
+//   각 후보 사실 점수 = Impact × Significance.
+//     Impact        = 이 동이 시군구에서 차지하는 비중(0~1). 데이터 없으면 1.
+//     Significance  = 평균 대비 표준화 편차(z). 시계열은 추세 기울기 유의성(계절조정).
+//   소표본(점포<30 등) 억제. 상위 5~7개만 통과. |z|<1·평균 수준은 abstention 후보로.
+//   ★반환 규격은 extractSignals 와 동일({signals[], averages[], menuNote})로 하위 호환.
+// ─────────────────────────────────────────────────────────────────────────
+
+// z = (x-μ)/σ. σ 없으면(또는 0) μ 대비 비율편차를 약식 z로 환산(편차 25%≈z1).
+function _zScore(x, mu, sigma) {
+  const v = _num(x), m = _num(mu);
+  if (v === null || m === null) return null;
+  const sd = _num(sigma);
+  if (sd !== null && sd > 0) return (v - m) / sd;
+  if (m === 0) return null;
+  // σ 미지 → 비율편차/0.25 를 근사 z 로(편차 ±25%를 z±1 로 본다 — 보수적 근사).
+  return ((v / m) - 1) / 0.25;
+}
+
+// Impact: 동의 시군구 내 비중(0~1). 점포수/시군구점포수가 있으면 그걸로, 없으면 1.
+function _impactOf(dongN, sigunguN) {
+  const d = _num(dongN), g = _num(sigunguN);
+  if (d !== null && g !== null && g > 0) {
+    const r = d / g;
+    return (r > 0 && r <= 1) ? r : 1;
+  }
+  return 1;
+}
+
+// 소표본 억제: 점포수<SIGNAL_MIN_SAMPLE 이면 점수에 감쇠계수.
+function _sampleFactor(sampleN) {
+  const n = _num(sampleN);
+  if (n === null) return 1;
+  if (n < SIGNAL_MIN_SAMPLE) return SIGNAL_WEAK_FACTOR;     // 0.5
+  return 1;
+}
+
+// 계절조정 잔차: 시계열 성장률을 '동월/계절 기대치'로 보정.
+//   여기선 raw 시계열 분해가 없으므로, 계절성격(seasonHint)·기준월(season) 관계로
+//   '제철 순행이면 변화의 일부를 계절 노이즈로 차감'하는 보수적 잔차만 적용.
+//   (겨울 매출하락을 '쇠퇴'로 오판하지 않게 하려는 안전장치 — 과도 보정 금지.)
+function _seasonAdjustedGrowth(growthPct, season) {
+  const g = _num(growthPct);
+  if (g === null) return null;
+  // 겨울은 카페 비수기 → 음(-) 성장의 일부(최대 8%p)를 계절요인으로 흡수해 잔차만 신호화.
+  if (season === '겨울' && g < 0) return Math.round(Math.min(0, g + 8));
+  // 여름은 성수기 → 양(+) 성장의 일부(최대 6%p)를 계절요인으로 흡수.
+  if (season === '여름' && g > 0) return Math.round(Math.max(0, g - 6));
+  return Math.round(g);
+}
+
+// 후보 사실 1개 점수화. score = |z| × Impact × sampleFactor.
+//   |z|>=1 일 때만 신호 채택(평균과 비슷하면 abstention). sanity 편차 드롭은 호출부에서.
+function _scoreCandidate({ label, cardIdx, title, value, mu, sigma, dongN, sigunguN, sampleN, extra }) {
+  const z = _zScore(value, mu, sigma);
+  if (z === null) return { signal: null, averageOf: null };
+  const impact = _impactOf(dongN, sigunguN);
+  const sf = _sampleFactor(sampleN);
+  const score = Math.abs(z) * impact * sf;
+  // 평균 대비 비율편차(%) — 톤·라벨용(기존 통역가 프롬프트가 '편차퍼센트'를 톤 세기로 씀).
+  const devPct = (_num(mu) !== null && _num(mu) !== 0) ? Math.round((_num(value) / _num(mu) - 1) * 100) : null;
+  if (devPct !== null && _isInsaneDev(devPct)) {
+    return { signal: null, averageOf: null, dropped: { 항목: label, 사유: '단위이상_드롭' } };
+  }
+  // |z|<1(평균과 비슷) 또는 점수 미달 → abstention 후보(averages 로).
+  if (Math.abs(z) < 1 || score < 0.6) {
+    return { signal: null, averageOf: `${title}:${label}` };
+  }
+  return {
+    signal: _clean({
+      카드: cardIdx, 카드명: title, 항목: label,
+      값: _num(value), 기준: _num(mu),
+      z: Math.round(z * 100) / 100,
+      영향도: Math.round(impact * 100) / 100,    // Impact (시군구 내 비중)
+      신호점수: Math.round(score * 100) / 100,   // Impact × Significance
+      편차퍼센트: devPct,                          // 톤용(있을 때만)
+      방향: z > 0 ? '높음' : '낮음',
+      ...(extra || {}),
+    }),
+    averageOf: null,
+  };
+}
+
+// scoreSignals 본체 — extractSignals 와 같은 입력/출력 규격. 점수 상위 5~7개만 통과.
+function scoreSignals(cardData, benchmarks, menuRising, season) {
+  const C = (i) => (cardData && cardData[i]) ? cardData[i] : {};
+  const c0 = C(0), c2 = C(2), c3 = C(3), c5 = C(5), c7 = C(7), c8 = C(8), c12 = C(12), c13 = C(13);
+  const scored = [];     // {score, signal}
+  const averages = [];
+  const sampleN = _num(c0.카페수);                 // 동의 카페 모수(소표본 억제용)
+  const take = (r) => {
+    if (!r) return;
+    if (r.signal) scored.push({ score: _num(r.signal.신호점수) || 0, signal: r.signal });
+    else if (r.averageOf) averages.push(r.averageOf);
+  };
+
+  // 5 매출 — 월평균매출 vs 시군구평균. Impact = 동카페수/시군구카페수(있으면).
+  take(_scoreCandidate({
+    label: '월평균매출', cardIdx: 5, title: CARD_TITLES[5],
+    value: c5.월평균매출만원, mu: c5.시군구평균매출만원,
+    dongN: sampleN, sigunguN: _num(c5.시군구카페수), sampleN,
+    extra: { 비교기준: '시군구평균' },
+  }));
+  // 동평균 자체의 시군구 대비 위치
+  take(_scoreCandidate({
+    label: '동평균_시군구대비', cardIdx: 5, title: CARD_TITLES[5],
+    value: c5.동평균매출만원, mu: c5.시군구평균매출만원, sampleN,
+    extra: { 비교기준: '시군구평균' },
+  }));
+  // 전년대비 성장 — 계절조정 잔차로(겨울 하락·여름 상승의 계절 노이즈 차감).
+  if (_num(c5.전년대비성장) !== null) {
+    const adj = _seasonAdjustedGrowth(c5.전년대비성장, season);
+    if (adj !== null && !_isInsaneDev(adj)) {
+      // 잔차 |값|>=15%p 일 때만 신호(계절 제거 후에도 유의미한 변화).
+      if (Math.abs(adj) >= SIGNAL_DEV_THRESHOLD) {
+        const score = Math.min(3, Math.abs(adj) / 25) * _sampleFactor(sampleN);
+        scored.push({ score, signal: _clean({
+          카드: 5, 카드명: CARD_TITLES[5], 항목: '전년대비성장률_계절조정',
+          값: adj, 비교기준: '전년(계절조정)', 원시성장률: Math.round(_num(c5.전년대비성장)),
+          신호점수: Math.round(score * 100) / 100, 방향: adj > 0 ? '높음' : '낮음',
+        }) });
+      } else { averages.push(`${CARD_TITLES[5]}:전년대비성장(계절조정후 평탄)`); }
+    }
+  }
+
+  // 2 상권 변화 — 점포 순증을 모수 대비 비율로(z 근사). 소표본 억제.
+  if (_num(c2.신규) !== null && _num(c2.폐업) !== null && sampleN !== null && sampleN > 0) {
+    const net = c2.신규 - c2.폐업;
+    const netPct = Math.round(net / sampleN * 100);
+    if (!_isInsaneDev(netPct)) {
+      const z = netPct / 25;   // 순증 25%를 z1 로 근사
+      const score = Math.abs(z) * _sampleFactor(sampleN);
+      if (Math.abs(z) >= 1 && score >= 0.6) {
+        scored.push({ score, signal: _clean({
+          카드: 2, 카드명: CARD_TITLES[2], 항목: '점포순증', 값: net, 모수: sampleN,
+          편차퍼센트: netPct, z: Math.round(z * 100) / 100,
+          신호점수: Math.round(score * 100) / 100, 방향: net > 0 ? '높음' : '낮음',
+        }) });
+      } else { averages.push(`${CARD_TITLES[2]}:점포순증(${net}/${sampleN}=${netPct}%)`); }
+    }
+  }
+  // 생존율 — 카페 5년 기준 대비.
+  take(_scoreCandidate({
+    label: '5년생존율_카페기준대비', cardIdx: 2, title: CARD_TITLES[2],
+    value: c2['5년생존율'], mu: _pctFromStr(c2.카페5년생존_기준), sampleN,
+  }));
+
+  // 0·3 개인비중 — 전국 평균(개인 75%) 대비 %p(거울상 중복 방지: 개인만 신호).
+  {
+    const indie = _num(c0.개인비중퍼센트);
+    const franch = _num(c3.점유율);
+    const indieVal = (indie !== null) ? indie : (franch !== null ? 100 - franch : null);
+    if (indieVal !== null) {
+      const devPp = Math.round(indieVal - NATIONAL_INDIE_PCT);
+      if (Math.abs(devPp) >= INDIE_NATIONAL_DEV_THRESHOLD) {
+        const score = Math.min(3, Math.abs(devPp) / 15);   // 15%p 편차를 score1 로
+        scored.push({ score, signal: _clean({
+          카드: 0, 카드명: CARD_TITLES[0], 항목: '카페구성_개인비중',
+          개인비중퍼센트: indieVal, 프랜차이즈비중퍼센트: franch,
+          전국개인평균퍼센트: NATIONAL_INDIE_PCT, 전국프랜평균퍼센트: NATIONAL_FRANCH_PCT,
+          비교기준: '전국평균(개인75%)', 전국대비편차포인트: devPp,
+          신호점수: Math.round(score * 100) / 100, 방향: devPp > 0 ? '높음' : '낮음',
+        }) });
+      } else { averages.push(`${CARD_TITLES[0]}:개인카페비중`); }
+    }
+    if (franch !== null) averages.push(`${CARD_TITLES[3]}:프랜차이즈점유율`);
+  }
+
+  // 7 임대 — 평당월세 vs 지역평균.
+  take(_scoreCandidate({
+    label: '평당월세_지역평균대비', cardIdx: 7, title: CARD_TITLES[7],
+    value: c7.평당월세만원, mu: c7.평당월세_지역평균만원, sampleN,
+  }));
+
+  // 8 공실률 — 값 자체(두 자릿수면 신호). 비교 기준 없음.
+  if (_num(c8.공실률) !== null) {
+    const vac = _num(c8.공실률);
+    if (vac >= 0 && vac <= 100) {
+      if (vac >= 12) {
+        const score = Math.min(3, vac / 12);
+        scored.push({ score, signal: _clean({
+          카드: 8, 카드명: CARD_TITLES[8], 항목: '공실률', 값: vac,
+          신호점수: Math.round(score * 100) / 100, 방향: '높음',
+        }) });
+      } else { averages.push(`${CARD_TITLES[8]}:공실률`); }
+    }
+  }
+
+  // 12 ROI 종합점수 — 점수 자체(50에서 충분히 치우치면). 비교 기준 없음.
+  if (_num(c12.종합점수) !== null) {
+    const lean = Math.abs(c12.종합점수 - 50);
+    if (lean >= SIGNAL_DEV_THRESHOLD) {
+      const score = Math.min(3, lean / 20);
+      scored.push({ score, signal: _clean({
+        카드: 12, 카드명: CARD_TITLES[12], 항목: 'ROI종합점수', 점수: _num(c12.종합점수),
+        밀집도라벨: _str(c12.카페밀집도라벨), 신호점수: Math.round(score * 100) / 100,
+        방향: (c12.종합점수 - 50) > 0 ? '높음' : '낮음',
+      }) });
+    } else { averages.push(`${CARD_TITLES[12]}:ROI종합점수`); }
+  }
+
+  // 13 기회/리스크 균형.
+  if (_num(c13.기회건수) !== null && _num(c13.리스크건수) !== null) {
+    const diff = c13.기회건수 - c13.리스크건수;
+    if (Math.abs(diff) >= 2) {
+      const score = Math.min(3, Math.abs(diff) / 2);
+      scored.push({ score, signal: _clean({
+        카드: 13, 카드명: CARD_TITLES[13], 항목: '기회_리스크균형',
+        기회: c13.기회건수, 리스크: c13.리스크건수, 신호점수: Math.round(score * 100) / 100,
+        방향: diff > 0 ? '높음' : '낮음',
+      }) });
+    } else { averages.push(`${CARD_TITLES[13]}:기회리스크균형`); }
+  }
+
+  // 계절역행 메뉴(순행=노이즈 제외) — 점수는 중간 고정(메뉴는 보조 신호).
+  let menuNote = null;
+  if (Array.isArray(menuRising) && menuRising.length > 0) {
+    const counter = [], seasonal = [];
+    menuRising.forEach((m) => {
+      const rel = _seasonRelation(m && m.seasonHint, season);
+      if (rel === '역행') counter.push(m.name);
+      else if (rel === '순행') seasonal.push(m.name);
+    });
+    if (counter.length > 0) {
+      scored.push({ score: 1.0, signal: _clean({
+        카드: 4, 카드명: '메뉴', 항목: '계절역행메뉴', 메뉴: counter, 기준월계절: season, 방향: '이상신호',
+      }) });
+    }
+    menuNote = _clean({ 제철순행_제외: seasonal.length > 0 ? seasonal : null, 기준월계절: season });
+  }
+
+  // 점수 내림차순 → 상위 7개만(꼬리물기 토큰 가드). signal 객체에서 정렬 점수는 그대로 둠.
+  scored.sort((a, b) => (b.score || 0) - (a.score || 0));
+  const signals = scored.slice(0, 7).map((s) => s.signal);
+
+  return _clean({ signals, averages, menuNote });
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 2단계 — 근거 PoT 계산 computeGroundedFacts (AI 호출 0)
+//   AI가 머리로 산술 못 하게 모든 계산을 JS로 미리. 각 사실:
+//     {key, label, value, unit, source(카드/항목), confidence('실측'/'추정'/'외부')}
+//   cardData 에 있는 값만. 없으면 그 사실 생략(가짜 금지).
+// ─────────────────────────────────────────────────────────────────────────
+function computeGroundedFacts(cardData) {
+  const C = (i) => (cardData && cardData[i]) ? cardData[i] : {};
+  const c0 = C(0), c1 = C(1), c2 = C(2), c5 = C(5), c6 = C(6), c7 = C(7),
+        c8 = C(8), c9 = C(9), c10 = C(10), c12 = C(12), c13 = C(13);
+  const facts = [];
+  const F = (key, label, value, unit, source, confidence) => {
+    const v = (typeof value === 'string') ? _str(value) : _num(value);
+    if (v === null) return;
+    facts.push({ key, label, value: v, unit: unit || null, source, confidence });
+  };
+
+  // 카페 규모/구성
+  F('cafeCount', '카페 수', c0.카페수, '개', '상권 분석', '실측');
+  F('indiePct', '개인카페 비중', c0.개인비중퍼센트, '%', '상권 분석', '실측');
+  F('franchPct', '프랜차이즈 비중',
+    (_num(c0.개인비중퍼센트) !== null) ? (100 - _num(c0.개인비중퍼센트)) : null, '%', '상권 분석', '추정');
+  // 시군구 대비 매출%, 분위 격차
+  if (_num(c5.월평균매출만원) !== null && _num(c5.시군구평균매출만원) !== null && c5.시군구평균매출만원 > 0) {
+    const ratio = Math.round(c5.월평균매출만원 / c5.시군구평균매출만원 * 100);
+    F('salesVsSigungu', '월평균매출의 시군구평균 대비 비율', ratio, '%', '매출 분석', '추정');
+    // ★[2026-06-28 파생] pro가 "구 평균 대비 N% 낮음/높음"으로 쓰는 보수치(=100-비율). PCN 통과용.
+    F('salesGapVsSigungu', '월평균매출의 시군구평균 대비 차이(낮으면 +)', Math.abs(100 - ratio), '%', '매출 분석', '추정');
+  }
+  F('monthlySales', '월평균매출', c5.월평균매출만원, '만원', '매출 분석', '추정');
+  F('dongAvgSales', '동평균매출', c5.동평균매출만원, '만원', '매출 분석', '추정');
+  F('sigunguAvgSales', '시군구평균매출', c5.시군구평균매출만원, '만원', '매출 분석', '추정');
+  // ★[2026-06-28 파생] 분위(상위20%/하위20%) 매출 + 분위 라벨(20/80) + 격차배수. pro가 격차를 근거로 씀.
+  F('topQuintileSales', '상위 20% 카페 월매출', c5.상위20퍼센트매출만원, '만원', '매출 분석', '추정');
+  F('botQuintileSales', '하위 20% 카페 월매출', c5.하위20퍼센트매출만원, '만원', '매출 분석', '추정');
+  if (_num(c5.상위20퍼센트매출만원) !== null && _num(c5.하위20퍼센트매출만원) !== null && c5.하위20퍼센트매출만원 > 0) {
+    F('quintileGapX', '상·하위 20% 매출 격차배수',
+      Math.round(c5.상위20퍼센트매출만원 / c5.하위20퍼센트매출만원 * 10) / 10, '배', '매출 분석', '추정');
+  }
+  // 신폐 순증·생존율
+  if (_num(c2.신규) !== null && _num(c2.폐업) !== null) {
+    F('netStoreChange', '점포 순증(신규-폐업)', c2.신규 - c2.폐업, '개', '상권 변화 추이', '실측');
+  }
+  F('newCount', '신규 개업', c2.신규, '개', '상권 변화 추이', '실측');
+  F('closeCount', '폐업', c2.폐업, '개', '상권 변화 추이', '실측');
+  F('survival5y', '5년 생존율', c2['5년생존율'], '%', '상권 변화 추이', '추정');
+  // 주고객 연령·성별
+  F('topAge', '주 고객 연령대', c1.주연령, null, '고객 분석', '추정');
+  // ★[2026-06-28 파생] 연령대별 비율을 각각 facts로(60대 37%·50대 22% 등). pro가 이 %들을 근거로 씀.
+  if (Array.isArray(c1.연령분포)) {
+    c1.연령분포.forEach((g, idx) => {
+      const nm = _str(g && g.연령), pct = _num(g && g.비율);
+      if (nm && pct !== null) F('age_' + idx, nm + ' 비율', pct, '%', '고객 분석', '추정');
+    });
+  }
+  if (_num(c1.여성비율) !== null && _num(c1.남성비율) !== null) {
+    const fem = _num(c1.여성비율);
+    F('genderDominant', '주 성별',
+      fem >= 55 ? `여성 ${Math.round(fem)}%` : (fem <= 45 ? `남성 ${Math.round(100 - fem)}%` : '남녀 비슷'),
+      null, '고객 분석', '추정');
+  }
+  F('revisitRate', '재방문율', c1.재방문율, '%', '고객 분석', '추정');
+  // 유동/피크
+  F('dailyPop', '일 유동인구', c6.일유동인구, '명', '유동인구', '추정');
+  F('peakHour', '피크 시간', c6.피크시간, null, '유동인구', '추정');
+  if (_num(c6.평일비중) !== null && _num(c6.주말비중) !== null) {
+    F('popWeekendSkew', '주말/평일 유동 성향',
+      c6.주말비중 > c6.평일비중 ? '주말형' : '평일형', null, '유동인구', '추정');
+  }
+  // 객단가 위치(배달)
+  F('deliveryTicket', '배달 객단가', c9.배달객단가원, '원', '배달 객단가', '추정');
+  // 점포당 배후인구(있으면)
+  if (_num(c6.일유동인구) !== null && _num(c0.카페수) !== null && c0.카페수 > 0) {
+    F('popPerCafe', '카페 1곳당 일 유동인구',
+      Math.round(c6.일유동인구 / c0.카페수), '명', '유동인구÷카페수', '추정');
+  }
+  // 임대 부담
+  F('rentPerPyeong', '평당 월세', c7.평당월세만원, '만원', '임대/창업 정보', '추정');
+  F('vacancy', '공실률', c8.공실률, '%', '카페 기회', '추정');
+  // SNS 긍정 비율(외부 AI 추정)
+  F('snsPositive', 'SNS 긍정 비율', c10.긍정비율, '%', 'SNS 트렌드', '외부');
+  // ROI 종합
+  F('roiScore', 'ROI 종합점수', c12.종합점수, '점', '상권 경쟁 분석', '추정');
+  F('roiMonthlyProfit', '예상 월수익', c12.예상월수익만원, '만원', '상권 경쟁 분석', '추정');
+  F('roiPayback', '투자 회수개월', c12.회수개월, '개월', '상권 경쟁 분석', '추정');
+  // 기회/리스크
+  F('opportunities', '기회 건수', c13.기회건수, '건', 'AI 종합 분석', '실측');
+  F('risks', '리스크 건수', c13.리스크건수, '건', 'AI 종합 분석', '실측');
+
+  return facts;
+}
+
+// PCN 숫자검증 verifyNumbers — ★[2026-06-28] '모순(위조)만' 잡는다. '없는 숫자'는 통과.
+//   배경: 예전엔 facts에 없는 숫자를 전부 반려 → pro의 합리적 파생값(시군구 대비 41%·분위 라벨 20%·
+//        연령 37% 등)까지 막아 출력 전체를 null로 버렸음(라이브 폴백 원인).
+//   새 원칙(coordinator 지시): "매출 5000처럼 facts와 모순되는 위조"만 막고, 합리적 파생/퍼센트는 통과.
+//   판정 규칙(보수적 — 과민 금지):
+//     1) 어떤 fact와 '같은 값'(±5%·단위환산)으로 매칭 → 정상 인용, 통과.
+//     2) 통화/개수 단위(만원·원·명·개)인 숫자만 모순 검사. 같은 통화단위 fact 중 가장 가까운 것과
+//        0.5~5배 범위에서 '명백히 다르면'(같은 항목을 잘못 옮긴 위조 의심) → 그 숫자만 flag.
+//        ※ '%'·라벨·배수·점수·연령·시각 등은 파생/구조값이 많아 모순 검사에서 제외(통과).
+//     3) 구조적 라운드 라벨(10/20/25/50/75/80/90/100 — 분위·절반·백분위)은 검사 면제.
+//   반환: { ok, flagged:[{number, token, reason, nearFact}] } — flagged 비면 통과.
+function verifyNumbers(aiText, facts) {
+  const text = String(aiText || '');
+  // 통화/개수 단위 fact(만원·원·명·개)만 모순 비교 대상으로(퍼센트·점·배·개월 등은 제외).
+  const CURR_UNITS = ['만원', '원', '명', '개'];
+  const currFacts = (Array.isArray(facts) ? facts : [])
+    .map((f) => ({ v: _num(f.value), label: f.label, unit: f.unit }))
+    .filter((o) => o.v !== null && o.v !== 0 && CURR_UNITS.indexOf(o.unit) >= 0);
+  const allFacts = (Array.isArray(facts) ? facts : [])
+    .map((f) => _num(f.value)).filter((v) => v !== null);
+  // ★단위환산 후보는 만↔원(×/÷10000)만. ×100·×1000 등 임의 환산은 무관한 작은 fact(생존율 48→4800,
+  //   리스크 5→5000)를 '같은 값'으로 오통과시켜 위조(5000만원)를 놓치게 해서 폐기.
+  const scaleCands = (b) => [b, b / 10000, b * 10000];
+  const EQ_TOL = 0.05;
+  const ROUND_LABELS = [10, 20, 25, 30, 50, 70, 75, 80, 90, 100];
+  // 토큰 = 숫자 + (붙은 단위). 단위로 통화/개수 여부 판별.
+  const tokens = text.match(/[\d][\d,\.]*\s*(?:억|만원|만|원|명|개|점|개월|건|배|위|시|%)?/g) || [];
+  const flagged = [];
+  tokens.forEach((tk) => {
+    const raw = String(tk).trim();
+    const numStr = raw.replace(/[^\d.]/g, '');
+    const n = _num(numStr);
+    if (n === null) return;
+    if (n <= 12 && Number.isInteger(n)) return;        // 작은 서수/년수 면제
+    if (ROUND_LABELS.indexOf(n) >= 0) return;          // 분위·절반·백분위 등 구조 라벨 면제
+    // 1) 어떤 fact와 '같은 값'이면 정상 인용 → 통과.
+    const equalsSome = allFacts.some((fv) => scaleCands(fv).some((c) => c !== 0 &&
+      (Math.abs(n - c) / Math.abs(c) <= EQ_TOL || Math.abs(n - c) <= 1)));
+    if (equalsSome) return;
+    // 2) 통화/개수 단위가 붙은 숫자만 모순 검사. 단위 없으면(맥락 불명) 통과(과민 금지).
+    const hasCurrUnit = /(억|만원|만|원|명|개)$/.test(raw);
+    if (!hasCurrUnit) return;
+    // 같은 통화단위 fact 중 0.5~5배 범위에서 가장 가까운 것 → 같은 항목 오인용(위조) 의심.
+    let hit = null;
+    for (const fo of currFacts) {
+      const ratio = n / fo.v;                            // 단위 동일 가정(만원 vs 만원 등)
+      if (ratio >= 0.5 && ratio <= 5 && Math.abs(n - fo.v) / fo.v > 0.40) {
+        if (!hit) hit = { nearFact: fo.label, factVal: fo.v };
+      }
+    }
+    if (hit) flagged.push({ number: n, token: raw, reason: 'fact_오인용_모순', nearFact: hit.nearFact });
+    // 그 외(새/파생 숫자) = 합리적 파생으로 보고 통과.
+  });
+  return { ok: flagged.length === 0, flagged };
+}
+
+// 텍스트를 문장 단위로 쪼갠다(한국어 종결 + 줄바꿈 기준). 빈 조각 제거.
+//   ★[2026-06-28] lookbehind 정규식((?<=...))은 구형 Safari(<16.4)·일부 웹뷰에서 SyntaxError →
+//     검증 단계가 통째로 깨질 수 있어 폐기. lookbehind 없이 '마침표/종결' 뒤에 마커를 끼워 split.
+function _splitSentences(text) {
+  const s = String(text || '');
+  if (!s) return [];
+  // ① 문장부호(. ! ? 。) 뒤 + ② '다.'·'다 ' 같은 한국어 종결 + ③ 줄바꿈 에 분리 마커() 삽입.
+  const marked = s
+    .replace(/([.!?。])(\s+)/g, '$1')        // 문장부호 + 공백
+    .replace(/(다)(\s+)(?=[가-힣A-Z0-9])/g, '$1$2')  // '~다 ' 뒤 (lookahead 만 — 호환됨)
+    .replace(/[\n\r]+/g, '');                 // 줄바꿈
+  return marked.split('').map((x) => x.trim()).filter(Boolean);
+}
+
+// 문장 단위 세탁: 모순(위조) 숫자나 금지어가 든 '그 문장만' 떨어낸다(나머지는 살림).
+//   반환 = 살아남은 문장들을 다시 이은 텍스트(전부 떨어지면 빈 문자열).
+function _scrubSentences(text, facts) {
+  const sents = _splitSentences(text);
+  if (sents.length <= 1) {
+    // 한 문장짜리: 모순/금지어면 통째 드롭, 아니면 그대로.
+    const t = _str(text) || '';
+    if (!t) return '';
+    if (_hasBanned(t).length > 0) return '';
+    return verifyNumbers(t, facts).ok ? t : '';
+  }
+  const kept = sents.filter((s) => _hasBanned(s).length === 0 && verifyNumbers(s, facts).ok);
+  return kept.join(' ').trim();
+}
+
+// 금지어 세탁: 산출 문장에서 banned 단어가 있으면 표시(반려용).
+function _hasBanned(text) {
+  const t = String(text || '');
+  return BANNED_WORDS.filter((w) => t.indexOf(w) >= 0);
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 3단계 — 꼬리물기 추론 runReasoningChain (★pro 단일콜로 압축, 종합만)
+//   ★[2026-06-28 긴급] 4~5홉 순차호출 = 504(24초 초과)·과다호출(차단/과금 위험)이라 폐기.
+//     gemini-2.5-pro 는 thinkingBudget(2048) 안에서 한 번 호출만으로 스스로 단계추론
+//     (누가→언제→왜→빈수요)을 한다. 그러니 reason+synthesize 를 pro 1콜로 통합한다.
+//   검색당 추가 AI콜 = pro 1콜만(14장 cardLines 는 기존 flash 1콜 그대로).
+//   규칙: ①확정 사실만 ②문장 끝 [근거:항목=값] 태그 ③금지어 차단 ④메뉴 단정 금지
+//        ⑤근거 없으면 '특이점 없음' 정직 기권. 검증(PCN 숫자·금지어)은 전부 코드로(무료).
+// ─────────────────────────────────────────────────────────────────────────
+
+// pro 단일 호출(multi-agent 1에이전트). thinkingBudget 2048 명시(자동 8192 금지). 실패=null.
+//   중계기는 agent.thinkingBudget>=128 이면 그 값 유지 → 2048 통과 → 응답 ~10~15초 → 504 제거.
+async function _callPro(prompt, schema, opts) {
+  const o = opts || {};
+  const agentTimeout = Math.min(o.agentTimeoutMs || REASON_AGENT_TIMEOUT_MS, 24000);
+  // 클라이언트 abort 는 서버보다 넉넉히 커야 서버 응답을 기다린다(서버 타임아웃이 먼저 동작).
+  const clientTimeout = agentTimeout + 2500;
+  // ★[2026-06-28] AbortSignal.timeout 미지원 브라우저 방어 — 있으면 쓰고, 없으면 controller 폴백.
+  //   (예전엔 AbortSignal.timeout 이 undefined 면 여기서 throw → 추론이 조용히 죽었을 수 있음.)
+  let signal;
+  try {
+    if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+      signal = AbortSignal.timeout(clientTimeout);
+    } else if (typeof AbortController !== 'undefined') {
+      const ctrl = new AbortController();
+      setTimeout(() => { try { ctrl.abort(); } catch (e) {} }, clientTimeout);
+      signal = ctrl.signal;
+    } else {
+      signal = undefined;   // 둘 다 없으면 타임아웃 없이 호출(중계기 서버 타임아웃이 마감)
+    }
+  } catch (e) { signal = undefined; }
+  _v10trace('pro_fetch_start', { agentTimeout, clientTimeout, hasSignal: !!signal, model: REASON_MODEL });
+  let resp;
+  try {
+    resp = await fetch('/.netlify/functions/gemini-proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      ...(signal ? { signal } : {}),
+      body: JSON.stringify({
+        action: 'multi-agent',
+        agents: [{
+          id: 'reason',
+          prompt,
+          model: REASON_MODEL,                       // 'pro' → gemini-2.5-pro
+          maxOutputTokens: o.maxTokens || REASON_MAX_TOKENS,
+          temperature: 0,
+          thinkingBudget: REASON_THINKING_BUDGET,    // ★2048 명시(자동 8192 금지) → 속도 ↑, 504 제거
+          responseMimeType: 'application/json',
+          responseSchema: schema,
+          timeout: agentTimeout,
+        }],
+      }),
+    });
+  } catch (eFetch) {
+    _v10trace('pro_fetch_err', { message: eFetch && eFetch.message, name: eFetch && eFetch.name });
+    return null;
+  }
+  if (!resp.ok) {
+    _v10trace('pro_fetch_done', { ok: false, status: resp.status });
+    return null;
+  }
+  const data = await resp.json();
+  const agent = data && data.results && data.results.reason;
+  const textLen = (agent && typeof agent.text === 'string') ? agent.text.length : 0;
+  _v10trace('pro_fetch_done', { ok: true, success: !!(agent && agent.success), textLen, err: agent && agent.error });
+  if (!agent || !agent.success || !agent.text) return null;
+  return parseJSON(agent.text);
+}
+
+// 확정 사실/신호를 프롬프트에 넣기 좋게 압축(라벨=값 단위 / 출처 / 신뢰도).
+function _factsToLines(facts) {
+  return (Array.isArray(facts) ? facts : []).map((f) =>
+    `${f.label}=${f.value}${f.unit || ''} (출처:${f.source}, ${f.confidence})`
+  );
+}
+
+const _CHAIN_RULES = `[추론 규칙 — 엄수]
+1. 아래 '확정 사실'과 '튀는 신호'에 있는 값만 사용한다. 새 숫자를 만들면 그 문장은 폐기된다.
+2. 모든 문장 끝에 근거 태그를 단다: [근거:항목=값]. 근거 없는 문장 금지.
+3. 금지어 절대 사용 금지: 쇠퇴/포화/블루오션/레드오션/잠재력/붕괴/위축/대박/핫플 등 doom·마케팅 상투어.
+4. 메뉴(구체 제품)를 단정하지 마라. "이 동네는 ○○ 신호라 △△ 방향"까지만. 구체 제품은 "빈크래프트가 설계".
+5. 근거가 부족하면 정직하게 "특이점이 적다 / 대체로 평균 수준"이라고 기권한다(지어내기 금지).
+6. 처방/조언("~하세요/~를 노려라/차별화하라") 금지. 통역가가 아니라 추론가지만 처방은 사람(상담) 몫.`;
+
+// pro 단일콜 프롬프트 — 내부적으로 단계추론(누가→언제→왜→빈수요) 후 최종 JSON만 출력.
+function buildReasoningPrompt(facts, signals, ctx) {
+  const factStr = JSON.stringify(_factsToLines(facts), null, 0);
+  const sigStr = JSON.stringify(signals || [], null, 0);
+  const season = (ctx && ctx.season) || '';
+  return `당신은 카페 상권 분석의 '추론가'다. 아래 확정 사실과 튀는 신호만 보고, 머릿속으로 꼬리에 꼬리를 무는 단계추론을 한 뒤(생각 과정은 출력하지 말 것), 최종 결론 JSON만 내라.
+${_CHAIN_RULES}
+
+[단계추론 순서 — 머릿속으로만 밟고, 결과만 JSON 으로]
+1) 누가 오는 동네인가(연령/소득/유동/성별)를 사실로 짚는다.
+2) 언제·어디가 예외인가(피크시간, 옆 동·평균 대비 튀는 점)를 본다.
+3) 왜 그런가(예외를 다른 확정 사실로 연결해 설명).
+4) 빈 수요(채워지지 않은 손님층)와 결론을 모은다.
+※ 위 1~4 흐름은 생각만 하고, 그 흐름 텍스트는 출력 금지. 오직 아래 JSON 만.
+
+[확정 사실]
+${factStr}
+[튀는 신호(점수순 — 영향도×유의성 높은 것 먼저)]
+${sigStr}
+[기준월 계절] ${season}
+
+[출력 — 순수 JSON 한 개만. 첫 글자 { 마지막 글자 }. 마크다운 금지. 존댓말]
+{
+  "bannerLine": "이 상권을 한 문장으로(60자 이내, 처방 없음, 톤은 신호 편차에 비례). 끝에 [근거:항목=값] 태그.",
+  "diagnosis": "위 단계추론을 엮은 한 단락 2~4문장. 처방 없음. 각 문장 끝 [근거:항목=값] 태그.",
+  "designDirection": ["설계 '방향' 2~4줄. 구체 제품·메뉴 단정 금지, '이 신호라 이 방향' 어조, '빈크래프트가 설계'로 마무리 가능. 각 줄 끝 [근거:항목=값] 태그.", "..."]
+}`;
+}
+
+// 코드 검증(무료, AI호출 X): ★[2026-06-28] '문장 단위'로 세탁한다(전체 null 금지).
+//   원칙(coordinator 지시): 모순(위조)·금지어가 든 '그 문장만' 떨어내고, 나머지는 살린다.
+//   최소 1조각이라도 살아남으면 그걸로 반환(designDirection도 한 줄이라도 살리면 채택).
+function _verifyReasoningOutput(synth, facts) {
+  if (!synth || typeof synth !== 'object') return null;
+  // 배너: 한 문장이라 통째 검사하되, 모순/금지어면 드롭(진단/설계는 살 수 있으니 전체 null 아님).
+  const bannerRaw = _str(synth.bannerLine);
+  const cleanBanner = (bannerRaw && _hasBanned(bannerRaw).length === 0 && verifyNumbers(bannerRaw, facts).ok)
+    ? bannerRaw : null;
+  // 진단: 문장 단위 세탁 — 모순/금지어 문장만 빼고 이어붙임.
+  const cleanDiag = _scrubSentences(_str(synth.diagnosis) || '', facts) || null;
+  // 설계방향: 각 줄을 문장단위 세탁 후, 살아남은 줄만(최대 4). 한 줄이라도 살리면 채택.
+  let dir = Array.isArray(synth.designDirection)
+    ? synth.designDirection.map((x) => _scrubSentences(_str(x) || '', facts)).filter(Boolean).slice(0, 4)
+    : [];
+  // 최소 조건: 배너·진단·설계 중 하나라도 살아남으면 반환(전부 죽으면 그때만 폴백).
+  if (!cleanBanner && !cleanDiag && dir.length === 0) return null;
+  return {
+    bannerLine: cleanBanner,
+    diagnosis: cleanDiag,
+    // 설계방향은 2줄 이상이어야 배관(화면 폴백 기준)에 쓰이지만, 1줄만 살아도 버리지 않고 그대로 둠
+    //   (호출부가 length>=2 일 때만 덮어쓰고, 1줄이면 기존 템플릿 폴백 — 그래도 배너/진단은 살려 반환).
+    designDirection: dir.length >= 1 ? dir : null,
+    _hops: 1, _abstained: false,
+  };
+}
+
+// 메인 — pro 단일콜 추론. 신호 0~1개면 호출 없이 코드로 정직 기권. 어떤 실패에서도 null(호출부 v9 폴백).
+async function runReasoningChain(facts, signals, ctx) {
+  _v10trace('rc_enter', { sigN: Array.isArray(signals) ? signals.length : -1, factsN: Array.isArray(facts) ? facts.length : -1 });
+  // 신호가 거의 없으면(0~1개) AI 호출 자체를 안 한다(차단/과금 방어) → 정직 기권을 코드로 반환.
+  if (!Array.isArray(signals) || signals.length <= 1) {
+    _v10trace('rc_abstain', { sigN: Array.isArray(signals) ? signals.length : -1 });
+    return {
+      bannerLine: '대체로 평균 수준으로, 두드러진 특이점은 적은 상권입니다.',
+      diagnosis: '수집된 데이터에서 전국·시군구 평균과 크게 벌어지는 항목이 거의 없습니다. 특정 방향으로 단정하기보다 대체로 평탄한 상권으로 볼 수 있습니다.',
+      designDirection: [
+        '두드러진 신호가 적은 만큼, 타깃을 명확히 한 콘셉트와 동선 설계로 안정적인 진입을 노릴 수 있는 자리입니다.',
+        '세부 콘셉트와 메뉴 구성은 현장 상담에서 빈크래프트가 설계합니다.',
+      ],
+      _hops: 0, _abstained: true,
+    };
+  }
+
+  const schema = {
+    type: 'OBJECT',
+    properties: {
+      bannerLine: { type: 'STRING' },
+      diagnosis: { type: 'STRING' },
+      designDirection: { type: 'ARRAY', items: { type: 'STRING' }, minItems: 2, maxItems: 4 },
+    },
+    required: ['bannerLine', 'diagnosis', 'designDirection'],
+  };
+  const prompt = buildReasoningPrompt(facts, signals, ctx);
+  _v10trace('rc_built_prompt', { promptLen: prompt ? prompt.length : 0 });
+
+  // ★검색당 pro 1콜만. 실패/타임아웃이면 null → 호출부가 v9 폴백.
+  let synth = null;
+  try {
+    synth = await _callPro(prompt, schema, {});
+  } catch (e) { _v10trace('rc_callpro_threw', { message: e && e.message }); synth = null; }
+  _v10trace('rc_got_synth', { isNull: !synth });
+  if (!synth) return null;
+
+  // 검증(금지어·PCN 숫자대조)은 전부 코드(무료, 추가 AI호출 0).
+  return _verifyReasoningOutput(synth, facts);
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -601,6 +1246,21 @@ function writeCache(key, value) {
   try { window.localStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* 용량초과 등 무시 */ }
 }
 
+// v10 종합(배너/진단/설계방향) 전용 캐시 — 모양이 v9 와 달라(cardLines 없음) 검증식을 분리.
+function readCache_v10(key) {
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return null;
+    const obj = JSON.parse(raw);
+    // 배너 또는 진단 중 하나라도 있으면 유효(설계방향은 선택).
+    if (obj && typeof obj === 'object' && (obj.bannerLine || obj.diagnosis)) return obj;
+  } catch (e) { /* 캐시 깨짐 → 무시 */ }
+  return null;
+}
+function writeCache_v10(key, value) {
+  try { window.localStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* 용량초과 등 무시 */ }
+}
+
 // JSON 추출(코드블록·잡텍스트 방어).
 function parseJSON(text) {
   if (!text) return null;
@@ -630,6 +1290,94 @@ function validate(obj) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// [2026-06-28] 실경로 추적기 — 단계별로 window.__bcV10Trace 에 기록 + console.warn.
+//   "실검색에서만 조용히 죽는다"의 원인을 딱 한 번 검색으로 확정하려고 심음.
+//   parent window 까지 기록(iframe 안에서 돌 수도 있어서) — 콘솔에서 __bcV10Trace 로 바로 확인.
+// ─────────────────────────────────────────────────────────────────────────
+function _v10trace(step, value) {
+  try {
+    const w = (typeof window !== 'undefined') ? window : null;
+    if (w) {
+      if (!w.__bcV10Trace) w.__bcV10Trace = { _t0: Date.now(), steps: [] };
+      w.__bcV10Trace[step] = value;
+      w.__bcV10Trace.steps.push({ step, value, at: Date.now() - (w.__bcV10Trace._t0 || Date.now()) });
+      // parent(상위 프레임)에도 미러 — iframe 격리 대비.
+      try { if (w.parent && w.parent !== w) { w.parent.__bcV10Trace = w.__bcV10Trace; } } catch (e) { /* cross-origin */ }
+    }
+  } catch (e) { /* noop */ }
+  try { console.warn('[v10trace]', step, value); } catch (e) { /* noop */ }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// [2026-06-28] v10 레이어를 단독 함수로 분리.
+//   ★핵심 수정: 예전엔 getUnifiedDiagnosis 맨 앞 v9 캐시 hit 시 early-return 해버려서
+//     (같은 동 두 번째 검색부터) v10 블록을 영영 안 지나갔음 = 실검색에서만 조용히 폴백.
+//   이제 v9 캐시 hit 든 새 v9 호출이든 '둘 다' 이 레이어를 거친다 → v10 항상 시도(v10 캐시로 비용 방어).
+//   반환: v10 성공이면 merged 결과, 실패/기권이면 v9Result 그대로(화면 안 깨짐).
+async function _applyV10Layer(v9Result, bundle, ids) {
+  const { dongCd, address, radius } = ids || {};
+  try {
+    const v10Key = `${AI_DIAG_V10_PREFIX}${_str(dongCd) || `${_str(address) || ''}|${_num(radius) || ''}`}`;
+    _v10trace('1_reached_v10', { v10Key, hasBundle: !!(bundle && Array.isArray(bundle.cards)) });
+
+    const v10Cached = readCache_v10(v10Key);
+    if (v10Cached) {
+      _v10trace('1b_v10_cache_hit', { hasDir: Array.isArray(v10Cached.designDirection) });
+      return {
+        ...v9Result,
+        bannerLine: v10Cached.bannerLine || v9Result.bannerLine,
+        diagnosis: v10Cached.diagnosis || v9Result.diagnosis,
+        designDirection: Array.isArray(v10Cached.designDirection) ? v10Cached.designDirection : null,
+        _source: 'reasoning-cache', _key: v10Key,
+      };
+    }
+
+    const facts = computeGroundedFacts(bundle.cards);
+    _v10trace('2_facts', { count: Array.isArray(facts) ? facts.length : 0 });
+    const scored = scoreSignals(bundle.cards, bundle.benchmarks, bundle.menuRising, bundle.season);
+    const sigN = (scored && Array.isArray(scored.signals)) ? scored.signals.length : 0;
+    _v10trace('3_signals', { count: sigN, willAbstain: sigN <= 1, items: (scored.signals || []).map((s) => s.항목) });
+
+    _v10trace('3b_calling_reason', { factsN: Array.isArray(facts) ? facts.length : 0, sigN, season: bundle.season });
+    const reasoning = await runReasoningChain(facts, scored.signals, { season: bundle.season });
+    _v10trace('4_reasoning', {
+      isNull: !reasoning,
+      abstained: reasoning ? reasoning._abstained : null,
+      hops: reasoning ? reasoning._hops : null,
+      hasBanner: !!(reasoning && reasoning.bannerLine),
+      hasDiag: !!(reasoning && reasoning.diagnosis),
+      dirLen: (reasoning && Array.isArray(reasoning.designDirection)) ? reasoning.designDirection.length : 0,
+    });
+
+    if (reasoning && (reasoning.bannerLine || reasoning.diagnosis || (Array.isArray(reasoning.designDirection) && reasoning.designDirection.length))) {
+      const merged = {
+        bannerLine: reasoning.bannerLine || v9Result.bannerLine,
+        diagnosis: reasoning.diagnosis || v9Result.diagnosis,
+        designDirection: Array.isArray(reasoning.designDirection) ? reasoning.designDirection : null,
+      };
+      writeCache_v10(v10Key, merged);
+      _v10trace('7_wroteCache', { v10Key, dirLen: merged.designDirection ? merged.designDirection.length : 0 });
+      _v10trace('8_applied', { dirLen: merged.designDirection ? merged.designDirection.length : 0, source: 'reasoning' });
+      try { console.log('[AI추론v10] 적용 — 홉', reasoning._hops, '· 설계방향', merged.designDirection ? merged.designDirection.length : 0, '줄'); } catch (e) {}
+      return {
+        ...v9Result,
+        bannerLine: merged.bannerLine,
+        diagnosis: merged.diagnosis,
+        designDirection: merged.designDirection,
+        _source: 'reasoning', _key: v10Key,
+      };
+    }
+    // reasoning 이 null 또는 빈 결과 → v9 폴백(화면 안 깨짐).
+    _v10trace('6_verify_or_empty', { reason: reasoning ? '빈결과(검증 후 전부 반려)' : 'runReasoningChain_null' });
+    return v9Result;
+  } catch (eReason) {
+    _v10trace('9_caught', { message: eReason && eReason.message });
+    if (typeof console !== 'undefined') console.warn('[AI추론v10] 폴백→v9:', eReason && eReason.message);
+    return v9Result;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // 메인 — 캐시 우선 → 없으면 제미나이 1회 호출(temp 0) → 검증 → 캐시 → 반환.
 //   어떤 실패에서도 throw 하지 않는다. 실패 = null 반환(호출부가 폴백).
 // ─────────────────────────────────────────────────────────────────────────
@@ -637,17 +1385,26 @@ export async function getUnifiedDiagnosis({ cards, kosisBoxData, collectedData, 
   try {
     const dongCd = collectedData && collectedData.dongInfo && collectedData.dongInfo.dongCd;
     const key = diagnosisCacheKey({ dongCd, address, radius });
+    _v10trace('0_enter', { dongCd: dongCd || null, hasAddress: !!address });
+
+    // bundle 은 v9 캐시 hit 여부와 무관하게 항상 만든다(v10 레이어가 facts/signals 에 필요).
+    const bundle = buildDiagnosisBundle({ cards, kosisBoxData, collectedData, dataAsOf, address, radius });
+    const hasEnough = Array.isArray(bundle.cards) && bundle.cards.filter((c) => c && Object.keys(c).length > 0).length >= 4;
 
     const cached = readCache(key);
     if (cached) {
-      return { ...validate(cached), _source: 'cache', _key: key };
+      // ★[2026-06-28 수정] 예전엔 여기서 early-return → v10 영영 안 돎(실검색 폴백 원인).
+      //   이제 v9 캐시 hit 여도 v10 레이어를 거친다(v10 자체 캐시로 같은 동 1회만 pro).
+      _v10trace('0b_v9_cache_hit', { hasEnough });
+      const v9Cached = { ...validate(cached), designDirection: cached.designDirection || null, _source: 'cache', _key: key };
+      if (!hasEnough) return v9Cached;   // 데이터 빈약하면 v10 안 돌리고 v9 캐시 그대로
+      return await _applyV10Layer(v9Cached, bundle, { dongCd, address, radius });
     }
 
-    const bundle = buildDiagnosisBundle({ cards, kosisBoxData, collectedData, dataAsOf, address, radius });
     // 데이터가 거의 없으면 호출하지 않는다(토큰 낭비·헛 호출 방지) → 폴백.
-    const hasEnough = Array.isArray(bundle.cards) && bundle.cards.filter((c) => c && Object.keys(c).length > 0).length >= 4;
     if (!hasEnough) return null;
 
+    // ── 1회 통역(14 cardLines)은 기존 v9 그대로 호출(비용 방어: 14장은 다단 안 씀) ──
     const prompt = buildDiagnosisPrompt(bundle);
     const schema = {
       type: 'OBJECT',
@@ -686,13 +1443,113 @@ export async function getUnifiedDiagnosis({ cards, kosisBoxData, collectedData, 
     const validated = validate(parseJSON(agent.text));
     if (!validated) return null;
 
+    // v9(통역) 결과 = 14 cardLines 의 안전한 기반. 이게 곧 폴백 베이스다.
     writeCache(key, validated);
-    return { ...validated, _source: 'ai', _key: key };
+    const v9Result = { ...validated, designDirection: null, _source: 'ai', _key: key };
+    _v10trace('0c_fresh_v9_done', { ok: true });
+
+    // ── v10 추론 레이어(종합만): 신호점수화 → PoT 근거계산 → pro 단일콜. 실패면 v9Result 반환. ──
+    return await _applyV10Layer(v9Result, bundle, { dongCd, address, radius });
   } catch (e) {
     // 빈응답/타임아웃/크레딧소진/네트워크 — 전부 폴백.
     if (typeof console !== 'undefined') console.warn('[AI진단] 폴백:', e && e.message);
     return null;
   }
+}
+
+// ★[2026-06-28] 격리 테스트용 export — facts/signals 더미로 pro 1콜만 찔러볼 수 있게.
+//   풀검색 반복 없이 runReasoningChain(facts, signals, {season}) 1콜로 검증.
+export { runReasoningChain, buildReasoningPrompt, computeGroundedFacts, scoreSignals };
+
+// 브라우저 콘솔에서 1콜 격리 테스트: window.__bcTestReason(facts, signals, {season})
+//   인자 없이 부르면 내장 더미(강남류)로 pro 1콜을 쏜다. 반환=추론 결과(또는 null=폴백).
+if (typeof window !== 'undefined') {
+  window.__bcTestReason = async (facts, signals, ctx) => {
+    const _dummyFacts = facts || [
+      { key: 'cafeCount', label: '카페 수', value: 60, unit: '개', source: '상권 분석', confidence: '실측' },
+      { key: 'monthlySales', label: '월평균매출', value: 2800, unit: '만원', source: '매출 분석', confidence: '추정' },
+      { key: 'sigunguAvgSales', label: '시군구평균매출', value: 1854, unit: '만원', source: '매출 분석', confidence: '추정' },
+      { key: 'topAge', label: '주 고객 연령대', value: '30대', unit: null, source: '고객 분석', confidence: '추정' },
+      { key: 'peakHour', label: '피크 시간', value: '21시', unit: null, source: '유동인구', confidence: '추정' },
+      { key: 'rentPerPyeong', label: '평당 월세', value: 60, unit: '만원', source: '임대/창업 정보', confidence: '추정' },
+    ];
+    const _dummySignals = signals || [
+      { 카드: 5, 카드명: '매출 분석', 항목: '동평균_시군구대비', 값: 2600, 기준: 1854, 방향: '높음', 신호점수: 1.6, 비교기준: '시군구평균' },
+      { 카드: 7, 카드명: '임대/창업 정보', 항목: '평당월세_지역평균대비', 값: 60, 기준: 40, 방향: '높음', 신호점수: 2 },
+      { 카드: 6, 카드명: '유동인구', 항목: '피크시간', 값: '21시', 방향: '야간' },
+    ];
+    const r = await runReasoningChain(_dummyFacts, _dummySignals, ctx || { season: '겨울' });
+    try { console.log('[__bcTestReason] 결과:', r); } catch (e) {}
+    return r;
+  };
+
+  // ★[2026-06-28] 실데이터 1콜 진단 훅 — window.__bcRunV10()
+  //   풀검색 반복·차단 없이, 방금 검색한 라이브 데이터(window.__BC_DATA__.cards)로
+  //   getUnifiedDiagnosis 가 쓰는 그 _applyV10Layer 경로를 '그대로' 1번 돌린다(=pro 1콜).
+  //   콘솔: await window.__bcRunV10()  →  {result, trace} 로 어디서 끊기는지 단계 확인.
+  window.__bcRunV10 = async () => {
+    try {
+      // __BC_DATA__ 는 보통 리포트 iframe 안에 있다. 현재창 → 자식 iframe 순으로 찾는다.
+      const findBcData = () => {
+        try { if (window.__BC_DATA__ && Array.isArray(window.__BC_DATA__.cards)) return window.__BC_DATA__; } catch (e) {}
+        try {
+          const frames = window.frames || [];
+          for (let i = 0; i < frames.length; i++) {
+            try { const d = frames[i].__BC_DATA__; if (d && Array.isArray(d.cards)) return d; } catch (e) { /* cross-origin */ }
+          }
+        } catch (e) {}
+        // DOM iframe 직접 스캔(동일 출처면 contentWindow 접근 가능)
+        try {
+          const ifr = document.querySelectorAll('iframe');
+          for (let i = 0; i < ifr.length; i++) {
+            try { const d = ifr[i].contentWindow && ifr[i].contentWindow.__BC_DATA__; if (d && Array.isArray(d.cards)) return d; } catch (e) {}
+          }
+        } catch (e) {}
+        return null;
+      };
+      const bc = findBcData();
+      if (!bc || !Array.isArray(bc.cards) || bc.cards.length === 0) {
+        return { error: 'no __BC_DATA__' };
+      }
+
+      // __BC_DATA__.cards = 화면순서(idx4↔5 스왑) · 각 원소 {n, body:{bodyData,chartData,...}}.
+      //   buildDiagnosisBundle 은 데이터인덱스(4=개인,5=매출)·cards[i].bodyData/chartData 를 기대.
+      //   → 스왑 되돌리고(데이터인덱스 4=화면5, 5=화면4) body.bodyData/chartData 로 모양 맞춘다.
+      const screenCards = bc.cards;
+      const pick = (screenIdx) => {
+        const el = screenCards[screenIdx];
+        const body = (el && el.body) ? el.body : {};
+        return { bodyData: body.bodyData || {}, chartData: body.chartData || {} };
+      };
+      const cardsForBundle = [];
+      for (let dataIdx = 0; dataIdx < 14; dataIdx++) {
+        const screenIdx = dataIdx === 4 ? 5 : (dataIdx === 5 ? 4 : dataIdx);  // 4↔5 언스왑
+        cardsForBundle.push(pick(screenIdx));
+      }
+
+      // 추적 초기화(이번 1콜만 깨끗하게 보이게).
+      window.__bcV10Trace = { _t0: Date.now(), steps: [] };
+      _v10trace('hook_start', { cardsN: screenCards.length, address: bc.address || null });
+
+      const bundle = buildDiagnosisBundle({
+        cards: cardsForBundle, kosisBoxData: null, collectedData: null,
+        dataAsOf: bc.dataAsOf || '', address: bc.address || '', radius: bc.radius || 500,
+      });
+      // v9 베이스(여기선 안 부른다 — v10만 1콜). designDirection 폴백 기반만 만들어 넘긴다.
+      const v9Base = { bannerLine: null, diagnosis: null, cardLines: new Array(14).fill(null), designDirection: null, _source: 'hook-v9base' };
+
+      // ★getUnifiedDiagnosis 가 실제로 쓰는 그 함수 그대로 재사용(복제본 아님).
+      const result = await _applyV10Layer(v9Base, bundle, {
+        dongCd: null, address: bc.address || '', radius: bc.radius || 500,
+      });
+      _v10trace('hook_done', { source: result && result._source, dirLen: (result && Array.isArray(result.designDirection)) ? result.designDirection.length : 0 });
+      try { console.log('[__bcRunV10] result:', result); } catch (e) {}
+      return { result, trace: (window.__bcV10Trace && window.__bcV10Trace.steps) || [] };
+    } catch (e) {
+      try { _v10trace('hook_caught', { message: e && e.message }); } catch (e2) {}
+      return { error: e && e.message, trace: (window.__bcV10Trace && window.__bcV10Trace.steps) || [] };
+    }
+  };
 }
 
 export const __aiDiagnosisInternals = {
@@ -701,4 +1558,10 @@ export const __aiDiagnosisInternals = {
   extractSignals, _pctDev, _attenuate, _seasonRelation, _makeSignal, _quantileSignal, _pctFromStr,
   SIGNAL_DEV_THRESHOLD, SIGNAL_MIN_SAMPLE, SIGNAL_WEAK_FACTOR,
   NATIONAL_INDIE_PCT, NATIONAL_FRANCH_PCT, INDIE_NATIONAL_DEV_THRESHOLD,
+  // v10 추론 엔진 내부 — 검증/테스트용 (AI 호출 0 단계만 동기 검증 가능)
+  scoreSignals, computeGroundedFacts, verifyNumbers, runReasoningChain, buildReasoningPrompt,
+  _zScore, _impactOf, _sampleFactor, _seasonAdjustedGrowth, _scoreCandidate, _hasBanned,
+  _verifyReasoningOutput, _factsToLines, _callPro, _splitSentences, _scrubSentences,
+  _applyV10Layer, _v10trace,
+  BANNED_WORDS, REASON_MODEL, REASON_THINKING_BUDGET, REASON_AGENT_TIMEOUT_MS, REASON_MAX_TOKENS,
 };

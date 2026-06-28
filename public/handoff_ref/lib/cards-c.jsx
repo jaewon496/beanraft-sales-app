@@ -656,27 +656,27 @@ function Card14({ body = {}, onOpenDirector }) {
               <div style={{fontSize:13, color:"var(--matte-fg-4)"}}>부정 시그널 없음</div>
             )}
           </div>
-          {/* [2026-06-25] 통합 AI 진단 단락 — 처방(설계 01~04) 제거, 모든 차원 녹인 '진단'으로 교체.
-                해결책은 상담 몫이라 맨 끝에 "여기서부터는 상담" 핸드오프 한 줄만 둔다.
-                AI 진단(diagnosis)이 없으면(폴백) 기존 결정적 설계방향(designDirection)을 그대로 보여준다. */}
+          {/* [2026-06-28] 통합 AI 진단 단락 + 설계방향을 '둘 다' 보여준다(예전엔 진단 있으면 설계방향을
+                early return 으로 숨겨서 v10 추론 설계방향이 화면에 절대 안 떴음 = 라이브 폴백 착시 원인).
+                설계방향 우선순위: v10 추론(body.designDirection 으로 UnifiedLayout 가 덮음) > dataMapper 템플릿.
+                진단(통합 진단)이 있으면 진단 박스, 그와 별개로 설계방향이 있으면 설계방향 박스도 함께 렌더. */}
+          {_aiDiagnosis && (
+            <div className="bc-box" style={{padding:18, marginTop:12, background:"rgba(76, 123, 228,0.08)", border:"1px solid rgba(76, 123, 228,0.40)"}}>
+              <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:12}}>
+                <i className="ph ph-magnifying-glass" style={{fontSize:18, color:"#4C7BE4"}}></i>
+                <span style={{fontSize:15, color:"#4C7BE4", fontWeight:700, letterSpacing:"0.02em"}}>통합 진단</span>
+              </div>
+              <div style={{fontSize:14.5, color:"var(--matte-fg)", lineHeight:1.7}}>{_aiDiagnosis}</div>
+              <div style={{display:"flex", alignItems:"center", gap:8, marginTop:14, paddingTop:12, borderTop:"1px solid rgba(76, 123, 228,0.25)", fontSize:13.5, color:"var(--matte-fg-3)"}}>
+                <i className="ph ph-chats-circle" style={{fontSize:16, color:"#4C7BE4"}}></i>
+                <span>여기서부터는 상담 — 진단을 바탕으로 어떻게 풀지는 전문가와 함께 설계합니다.</span>
+              </div>
+            </div>
+          )}
           {(() => {
-            if (_aiDiagnosis) {
-              return (
-                <div className="bc-box" style={{padding:18, marginTop:12, background:"rgba(76, 123, 228,0.08)", border:"1px solid rgba(76, 123, 228,0.40)"}}>
-                  <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:12}}>
-                    <i className="ph ph-magnifying-glass" style={{fontSize:18, color:"#4C7BE4"}}></i>
-                    <span style={{fontSize:15, color:"#4C7BE4", fontWeight:700, letterSpacing:"0.02em"}}>통합 진단</span>
-                  </div>
-                  <div style={{fontSize:14.5, color:"var(--matte-fg)", lineHeight:1.7}}>{_aiDiagnosis}</div>
-                  <div style={{display:"flex", alignItems:"center", gap:8, marginTop:14, paddingTop:12, borderTop:"1px solid rgba(76, 123, 228,0.25)", fontSize:13.5, color:"var(--matte-fg-3)"}}>
-                    <i className="ph ph-chats-circle" style={{fontSize:16, color:"#4C7BE4"}}></i>
-                    <span>여기서부터는 상담 — 진단을 바탕으로 어떻게 풀지는 전문가와 함께 설계합니다.</span>
-                  </div>
-                </div>
-              );
-            }
-            // 폴백: 기존 결정적 설계방향(designDirection)
-            const dd = body.designDirection;
+            // 설계방향 — v10 추론 우선(UnifiedLayout 가 body.designDirection 을 v10 값으로 덮어둠),
+            //   없으면 _sum.designDirection, 그래도 없으면 dataMapper 템플릿(body.designDirection 원본).
+            const dd = (Array.isArray(_sum.designDirection) && _sum.designDirection.length) ? _sum.designDirection : body.designDirection;
             const ddItems = Array.isArray(dd)
               ? dd.filter(x => typeof x === 'string' && x.trim().length > 0)
               : (typeof dd === 'string' && dd.trim().length > 0 ? [dd.trim()] : []);

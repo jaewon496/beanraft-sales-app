@@ -5999,7 +5999,14 @@ export default function UnifiedLayout({
   // [2026-06-25] 통합 AI 진단 결과 상태 (배너 한 줄·AI종합 진단·14카드 한 줄).
   //   null = 아직 없음/폴백 → 호출부가 기존 결정적 텍스트(bruSummary·verdictLine)를 그대로 쓴다.
   const [aiDiag, setAiDiag] = useState(null);
-  const aiDiagKeyRef = useRef(null);  // 같은 지역 중복 호출 방지
+  const aiDiagKeyRef = useRef(null);      // 마지막으로 '성공 반영'된 지역 키 (성공해야만 기록 → 실패/버려진 호출은 재시도 허용)
+  const aiDiagInFlightRef = useRef(null); // 지금 호출 진행 중인 지역 키 (같은 키 중복 호출 방지 — 진행 중이면 재시작 안 함)
+  const aiDiagMountedRef = useRef(true);  // 언마운트 가드 (늦게 온 결과를 언마운트 후 setState 안 하게)
+  const aiDiagDesiredKeyRef = useRef(null); // 지금 화면이 원하는 최신 지역 키 (늦게 온 옛 지역 결과가 새 지역을 덮지 않게)
+  useEffect(() => {
+    aiDiagMountedRef.current = true;
+    return () => { aiDiagMountedRef.current = false; };
+  }, []);
 
   // [2026-06-15] AI 디렉터 대화 음성: 검색 지역당 1회 제미나이 생성 → 캐시 → 리포트 주입
   //   ttsTick: 생성 시작(pending)/완료(ready)/실패(failed) 시 재푸시 트리거
@@ -6140,32 +6147,60 @@ export default function UnifiedLayout({
   // [2026-06-25] 통합 AI 진단 1회 호출(지역당). 캐시 우선 → 없으면 제미나이 temp 0.
   //   실패/빈응답이면 setAiDiag(null) 유지 → 화면은 기존 결정적 텍스트로 폴백(절대 안 깨짐).
   //   ★bcDataAsOf 선언 뒤에 둬야 TDZ 안 남(이 효과가 bcDataAsOf 를 의존).
+  // ★[2026-06-28 React 생명주기 버그 수정] 예전엔:
+  //   ① `aiDiagKeyRef.current = _key` 를 호출 '시작' 시점에 박았다 → 그 async 가 도중(3_signals 직후,
+  //      pro콜 ~20초 전)에 재렌더/effect 재실행으로 버려지면, 재실행 때 가드(키 동일)가 막아 '영영 재호출 안 됨'.
+  //      = pro콜이 시작도 못 하고 사라짐(라이브 추적이 3_signals 에서 끊긴 원인).
+  //   ② cleanup 의 cancelled 가 늦게(20초 뒤) 온 정상 결과까지 통째 버렸다.
+  //  수정 원칙:
+  //   - 성공해야만 'done' 키(aiDiagKeyRef) 기록 → 실패/버려진 호출은 다음 렌더에서 깨끗이 재시도.
+  //   - 진행 중 키(aiDiagInFlightRef)로 같은 키 중복 호출만 막음(진행 중이면 재시작 안 하고 그대로 완주시킴).
+  //   - 결과는 '버리지' 않는다. 늦게 와도 (a) 언마운트 아님 + (b) 그 결과가 지금도 유효한 지역이면 setState 반영.
+  //     v10 캐시(bc_ai_diag_v10pro_)가 있어 한 번 완주하면 이후엔 캐시 히트로 즉시 박힌다 — 핵심은 '첫 완주' 보장.
   useEffect(() => {
     if (!resultsReady) return;
     if (!Array.isArray(cards) || cards.length === 0) return;
     const _dongCd = collectedData?.dongInfo?.dongCd;
     const _key = `${_dongCd || ''}|${bcSearchAddress || ''}|${radius}`;
-    if (aiDiagKeyRef.current === _key) return;   // 같은 지역 = 재호출 없음(결정적)
-    aiDiagKeyRef.current = _key;
-    let cancelled = false;
+    aiDiagDesiredKeyRef.current = _key;               // 이 렌더가 원하는 최신 지역(늦게 온 옛 결과 차단용)
+    if (aiDiagKeyRef.current === _key) return;       // 이미 '성공 반영'된 지역 = 재호출 불필요
+    if (aiDiagInFlightRef.current === _key) return;   // 같은 지역 호출이 이미 진행 중 = 재시작 말고 완주 대기(promise 방치/중복 금지)
+
+    aiDiagInFlightRef.current = _key;                 // 진행 중 표시(완료/실패 시 finally 에서 해제)
     (async () => {
-      const res = await getUnifiedDiagnosis({
-        cards,
-        kosisBoxData,
-        collectedData,
-        dataAsOf: bcDataAsOf,
-        address: bcSearchAddress,
-        radius,
-      });
-      if (cancelled) return;
+      let res = null;
+      try {
+        res = await getUnifiedDiagnosis({
+          cards,
+          kosisBoxData,
+          collectedData,
+          dataAsOf: bcDataAsOf,
+          address: bcSearchAddress,
+          radius,
+        });
+      } catch (e) {
+        try { console.warn('[AI진단] 호출 예외:', e && e.message); } catch (e2) {}
+      } finally {
+        // 진행 중 해제는 '이 키'가 여전히 진행중으로 잡혀 있을 때만(다른 키가 덮었으면 건드리지 않음).
+        if (aiDiagInFlightRef.current === _key) aiDiagInFlightRef.current = null;
+      }
+
+      // 언마운트 가드: 마운트 플래그(아래 cleanup 에서 false).
+      if (!aiDiagMountedRef.current) return;
+      // 늦게 온 옛 지역 결과가 새 지역 화면을 덮지 않게: 지금 원하는 최신 키와 다르면 화면 반영 안 함
+      //   (그 지역 v10 캐시는 이미 저장돼 있어, 그 지역을 다시 보면 캐시 히트로 즉시 박힘).
+      if (aiDiagDesiredKeyRef.current !== _key) return;
+
       if (res && (res.bannerLine || res.diagnosis || (Array.isArray(res.cardLines) && res.cardLines.some(Boolean)))) {
+        aiDiagKeyRef.current = _key;   // ★성공했을 때만 'done' 기록 → 이제부터 이 지역 재호출 차단
         setAiDiag(res);
         try { console.log('[AI진단] 적용:', res._source, '— 배너/진단/카드' + (res.cardLines ? res.cardLines.filter(Boolean).length : 0) + '줄'); } catch (e) {}
       } else {
-        setAiDiag(null);  // 폴백
+        // 실패/빈응답 → done 기록 안 함(다음 렌더에서 재시도 가능). 화면은 기존 결정적 텍스트 폴백.
+        setAiDiag(null);
       }
     })();
-    return () => { cancelled = true; };
+    // ★cleanup 에서 in-flight 를 abort 하지 않는다(pro콜 완주 보장). 언마운트만 플래그로 가드.
   }, [resultsReady, cards, kosisBoxData, collectedData, bcSearchAddress, radius, bcDataAsOf]);
 
   useEffect(() => {
@@ -6180,20 +6215,32 @@ export default function UnifiedLayout({
       //   ★스왑 주의: bcCardsBodiesSwapped 는 화면자리(idx4↔5 스왑)지만 aiDiag.cardLines 는
       //     데이터 인덱스(0..13, 4=개인 5=매출) 기준. 화면자리→데이터인덱스로 되돌려 매핑.
       let _summaryForReport = bcOneLineSummary;
-      if (aiDiag && (aiDiag.bannerLine || aiDiag.diagnosis || (Array.isArray(aiDiag.cardLines) && aiDiag.cardLines.some(Boolean)))) {
+      if (aiDiag && (aiDiag.bannerLine || aiDiag.diagnosis || aiDiag.designDirection || (Array.isArray(aiDiag.cardLines) && aiDiag.cardLines.some(Boolean)))) {
         // 14카드 한 줄: AI 줄이 있으면 그 카드 bruSummary 만 덮어쓴다(나머지 body 불변).
         const _lines = Array.isArray(aiDiag.cardLines) ? aiDiag.cardLines : [];
+        // [2026-06-28] v10 추론엔진 설계방향: 있을 때만 AI종합(데이터인덱스13) body.designDirection 덮어씀.
+        //   없으면(폴백) 기존 dataMapper c14DesignDirection(템플릿) 그대로 — 잘 되는 폴백 보존.
+        const _aiDir = (Array.isArray(aiDiag.designDirection) && aiDiag.designDirection.length >= 2)
+          ? aiDiag.designDirection.filter((s) => typeof s === 'string' && s.trim()).slice(0, 4)
+          : null;
         _cardsForReport = _cardsForReport.map((el, screenIdx) => {
           // 화면자리 → 데이터 인덱스 (4↔5만 스왑)
           const dataIdx = screenIdx === 4 ? 5 : (screenIdx === 5 ? 4 : screenIdx);
           const line = (typeof _lines[dataIdx] === 'string' && _lines[dataIdx].trim()) ? _lines[dataIdx].trim() : '';
-          if (!line || !el || !el.body) return el;
-          return { ...el, body: { ...el.body, bruSummary: line } };
+          // AI종합 카드(데이터인덱스 13): 설계방향이 있으면 덮어씀.
+          const _isC14 = dataIdx === 13;
+          if (!el || !el.body) return el;
+          if (!line && !(_isC14 && _aiDir)) return el;
+          const nextBody = { ...el.body };
+          if (line) nextBody.bruSummary = line;
+          if (_isC14 && _aiDir) nextBody.designDirection = _aiDir;
+          return { ...el, body: nextBody };
         });
         // 배너 한 줄 + AI종합 진단 단락: summary 에 얹는다(폴백 필드는 그대로 보존).
         _summaryForReport = { ...(bcOneLineSummary || {}) };
         if (aiDiag.bannerLine) _summaryForReport.bannerLine = aiDiag.bannerLine;
         if (aiDiag.diagnosis) _summaryForReport.diagnosis = aiDiag.diagnosis;
+        if (_aiDir) _summaryForReport.designDirection = _aiDir;
       }
 
       win.__BC_DATA__ = { cards: _cardsForReport, address: bcSearchAddress, radius, summary: _summaryForReport, dataAsOf: bcDataAsOf };
