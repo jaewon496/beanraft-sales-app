@@ -412,6 +412,10 @@ export function buildDiagnosisBundle({ cards, kosisBoxData, collectedData, dataA
     _clean({
       주연령: _str(c1.topAge), 여성비율: _num(c1.femaleRatio), 남성비율: _num(c1.maleRatio),
       재방문율: _num(c1.revisitRate), 신규비율: _num(c1.newRatio),
+      // ★[2026-06-28 B관찰자형] 더 많은 고객 축을 facts 재료로: 소득·1인가구·라이프스타일.
+      월평균소득만원: _num(c1.avgIncomeMonthly) || _num(c1.regionAvgMonthlyIncome) || _num(c1.customerYrEarn),
+      '1인가구비율': _num(c1.singleHousehold) || _num(c1.openubAptRatio),
+      라이프스타일: _str(c1.lifestyle) || (Array.isArray(c1.lifestyleKeywords) && c1.lifestyleKeywords.length ? c1.lifestyleKeywords.slice(0, 4).join(', ') : null),
       연령분포: (() => {
         const ag = (cards && cards[1] && cards[1].chartData && Array.isArray(cards[1].chartData.ageGroups))
           ? cards[1].chartData.ageGroups : (Array.isArray(c1.ageGroups) ? c1.ageGroups : null);
@@ -427,8 +431,12 @@ export function buildDiagnosisBundle({ cards, kosisBoxData, collectedData, dataA
       신규: _num(c2.openCount), 폐업: _num(c2.closeCount), 추세: _str(c2.trend),
     }),
     // 3 프랜차이즈 현황
+    //   ★[2026-06-28 B관찰자형] 인기 메뉴 TOP(있으면)도 facts 재료로 — 메뉴/수요 렌즈(단정 아닌 관찰용).
     _clean({
       프랜차이즈수: _num(c3.franchiseCount), 점유율: _num(c3.franchiseShare), 브랜드수: _num(c3.brandCount),
+      인기메뉴: (Array.isArray(c3.popularMenus) && c3.popularMenus.length)
+        ? c3.popularMenus.slice(0, 3).map((mn) => _str(mn && (mn.name || mn.menu || mn))).filter(Boolean).join(', ')
+        : (_str(c3.popularMenuTop3) || null),
     }),
     // 4 개인 카페 분석
     _clean({
@@ -457,9 +465,12 @@ export function buildDiagnosisBundle({ cards, kosisBoxData, collectedData, dataA
       하위20퍼센트매출만원: _num(c5.bot20) || _num(c5.bottomAvgSlamt) || _num(c5.mercAmtUn20),
     }),
     // 6 유동인구
+    //   ★[2026-06-28 B관찰자형] 이용 피크시간·피크요일도(있으면) facts 재료로 — 시간/요일 렌즈.
     _clean({
       일유동인구: _num(c6.totalPop), 평일비중: _num(c6.weekdayPct), 주말비중: _num(c6.weekendPct),
       피크시간: _str(c6.peakHour),
+      이용피크시간: _str(c6.usagePeakHour) || _str(c6.salesPeakHour),
+      피크요일: _str(c6.peakDay) || _str(c6.salesPeakDay),
     }),
     // 7 임대/창업
     //   ★[2026-06-25 단위버그 수정] 평당월세는 반드시 '만원/평' 단위 필드(rentPerPyeongManwon)를 쓴다.
@@ -477,9 +488,11 @@ export function buildDiagnosisBundle({ cards, kosisBoxData, collectedData, dataA
       공실률: _num(c8.vacancy), 신규오픈: _num(c8.newOpen), 개인비중: _num(c8.individualPct),
     }),
     // 9 배달 객단가
+    //   ★[2026-06-28 B관찰자형] 배달 비중(전체 매출 중 배달%)도 있으면 facts 재료로 — 채널 렌즈.
     _clean({
       배달객단가원: (_num(c9.searchAvgPrice) >= 1000 && _num(c9.searchAvgPrice) < 100000) ? Math.round(c9.searchAvgPrice) : null,
       배달주문건수: _num(c9.searchOrders), 배달매출만원: _num(c9.searchSales),
+      배달비중: (_num(c9.deliveryShare) > 0 && _num(c9.deliveryShare) <= 100) ? Math.round(c9.deliveryShare) : null,
     }),
     // 10 SNS 트렌드
     _clean({
@@ -807,7 +820,7 @@ function scoreSignals(cardData, benchmarks, menuRising, season) {
 // ─────────────────────────────────────────────────────────────────────────
 function computeGroundedFacts(cardData) {
   const C = (i) => (cardData && cardData[i]) ? cardData[i] : {};
-  const c0 = C(0), c1 = C(1), c2 = C(2), c5 = C(5), c6 = C(6), c7 = C(7),
+  const c0 = C(0), c1 = C(1), c2 = C(2), c3 = C(3), c4 = C(4), c5 = C(5), c6 = C(6), c7 = C(7),
         c8 = C(8), c9 = C(9), c10 = C(10), c12 = C(12), c13 = C(13);
   const facts = [];
   const F = (key, label, value, unit, source, confidence) => {
@@ -860,27 +873,52 @@ function computeGroundedFacts(cardData) {
       fem >= 55 ? `여성 ${Math.round(fem)}%` : (fem <= 45 ? `남성 ${Math.round(100 - fem)}%` : '남녀 비슷'),
       null, '고객 분석', '추정');
   }
+  F('femalePct', '여성 비율', c1.여성비율, '%', '고객 분석', '추정');
   F('revisitRate', '재방문율', c1.재방문율, '%', '고객 분석', '추정');
-  // 유동/피크
+  F('newRatio', '신규 고객 비율', c1.신규비율, '%', '고객 분석', '추정');
+  // ★[2026-06-28 B관찰자형] 소득·1인가구·라이프스타일 (소득·소비 렌즈)
+  F('avgIncome', '지역 월평균소득', c1.월평균소득만원, '만원', '고객 분석', '추정');
+  F('singleHh', '1인가구 비율', c1['1인가구비율'], '%', '고객 분석', '추정');
+  F('lifestyle', '주 고객 라이프스타일', c1.라이프스타일, null, '고객 분석', '추정');
+  // 유동/피크 (시간·요일 렌즈)
   F('dailyPop', '일 유동인구', c6.일유동인구, '명', '유동인구', '추정');
-  F('peakHour', '피크 시간', c6.피크시간, null, '유동인구', '추정');
+  F('peakHour', '유동 피크 시간', c6.피크시간, null, '유동인구', '추정');
+  F('usagePeakHour', '매출 피크 시간', c6.이용피크시간, null, '유동인구', '추정');
+  F('peakDay', '피크 요일', c6.피크요일, null, '유동인구', '추정');
   if (_num(c6.평일비중) !== null && _num(c6.주말비중) !== null) {
     F('popWeekendSkew', '주말/평일 유동 성향',
       c6.주말비중 > c6.평일비중 ? '주말형' : '평일형', null, '유동인구', '추정');
+    F('weekdayPct', '평일 유동 비중', c6.평일비중, '%', '유동인구', '추정');
   }
-  // 객단가 위치(배달)
+  // 경쟁 구조 (경쟁 렌즈)
+  F('franchiseCount', '프랜차이즈 점포 수', c3.프랜차이즈수, '개', '프랜차이즈 현황', '실측');
+  F('brandCount', '프랜차이즈 브랜드 수', c3.브랜드수, '개', '프랜차이즈 현황', '실측');
+  F('popularMenu', '인기 메뉴', c3.인기메뉴, null, '프랜차이즈 현황', '추정');
+  F('indieAmericano', '개인 카페 아메리카노 평균가', c4.개인아메리카노평균, '원', '개인 카페 분석', '추정');
+  F('indieVsFranchPrice', '개인-프랜차이즈 객단가 차이', c4.개인대프랜차이즈가격차, '원', '개인 카페 분석', '추정');
+  // 배달 채널 (채널 렌즈)
   F('deliveryTicket', '배달 객단가', c9.배달객단가원, '원', '배달 객단가', '추정');
+  F('deliveryOrders', '배달 주문 건수', c9.배달주문건수, '건', '배달 객단가', '추정');
+  F('deliveryShare', '배달 비중', c9.배달비중, '%', '배달 객단가', '추정');
   // 점포당 배후인구(있으면)
   if (_num(c6.일유동인구) !== null && _num(c0.카페수) !== null && c0.카페수 > 0) {
     F('popPerCafe', '카페 1곳당 일 유동인구',
       Math.round(c6.일유동인구 / c0.카페수), '명', '유동인구÷카페수', '추정');
   }
-  // 임대 부담
+  // 비용·수익 (비용·수익 렌즈)
   F('rentPerPyeong', '평당 월세', c7.평당월세만원, '만원', '임대/창업 정보', '추정');
+  F('deposit', '보증금', c7.보증금만원, '만원', '임대/창업 정보', '추정');
+  F('premium', '권리금', c7.권리금만원, '만원', '임대/창업 정보', '추정');
   F('vacancy', '공실률', c8.공실률, '%', '카페 기회', '추정');
-  // SNS 긍정 비율(외부 AI 추정)
+  // SNS/소비심리 (수요·SNS 렌즈)
   F('snsPositive', 'SNS 긍정 비율', c10.긍정비율, '%', 'SNS 트렌드', '외부');
-  // ROI 종합
+  if (Array.isArray(c10.키워드) && c10.키워드.length) {
+    F('snsKeywords', 'SNS 키워드', c10.키워드.slice(0, 5).map((k) => _str(k && (k.keyword || k.name || k))).filter(Boolean).join(', '), null, 'SNS 트렌드', '외부');
+  }
+  if (Array.isArray(c10.검색의도) && c10.검색의도.length) {
+    F('searchIntents', '검색 의도', c10.검색의도.slice(0, 4).map((k) => _str(k && (k.intent || k.name || k))).filter(Boolean).join(', '), null, 'SNS 트렌드', '외부');
+  }
+  // ROI 종합 (성장·리스크 렌즈)
   F('roiScore', 'ROI 종합점수', c12.종합점수, '점', '상권 경쟁 분석', '추정');
   F('roiMonthlyProfit', '예상 월수익', c12.예상월수익만원, '만원', '상권 경쟁 분석', '추정');
   F('roiPayback', '투자 회수개월', c12.회수개월, '개월', '상권 경쟁 분석', '추정');
@@ -962,17 +1000,20 @@ function _splitSentences(text) {
 }
 
 // 문장 단위 세탁: 모순(위조) 숫자나 금지어가 든 '그 문장만' 떨어낸다(나머지는 살림).
+//   ★[2026-06-28] 각 문장에 _postProcessLine(대괄호·자사명 제거) 먼저 적용 후 검사.
 //   반환 = 살아남은 문장들을 다시 이은 텍스트(전부 떨어지면 빈 문자열).
 function _scrubSentences(text, facts) {
   const sents = _splitSentences(text);
   if (sents.length <= 1) {
-    // 한 문장짜리: 모순/금지어면 통째 드롭, 아니면 그대로.
-    const t = _str(text) || '';
+    // 한 문장짜리: 후처리 → 모순/금지어면 통째 드롭, 아니면 그대로.
+    const t = _postProcessLine(_str(text) || '');
     if (!t) return '';
     if (_hasBanned(t).length > 0) return '';
     return verifyNumbers(t, facts).ok ? t : '';
   }
-  const kept = sents.filter((s) => _hasBanned(s).length === 0 && verifyNumbers(s, facts).ok);
+  const kept = sents
+    .map((s) => _postProcessLine(s))
+    .filter((s) => s && _hasBanned(s).length === 0 && verifyNumbers(s, facts).ok);
   return kept.join(' ').trim();
 }
 
@@ -982,14 +1023,45 @@ function _hasBanned(text) {
   return BANNED_WORDS.filter((w) => t.indexOf(w) >= 0);
 }
 
+// 자사 홍보어 — 프롬프트로 금지했지만, 만에 하나 남으면 후처리로 제거(문장은 안 버리고 그 구절만 잘라냄).
+const SELF_PROMO_WORDS = ['빈크래프트', 'beancraft', 'BeanCraft'];
+
+// ★[2026-06-28] 출력 후처리 — ①남은 대괄호([근거:...]·[...]) 제거 ②자사 홍보 문구 정리.
+//   대괄호: 통째 삭제. 자사명: 그 자사명이 든 '절(clause)'을 잘라내되 문장은 살린다.
+function _postProcessLine(text) {
+  let t = String(text || '');
+  if (!t) return '';
+  // ① 대괄호 태그 제거([근거:항목=값], [출처:...], 그 외 [..] 모두). 전각 대괄호도.
+  t = t.replace(/\s*[\[【][^\]】]*[\]】]/g, '');
+  // ② 자사명이 들어간 경우: 그 자사명을 포함하는 절(쉼표/구분 단위)을 들어내고 나머지로 자연스럽게 잇는다.
+  const hasPromo = SELF_PROMO_WORDS.some((w) => t.indexOf(w) >= 0);
+  if (hasPromo) {
+    // 절 단위(쉼표·중점·"고 "·"며 ")로 쪼개 자사명 든 절만 제거.
+    const parts = t.split(/(,|·|、)/);
+    const kept = [];
+    for (let i = 0; i < parts.length; i += 2) {
+      const seg = parts[i];
+      const sep = parts[i + 1] || '';
+      if (SELF_PROMO_WORDS.some((w) => seg.indexOf(w) >= 0)) continue;  // 자사명 절은 버림
+      kept.push(seg + (sep || ''));
+    }
+    t = kept.join('').replace(/[,·、]\s*$/, '').trim();
+    // 절 분해로도 못 떼면(자사명이 문장 전체에 박힘) 단어만 지운다(최후수단).
+    SELF_PROMO_WORDS.forEach((w) => { t = t.split(w).join(''); });
+  }
+  // 공백·구두점 정리.
+  return t.replace(/\s{2,}/g, ' ').replace(/\s+([.,!?])/g, '$1').trim();
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // 3단계 — 꼬리물기 추론 runReasoningChain (★pro 단일콜로 압축, 종합만)
 //   ★[2026-06-28 긴급] 4~5홉 순차호출 = 504(24초 초과)·과다호출(차단/과금 위험)이라 폐기.
 //     gemini-2.5-pro 는 thinkingBudget(2048) 안에서 한 번 호출만으로 스스로 단계추론
 //     (누가→언제→왜→빈수요)을 한다. 그러니 reason+synthesize 를 pro 1콜로 통합한다.
 //   검색당 추가 AI콜 = pro 1콜만(14장 cardLines 는 기존 flash 1콜 그대로).
-//   규칙: ①확정 사실만 ②문장 끝 [근거:항목=값] 태그 ③금지어 차단 ④메뉴 단정 금지
-//        ⑤근거 없으면 '특이점 없음' 정직 기권. 검증(PCN 숫자·금지어)은 전부 코드로(무료).
+//   ★[2026-06-28 B관찰자형] 규칙: ①근거 facts 안 값만(지어내면 폐기) ②근거 숫자는 산문으로(대괄호/[근거] 금지)
+//        ③doom·상투어 금지 ④회사명·자사서비스 언급 금지 ⑤평범 축 빼고 정직 기권 ⑥제품 단정 금지.
+//   검증(PCN 숫자·금지어·후처리 대괄호/자사명 제거)은 전부 코드로(무료, 추가 AI콜 0).
 // ─────────────────────────────────────────────────────────────────────────
 
 // pro 단일 호출(multi-agent 1에이전트). thinkingBudget 2048 명시(자동 8192 금지). 실패=null.
@@ -1058,40 +1130,44 @@ function _factsToLines(facts) {
   );
 }
 
-const _CHAIN_RULES = `[추론 규칙 — 엄수]
-1. 아래 '확정 사실'과 '튀는 신호'에 있는 값만 사용한다. 새 숫자를 만들면 그 문장은 폐기된다.
-2. 모든 문장 끝에 근거 태그를 단다: [근거:항목=값]. 근거 없는 문장 금지.
-3. 금지어 절대 사용 금지: 쇠퇴/포화/블루오션/레드오션/잠재력/붕괴/위축/대박/핫플 등 doom·마케팅 상투어.
-4. 메뉴(구체 제품)를 단정하지 마라. "이 동네는 ○○ 신호라 △△ 방향"까지만. 구체 제품은 "빈크래프트가 설계".
-5. 근거가 부족하면 정직하게 "특이점이 적다 / 대체로 평균 수준"이라고 기권한다(지어내기 금지).
-6. 처방/조언("~하세요/~를 노려라/차별화하라") 금지. 통역가가 아니라 추론가지만 처방은 사람(상담) 몫.`;
+const _CHAIN_RULES = `[관찰 규칙 — 엄수]
+1. 아래 '근거 데이터' 안의 값만 사용한다. 없는 숫자를 지어내면 그 문장은 폐기된다.
+2. 근거 숫자는 문장 속에 자연스럽게 녹여 쓴다. 대괄호·[근거:...]·라벨 표기 절대 금지(예: "주 고객의 59%가 50대 이상이라, ..." 처럼 산문으로).
+3. doom·상투어 절대 금지: 쇠퇴/포화/블루오션/레드오션/붕괴/몰락/대박/핫플/"시그니처로 차별화" 같은 마케팅 클리셰.
+4. 회사명·자사 서비스(빈크래프트/인테리어/메뉴개발/운영교육/시공) 언급 절대 금지. 오직 '자리(상권) 자체의 방향'만 서술한다.
+5. 평범한(특이점 없는) 축은 억지로 끼우지 말고 뺀다. 근거가 부족하면 "대체로 평균 수준, 특이점 적음"으로 정직히 줄인다(지어내기 금지).
+6. 구체 제품을 단정하지 마라("○○ 메뉴를 팔아라" 금지). "이 자리는 ○○ 특성이라 △△ 방향이 맞는다"까지만.`;
 
-// pro 단일콜 프롬프트 — 내부적으로 단계추론(누가→언제→왜→빈수요) 후 최종 JSON만 출력.
+// pro 단일콜 프롬프트 — ★[2026-06-28] 'B 관찰자형'. 신호 3개에만 매달리지 말고 근거 facts '전체'를
+//   여러 렌즈로 훑어 이 자리만의 해석을 펼친다. designDirection 이 핵심(서로 다른 축 4~6줄).
 function buildReasoningPrompt(facts, signals, ctx) {
   const factStr = JSON.stringify(_factsToLines(facts), null, 0);
   const sigStr = JSON.stringify(signals || [], null, 0);
   const season = (ctx && ctx.season) || '';
-  return `당신은 카페 상권 분석의 '추론가'다. 아래 확정 사실과 튀는 신호만 보고, 머릿속으로 꼬리에 꼬리를 무는 단계추론을 한 뒤(생각 과정은 출력하지 말 것), 최종 결론 JSON만 내라.
+  return `당신은 카페 상권 '관찰자(애널리스트)'다. 아래 근거 데이터(이 자리의 14개 분석 축 수치) 전체를 훑고, 이 자리만의 해석을 여러 각도로 펼쳐라. 통계는 '문지기'가 아니라 '근거 공급자'다 — 신호 몇 개에만 매달리지 말고 근거 데이터 전체에서 이 자리만의 연결을 찾아라.
 ${_CHAIN_RULES}
 
-[단계추론 순서 — 머릿속으로만 밟고, 결과만 JSON 으로]
-1) 누가 오는 동네인가(연령/소득/유동/성별)를 사실로 짚는다.
-2) 언제·어디가 예외인가(피크시간, 옆 동·평균 대비 튀는 점)를 본다.
-3) 왜 그런가(예외를 다른 확정 사실로 연결해 설명).
-4) 빈 수요(채워지지 않은 손님층)와 결론을 모은다.
-※ 위 1~4 흐름은 생각만 하고, 그 흐름 텍스트는 출력 금지. 오직 아래 JSON 만.
+[관찰 렌즈 — designDirection 각 줄은 서로 '다른 렌즈'에서 도출하라. 같은 축(예: 연령) 반복 금지]
+- 고객 특성(연령분포·성별·소득·1인가구·라이프스타일)
+- 시간·요일(유동/매출 피크 시간·피크 요일·주중주말)
+- 경쟁 구조(카페 수·개인/프랜 비중·브랜드 수·개인vs프랜 객단가)
+- 비용·수익(평당 월세·보증금·권리금·예상 월수익·회수개월·공실률)
+- 생존·리스크(1/3/5년 생존율·신규/폐업·기회/리스크 건수)
+- 매출·소비(분위 상/중/하·시군구 대비·소비심리)
+- 수요·SNS(SNS 키워드·검색 의도·인기 메뉴·배달 비중)
+→ 매 줄 다른 렌즈에서, 그 렌즈의 근거 숫자를 문장 속에 자연스럽게 녹여 '이 자리만의 방향'을 말하라. 특이점 없는 렌즈는 건너뛰어라.
 
-[확정 사실]
+[근거 데이터 — 이 안의 숫자만 사용]
 ${factStr}
-[튀는 신호(점수순 — 영향도×유의성 높은 것 먼저)]
+[특히 두드러진 신호(참고 — 여기에만 갇히지 말 것)]
 ${sigStr}
 [기준월 계절] ${season}
 
-[출력 — 순수 JSON 한 개만. 첫 글자 { 마지막 글자 }. 마크다운 금지. 존댓말]
+[출력 — 순수 JSON 한 개만. 첫 글자 { 마지막 글자 }. 마크다운 금지. 존댓말. 대괄호·[근거] 라벨 금지]
 {
-  "bannerLine": "이 상권을 한 문장으로(60자 이내, 처방 없음, 톤은 신호 편차에 비례). 끝에 [근거:항목=값] 태그.",
-  "diagnosis": "위 단계추론을 엮은 한 단락 2~4문장. 처방 없음. 각 문장 끝 [근거:항목=값] 태그.",
-  "designDirection": ["설계 '방향' 2~4줄. 구체 제품·메뉴 단정 금지, '이 신호라 이 방향' 어조, '빈크래프트가 설계'로 마무리 가능. 각 줄 끝 [근거:항목=값] 태그.", "..."]
+  "bannerLine": "이 자리를 한 줄로 진단(60자 이내, 근거 숫자 1~2개를 문장 속에 자연스럽게).",
+  "diagnosis": "이 자리의 핵심 해석을 엮은 2~3문장 한 단락(근거 숫자를 산문으로 녹여서).",
+  "designDirection": ["서로 다른 렌즈에서 4~6줄. 각 줄 다른 축, 근거 숫자를 문장 속에 자연스럽게, 회사명·제품단정·상투어 없이 '이 자리는 이런 특성이라 이런 방향이 맞는다'."]
 }`;
 }
 
@@ -1100,15 +1176,16 @@ ${sigStr}
 //   최소 1조각이라도 살아남으면 그걸로 반환(designDirection도 한 줄이라도 살리면 채택).
 function _verifyReasoningOutput(synth, facts) {
   if (!synth || typeof synth !== 'object') return null;
+  // ★[2026-06-28] 후처리 먼저: 대괄호·자사명 제거(_postProcessLine) → 그 다음 모순/금지어 검사.
   // 배너: 한 문장이라 통째 검사하되, 모순/금지어면 드롭(진단/설계는 살 수 있으니 전체 null 아님).
-  const bannerRaw = _str(synth.bannerLine);
+  const bannerRaw = _postProcessLine(_str(synth.bannerLine) || '');
   const cleanBanner = (bannerRaw && _hasBanned(bannerRaw).length === 0 && verifyNumbers(bannerRaw, facts).ok)
     ? bannerRaw : null;
-  // 진단: 문장 단위 세탁 — 모순/금지어 문장만 빼고 이어붙임.
+  // 진단: 문장 단위 세탁 — 모순/금지어 문장만 빼고 이어붙임(_scrubSentences 안에서 후처리됨).
   const cleanDiag = _scrubSentences(_str(synth.diagnosis) || '', facts) || null;
-  // 설계방향: 각 줄을 문장단위 세탁 후, 살아남은 줄만(최대 4). 한 줄이라도 살리면 채택.
+  // 설계방향: 각 줄을 문장단위 세탁 후, 살아남은 줄만(최대 6). 한 줄이라도 살리면 채택.
   let dir = Array.isArray(synth.designDirection)
-    ? synth.designDirection.map((x) => _scrubSentences(_str(x) || '', facts)).filter(Boolean).slice(0, 4)
+    ? synth.designDirection.map((x) => _scrubSentences(_str(x) || '', facts)).filter(Boolean).slice(0, 6)
     : [];
   // 최소 조건: 배너·진단·설계 중 하나라도 살아남으면 반환(전부 죽으면 그때만 폴백).
   if (!cleanBanner && !cleanDiag && dir.length === 0) return null;
@@ -1133,7 +1210,7 @@ async function runReasoningChain(facts, signals, ctx) {
       diagnosis: '수집된 데이터에서 전국·시군구 평균과 크게 벌어지는 항목이 거의 없습니다. 특정 방향으로 단정하기보다 대체로 평탄한 상권으로 볼 수 있습니다.',
       designDirection: [
         '두드러진 신호가 적은 만큼, 타깃을 명확히 한 콘셉트와 동선 설계로 안정적인 진입을 노릴 수 있는 자리입니다.',
-        '세부 콘셉트와 메뉴 구성은 현장 상담에서 빈크래프트가 설계합니다.',
+        '세부 콘셉트는 현장의 흐름을 한 번 더 확인한 뒤 좁히는 편이 안전한 자리입니다.',
       ],
       _hops: 0, _abstained: true,
     };
@@ -1144,7 +1221,7 @@ async function runReasoningChain(facts, signals, ctx) {
     properties: {
       bannerLine: { type: 'STRING' },
       diagnosis: { type: 'STRING' },
-      designDirection: { type: 'ARRAY', items: { type: 'STRING' }, minItems: 2, maxItems: 4 },
+      designDirection: { type: 'ARRAY', items: { type: 'STRING' }, minItems: 4, maxItems: 6 },
     },
     required: ['bannerLine', 'diagnosis', 'designDirection'],
   };
@@ -1562,6 +1639,6 @@ export const __aiDiagnosisInternals = {
   scoreSignals, computeGroundedFacts, verifyNumbers, runReasoningChain, buildReasoningPrompt,
   _zScore, _impactOf, _sampleFactor, _seasonAdjustedGrowth, _scoreCandidate, _hasBanned,
   _verifyReasoningOutput, _factsToLines, _callPro, _splitSentences, _scrubSentences,
-  _applyV10Layer, _v10trace,
+  _applyV10Layer, _v10trace, _postProcessLine, SELF_PROMO_WORDS,
   BANNED_WORDS, REASON_MODEL, REASON_THINKING_BUDGET, REASON_AGENT_TIMEOUT_MS, REASON_MAX_TOKENS,
 };

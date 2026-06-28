@@ -6220,8 +6220,9 @@ export default function UnifiedLayout({
         const _lines = Array.isArray(aiDiag.cardLines) ? aiDiag.cardLines : [];
         // [2026-06-28] v10 추론엔진 설계방향: 있을 때만 AI종합(데이터인덱스13) body.designDirection 덮어씀.
         //   없으면(폴백) 기존 dataMapper c14DesignDirection(템플릿) 그대로 — 잘 되는 폴백 보존.
+        //   ★B관찰자형: 서로 다른 렌즈 4~6줄을 그대로 노출(slice 4→6).
         const _aiDir = (Array.isArray(aiDiag.designDirection) && aiDiag.designDirection.length >= 2)
-          ? aiDiag.designDirection.filter((s) => typeof s === 'string' && s.trim()).slice(0, 4)
+          ? aiDiag.designDirection.filter((s) => typeof s === 'string' && s.trim()).slice(0, 6)
           : null;
         _cardsForReport = _cardsForReport.map((el, screenIdx) => {
           // 화면자리 → 데이터 인덱스 (4↔5만 스왑)
