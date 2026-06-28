@@ -5354,7 +5354,7 @@ export default function UnifiedLayout({
             const topOverAvg = hasQuant && topS >= monthly * 1.4; // 상위20%가 평균의 1.4배+ → 격차 또렷
             // ── 형제 카드 교차 처방 절(결정적 우선순위: 연령 → 평일목적 → 경쟁밀도 → 임대부담) ──
             //   매출 카드 톤에 맞춰 '상위권으로 가는 운영 처방'으로 연결. 후보 전부 없으면 일반 처방.
-            const _clSalesAge = () => ` 주 고객이 ${_xTopAge}로 또렷한 만큼, 그 취향을 정조준한 시그니처 한 잔으로 차별화하면 상위권이 충분히 열립니다.`;
+            const _clSalesAge = () => ` 주 고객이 ${_xTopAge}로 또렷한 만큼, 그 취향을 정조준한 콘셉트면 상위권이 충분히 열리는 자리입니다.`;
             const _clSalesWeekday = () => ` 유동인구가 평일 ${_xWeekday}%로 직장인 중심이라, 평일 점심·사무실 동선을 잡는 운영을 다지면 상위 매출로 올라설 길이 분명합니다.`;
             const _clSalesCompetLow = () => ` 경쟁이 '${_xCompetLevel}' 수준으로 느슨해, 색이 분명한 콘셉트 하나면 상위권 자리를 선점할 여지가 큽니다.`;
             const _clSalesCompetHigh = () => ` 경쟁이 '${_xCompetLevel}'로 치열한 만큼, 묻히지 않는 또렷한 콘셉트가 곧 상위 매출의 갈림길입니다.`;
@@ -5847,7 +5847,7 @@ export default function UnifiedLayout({
       if (scored.length > 0) {
         const weakest = scored.reduce((m, a) => (a[1] / a[2] < m[1] / m[2] ? a : m));
         const tip = {
-          '수익성': '시그니처 한 잔으로 객단가를 끌어올리면 남는 폭이 커집니다',
+          '수익성': '객단가를 끌어올릴 여지가 있는 항목입니다',
           '투자 회수': '초기 투자(인테리어·권리금)를 예산에 맞추면 회수가 빨라집니다',
           '경쟁 여건': '명확한 콘셉트로 차별화하면 손님을 끌어올 수 있습니다',
           '생존 안정': '탄탄한 단골 전략으로 버티는 힘을 키우면 됩니다',

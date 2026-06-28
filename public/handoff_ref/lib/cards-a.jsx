@@ -729,7 +729,7 @@ function Card05({ body = {} }) {
         <StatTile id="c5.tile1" tone="blue"  label="개인 카페 수" value={String(indieCount)} unit="개" hero/>
         <StatTile id="c5.tile2" tone="mint"  label="비중"        value={indiePct > 0 ? String(indiePct) : '-'} unit={indiePct > 0 ? '%' : ''}/>
         <StatTile id="c5.tile3" tone="lilac" label="아메리카노 평균" value={americanoAvg > 0 ? americanoAvg.toLocaleString() : '-'} unit={americanoAvg > 0 ? '원' : ''} accent/>
-        <StatTile id="c5.tile4" tone="cream" label="시그니처 평균"   value={dessertAvg > 0 ? dessertAvg.toLocaleString() : '-'} unit={dessertAvg > 0 ? '원' : ''}/>
+        <StatTile id="c5.tile4" tone="cream" label="대표메뉴 평균"   value={dessertAvg > 0 ? dessertAvg.toLocaleString() : '-'} unit={dessertAvg > 0 ? '원' : ''}/>
       </div>
 
       <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16}}>

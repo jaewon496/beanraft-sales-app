@@ -425,7 +425,7 @@ function Card05({ body = {} }) {
         <StatTile id="c5.tile1" tone="blue"  label="개인 카페 수" value="71" unit="개" hero/>
         <StatTile id="c5.tile2" tone="mint"  label="비중"        value="56" unit="%" delta="3.2" deltaPositive/>
         <StatTile id="c5.tile3" tone="lilac" label="아메리카노 평균" value="4,500" unit="원" accent/>
-        <StatTile id="c5.tile4" tone="cream" label="시그니처 평균"   value="6,800" unit="원"/>
+        <StatTile id="c5.tile4" tone="cream" label="대표메뉴 평균"   value="6,800" unit="원"/>
       </div>
 
       <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16}}>

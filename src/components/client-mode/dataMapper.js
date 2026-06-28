@@ -5906,11 +5906,11 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   //   ※ 위 명시 룰이 하나라도 잡히면 이 블록은 건너뛴다(중복 방지).
   if (c14Opps.length === 0) {
     const _axes = [
-      { key: 'density', score: c14Density, title: '진입 여유 있는 상권', detail: `카페 ${c14Total}개로 과밀하지 않아, 빈크래프트 콘셉트로 자리 잡을 여유가 있습니다.` },
-      { key: 'compete', score: c14Compet, title: '차별화 여지', detail: `프랜차이즈 비중이 ${c14FranchRatio}%로 ${c14FranchRatio < 40 ? '낮아' : '치우치지 않아'}, 빈크래프트 메뉴·브랜딩 차별화로 비집고 들어갈 자리가 있습니다.` },
-      { key: 'potential', score: c14Potential, title: '수요 잠재력', detail: `일평균 유동인구 ${c14DailyPop.toLocaleString()}명 기반으로, 빈크래프트 콘셉트가 자연 유입을 수익으로 잇기 좋습니다.` },
+      { key: 'density', score: c14Density, title: '진입 여유 있는 상권', detail: `카페 ${c14Total}개로 과밀하지 않아, 새 콘셉트가 자리 잡을 여유가 있는 자리입니다.` },
+      { key: 'compete', score: c14Compet, title: '차별화 여지', detail: `프랜차이즈 비중이 ${c14FranchRatio}%로 ${c14FranchRatio < 40 ? '낮아' : '치우치지 않아'}, 개인 카페가 비집고 들어갈 여지가 있는 자리입니다.` },
+      { key: 'potential', score: c14Potential, title: '수요 잠재력', detail: `일평균 유동인구 ${c14DailyPop.toLocaleString()}명 기반으로, 자연 유입을 수익으로 잇기 좋은 자리입니다.` },
       { key: 'trend', score: c14Trend, title: '상권 추세 양호', detail: `최근 신규 오픈이 폐업을 ${c14NewOpen >= c14Closed ? '앞서는' : '받치는'} 흐름으로, 진입 타이밍 부담이 크지 않습니다.` },
-      { key: 'cost', score: c14CostRoom, title: '비용 여유', detail: `임대 부담이 ${c14CostRoom >= 70 ? '낮은' : '과하지 않은'} 자리라, 초기 비용 부담을 덜고 빈크래프트 운영에 집중하기 좋습니다.` },
+      { key: 'cost', score: c14CostRoom, title: '비용 여유', detail: `임대 부담이 ${c14CostRoom >= 70 ? '낮은' : '과하지 않은'} 자리라, 초기 비용 부담이 덜한 편입니다.` },
     ];
     // 최고점 축 결정(동점이면 배열 순서 = 고정 우선순위). 점수 0 축만 있으면 차별화 여지를 기본 채택.
     const _best = _axes.reduce((a, b) => (b.score > a.score ? b : a), _axes[0]);
@@ -5932,16 +5932,16 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     });
   }
   // aiData.risks가 비어있거나 위 필터로 다 빠진 경우 자동 생성 룰 적용
-  // [item1 / 2026-06-15] 부정 시그널을 "[이런 상황입니다] → 그래서 빈크래프트와 이렇게 하시면 됩니다" 처방으로 재프레이밍.
-  //   위협 나열이 아니라, 빈크래프트 강점(메뉴개발·인테리어·운영교육·디자인)으로 푸는 처방까지 한 문장에 잇는다. 과장 금지, 정직하되 희망적.
+  // [item1 / 2026-06-15 → 2026-06-28 정리] 부정 시그널은 '사실 관찰'까지만. 자기홍보 처방 꼬리(빈크래프트 ~로,
+  //   시그니처로 차별화 등)는 제거하고, 어떤 항목인지 중립적으로만 짚는다(처방은 상담 몫). 과장·doom 금지.
   if (c14Risks.length === 0) {
-    if (c14Total > 80) c14Risks.push({ title: '카페 밀집', detail: `반경 내 ${c14Total}개로 밀집한 상권인 만큼, 빈크래프트 메뉴개발로 객단가를 지키는 시그니처를 잡으면 가격경쟁 대신 단골을 확보합니다.` });
-    if (c14Closed >= 3) c14Risks.push({ title: '교체가 활발한 자리', detail: `최근 ${c14Closed}곳이 자리를 비운 만큼, 빈크래프트 운영교육으로 초기 운영을 다지면 생존율을 끌어올릴 여지가 있습니다.` });
+    if (c14Total > 80) c14Risks.push({ title: '카페 밀집', detail: `반경 내 ${c14Total}개로 카페가 밀집한 상권이라, 가격보다 단골 확보가 중요해지는 자리입니다.` });
+    if (c14Closed >= 3) c14Risks.push({ title: '교체가 활발한 자리', detail: `최근 ${c14Closed}곳이 자리를 비운 만큼, 초기 운영 안정이 생존율을 좌우하는 자리입니다.` });
     // [2026-06-25] 매출 '낮음' 리스크는 단일 판정(c14SalesLevelWord)이 '낮은 편'일 때만 노출 → 매출카드(보통)와 모순 방지.
     //   문구도 단일 진실값(901)·단일 단어를 그대로 쓴다(동평균 ratio% 노출 제거).
-    if (c14CafeSales > 0 && c14SalesLevelWord === '낮은 편') c14Risks.push({ title: '평균 매출 여지', detail: `카페 월평균 매출이 ${c14CafeSales.toLocaleString()}만원으로 ${c14SalesLevelWord}인 만큼, 빈크래프트 메뉴개발로 타깃을 좁힌 시그니처를 잡아 객단가를 올리면 끌어올릴 수 있습니다.` });
-    if (c14FranchRatio >= 60) c14Risks.push({ title: '프랜차이즈 우위', detail: `프랜차이즈 비중이 ${c14FranchRatio}%인 만큼, 빈크래프트 인테리어·디자인으로 차별화된 공간을 설계해 가격경쟁을 피하면 개인카페만의 매력으로 승부할 수 있습니다.` });
-    if (c14AvgRent > 5000000) c14Risks.push({ title: '임대 부담', detail: `평균 임대료가 월 ${(c14AvgRent / 10000).toLocaleString()}만원인 입지인 만큼, 빈크래프트 인테리어로 좁은 면적의 회전 동선을 설계해 평당 매출로 상쇄할 수 있습니다.` });
+    if (c14CafeSales > 0 && c14SalesLevelWord === '낮은 편') c14Risks.push({ title: '평균 매출 여지', detail: `카페 월평균 매출이 ${c14CafeSales.toLocaleString()}만원으로 ${c14SalesLevelWord}이라, 타깃을 좁혀 객단가를 끌어올릴 여지가 있는 항목입니다.` });
+    if (c14FranchRatio >= 60) c14Risks.push({ title: '프랜차이즈 우위', detail: `프랜차이즈 비중이 ${c14FranchRatio}%로 높아, 개인 카페만의 색으로 가격경쟁을 피하는 게 관건인 자리입니다.` });
+    if (c14AvgRent > 5000000) c14Risks.push({ title: '임대 부담', detail: `평균 임대료가 월 ${(c14AvgRent / 10000).toLocaleString()}만원인 입지라, 좁은 면적의 회전 동선으로 평당 매출을 끌어올릴 여지가 있는 항목입니다.` });
   }
 
   // === 추천 라벨 (Card 13 종합 점수 라벨과 일치: 매우 좋음/좋음/보통/안좋음/매우 안좋음) ===
@@ -5994,7 +5994,7 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     // 데이터 기반 폴백: 약점을 보완하는 설계안으로 프레이밍 (부정 단어 자제)
     const out = [...aiList];
     if (c14Total > 60 || c14FranchRatio >= 50) {
-      out.push(`경쟁이 빽빽한 자리인 만큼, 시그니처 한 잔으로 객단가를 올려 가격 경쟁을 피하는 콘셉트가 유리합니다.${c14IndepRatio >= 50 ? ` 개인카페 비중 ${c14IndepRatio}%라 차별화 여지가 충분합니다.` : ''}`);
+      out.push(`경쟁이 빽빽한 자리인 만큼, 객단가를 끌어올려 가격 경쟁을 피하는 콘셉트가 유리합니다.${c14IndepRatio >= 50 ? ` 개인카페 비중 ${c14IndepRatio}%라 차별화 여지가 충분합니다.` : ''}`);
     }
     if (c14AvgRent > 0 && (c14AvgRent >= 5000000 || c14AvgRent >= 60)) {
       out.push(`임대 부담이 있는 입지는 좁은 면적에서 회전이 빠른 테이크아웃·사이드 동선으로 평당 매출을 끌어올려 상쇄할 수 있습니다.`);
