@@ -1053,6 +1053,34 @@ function _postProcessLine(text) {
   return t.replace(/\s{2,}/g, ' ').replace(/\s+([.,!?])/g, '$1').trim();
 }
 
+// ★[2026-06-28] 14개 카드 한 줄평(cardLines) 후처리·검증 — 종합과 동일 기준.
+//   각 줄: ①_postProcessLine(대괄호 제거·자사명 절 제거) ②금지어 들면 그 줄 폐기(null)
+//          ③PCN(verifyNumbers) — 지어낸(모순) 숫자 들면 그 줄 폐기(null).
+//   폐기(null)된 줄은 호출부가 그 카드의 기존 결정적 폴백(bruSummary)을 그대로 쓰게 둔다(화면 안 깨짐).
+//   facts 없으면 PCN 생략(후처리만). 입력 배열 길이/순서 유지.
+function _cleanCardLines(cardLines, facts) {
+  if (!Array.isArray(cardLines)) return cardLines;
+  const useFacts = Array.isArray(facts) && facts.length > 0;
+  const hasPromo = (t) => SELF_PROMO_WORDS.some((w) => String(t || '').indexOf(w) >= 0);
+  return cardLines.map((line) => {
+    const s = _str(line);
+    if (!s) return null;                                   // 빈 줄 → 폴백
+    // ① 문장 단위로 쪼개 자사명·금지어 든 '그 문장만' 버리고, 남은 문장은 각각 후처리(대괄호·절단위 자사명 제거).
+    const sents = _splitSentences(s);
+    const kept = sents
+      .filter((sent) => !hasPromo(sent) && _hasBanned(sent).length === 0)  // 자사명/금지어 문장 제거
+      .map((sent) => _postProcessLine(sent))                                // 남은 문장의 대괄호·잔여 자사명 정리
+      .filter(Boolean);
+    let cleaned = kept.join(' ').trim();
+    // 한 문장짜리였는데 위에서 다 날아갔으면(예: 통째 자사명) 단어 제거 폴백 한 번 더.
+    if (!cleaned) cleaned = _postProcessLine(s);
+    if (!cleaned) return null;                              // 그래도 비면 폴백
+    if (_hasBanned(cleaned).length > 0) return null;        // 잔존 금지어 → 폴백
+    if (useFacts && !verifyNumbers(cleaned, facts).ok) return null;  // 지어낸 숫자 → 폴백
+    return cleaned;
+  });
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // 3단계 — 꼬리물기 추론 runReasoningChain (★pro 단일콜로 압축, 종합만)
 //   ★[2026-06-28 긴급] 4~5홉 순차호출 = 504(24초 초과)·과다호출(차단/과금 위험)이라 폐기.
@@ -1278,6 +1306,15 @@ ${abstain
 2. 지어내기 금지 — [튀는 신호]에 없는 외부사실(교통 개통·뉴스·정책 등)·미측정 단정("대부분 평범하다/포화다"류) 절대 금지. 신호로 못 받치면 말하지 마라.
 3. 빈 의미 라벨 금지 — "이 동네만의 신호"처럼 알맹이 없는 말 금지. 신호의 항목·편차를 그대로 풀어 적는다.
 
+[★cardLines(14개 카드 한 줄평) — '관찰자' 품질로]
+- cardLines 의 14줄은 위 bannerLine/diagnosis 규칙과 달리, 각 줄이 '그 카드'의 데이터를 '관찰자 시점'으로 해석한 한 줄이다([참고용 전체 수치]의 해당 카드 숫자를 근거로).
+- 단순 숫자 복창 금지 — "그래서 이 자리에선 어떤 의미인가"까지 한 줄로(예: "주 고객의 59%가 50대 이상이라, 낮 시간 체류 수요가 큰 자리입니다").
+- 근거 숫자는 문장 속에 자연스럽게 녹인다(대괄호·[근거:...]·라벨 절대 금지).
+- 회사명·자사 서비스(빈크래프트/인테리어/메뉴개발/운영교육/시공) 언급 절대 금지.
+- doom·상투어(쇠퇴/포화/블루오션/"시그니처로 차별화") 금지. 긍정·냉정 균형(과장도 doom도 금지).
+- 그 카드에 숫자가 없으면 지어내지 말고 "전국 평균과 비슷한 수준입니다." 같은 중립 한 줄.
+- 14줄은 서로 베끼지 말 것 — 각 카드 고유 내용으로.
+
 [튀는 신호] (코드가 골라낸 것만 — 이것만 의미부여)
 ${JSON.stringify(bundle.signals || [], null, 0)}
 
@@ -1298,7 +1335,7 @@ ${titleList}
 {
   "bannerLine": "이 상권을 한 문장으로 옮긴 핵심 한 줄(60자 이내, 처방 없음, 톤은 신호 편차에 비례).",
   "diagnosis": "[튀는 신호]들을 자연스럽게 엮은 하나의 단락. 2~4문장. 처방 절대 없음. 신호 없는 차원은 언급 금지. 신호가 거의 없으면 '대체로 평균 수준' 톤.",
-  "cardLines": ["카드0 한 줄", ... 정확히 14개. 그 카드에 해당하는 [튀는 신호]가 있으면 그 사실을 한 줄로 옮기고(50~90자), 없으면 '전국 평균과 비슷한 수준입니다.' 처럼 담담히. 신호 없는 카드를 부정적으로 단정하지 마라."]
+  "cardLines": ["카드0 한 줄", ... 정확히 14개. 각 줄은 그 카드 데이터를 관찰자 시점으로 해석한 한 줄(50~90자). 근거 숫자를 문장 속에 자연스럽게(대괄호 금지), 회사명·상투어 없이, '그래서 이 자리에선 어떤 의미'까지. 숫자 없는 카드는 '전국 평균과 비슷한 수준입니다.' 같은 중립 한 줄. 14줄 서로 다르게."]
 }
 
 cardLines 는 정확히 14개 문자열 배열. 순수 JSON으로만 응답.`;
@@ -1474,6 +1511,11 @@ export async function getUnifiedDiagnosis({ cards, kosisBoxData, collectedData, 
       //   이제 v9 캐시 hit 여도 v10 레이어를 거친다(v10 자체 캐시로 같은 동 1회만 pro).
       _v10trace('0b_v9_cache_hit', { hasEnough });
       const v9Cached = { ...validate(cached), designDirection: cached.designDirection || null, _source: 'cache', _key: key };
+      // 옛 캐시(후처리 전)에도 대괄호/자사명/지어낸숫자 줄 정리 적용(화면 일관성).
+      try {
+        const _facts = computeGroundedFacts(bundle.cards);
+        v9Cached.cardLines = _cleanCardLines(v9Cached.cardLines, _facts);
+      } catch (eCl) { /* 유지 */ }
       if (!hasEnough) return v9Cached;   // 데이터 빈약하면 v10 안 돌리고 v9 캐시 그대로
       return await _applyV10Layer(v9Cached, bundle, { dongCd, address, radius });
     }
@@ -1519,6 +1561,13 @@ export async function getUnifiedDiagnosis({ cards, kosisBoxData, collectedData, 
 
     const validated = validate(parseJSON(agent.text));
     if (!validated) return null;
+
+    // ★[2026-06-28] 14 cardLines 도 관찰자 품질 후처리·검증: 대괄호/자사명 제거 + PCN(지어낸 숫자 줄 폐기).
+    //   폐기된 줄(null)은 호출부가 그 카드 기존 결정적 폴백을 쓴다. facts 로 숫자 검증.
+    try {
+      const _facts = computeGroundedFacts(bundle.cards);
+      validated.cardLines = _cleanCardLines(validated.cardLines, _facts);
+    } catch (eCl) { /* 후처리 실패해도 원본 cardLines 유지 */ }
 
     // v9(통역) 결과 = 14 cardLines 의 안전한 기반. 이게 곧 폴백 베이스다.
     writeCache(key, validated);
@@ -1639,6 +1688,6 @@ export const __aiDiagnosisInternals = {
   scoreSignals, computeGroundedFacts, verifyNumbers, runReasoningChain, buildReasoningPrompt,
   _zScore, _impactOf, _sampleFactor, _seasonAdjustedGrowth, _scoreCandidate, _hasBanned,
   _verifyReasoningOutput, _factsToLines, _callPro, _splitSentences, _scrubSentences,
-  _applyV10Layer, _v10trace, _postProcessLine, SELF_PROMO_WORDS,
+  _applyV10Layer, _v10trace, _postProcessLine, _cleanCardLines, SELF_PROMO_WORDS,
   BANNED_WORDS, REASON_MODEL, REASON_THINKING_BUDGET, REASON_AGENT_TIMEOUT_MS, REASON_MAX_TOKENS,
 };
