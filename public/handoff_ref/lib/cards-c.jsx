@@ -473,15 +473,14 @@ function Card14({ body = {}, onOpenDirector }) {
   const recommendation = body.recommendation || (total >= 80 ? '수익률 유리' : total >= 60 ? '수익률 무난' : total >= 40 ? '보통 — 운영이 관건' : total >= 20 ? '비용 관리 관건' : '보완 필요');
   const grade = total >= 80 ? 'A' : total >= 70 ? 'A-' : total >= 60 ? 'B+' : total >= 50 ? 'B' : total >= 40 ? 'C+' : 'C';
   // [2026-06-28 버그수정] Card14 레이더·초점축 5축을 여기서 직접 구성(새 만점 수익성25·투자회수15·경쟁20·생존20·성장20).
-  //   ※이전 버그: Card13의 로컬 변수 axes를 참조 → Card14 스코프엔 없어 ReferenceError로 카드 전체 검정.
-  //   body.score* (데이터층 단일 점수)로 자체 구성하므로 의존성 없음.
-  const axesArr = [
-    { label: "수익성",    max: 25, score: Number(body.scoreMarket)   || 0 },
-    { label: "투자 회수", max: 15, score: Number(body.scoreCompete)  || 0 },
-    { label: "경쟁 여건", max: 20, score: Number(body.scoreChange)   || 0 },
-    { label: "생존 안정", max: 20, score: Number(body.scoreSurvival) || 0 },
-    { label: "성장성",    max: 20, score: Number(body.scoreCost)     || 0 },
-  ];
+  //   ※버그1(고침): Card13의 로컬 변수 axes 참조 → ReferenceError로 검정. ※버그2(고침): body.scoreMarket 등으로 만들었으나
+  //     그 필드는 Card14 body에 없어(=0) 레이더가 '점수 데이터 수집 중'으로 빔. → 점수는 body.axes(여기 들어있음)에서 읽는다.
+  //   body.axes 점수(10/0/10/9/0)는 맞지만 max가 옛 가중치(30/25/20/15/10)라, 라벨로 새 만점(25/15/20/20/20)만 덮는다.
+  const _NEWMAX = { '수익성': 25, '투자 회수': 15, '경쟁 여건': 20, '생존 안정': 20, '성장성': 20 };
+  const _srcAxes = Array.isArray(body.axes) ? body.axes : [];
+  const axesArr = (_srcAxes.length === 5)
+    ? _srcAxes.map(a => ({ label: a.label, max: (_NEWMAX[a.label] || Number(a.max) || 1), score: Number(a.score) || 0 }))
+    : [];
   const radarAxes = axesArr.length === 5
     ? axesArr.map(a => ({ label: a?.label || '-', max: Number(a?.max) > 0 ? Number(a.max) : 1 }))
     : [];
