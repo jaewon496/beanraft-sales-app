@@ -376,7 +376,7 @@ function Card03({ body = {} }) {
   const openCnt = Number(bd.openCount) || 0;
   const closeCnt = Number(bd.closeCount) || 0;
   const netChg = Number(bd.netChange) || (openCnt - closeCnt);
-  const trend = bd.trend || (netChg > 2 ? '성장' : netChg < -2 ? '쇠퇴' : '정체');
+  const trend = bd.trend || (netChg > 2 ? '성장' : netChg < -2 ? '감소세' : '정체');
   const surv1y = Number(bd.survivalRate1y) || 0;
   const surv3y = Number(bd.survivalRate3y) || 0;
   const surv5y = Number(bd.survivalRate5y) || 0;
@@ -403,7 +403,7 @@ function Card03({ body = {} }) {
       sub="개폐업 및 상권 트렌드">
       {/* Top tiles */}
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
-        <StatTile id="c3.tile1" tone={trend === '성장' ? 'mint' : trend === '쇠퇴' ? 'rose' : 'lilac'} label="추세" value={trend} hero/>
+        <StatTile id="c3.tile1" tone={trend === '성장' ? 'mint' : trend === '감소세' ? 'rose' : 'lilac'} label="추세" value={trend} hero/>
         <StatTile id="c3.tile2" tone="blue"  label="신규 개업"   value={String(openCnt)} unit="개" est={openCnt > 0 && _isEst('openCount', 'newOpen', '신규')}/>
         <StatTile id="c3.tile3" tone="rose"  label="폐업"        value={String(closeCnt)} unit="개" est={closeCnt > 0 && _isEst('closeCount', 'closed', '폐업')}/>
         <StatTile id="c3.tile4" tone="lilac" label="순증감"      value={`${netChg > 0 ? '+' : ''}${netChg}`} unit="개"/>

@@ -6316,7 +6316,7 @@ export default function UnifiedLayout({
           const openCnt = _num(bd.openCount) || 0;
           const closeCnt = _num(bd.closeCount) || 0;
           const netChg = _num(bd.netChange) != null ? _num(bd.netChange) : (openCnt - closeCnt);
-          const trend = _str(bd.trend) || (netChg > 2 ? '성장' : netChg < -2 ? '쇠퇴' : '정체');
+          const trend = _str(bd.trend) || (netChg > 2 ? '성장' : netChg < -2 ? '감소세' : '정체');
           put(values, '추세', trend);
           put(values, '신규', openCnt > 0 || closeCnt > 0 ? openCnt : null);
           put(values, '폐업', openCnt > 0 || closeCnt > 0 ? closeCnt : null);

@@ -5285,7 +5285,7 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
 
   netChg = openCnt - closeCnt;
   if (netChg > 2) trendLabel = '성장';
-  else if (netChg < -2) trendLabel = '쇠퇴';
+  else if (netChg < -2) trendLabel = '감소세';
   else trendLabel = '정체';
 
   // ── 우선순위 1-2: 5년 전 vs 지금 카페 수 비교 ──

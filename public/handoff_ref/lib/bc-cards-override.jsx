@@ -290,7 +290,7 @@ function BCCard03({ body: bodyProp }) {
   const openCnt = Number(bodyData.openCount) || 0;
   const closeCnt = Number(bodyData.closeCount) || 0;
   const netChg = Number(bodyData.netChange) || (openCnt - closeCnt);
-  const trend = bodyData.trend || (netChg > 2 ? '성장' : netChg < -2 ? '쇠퇴' : '정체');
+  const trend = bodyData.trend || (netChg > 2 ? '성장' : netChg < -2 ? '감소세' : '정체');
 
   const surv1y = Number(bodyData.survivalRate1y) || 0;
   const surv3y = Number(bodyData.survivalRate3y) || 0;
@@ -314,7 +314,7 @@ function BCCard03({ body: bodyProp }) {
       sub="개폐업 및 상권 트렌드"
       sources={["국세청 (KOSIS 133)", "지방행정인허가데이터", "비즈맵"]}>
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
-        <StatTile id="c3.tile1" tone={trend === '성장' ? 'mint' : trend === '쇠퇴' ? 'rose' : 'lilac'} label="추세" value={trend} hero/>
+        <StatTile id="c3.tile1" tone={trend === '성장' ? 'mint' : trend === '감소세' ? 'rose' : 'lilac'} label="추세" value={trend} hero/>
         <StatTile id="c3.tile2" tone="blue"  label="신규 개업"   value={String(openCnt)} unit="개"/>
         <StatTile id="c3.tile3" tone="rose"  label="폐업"        value={String(closeCnt)} unit="개"/>
         <StatTile id="c3.tile4" tone="lilac" label="순증감"      value={`${netChg > 0 ? '+' : ''}${netChg}`} unit="개"/>
