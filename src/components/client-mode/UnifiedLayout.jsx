@@ -4251,7 +4251,8 @@ function __dsScenesForCard(cardN, body, allBodies) {
       break;
     }
     case '05': {
-      const monthly = __dsN(bd.monthly) || __dsN(getBody(5).monthly);
+      // [2026-06-28 매출 단일화] 카페 월평균 매출 = 단일 진실값(monthlyAvgSales=비즈맵 분위 평균). 없으면 안정 동평균→단일월.
+      const monthly = __dsN(bd.monthlyAvgSales) || __dsN(bd.dongCafeAvgStable) || __dsN(bd.monthly) || __dsN(getBody(5).monthlyAvgSales) || __dsN(getBody(5).dongCafeAvgStable) || __dsN(getBody(5).monthly);
       const guAvg = __dsN(bd.guAvg) || __dsN(getBody(5).guAvg);
       if (monthly > 0) {
         const delta = __dsDeltaPct(monthly, guAvg);
@@ -4826,8 +4827,8 @@ export default function UnifiedLayout({
         const _c5bd = cards[5]?.bodyData || {};
         if (!hfBody.bodyData) hfBody.bodyData = { ..._bd };
         if (!Number(hfBody.bodyData.avgMonthlySales)) {
-          // c5.monthly가 만원 단위로 들어옴 → 그대로 사용
-          const _m = Number(_c5bd.monthly) || 0;
+          // [2026-06-28 매출 단일화] 점포당 카페 월매출 = 단일 진실값(monthlyAvgSales=비즈맵 분위 평균). 없으면 안정 동평균→단일월(만원 단위).
+          const _m = Number(_c5bd.monthlyAvgSales) || Number(_c5bd.dongCafeAvgStable) || Number(_c5bd.monthly) || 0;
           if (_m > 0) hfBody.bodyData.avgMonthlySales = _m;
         }
         if (!Number(hfBody.bodyData.franchiseMinPrice)) {
@@ -6344,7 +6345,8 @@ export default function UnifiedLayout({
           put(values, '등급', total > 0 ? grade : null);
         } else if (screen === 11) {    // 매출 분석 (컴포넌트 n=05)
           title = '매출 분석';
-          const monthly = _num(bd.monthly) || 0;
+          // [2026-06-28 매출 단일화] 월평균매출 = 단일 진실값(monthlyAvgSales=비즈맵 분위 평균). 없으면 안정 동평균→단일월.
+          const monthly = _num(bd.monthlyAvgSales) || _num(bd.dongCafeAvgStable) || _num(bd.monthly) || 0;
           put(values, '월평균매출', monthly > 0 ? (monthly >= 10000 ? `${(monthly / 10000).toFixed(1)}억` : `${monthly.toLocaleString('ko-KR')}만원`) : null);
           // 객단가 = 화면 unitPriceDisplay 우선순위(비즈맵 → 가중평균)
           const unitPrice = (() => {
@@ -7888,7 +7890,8 @@ export default function UnifiedLayout({
         const dessertPrice = collectedData?.cafeAvgPrices?.dessert || null;
 
         // Section 4: Profit
-        const monthlySales = dCard5?.bodyData?.monthly || 0;
+        // [2026-06-28 매출 단일화] 점포당 카페 월매출 = 단일 진실값(monthlyAvgSales=비즈맵 분위 평균). 없으면 안정 동평균→단일월.
+        const monthlySales = dCard5?.bodyData?.monthlyAvgSales || dCard5?.bodyData?.dongCafeAvgStable || dCard5?.bodyData?.monthly || 0;
         const avgRent = dCard7?.bodyData?.rentPerPyeong || 0;
         const survivalRate1y = dCard13?.bodyData?.survivalRate1y || null;
         // 매출등급: 기준표 적용 (S=일50만+ A=40~50만 B=30~40만 C=20~30만 D=20만미만)
@@ -9137,7 +9140,8 @@ export default function UnifiedLayout({
                             const _c5bd = cards[5]?.bodyData || {};
                             if (!hfBody.bodyData) hfBody.bodyData = { ..._bd };
                             if (!Number(hfBody.bodyData.avgMonthlySales)) {
-                              const _m = Number(_c5bd.monthly) || 0;
+                              // [2026-06-28 매출 단일화] 점포당 카페 월매출 = 단일 진실값(monthlyAvgSales=비즈맵 분위 평균). 없으면 안정 동평균→단일월.
+                              const _m = Number(_c5bd.monthlyAvgSales) || Number(_c5bd.dongCafeAvgStable) || Number(_c5bd.monthly) || 0;
                               if (_m > 0) hfBody.bodyData.avgMonthlySales = _m;
                             }
                             if (!Number(hfBody.bodyData.franchiseMinPrice)) {

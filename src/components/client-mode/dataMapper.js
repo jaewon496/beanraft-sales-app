@@ -2140,16 +2140,14 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       dongCafeAvgStable: (saDongCafeAvgStable && saDongCafeAvgStable > 0)
         ? saDongCafeAvgStable
         : ((dongAvg && dongAvg > 0) ? Math.round(dongAvg) : ((cafeSales && cafeSales > 0) ? Math.round(cafeSales) : 0)),
-      // [2026-06-24] ★ '월평균 매출' 단일 진실값(만원). 헤드라인·한줄평·경쟁분석·시장매력도가 전부 이 값을 쓴다.
-      //   우선순위: ① 비즈맵 분위 평균(bmAvgSalesNum, 화면 분위 '평균'과 동일) → ② 안정 카페 동평균(saDongCafeAvgStable)
-      //   → ③ 단일월(monthly=cafeSales). 분위 없는 지역(폴백)에서도 자연 폴백.
-      //   [2026-06-25] ★전체업종 동평균(dongAvg=병원/금융 섞임, 2,856 누수)은 '카페 매출'이 아니므로 통일값 체인에서 제외.
-      //     카페 전용 소스만 남긴다(분위 평균 → 안정 카페 동평균 → 소상공인 카페 단일월).
-      monthlyAvgSales: (bmAvgSalesNum > 0)
-        ? bmAvgSalesNum
-        : ((saDongCafeAvgStable && saDongCafeAvgStable > 0)
-            ? saDongCafeAvgStable
-            : ((cafeSales && cafeSales > 0) ? Math.round(cafeSales) : 0)),
+      // [2026-06-28 사장님 확정] '평균 월매출' 단일 진실값(만원) = 소상공인 카페·디저트 평균(cafeSales=1086) 1순위.
+      //   헤드라인·한줄평·경쟁분석·시장매력도·점수·AI종합이 전부 이 값을 읽으므로 여기 한 곳만 바꾸면 전 카드 통일.
+      //   우선순위: ① 소상공인 카페·디저트 평균(cafeSales) → ② 비즈맵 분위 평균(bmAvgSalesNum) → ③ 안정 카페 동평균.
+      //   ※ 상위20%/중위/하위 분위(bizmapTop/Mid/BottomSalesNum)는 별도 필드 = 비즈맵 그대로(평균만 소상공인).
+      //   ※ 전체업종 동평균(dongAvg=병원/금융 섞임)은 카페 매출 아니라 체인에서 제외.
+      monthlyAvgSales: ((cafeSales && cafeSales > 0) ? Math.round(cafeSales)
+        : ((bmAvgSalesNum > 0) ? bmAvgSalesNum
+            : ((saDongCafeAvgStable && saDongCafeAvgStable > 0) ? saDongCafeAvgStable : 0))),
       // [2026-06-24] 한줄평 '최고~최저'를 분위 상/하위 20%로 통일하기 위한 숫자값(만원). 없으면 0 → 소비처가 소상공인 동최고/최저로 자연 폴백.
       bizmapTopSalesNum: bmTopSalesNum,
       bizmapBottomSalesNum: bmBtmSalesNum,
@@ -4648,7 +4646,10 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   } catch (e) { /* 0 유지 */ }
 
   // 카드 5의 메인 동 카페 매출 (만원) - card5는 이미 line ~1230 에서 생성됨
-  const _dongCafeSalesManwon = (card5?.bodyData?.monthly) || 0;
+  // [2026-06-28 매출 단일화] 백분위 비교도 헤드라인·점수와 같은 단일 진실값(monthlyAvgSales=비즈맵 분위 평균)을 쓴다.
+  //   ★버그: 여기만 card5.monthly(소상공인 단일월=1086)를 써서 같은 리포트 안에 매출이 901 vs 1086으로 갈라졌음
+  //     (어제 '천만원대'·오늘 '904' 오해의 직접 원인). 헤드라인/점수=901인데 백분위만 1086이었음 → 통일.
+  const _dongCafeSalesManwon = (card5?.bodyData?.monthlyAvgSales) || (card5?.bodyData?.dongCafeAvgStable) || (card5?.bodyData?.monthly) || 0;
   // 백분위 산출 (동 매출 / 전국 평균 비율 → 백분위)
   // 비율 1.0 = 전국 평균과 동일 = 백분위 50
   // 비율 1.5+ = 상위 10% (백분위 90+)
@@ -4759,8 +4760,9 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   if (_cafeSalesRank) _bonusItems.push({ label: '이 동 업종 중 카페 매출 순위', value: _cafeSalesRank });
 
   // 2. 이 동 카페 매출 vs 시군구(구) 카페 평균 (만원 단위)
-  // monthly = 이 동 카페 매출 (카드 5 큰 숫자, 9,121만원), guAvg = 구 카페 평균
-  const _card5CafeMonthly = card5?.bodyData?.monthly || 0;
+  // [2026-06-28 매출 단일화] 점포당 카페 월매출 = 단일 진실값(monthlyAvgSales=비즈맵 분위 평균). 없으면 안정 동평균→단일월.
+  // guAvg = 구 카페 평균
+  const _card5CafeMonthly = (card5?.bodyData?.monthlyAvgSales) || (card5?.bodyData?.dongCafeAvgStable) || (card5?.bodyData?.monthly) || 0;
   const _card5GuAvg = card5?.bodyData?.guAvg || 0;
   if (_card5CafeMonthly > 0 && _card5GuAvg > 0) {
     const _ratioPct = Math.round(((_card5CafeMonthly / _card5GuAvg) - 1) * 100);
