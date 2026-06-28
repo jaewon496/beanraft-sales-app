@@ -200,8 +200,15 @@ function Card13({ body = {} }) {
 
   // [2026-06-26 보류] 미산정(score=null) 축은 강·약점/최대비율 산정에서 제외해 0점으로 오분류·NaN 정렬 방지.
   const _scoredAxes = axes.filter(a => a.score != null && isFinite(Number(a.score)));
-  const strengths = _scoredAxes.filter(a => a.score / a.max >= 0.6).sort((a, b) => (b.score/b.max) - (a.score/a.max));
-  const weaknesses = _scoredAxes.filter(a => a.score / a.max < 0.6).sort((a, b) => (a.score/a.max) - (b.score/b.max));
+  const _byRatio = _scoredAxes.slice().sort((a, b) => (b.score/b.max) - (a.score/a.max));
+  // [2026-06-28 관찰자 시점·doom 금지 — 사장님 원칙] '강점 0개/약점 5개'식 과부정은 창업 동기를 꺾으므로 금지.
+  //   ① 절대 강점(60%↑) 있으면 그걸 강점. ② 없으면 '강점 0'으로 끝내지 말고 동네 내 상대 상위 1~2축을 '상대적 우위'로 받침(_strRelative).
+  //   ③ 약점은 진짜 낮은 축(40% 미만)만 — 0.4~0.6 어중간한 축까지 약점으로 몰아 공포 주지 않는다(냉정하되 다차원·만회 레버 연결).
+  const _absStrong = _byRatio.filter(a => a.score / a.max >= 0.6);
+  const _strRelative = _absStrong.length === 0;
+  const strengths = _absStrong.length ? _absStrong : _byRatio.slice(0, Math.min(2, _byRatio.length));
+  const _strKeys = new Set(strengths.map(a => a.key));
+  const weaknesses = _byRatio.filter(a => (a.score / a.max < 0.4) && !_strKeys.has(a.key)).sort((a, b) => (a.score/a.max) - (b.score/b.max));
   const maxRatio = _scoredAxes.reduce((m, a) => Math.max(m, a.score/a.max), 0);
 
   // [2026-06-14] 우리 5축 점수 비율 → 우리 자체 등급 (외부 95점/외부 A등급 대체)
@@ -393,7 +400,7 @@ function Card13({ body = {} }) {
       <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginTop:16}}>
         <div className="bc-box" style={{padding:28, border:"1px solid rgba(76, 123, 228,0.35)", background:"linear-gradient(180deg, rgba(76, 123, 228,0.06), transparent 70%)", display:"flex", flexDirection:"column"}}>
           <div style={{display:"flex", alignItems:"baseline", justifyContent:"space-between", marginBottom:18}}>
-            <div style={{fontSize:18, fontWeight:700, color:"#4C7BE4", letterSpacing:"-0.01em"}}>강점</div>
+            <div style={{fontSize:18, fontWeight:700, color:"#4C7BE4", letterSpacing:"-0.01em"}}>{_strRelative ? '상대적 우위' : '강점'}</div>
             <div style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:600}}>{strengths.length}개</div>
           </div>
           {strengths.length > 0 ? (
@@ -409,7 +416,7 @@ function Card13({ body = {} }) {
               ))}
             </div>
           ) : (
-            <div style={{fontSize:13, color:"var(--matte-fg-4)", padding:"20px 0"}}>강점 없음</div>
+            <div style={{flex:1, display:"flex", alignItems:"center", justifyContent:"center", textAlign:"center", fontSize:14, color:"var(--matte-fg-3)", lineHeight:1.6, padding:"20px 0"}}>축별 점수가 고르게 분포 — 뚜렷이 앞서는 축은 적지만 치명적 약점도 적은 무난한 구조입니다.</div>
           )}
         </div>
 
@@ -431,7 +438,7 @@ function Card13({ body = {} }) {
               ))}
             </div>
           ) : (
-            <div style={{fontSize:13, color:"var(--matte-fg-4)", padding:"20px 0"}}>약점 없음</div>
+            <div style={{flex:1, display:"flex", alignItems:"center", justifyContent:"center", textAlign:"center", fontSize:14, color:"var(--matte-fg-3)", lineHeight:1.6, padding:"20px 0"}}>모든 축이 기준선 이상 — 뚜렷한 약점이 없는 안정적인 자리입니다.</div>
           )}
         </div>
       </div>
