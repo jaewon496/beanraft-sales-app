@@ -4767,8 +4767,10 @@ export default function UnifiedLayout({
         conversionRate: extractConversionRate(apis, sangkwonCode),
         yieldRate: extractYieldRate(apis, sangkwonCode),
         netIncome: extractNetIncome(apis, sangkwonCode),
-        // [2026-06-29] 카드08 '평당 월세 (평균 대비)' 비교 기준 = 그 지역 시도 평당월세 평균(없으면 전국). 만원/평.
-        sidoRentAvg: extractSidoRentAvg(apis, sidoForExt),
+        // [2026-06-29] 카드08 '평당 월세 (평균 대비)' 비교 기준 = 그 지역 시도 평당월세 평균(서울 A02 등). 만원/평.
+        //   ★시도명(sidoForExt)이 비어도 상권코드(sangkwonCode) 앞 3글자로 시도를 잡는다 →
+        //     예전엔 sido 비면 전국(8.8)으로 떨어져 강남 +366% 과장이 났음. 시도 못 구하면 null(="-").
+        sidoRentAvg: extractSidoRentAvg(apis, sidoForExt, sangkwonCode),
         cafeClosure: extractCafeClosure(apis, sidoForExt),
         cafeClosureNation: extractCafeClosure(apis, ''),
         regionClosure: extractRegionClosure(apis, sigungu),

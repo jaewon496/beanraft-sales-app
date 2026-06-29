@@ -7523,16 +7523,36 @@ export function extractMarketRent(apis, sangkwonCode) {
   };
 }
 
+// 시도명(또는 시도코드)을 한국부동산원 2자리 시도코드(A02 등)로 정규화.
+//   - "서울특별시"/"서울" → "A02"
+//   - 6자리 상권코드(A020201) 또는 2자리(A02) → 앞 3글자 시도 prefix(A02)
+//   - 못 구하면 null
+function _resolveSidoCode(sido, sangkwonCode) {
+  const sidoKey = String(sido || '').replace(/(특별시|광역시|특별자치시|특별자치도|도)$/g, '').trim();
+  if (sidoKey && SIDO_FALLBACK_CODE[sidoKey]) return SIDO_FALLBACK_CODE[sidoKey];
+  // 상권코드(A0202.. 또는 A02)에서 시도 prefix 추출 (A + 2자리)
+  const m = String(sangkwonCode || '').match(/^(A\d{2})/);
+  if (m) return m[1];
+  return null;
+}
+
 /**
  * 시도(서울 등) 평당월세 평균 (만원/평) — 카드08 '평당 월세 (평균 대비)' 비교 기준.
- *  - 1순위: 입력 시도의 시도코드(A02=서울 등) 행 (한국부동산원 상업용 임대, 천원/㎡)
- *  - 2순위: 전국 코드(A01) 행
- *  - 3순위: 전체 시도(A\d{2}) 행 평균
- *  - 없으면 null  (가짜값 금지)
+ *  한국부동산원 408 '상권별 중대형 상가 임대료'(천원/㎡)의 시도 집계행(A02=서울 등)만 사용.
+ *  - 1순위: 입력 시도명으로 정규화한 시도코드 행 (예 A02=서울 → 18.6만/평)
+ *  - 2순위: 시도명이 비어도 상권코드(sangkwonCode) 앞 3글자에서 시도 prefix를 뽑아 그 시도행
+ *  - 못 구하면 null  → 화면은 '비교 기준 없음'으로 "-" 정직 표기
+ * ★[2026-06-29 버그수정] 전국(A01=8.8만/평) 폴백·전체시도평균 폴백 제거.
+ *    8.8(전국 상가 평균)은 강남 prime 상권 평당월세 비교 baseline로 부적합 →
+ *    41÷8.8 = +366% 같은 과장 숫자가 나옴. 시도 못 구하면 가짜 baseline 만들지 말고 null.
+ *    또 sido 문자열이 비어 8.8 전국으로 떨어지던 라이브 버그를 sangkwonCode 폴백으로 차단.
  * 단위 변환: 천원/㎡ × 0.33058 → 만원/평 (extractMarketRentSeries와 동일 계수)
  * ★새 외부호출 없음 — 이미 수집된 marketRent 행만 사용.
+ * @param {object} apis - collectedData.apis
+ * @param {string} sido - 시도명(예 '서울'). 비어도 됨.
+ * @param {string} [sangkwonCode] - mapToCommercialDistrict 결과(6자리). sido 비었을 때 시도 추출용.
  */
-export function extractSidoRentAvg(apis, sido) {
+export function extractSidoRentAvg(apis, sido, sangkwonCode) {
   const rows = _getExternalRows(apis, 'marketRent');
   if (!rows.length) return null;
   const toManwonPerPy = (thousandPerSqm) => Math.round(thousandPerSqm * 0.33058 * 10) / 10;
@@ -7543,41 +7563,16 @@ export function extractSidoRentAvg(apis, sido) {
     const sorted = [...pool].sort((a, b) => (b.PRD_DE || '').localeCompare(a.PRD_DE || ''));
     return sorted[0] || null;
   };
-  const sidoKey = String(sido || '').replace(/(특별시|광역시|특별자치시|특별자치도|도)$/g, '').trim();
-  const sidoCode = SIDO_FALLBACK_CODE[sidoKey] || null;
+  const sidoCode = _resolveSidoCode(sido, sangkwonCode);
+  if (!sidoCode || sidoCode === 'A01') return null; // 시도 못 구하면 가짜 baseline 금지
 
-  // 1순위: 시도 코드 행 (예 A02=서울)
-  if (sidoCode) {
-    const r = latestOf(x => (x.C1 || '') === sidoCode);
-    const v = r ? parseFloat(r.DT) : 0;
-    if (r && v > 0) {
-      return { value: toManwonPerPy(v), unit: '만원/평', region: sidoKey, scope: '시도평균', period: r.PRD_DE || '' };
-    }
-  }
-  // 2순위: 전국 코드(A01)
-  {
-    const r = latestOf(x => (x.C1 || '') === 'A01');
-    const v = r ? parseFloat(r.DT) : 0;
-    if (r && v > 0) {
-      return { value: toManwonPerPy(v), unit: '만원/평', region: '전국', scope: '전국평균', period: r.PRD_DE || '' };
-    }
-  }
-  // 3순위: 모든 시도(A\d{2}) 최신 행 평균 → 전국 근사
-  {
-    const sidoRows = rows.filter(x => /^A\d{2}$/.test(x.C1 || '') && (x.C1 || '') !== 'A01');
-    if (sidoRows.length) {
-      // 시도코드별 최신값만
-      const latestByCode = {};
-      sidoRows.forEach(r => {
-        const c = r.C1;
-        if (!latestByCode[c] || (r.PRD_DE || '') > (latestByCode[c].PRD_DE || '')) latestByCode[c] = r;
-      });
-      const vals = Object.values(latestByCode).map(r => parseFloat(r.DT)).filter(v => Number.isFinite(v) && v > 0);
-      if (vals.length) {
-        const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
-        return { value: toManwonPerPy(avg), unit: '만원/평', region: '전국', scope: '전국평균', period: '' };
-      }
-    }
+  const r = latestOf(x => (x.C1 || '') === sidoCode);
+  const v = r ? parseFloat(r.DT) : 0;
+  if (r && v > 0) {
+    // 시도명 라벨: 입력 sido가 있으면 그것, 없으면 응답 C1_NM(예 '서울')
+    const labelFromInput = String(sido || '').replace(/(특별시|광역시|특별자치시|특별자치도|도)$/g, '').trim();
+    const region = labelFromInput || String(r.C1_NM || '').trim() || '시도';
+    return { value: toManwonPerPy(v), unit: '만원/평', region, scope: '시도평균', period: r.PRD_DE || '' };
   }
   return null;
 }

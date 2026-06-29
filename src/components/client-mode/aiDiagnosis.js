@@ -392,6 +392,17 @@ export function buildDiagnosisBundle({ cards, kosisBoxData, collectedData, dataA
   const displayRentPy = integratedRentPy || _num(c7.perPyeong);
   const displayVacancy = (kosisBoxData && kosisBoxData.vacancy && _num(kosisBoxData.vacancy.value)) || _num(c8.vacancy);
 
+  // [2026-06-29 모순제거] 평당월세 '지역평균' 기준 = 카드08 타일과 '동일한' 시도(서울 등) 평당월세 평균(만원/평).
+  //   ★헤드라인(AI bruSummary)이 "지역 평균과 동일"이라 하던 모순의 뿌리 = 직전 §1-10이 지역평균을 평당월세 자기값(41)과
+  //     같게 박아 AI가 항상 '동일'이라 말한 것. 이제 타일과 같은 시도 평균(kosisBoxData.sidoRentAvg.value, 만원/평,
+  //     같은 단위라 비교 안전)을 기준으로 줘 AI도 타일과 같은 판정(강남 41 vs 서울 ~18.6 → 높음/비쌈)을 내게 한다.
+  //   시도 평균이 없으면(타일도 '-') 옛 안전동작(자기값=동일, 단위어긋남 쓰레기 차단) 유지.
+  const sidoRentBaselinePy = (() => {
+    const sr = kosisBoxData && kosisBoxData.sidoRentAvg;
+    const v = sr && _num(sr.value);
+    return (v && v > 0) ? v : displayRentPy;
+  })();
+
   // 메뉴 급등 항목 + 계절 성격 힌트(순행/역행 판정 재료). cards[?] 에 menuTrend류가 있으면 사용.
   const menuRising = (() => {
     const raw = c4.risingMenus || c4.menuTrend || c5.risingMenus || (collectedData && collectedData.menuTrend);
@@ -496,9 +507,9 @@ export function buildDiagnosisBundle({ cards, kosisBoxData, collectedData, dataA
       평당월세만원: displayRentPy,
       권리금만원: _num(c7.premiumCost),
       보증금만원: _num(c7.depositManwon) || _num(c7.deposit),
-      // [2026-06-29 §1-10] 지역평균 기준도 표시 단일값으로 맞춘다 → 평당월세 신호가 '17만원 대비 +141%'
-      //   같은 어긋난 비교를 만들지 않고 '평균수준'으로 자연 탈락하게(카드와 다른 17 숫자 출력 차단).
-      평당월세_지역평균만원: displayRentPy,
+      // [2026-06-29] 지역평균 기준 = 카드08 타일과 동일한 시도(서울 등) 평당월세 평균(sidoRentBaselinePy).
+      //   AI 평당월세 신호·헤드라인이 타일과 같은 판정(강남 41 vs 서울 ~18.6 → 높음)을 내게. 시도 없으면 자기값(=평균수준).
+      평당월세_지역평균만원: sidoRentBaselinePy,
     }),
     // 8 카페 기회
     //   ★[2026-06-29 정보분산 패스7 §1-10] 공실률은 카드1(cards-a.jsx) vacancyRate와 동일 출처
@@ -542,8 +553,8 @@ export function buildDiagnosisBundle({ cards, kosisBoxData, collectedData, dataA
     소비심리: _str(kosisBoxData && kosisBoxData.consumerSentiment && kosisBoxData.consumerSentiment.value),
     소비심리기준: _str(kosisBoxData && kosisBoxData.consumerSentiment && kosisBoxData.consumerSentiment.period),
     카페폐업률: _str(kosisBoxData && kosisBoxData.cafeClosure && kosisBoxData.cafeClosure.value),
-    // [2026-06-29 §1-10] 벤치마크 평당월세도 카드 표시 단일값으로(AI는 averages 언급 금지지만 출처 일관성 유지).
-    평당월세_지역평균만원: displayRentPy,
+    // [2026-06-29] 벤치마크 평당월세 평균 = 카드08 타일과 동일한 시도 평균(sidoRentBaselinePy)로 일관.
+    평당월세_지역평균만원: sidoRentBaselinePy,
   });
 
   // Phase 1 — 통계 선별: "진짜 튀는 신호"만 추리고, 평균 수준은 averages로 분리.
@@ -572,7 +583,8 @@ export function buildDiagnosisBundle({ cards, kosisBoxData, collectedData, dataA
 //   새 경로가 실패/예외면 getUnifiedDiagnosis 가 자동으로 v9 결과를 반환한다.
 // ═════════════════════════════════════════════════════════════════════════
 
-const AI_DIAG_V10_PREFIX = 'bc_ai_diag_v10pro9_';  // 종합(배너/진단/설계방향) pro 단일콜 추론 전용 캐시
+const AI_DIAG_V10_PREFIX = 'bc_ai_diag_v10pro10_';  // 종합(배너/진단/설계방향) pro 단일콜 추론 전용 캐시
+//   ★[2026-06-29] v10pro9_→v10pro10_ : 평당월세 '지역평균' 기준을 자기값(41)→시도 평균(sidoRentBaselinePy)으로 교정. 헤드라인 "지역 평균과 동일"(자기참조 모순) 제거 → 카드08 타일과 같은 판정 재생성.
 //   ★[2026-06-29 예언 마무리] v10pro8_→v10pro9_ : 회수기간·투자 회수 개월 언급 금지 규칙 추가로 옛 캐시 텍스트 재생성
 //   ★[2026-06-29 정보분산 패스13] v10pro7_→v10pro8_ : 마지막-마일 강제 치환 범위를 디렉터 하위→카드14 body 전체로
 //     확대(injectCard1RentVacancyIntoCard14). interior·bodyData.interior·chartData.analysis·signals[].text·

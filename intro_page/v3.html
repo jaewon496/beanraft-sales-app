@@ -195,7 +195,7 @@
     for(var a=0;a<NN;a++){for(var b=a+1;b<NN;b++){var dx=NODES[a].x-NODES[b].x,dy=NODES[a].y-NODES[b].y,dz=NODES[a].z-NODES[b].z;if(dx*dx+dy*dy+dz*dz<0.16)links.push([a,b]);}}
   })();
   var yaw=0, tms=0;
-  var S={glow:0,absorb:0,beam:0,brainR:0};
+  var S={glow:0,absorb:0,beam:0,brainR:0,brainUp:0};
 
   function size(){ DPR=Math.min(2,window.devicePixelRatio||1); W=stage.clientWidth; H=stage.clientHeight; cv.width=Math.round(W*DPR); cv.height=Math.round(H*DPR); x.setTransform(DPR,0,0,DPR,0,0); cx=W*0.5; cy=H*0.42; S.brainR=Math.min(W,H)*0.17; layoutChips(); }
   function layoutChips(){ var R=Math.min(W,H)*0.42; srcEls.forEach(function(el,i){ var ang=(i/SOURCES.length)*Math.PI*2-Math.PI/2; el._hx=cx+Math.cos(ang)*R-el.offsetWidth/2; el._hy=cy+Math.sin(ang)*R*0.82-el.offsetHeight/2; }); }
@@ -204,19 +204,20 @@
     requestAnimationFrame(draw); if(!W)return; tms+=16;
     x.clearRect(0,0,W,H);
     yaw += 0.0022 + S.glow*0.006; // 스크롤 깨어날수록 약간 빠르게
-    var cyaw=Math.cos(yaw),syaw=Math.sin(yaw),pitch=0.5,cp=Math.cos(pitch),sp=Math.sin(pitch),R=S.brainR,proj=[];
-    for(var i=0;i<NN;i++){ var n=NODES[i],rx=n.x*cyaw-n.z*syaw,rz=n.x*syaw+n.z*cyaw,ry=n.y*cp-rz*sp,rz2=n.y*sp+rz*cp,depth=(rz2+1.6)/2.6; proj.push({x:cx+rx*R,y:cy+ry*R,d:depth}); }
+    var bu=S.brainUp||0, R=S.brainR*(1-0.34*bu), cyE=cy-H*0.21*bu;
+    var cyaw=Math.cos(yaw),syaw=Math.sin(yaw),pitch=0.5,cp=Math.cos(pitch),sp=Math.sin(pitch),proj=[];
+    for(var i=0;i<NN;i++){ var n=NODES[i],rx=n.x*cyaw-n.z*syaw,rz=n.x*syaw+n.z*cyaw,ry=n.y*cp-rz*sp,rz2=n.y*sp+rz*cp,depth=(rz2+1.6)/2.6; proj.push({x:cx+rx*R,y:cyE+ry*R,d:depth}); }
     // 링크 (연한 흰선)
     x.lineWidth=1;
     for(var l=0;l<links.length;l++){ var a=proj[links[l][0]],b=proj[links[l][1]],dd=(a.d+b.d)/2; x.strokeStyle='rgba(255,255,255,'+(0.025+S.glow*0.10*dd).toFixed(3)+')'; x.beginPath(); x.moveTo(a.x,a.y); x.lineTo(b.x,b.y); x.stroke(); }
     // 노드 (발광 없이, 연한 흰 + 일부 아주 연한 파랑)
     for(var i=0;i<NN;i++){ var p=proj[i],pulse=0.65+0.35*Math.sin(yaw*2+NODES[i].ph),br=(0.10+S.glow*0.5)*p.d*pulse; x.beginPath(); x.arc(p.x,p.y,(0.8+p.d*1.5)*(0.75+S.glow*0.35),0,6.28); x.fillStyle=NODES[i].bl?('rgba(140,180,255,'+(br*1.1).toFixed(3)+')'):('rgba(255,255,255,'+br.toFixed(3)+')'); x.fill(); }
     // 코어 — 은은한 빛 (아주 약하게)
-    if(S.glow>0){ var cg=x.createRadialGradient(cx,cy,0,cx,cy,R*1.7); cg.addColorStop(0,'rgba(170,200,255,'+(S.glow*0.09).toFixed(3)+')'); cg.addColorStop(.5,'rgba(120,160,255,'+(S.glow*0.028).toFixed(3)+')'); cg.addColorStop(1,'transparent'); x.fillStyle=cg; x.beginPath(); x.arc(cx,cy,R*1.7,0,6.28); x.fill(); }
+    if(S.glow>0){ var cg=x.createRadialGradient(cx,cyE,0,cx,cyE,R*1.7); cg.addColorStop(0,'rgba(170,200,255,'+(S.glow*0.09).toFixed(3)+')'); cg.addColorStop(.5,'rgba(120,160,255,'+(S.glow*0.028).toFixed(3)+')'); cg.addColorStop(1,'transparent'); x.fillStyle=cg; x.beginPath(); x.arc(cx,cyE,R*1.7,0,6.28); x.fill(); }
     // 흡수 (칩 → 뇌, 연한 흰 입자)
     if(S.absorb>0 && S.absorb<1){ for(var s=0;s<srcEls.length;s++){ var el=srcEls[s],sx=el._hx+el.offsetWidth/2,sy=el._hy+el.offsetHeight/2; for(var k=0;k<3;k++){ var tt=((S.absorb*2)+s*0.13+k*0.33)%1,px=sx+(cx-sx)*tt,py=sy+(cy-sy)*tt,o=Math.sin(tt*Math.PI); x.beginPath(); x.arc(px,py,1.8,0,6.28); x.fillStyle='rgba(220,232,255,'+(o*0.55).toFixed(2)+')'; x.fill(); } } }
     // 빛줄기 (뇌 → 태블릿, 연한 흰)
-    if(S.beam>0){ var by0=cy+R,by1=H*1.08,grd=x.createLinearGradient(0,by0,0,by1); grd.addColorStop(0,'rgba(124,180,255,'+(S.beam*0.5).toFixed(3)+')'); grd.addColorStop(1,'rgba(43,127,255,0)'); x.fillStyle=grd; x.fillRect(cx-1.5,by0,3,by1-by0); for(var k=0;k<6;k++){ var tt=((tms*0.0004)+(k/6))%1,py=by0+(by1-by0)*tt; x.beginPath(); x.arc(cx,py,2,0,6.28); x.fillStyle='rgba(150,190,255,'+((1-tt)*S.beam*0.75).toFixed(2)+')'; x.fill(); } }
+    if(S.beam>0){ var by0=cyE+R,by1=H*1.08,grd=x.createLinearGradient(0,by0,0,by1); grd.addColorStop(0,'rgba(124,180,255,'+(S.beam*0.5).toFixed(3)+')'); grd.addColorStop(1,'rgba(43,127,255,0)'); x.fillStyle=grd; x.fillRect(cx-1.5,by0,3,by1-by0); for(var k=0;k<6;k++){ var tt=((tms*0.0004)+(k/6))%1,py=by0+(by1-by0)*tt; x.beginPath(); x.arc(cx,py,2,0,6.28); x.fillStyle='rgba(150,190,255,'+((1-tt)*S.beam*0.75).toFixed(2)+')'; x.fill(); } }
     // 칩 위치 (흡수에 따라 뇌로 빨려듦)
     var ab=S.absorb;
     for(var s=0;s<srcEls.length;s++){ var el=srcEls[s],tx=el._hx+(cx-el.offsetWidth/2-el._hx)*ab,ty=el._hy+(cy-el.offsetHeight/2-el._hy)*ab; el.style.transform='translate('+tx.toFixed(1)+'px,'+ty.toFixed(1)+'px) scale('+(1-ab*0.5).toFixed(2)+')'; }
@@ -240,7 +241,7 @@
   tl.to(S,{glow:1,duration:.8},2).to(S,{beam:1,duration:.6},2.5).to(cap.h2,{opacity:0,duration:.25},2.6)
     .add(function(){ setCap('REPORT','분석이 <b>14장으로 정렬됩니다.</b>'); },2.85).to(cap.h2,{opacity:1,duration:.3},2.9);
   // 4) 태블릿 + 카드 정렬
-  tl.to('#tablet',{opacity:1,bottom:'-2%',duration:1,ease:'power2.out'},3).to(cardEls,{opacity:1,duration:.5,stagger:{each:.04,from:'start'},ease:'back.out(1.4)'},3.25).to(S,{glow:.55,beam:.28,duration:.6},3.6);
+  tl.to('#tablet',{opacity:1,bottom:'15%',duration:1.1,ease:'power2.out'},3).to(S,{brainUp:1,duration:1.1,ease:'power2.inOut'},3).to(cardEls,{opacity:1,duration:.5,stagger:{each:.04,from:'start'},ease:'back.out(1.4)'},3.4).to(S,{glow:.55,beam:.28,duration:.6},3.7);
   // 5) 전국
   tl.to(cap.h2,{opacity:0,duration:.25},4.0).add(function(){ setCap('NATIONWIDE','강남이든 제주든 — <b>어디든 똑같이.</b>'); },4.15).to(cap.h2,{opacity:1,duration:.3},4.2).to(S,{glow:.5,duration:.6},4.6);
 })();
