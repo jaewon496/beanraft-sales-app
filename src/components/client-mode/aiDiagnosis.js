@@ -572,7 +572,11 @@ export function buildDiagnosisBundle({ cards, kosisBoxData, collectedData, dataA
 //   새 경로가 실패/예외면 getUnifiedDiagnosis 가 자동으로 v9 결과를 반환한다.
 // ═════════════════════════════════════════════════════════════════════════
 
-const AI_DIAG_V10_PREFIX = 'bc_ai_diag_v10pro7_';  // 종합(배너/진단/설계방향) pro 단일콜 추론 전용 캐시
+const AI_DIAG_V10_PREFIX = 'bc_ai_diag_v10pro8_';  // 종합(배너/진단/설계방향) pro 단일콜 추론 전용 캐시
+//   ★[2026-06-29 정보분산 패스13] v10pro7_→v10pro8_ : 마지막-마일 강제 치환 범위를 디렉터 하위→카드14 body 전체로
+//     확대(injectCard1RentVacancyIntoCard14). interior·bodyData.interior·chartData.analysis·signals[].text·
+//     designDirection[] 등에 남아있던 "평당 월세 31만원·공실률 현재 9%" 누수 차단. 공실 정규식에 짧은 수식어(현재/약/평균)
+//     끼임 허용. 옛 캐시(31/9% 텍스트) 무효화해 다음 검색 때 41/6.9로 재생성.
 //   ★[2026-06-29 정보분산 패스12] v10pro6_→v10pro7_ : 화면 렌더 직전(__BC_DATA__ 푸시 지점)에서 디렉터 전 섹션
 //     문자열을 카드1 평당월세(rentPerPyeong)·공실률(vacancyRate)로 마지막-마일 강제 치환(injectCard1RentVacancyIntoDirector)
 //     하는 안전망 추가. App.jsx 검색직원 AI가 만든 디렉터가 dataMapper 정규화를 우회해 31/9% 누수하던 경로 차단.
