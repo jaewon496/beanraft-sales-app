@@ -5871,7 +5871,7 @@ export default function UnifiedLayout({
     // ── 월 고정비(만원) ── [2026-06-29 정보분산 패스6 §1-11] 단일 출처: dataMapper ROI 엔진의 실측 고정비(roiFixedMonthly)
     //   = (인건+기타)%×월매출 + 임대료. 예전 'rentMonthly×2.2' 단순상수를 폐기하고 데이터층 단일값을 그대로 읽는다.
     //   (데이터층도 실측 원가구조가 없을 때만 임대×2.2 폴백 → 폴백 산식도 한 곳에서만 산다.)
-    //   roiFixedMonthly가 없는 옛 데이터/비정상 지역 폴백으로만 임대×2.2 유지.
+    //   roiFixedMonthly가 없는 옛 데이터/비정상 지역 폴백으로만 임대×2.2 유지(15평 기준 동네 평당월세 기반).
     const fixedMonthly = (num(c12.roiFixedMonthly) > 0)
       ? num(c12.roiFixedMonthly)
       : (rentMonthly > 0 ? Math.round(rentMonthly * 2.2) : 0);
@@ -5879,8 +5879,14 @@ export default function UnifiedLayout({
     // [2026-06-27 ROI 업계기준 BEP 교정] 손익분기 = 고정비 ÷ 공헌이익률(=1−변동비율).
     //   기존엔 영업이익률(profitPct≈10~20%)로 나눠 손익분기가 약 3배 부풀려졌다(CVP 표준 위반).
     //   카페 변동비(원두·우유·부자재)는 매출의 약 35% → 공헌이익률 0.65로 통일(고정비만 분모).
+    // [2026-06-29 예언 제거] 슬라이더 없이도 손익분기('얼마 팔아야 본전')는 목표선이라 유지.
+    //   동네 실제 평당월세 기반 월 고정비로 계산. ★데이터 오류 방지 가드: 고정비가 비정상(0/음수/NaN/
+    //   말도 안 되는 거액)이면 손익분기를 0(=화면 '-')으로 둔다. 가짜 숫자보다 정직한 '-'.
     const CONTRIBUTION_MARGIN = 0.65;
-    const bepSales = (fixedMonthly > 0) ? Math.round(fixedMonthly / CONTRIBUTION_MARGIN) : 0;
+    const _fixedValid = (fixedMonthly > 0 && isFinite(fixedMonthly) && fixedMonthly < 100000); // 15평 월 고정비 상한 1억(만원) 가드
+    const _bepRaw = _fixedValid ? Math.round(fixedMonthly / CONTRIBUTION_MARGIN) : 0;
+    // 손익분기 유효범위 가드: 15평 카페 월 손익분기 매출이 100만 미만이거나 3억(30000만) 초과면 데이터 이상 → '-'
+    const bepSales = (_bepRaw >= 100 && _bepRaw <= 30000) ? _bepRaw : 0;
     // ── BEP 하루 잔수: BEP매출(원) / 객단가(원) / 30일 ── (객단가·이익률을 시뮬레이터와 통일 → 잔수 일치)
     const bepCups = (bepSales > 0 && unitPrice > 0) ? Math.ceil((bepSales * 10000) / unitPrice / 30) : 0;
     // [2026-06-26 근본감리] 회수기간(개월): 화면이 보여주는 '실제 동네 월매출 × 실측 영업이익률'로 계산한다.

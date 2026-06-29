@@ -36,19 +36,30 @@ function Card08({ body = {} }) {
   const kosisPeriod = kosis?.marketRent?.period || kosis?.yieldRate?.period || '';
   const kosisRegion = kosis?.marketRent?.region || '';
   const kc = cd.kosisCafe || null;
-  const [pyeong, setPyeong] = React.useState(15);
-  const monthly = rentPerPyeong > 0 ? Math.round(pyeong * rentPerPyeong) : 0;
+  // [2026-06-29 예언 제거] 평수 슬라이더 폐기 → 슬라이더로 평수를 곱해 '내 카페 월임대료/보증금/총창업비'를
+  //   단정하던 예측 UI를 제거. 대신 15평 기준 단일 참고값 + 창업비 가이드(단계/범위)로 보여준다.
+  const REF_PY = 15; // 창업비 가이드 기준 평수(고정 참고값)
   const depositPerPy = depositManwon > 0 ? depositManwon / 15 : 0;
-  const deposit = depositPerPy > 0 ? pyeong * depositPerPy : 0;
+  const deposit = depositPerPy > 0 ? REF_PY * depositPerPy : 0;   // 15평 기준 보증금(참고)
   const interiorPerPy = kc?.interiorPerPyeong > 0 ? kc.interiorPerPyeong : 0;
-  const interior = interiorPerPy > 0 ? pyeong * interiorPerPy : 0;
-  // [2026-06-27 ROI 업계기준] 시설·장비비(만원) — 개인카페 기준 약 2,500만 상수 추정(데이터층 facilityCost/equipmentCost).
-  //   총창업비 = 인테리어 + 권리금 + 시설장비 (보증금은 환급성이라 제외 유지) → 5축 ROI roiTotalStartup·AI종합 배너와 같은 정의.
-  const facilityManwon = Number(bd.roiFacilityCost) || Number(bd.facilityCost) || Number(bd.equipmentCost) || 2500;
-  // [2026-06-16→06-27] 총 창업비 = 인테리어(평균시공 ×1.0) + 권리금 + 시설·장비.
-  //   보증금은 퇴거 시 돌려받는 환급성 비용이라 '소멸성 창업비'에 넣지 않고 별도 타일로만 표시.
-  //   ※ UnifiedLayout.jsx bcOneLineSummary 의 totalStartup(roiTotalStartup=인테리어+권리금+시설장비) 정의와 동일.
-  const total = (interior + premiumManwon + facilityManwon) > 0 ? interior + premiumManwon + facilityManwon : 0;
+  const interior = interiorPerPy > 0 ? REF_PY * interiorPerPy : 0; // 15평 평균시공 인테리어(참고)
+  // [2026-06-29 사장님 확정] 시설·장비 3단계(만원) — 단일 숫자 예언 대신 단계/범위로.
+  //   저가형(바·커피+간단 쿠키) 약 1,000만 / 평균(베이커리 여유) 약 2,000만 / 고급(빵집 수준) 2,500~3,000만.
+  const FACILITY_TIERS = [
+    { key: 'low',  label: '저가형', desc: '바·커피 + 간단 쿠키', min: 1000, max: 1000 },
+    { key: 'avg',  label: '평균',   desc: '베이커리 여유',       min: 2000, max: 2000 },
+    { key: 'high', label: '고급',   desc: '빵집 수준',           min: 2500, max: 3000 },
+  ];
+  const facilityLow = FACILITY_TIERS[0].min;            // 1,000만
+  const facilityHigh = FACILITY_TIERS[FACILITY_TIERS.length - 1].max; // 3,000만
+  // [2026-06-29] 총 창업비 = 인테리어(15평 평균시공) + 권리금 + 시설·장비(단계 범위).
+  //   가짜 정밀 단일숫자 금지 → '저~고' 범위. 보증금은 퇴거 시 환급성이라 제외(별도 타일).
+  const totalBase = interior + premiumManwon;           // 시설장비 제외 고정분(만원)
+  const totalMin = (totalBase + facilityLow) > 0 ? totalBase + facilityLow : 0;
+  const totalMax = (totalBase + facilityHigh) > 0 ? totalBase + facilityHigh : 0;
+  // 보증금 안내: 월세(15평 기준) 기반 — 통상 월세의 약 10배가 보증금 관행.
+  const rentMonthly15 = rentPerPyeong > 0 ? Math.round(rentPerPyeong * REF_PY) : 0;
+  const depositGuide = rentMonthly15 > 0 ? rentMonthly15 * 10 : 0; // 월세의 약 10배(안내)
   return (
     <CardShell n="08" id="08"
       bruSummary={body.bruSummary}
@@ -57,7 +68,7 @@ function Card08({ body = {} }) {
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
         <StatTile id="c8.tile1" tone="blue"  label="통합 평당 월세" value={rentPerPyeong > 0 ? String(rentPerPyeong) : '-'} unit={rentPerPyeong > 0 ? '만원' : ''} hero/>
         <StatTile id="c8.tile2" tone="lilac" label="평균 보증금"   value={depositPerPy > 0 ? Math.round(depositPerPy).toLocaleString() : '-'} unit={depositPerPy > 0 ? '만/평' : ''}/>
-        <StatTile id="c8.tile3" tone="mint"  label="총 창업 (15평·보증금별도)" value={total > 0 ? (total >= 10000 ? (total / 10000).toFixed(1) : Math.round(total).toLocaleString()) : '-'} unit={total > 0 ? (total >= 10000 ? '억' : '만원') : ''}/>
+        <StatTile id="c8.tile3" tone="mint"  label="총 창업비 (15평·보증금별도)" value={(totalMin > 0 && totalMax > 0) ? (window.bcFmtMan(totalMin) || (Math.round(totalMin).toLocaleString() + '만원')) + ' ~ ' + (window.bcFmtMan(totalMax) || (Math.round(totalMax).toLocaleString() + '만원')) : '-'}/>
         <StatTile id="c8.tile4" tone="rose"  label="권리금"  value={premiumManwon > 0 ? (premiumManwon >= 10000 ? (premiumManwon / 10000).toFixed(1) : Math.round(premiumManwon).toLocaleString()) : '-'} unit={premiumManwon > 0 ? (premiumManwon >= 10000 ? '억' : '만원') : ''}/>
       </div>
 
@@ -115,18 +126,19 @@ function Card08({ body = {} }) {
         </div>
       </div>
 
+      {/* [2026-06-29 창업비 가이드] 평수 슬라이더(예언 UI) 제거 → 15평 기준 인테리어 분포 + 창업비 가이드(단계/범위) */}
       <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginTop:16}}>
         <div className="bc-box" style={{padding:24, display:"flex", flexDirection:"column"}}>
-          <div style={{fontSize:16, fontWeight:600, marginBottom:18}}>인테리어 비용 분포 <span style={{fontSize:13, color:"var(--matte-fg-3)", fontWeight:500, marginLeft:8}}>{pyeong}평 기준</span></div>
+          <div style={{fontSize:16, fontWeight:600, marginBottom:18}}>인테리어 비용 분포 <span style={{fontSize:13, color:"var(--matte-fg-3)", fontWeight:500, marginLeft:8}}>{REF_PY}평 기준</span></div>
           <div style={{display:"flex", flexDirection:"column", gap:10, flex:1, justifyContent:"space-around"}}>
           {(() => {
             const perPy = kc?.interiorPerPyeong > 0 ? kc.interiorPerPyeong : 350;
             const tiers = [
-              ["셀프", perPy * 0.4 * pyeong, false],
-              ["최소 시공", perPy * 0.7 * pyeong, false],
-              ["평균 시공", perPy * 1.0 * pyeong, true],
-              ["고급 시공", perPy * 1.5 * pyeong, false],
-              ["프리미엄", perPy * 2.5 * pyeong, false],
+              ["셀프", perPy * 0.4 * REF_PY, false],
+              ["최소 시공", perPy * 0.7 * REF_PY, false],
+              ["평균 시공", perPy * 1.0 * REF_PY, true],
+              ["고급 시공", perPy * 1.5 * REF_PY, false],
+              ["프리미엄", perPy * 2.5 * REF_PY, false],
             ];
             const tMax = Math.max(...tiers.map(t => t[1]));
             return tiers.map(([l, v, acc]) => {
@@ -145,50 +157,60 @@ function Card08({ body = {} }) {
           <div style={{fontSize:13, color:"var(--matte-fg-3)", marginTop:16, paddingTop:14, borderTop:"1px solid var(--matte-line)"}}>평균 시공 권장 — 평당 {kc?.interiorPerPyeong > 0 ? kc.interiorPerPyeong.toLocaleString() : '~350'}만원 기준</div>
         </div>
 
-        <div className="bc-box" style={{padding:24, background:"linear-gradient(135deg, rgba(76, 123, 228,0.10), transparent 60%)", border:"1px solid rgba(76, 123, 228,0.45)"}}>
-          <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:14}}>
-            <div style={{fontSize:16, fontWeight:700, color:"#4C7BE4"}}>내 카페 시뮬레이터</div>
-            <div style={{fontSize:14, color:"var(--matte-fg-2)", fontWeight:600}}><strong style={{fontSize:18, color:"#fff"}}>{pyeong}</strong> 평</div>
+        <div className="bc-box" style={{padding:24, background:"linear-gradient(135deg, rgba(76, 123, 228,0.10), transparent 60%)", border:"1px solid rgba(76, 123, 228,0.45)", display:"flex", flexDirection:"column"}}>
+          <div style={{fontSize:16, fontWeight:700, color:"#4C7BE4", marginBottom:6}}>창업비 가이드</div>
+          <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:18}}>{REF_PY}평 기준 · 보증금 별도</div>
+
+          {/* ① 인테리어 (15평 평균시공) */}
+          <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", padding:"12px 0", borderTop:"1px solid var(--matte-line)"}}>
+            <span style={{fontSize:14, color:"var(--matte-fg-2)", fontWeight:600, display:"flex", alignItems:"center", gap:6}}>인테리어 <span style={{fontSize:12, color:"var(--matte-fg-4)", fontWeight:400}}>평균 시공</span>{_isEst('interiorPerPyeong', 'interiorAvg') && window.EstBadge ? <window.EstBadge/> : null}</span>
+            <span style={{fontSize:16, color:"var(--matte-fg)", fontWeight:700, fontVariantNumeric:"tabular-nums"}}>{interior > 0 ? (window.bcFmtMan(interior) || `${Math.round(interior).toLocaleString()}만원`) : '왼쪽 분포 참고'}</span>
           </div>
-          <input type="range" min="5" max="60" value={pyeong} onChange={e=>setPyeong(+e.target.value)} style={{width:"100%", accentColor:"#4C7BE4"}}/>
-          <div style={{display:"flex", justifyContent:"space-between", fontSize:13, color:"var(--matte-fg-4)", marginTop:6}}>
-            <span>5평</span><span>15</span><span>30</span><span>45</span><span>60평</span>
+
+          {/* ② 권리금 (지역 실측값) */}
+          <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", padding:"12px 0", borderTop:"1px solid var(--matte-line)"}}>
+            <span style={{fontSize:14, color:"var(--matte-fg-2)", fontWeight:600, display:"flex", alignItems:"center", gap:6}}>권리금 {kosisRegion ? <span style={{fontSize:12, color:"var(--matte-fg-4)", fontWeight:400}}>{kosisRegion} 평균</span> : null}{_isEst('premiumCost', 'premium') && window.EstBadge ? <window.EstBadge/> : null}</span>
+            <span style={{fontSize:16, color:"var(--matte-fg)", fontWeight:700, fontVariantNumeric:"tabular-nums"}}>{premiumManwon > 0 ? (window.bcFmtMan(premiumManwon) || `${Math.round(premiumManwon).toLocaleString()}만원`) : '자리마다 상이'}</span>
           </div>
-          <div className="bc-grid-3" style={{gap:12, marginTop:20}}>
-            <div style={{padding:"16px 18px", background:"rgba(255,255,255,0.03)", borderRadius:10, border:"1px solid var(--matte-line)"}}>
-              <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:6, fontWeight:500}}>월 임대료</div>
-              <div style={{fontSize:22, fontWeight:700, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{monthly > 0 ? (window.bcFmtMan(monthly) || `${monthly.toLocaleString()}만원`) : '-'}</div>
-            </div>
-            <div style={{padding:"16px 18px", background:"rgba(255,255,255,0.03)", borderRadius:10, border:"1px solid var(--matte-line)"}}>
-              <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:6, fontWeight:500}}>보증금</div>
-              <div style={{fontSize:22, fontWeight:700, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{deposit > 0 ? (window.bcFmtMan(deposit) || `${Math.round(deposit).toLocaleString()}만원`) : '-'}</div>
-            </div>
-            <div style={{padding:"16px 18px", background:"rgba(76, 123, 228,0.10)", borderRadius:10, border:"1px solid rgba(76, 123, 228,0.45)"}}>
-              <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:6, fontWeight:500}}>총 창업비 <span style={{fontSize:11, color:"var(--matte-fg-4)", fontWeight:400}}>(보증금 별도)</span></div>
-              <div style={{fontSize:22, fontWeight:700, color:"#4C7BE4", fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{total > 0 ? (window.bcFmtMan(total) || `${Math.round(total).toLocaleString()}만원`) : '-'}</div>
+
+          {/* ③ 보증금 (월세 기준 안내 — 통상 월세의 약 10배) */}
+          <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", padding:"12px 0", borderTop:"1px solid var(--matte-line)"}}>
+            <span style={{fontSize:14, color:"var(--matte-fg-2)", fontWeight:600, display:"flex", alignItems:"center", gap:6}}>보증금 <span style={{fontSize:12, color:"var(--matte-fg-4)", fontWeight:400}}>월세의 약 10배</span></span>
+            <span style={{fontSize:16, color:"var(--matte-fg)", fontWeight:700, fontVariantNumeric:"tabular-nums"}}>{depositGuide > 0 ? ('약 ' + (window.bcFmtMan(depositGuide) || `${Math.round(depositGuide).toLocaleString()}만원`)) : (deposit > 0 ? (window.bcFmtMan(deposit) || `${Math.round(deposit).toLocaleString()}만원`) : '월세 기준 산정')}</span>
+          </div>
+
+          {/* ④ 시설·장비 3단계 (사장님 실무 확정값) */}
+          <div style={{marginTop:6, paddingTop:14, borderTop:"1px solid var(--matte-line)"}}>
+            <div style={{fontSize:13, color:"var(--matte-fg-3)", fontWeight:600, marginBottom:10}}>시설·장비 <span style={{fontSize:12, color:"var(--matte-fg-4)", fontWeight:400}}>운영 컨셉에 따라</span></div>
+            <div style={{display:"flex", flexDirection:"column", gap:8}}>
+              {FACILITY_TIERS.map((ft, i) => {
+                const rangeTxt = ft.min === ft.max
+                  ? `약 ${(window.bcFmtMan(ft.min) || `${ft.min.toLocaleString()}만원`)}`
+                  : `${(window.bcFmtMan(ft.min) || `${ft.min.toLocaleString()}만원`)} ~ ${(window.bcFmtMan(ft.max) || `${ft.max.toLocaleString()}만원`)}`;
+                const isAvg = ft.key === 'avg';
+                return (
+                  <div key={ft.key} style={{display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 12px", background: isAvg ? "rgba(76, 123, 228,0.10)" : "rgba(255,255,255,0.03)", borderRadius:8, border: isAvg ? "1px solid rgba(76, 123, 228,0.40)" : "1px solid var(--matte-line)"}}>
+                    <span style={{display:"flex", alignItems:"baseline", gap:8, minWidth:0}}>
+                      <span style={{fontSize:14, fontWeight:700, color: isAvg ? "#4C7BE4" : "var(--matte-fg)"}}>{ft.label}</span>
+                      <span style={{fontSize:12, color:"var(--matte-fg-4)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{ft.desc}</span>
+                    </span>
+                    <span style={{fontSize:14, fontWeight:700, fontVariantNumeric:"tabular-nums", color: isAvg ? "#4C7BE4" : "var(--matte-fg)", flexShrink:0, marginLeft:10}}>{rangeTxt}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
-          {/* [2026-06-27 ROI 업계기준] 총창업비 항목 분해 — 인테리어 + 권리금 + 시설·장비 (보증금 별도). 0이거나 미상이면 그 줄만 숨김. */}
-          {total > 0 && (
-            <div style={{marginTop:16, paddingTop:14, borderTop:"1px solid var(--matte-line)", display:"flex", flexDirection:"column", gap:9}}>
-              {[
-                ['인테리어', interior, _isEst('interiorPerPyeong', 'interiorAvg')],
-                ['권리금', premiumManwon, _isEst('premiumCost', 'premium')],
-                ['시설·장비', facilityManwon, true],
-              ].filter(([, v]) => v > 0).map(([l, v, est]) => (
-                <div key={l} style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", fontSize:13}}>
-                  <span style={{color:"var(--matte-fg-3)", fontWeight:500, display:"flex", alignItems:"center", gap:6}}>{l}{est && window.EstBadge ? <window.EstBadge/> : null}</span>
-                  <span style={{color:"var(--matte-fg-2)", fontWeight:700, fontVariantNumeric:"tabular-nums"}}>{window.bcFmtMan(v) || `${Math.round(v).toLocaleString()}만원`}</span>
-                </div>
-              ))}
-            </div>
-          )}
+          {/* 총 창업비 — 단일 정밀숫자 대신 단계/범위 */}
+          <div style={{marginTop:16, paddingTop:16, borderTop:"1px solid var(--matte-line)", display:"flex", justifyContent:"space-between", alignItems:"baseline"}}>
+            <span style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:600}}>총 창업비 <span style={{fontSize:12, color:"var(--matte-fg-4)", fontWeight:400}}>(보증금 별도)</span></span>
+            <span style={{fontSize:20, fontWeight:700, color:"#4C7BE4", fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{(totalMin > 0 && totalMax > 0) ? `${(window.bcFmtMan(totalMin) || `${Math.round(totalMin).toLocaleString()}만원`)} ~ ${(window.bcFmtMan(totalMax) || `${Math.round(totalMax).toLocaleString()}만원`)}` : '-'}</span>
+          </div>
 
-          {premiumManwon > 0 && kosisRegion && (
-            <div style={{marginTop:14, fontSize:13, color:"var(--matte-fg-3)"}}>{kosisRegion} 기준 권리금 평균 {premiumManwon.toLocaleString()}만원 포함</div>
-          )}
-          <div style={{marginTop:premiumManwon > 0 && kosisRegion ? 4 : 14, fontSize:12, color:"var(--matte-fg-4)"}}>보증금은 가게를 뺄 때 돌려받는 돈이라, 실제로 들어가는 인테리어·권리금·시설장비만 ‘총 창업비’로 묶었어요.</div>
+          {/* 하단 작은 글씨 면책 + 브랜드 멘트 (정확히 지정 문구) */}
+          <div style={{marginTop:14, fontSize:12, color:"var(--matte-fg-4)", lineHeight:1.6}}>
+            예상 견적은 참고용이며 컨셉·기획에 따라 차이가 큽니다. 빈크래프트는 정해진 창업 예산 안에서 최적 설계를 찾아드립니다.
+          </div>
         </div>
       </div>
     </CardShell>

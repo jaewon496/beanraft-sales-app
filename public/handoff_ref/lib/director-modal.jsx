@@ -44,8 +44,8 @@ const DIRECTOR_SCRIPT = [
       { at:1300, id:"c4.top7", anim:["focus"],                   fx:"circle",    phrase:"스타벅스 11점" },
       { at:4200, id:"c4.top7", anim:["dolly"],                   fx:"box",       phrase:"빅 5" },
     ]},
-  { card:"05", beat:"매출 회수", dur:8800,
-    text:"회수 가능성입니다. 월매출 평균 9,121만원 — 강남구 평균보다 +16%. 13개월 추이를 보면 매월 +1~2% 꾸준히 오르고 있어요. 살아있는 시장입니다.",
+  { card:"05", beat:"매출 흐름", dur:8800,
+    text:"동네 매출 흐름입니다. 월매출 평균 9,121만원 — 강남구 평균보다 +16%. 13개월 추이를 보면 매월 +1~2% 꾸준히 오르고 있어요. 살아있는 시장입니다.",
     beats:[
       { at:1200, id:"c6.tile1", anim:["dolly","roulette"],       fx:"countup",   phrase:"9,121만원" },
       { at:3400, id:"c6.tile2", anim:["rise","flash"],           fx:"swipe",     phrase:"+16%" },

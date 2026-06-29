@@ -77,17 +77,8 @@ function Card13({ body = {} }) {
     || Number(body.bodyData?.monthly)
     || 0;
   const guAvg = Number(body.guAvg) || 0;
-  // [2026-06-27 ROI 업계기준] 수익 2줄 — 사장 본인 인건비 반영.
-  //   데이터층이 bodyData(또는 top-level)에 넣어줌: ownerWageMonthly(216) · accountingProfitMonthly(회계 월영업이익) · realProfitMonthly(사장월급 뺀 진짜 월수익).
-  //   점수(수익성/투자회수)는 이미 realProfit 기준으로 계산돼 옴. 화면은 두 줄(회계이익 / 진짜수익)만 정직하게 보여준다. null이면 줄 자체 숨김.
-  const _bd13 = body.bodyData || {};
-  const _accProfit = (body.accountingProfitMonthly != null) ? Number(body.accountingProfitMonthly)
-    : (_bd13.accountingProfitMonthly != null ? Number(_bd13.accountingProfitMonthly) : null);
-  const _realProfit = (body.realProfitMonthly != null) ? Number(body.realProfitMonthly)
-    : (_bd13.realProfitMonthly != null ? Number(_bd13.realProfitMonthly) : null);
-  const _ownerWage = (body.ownerWageMonthly != null) ? Number(body.ownerWageMonthly)
-    : (_bd13.ownerWageMonthly != null ? Number(_bd13.ownerWageMonthly) : null);
-  const _hasProfitRows = (_accProfit != null && isFinite(_accProfit)) && (_realProfit != null && isFinite(_realProfit)) && !_roiUnavail;
+  // [2026-06-29 예언 제거] 사장월급 차감 진짜수익 '표시' 2줄 블록을 제거 → 표시용 _accProfit/_realProfit/_ownerWage/_hasProfitRows 불필요.
+  //   (데이터층 realProfitMonthly 등은 dataMapper ROI 점수 계산용으로 그대로 남아 있음 — 점수는 무변경.)
   const sigungu = body.sigungu || "";
   const cafeCount = Number(body.cafeCount) || 0;
   const individualCount = Number(body.individualCount) || 0;
@@ -135,24 +126,15 @@ function Card13({ body = {} }) {
       // 매출 미수집이면 점수 미산정(null) — 막대/숫자 대신 '미산정' 표기.
       score: _roiUnavail ? null : (Number(body.scoreCompete) || 0),
       unavail: _roiUnavail,
-      // [2026-06-25 모순1] 투자 회수도 수익성과 '동일한 단일 월영업이익(roiMonthlyProfit)'을 따라간다.
-      //   적자(월이익 ≤ 0) → 회수 불가 → "회수 N개월" 표기 금지, '흑자 전환 우선'(정직+긍정톤).
-      //   흑자(월이익 > 0) → dataMapper가 같은 이익으로 계산한 실제 회수개월(roiPaybackMonths)을 표기.
-      //   ※ 옛 낙관 배너값(_roiSt.paybackMonths, assumedMonthlySales×1.4)은 더 이상 안 씀(수익성과 부호 불일치 원천).
+      // [2026-06-29 예언 제거] 투자 회수 축은 '동네평균 기준 상권평가 점수'라 점수(score)는 그대로 둔다.
+      //   다만 headline에서 '내 카페 회수 N개월/월수익 N만원' 같은 예언성 단정은 뺀다(창업자에게 위험).
+      //   대신 '들어가는 투자비(총 창업비)' 규모만 정직하게 표기 — 회수 시점은 단정하지 않는다.
       headline: (() => {
-        if (_roiUnavail) return '매출 미수집 — 회수기간 미산정 (재검색 권장)';
-        const _profit = (body.roiMonthlyProfit != null) ? Number(body.roiMonthlyProfit) : null;
-        const _months = Number(body.roiPaybackMonths) || 0;
+        if (_roiUnavail) return '매출 미수집 — 투자 회수 미산정 (재검색 권장)';
         const _startupTxt = body.roiTotalStartupText || _roiSt.totalStartupText || '';
-        if (_profit != null && _profit <= 0) {
-          // 적자: 회수개월 금지. 흑자 전환이 우선이라는 정직한 진단 + 객단가·회전율 레버(긍정톤).
-          return `현재 월 ${_profit.toLocaleString()}만원 구조라 흑자 전환이 우선 — 객단가·회전율을 올리면 회수가 시작됩니다${_startupTxt ? ` (총 창업비 ${_startupTxt})` : ''}`;
-        }
-        if (_profit != null && _profit > 0 && _months > 0) {
-          // 흑자: 수익성과 같은 이익으로 계산된 실제 회수개월.
-          return `투자금 회수 약 ${_months}개월${_startupTxt ? ` (총 창업비 ${_startupTxt})` : ''}`;
-        }
-        return _startupTxt ? `총 창업비 ${_startupTxt} — 회수기간 추정 중` : '회수기간 데이터 수집 중';
+        return _startupTxt
+          ? `총 창업비 ${_startupTxt} — 회수 속도는 운영(객단가·회전율)에 따라 달라집니다`
+          : '투자비 데이터 수집 중';
       })(),
     },
     {
@@ -403,32 +385,9 @@ function Card13({ body = {} }) {
         </window.DrStagger>
       </div>
 
-      {/* [2026-06-27 ROI 업계기준] 수익 2줄 — 사장 본인 인건비 반영.
-            (a) 회계상 영업이익 (b) 사장 월급(216만) 뺀 진짜 수익 = 점수 기준.
-            진짜수익이 음수/소액이면 회색 경고 톤(담담히, doom 금지). null이면 블록 자체 숨김. */}
-      {_hasProfitRows && (() => {
-        const _wageTxt = (_ownerWage != null && isFinite(_ownerWage)) ? `${Math.round(_ownerWage).toLocaleString()}만` : '216만';
-        const _accTxt = `${_accProfit >= 0 ? '+' : ''}${Math.round(_accProfit).toLocaleString()}만원`;
-        const _realTxt = `${_realProfit >= 0 ? '+' : ''}${Math.round(_realProfit).toLocaleString()}만원`;
-        const _warn = _realProfit < 100; // 음수 또는 소액(100만 미만)이면 담담한 회색 안내
-        return (
-          <div className="bc-box" style={{padding:"22px 28px", marginTop:16}}>
-            <div style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:600, letterSpacing:"-0.005em", marginBottom:16}}>월 수익 (사장 본인 인건비 반영)</div>
-            <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, alignItems:"stretch"}}>
-              <div style={{padding:"18px 20px", background:"rgba(255,255,255,0.03)", borderRadius:10, border:"1px solid var(--matte-line)"}}>
-                <div style={{fontSize:13, color:"var(--matte-fg-3)", fontWeight:500, marginBottom:8}}>회계상 영업이익</div>
-                <div style={{fontSize:28, fontWeight:700, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.02em", color: _accProfit >= 0 ? "var(--matte-fg)" : "var(--matte-fg-2)", lineHeight:1.05}}>{_accTxt}</div>
-                <div style={{fontSize:12, color:"var(--matte-fg-4)", marginTop:8, lineHeight:1.5}}>사장 월급을 빼기 전 장부상 이익</div>
-              </div>
-              <div style={{padding:"18px 20px", background: _warn ? "rgba(255,255,255,0.03)" : "rgba(76, 123, 228,0.08)", borderRadius:10, border: _warn ? "1px solid var(--matte-line)" : "1px solid rgba(76, 123, 228,0.40)"}}>
-                <div style={{fontSize:13, color: _warn ? "var(--matte-fg-3)" : "#4C7BE4", fontWeight:600, marginBottom:8}}>진짜 수익 <span style={{fontSize:11, color:"var(--matte-fg-4)", fontWeight:400}}>(사장 월급 {_wageTxt} 뺀 값)</span></div>
-                <div style={{fontSize:28, fontWeight:700, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.02em", color: _warn ? "var(--matte-fg-2)" : "#4C7BE4", lineHeight:1.05}}>{_realTxt}</div>
-                <div style={{fontSize:12, color:"var(--matte-fg-4)", marginTop:8, lineHeight:1.5}}>{_warn ? '사장 본인 인건비까지 반영한 수치 — 점수 기준' : '점수(수익성·투자 회수)는 이 값을 기준으로 매겨집니다'}</div>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
+      {/* [2026-06-29 예언 제거] '월 수익 2줄(회계상 영업이익 / 사장월급 뺀 진짜 수익)'은 내 카페 월수익을 단정하는
+            예측이라 화면에서 제거. ROI 5축 점수(수익성·투자회수)는 동네평균 기준 상권평가라 그대로 두되,
+            '내 카페가 매달 얼마 번다'는 예언성 숫자만 화면에서 뺀다. (데이터층 realProfitMonthly 등은 점수 계산용으로 유지.) */}
 
       {/* 강점 / 약점 — 자동 분류 (mock 활용/대응 박스 제거) */}
       <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginTop:16}}>
@@ -560,9 +519,11 @@ function Card14({ body = {}, onOpenDirector }) {
         </button>
       }>
 
-      {/* [2026-06-15] 한 장 요약 — 상단 배너에서 병합. 카드 톤(파랑/매트)으로 통일, CTA·아이콘·주황 없음. */}
+      {/* [2026-06-29 예언 제거] 한 장 요약 — '예상 월매출·회수기간'(내 카페 예언)은 창업자에게 위험한 단정 예측이라 화면 표시 제거.
+            남기는 값은 둘: 손익분기(목표=얼마 팔아야 본전, 예측 아님) · 총 창업비(들어가는 비용, 예측 아님).
+            ※ ROI 5축 점수(수익성·투자회수)는 동네평균 기준 상권평가라 그대로 둠 — 여기선 '내 카페 예언' 표시만 뺀다. */}
       {(_sum.verdict || _headLine || (_sum.reasons && _sum.reasons.length) || _sum.riskLine ||
-        _st.monthlyText || _st.bepSalesText || _st.paybackMonths || _st.totalStartupText) && (
+        _st.bepSalesText || _st.totalStartupText) && (
         <>
           <div className="bc-box" style={{padding:18, borderLeft:"3px solid #4C7BE4", marginBottom:16}}>
             {_sum.verdict && (
@@ -581,14 +542,14 @@ function Card14({ body = {}, onOpenDirector }) {
             )}
           </div>
 
-          <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
-            <StatTile id="c14.sum1" tone="blue"  label="예상 월매출" value={_st.monthlyText || '-'} hero/>
-            <StatTile id="c14.sum2" tone="mint"  label="손익분기"   value={_st.bepSalesText || '-'} sub={_st.bepCups ? ('하루 약 ' + _st.bepCups + '잔') : ''}/>
-            <StatTile id="c14.sum3" tone="lilac" label="회수기간"   value={_st.paybackMonths ? ('약 ' + _st.paybackMonths + '개월') : '-'}/>
-            <StatTile id="c14.sum4" tone="cream" label="총 창업비"  value={_st.totalStartupText || '-'} sub="15평 기준"/>
-          </div>
+          {(_st.bepSalesText || _st.totalStartupText) && (
+            <div className="bc-grid-2" style={{gap:16, marginBottom:16}}>
+              <StatTile id="c14.sum2" tone="mint"  label="손익분기 (목표 매출)" value={_st.bepSalesText || '-'} sub={_st.bepCups ? ('하루 약 ' + _st.bepCups + '잔') : ''} hero/>
+              <StatTile id="c14.sum4" tone="cream" label="총 창업비"  value={_st.totalStartupText || '-'} sub="15평 기준"/>
+            </div>
+          )}
           <div style={{fontSize:12, color:"var(--matte-fg-4)", lineHeight:1.65, marginBottom:4}}>
-            손익분기는 ‘매달 이만큼(하루 잔 수) 팔면 본전’이 되는 매출, 회수기간은 목표 매출이 나왔을 때 투자금을 되찾는 데 걸리는 예상 기간이에요. (목표 매출 기준 추정이라 실제론 더 걸릴 수 있어요.)
+            손익분기는 ‘매달 이만큼(하루 잔 수)만 팔면 본전’이 되는 목표 매출이에요. 동네 실제 임대료 기준 고정비로 계산한 값이라, 장사를 가늠하는 목표선으로 보시면 됩니다.
           </div>
         </>
       )}

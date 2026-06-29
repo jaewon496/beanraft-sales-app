@@ -11,8 +11,10 @@
   html,body{background:#000;color:var(--ink);font-family:'Pretendard',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
   body{overflow-x:hidden}
 
-  .rail{position:fixed;left:clamp(16px,2.4vw,42px);top:0;bottom:0;width:2px;background:rgba(43,127,255,.32);z-index:40}
-  .rail i{position:absolute;left:0;top:0;width:2px;border-radius:2px;height:0;background:linear-gradient(180deg,rgba(43,127,255,.6),rgba(124,180,255,.95));box-shadow:0 0 9px rgba(43,127,255,.45)}
+  .rail{position:fixed;left:clamp(16px,2.4vw,42px);top:16vh;bottom:16vh;width:1px;background:var(--line);z-index:40}
+  .rail i{position:absolute;left:-1px;top:0;width:3px;border-radius:2px;height:0;background:rgba(255,255,255,.32)}
+  /* 뇌에서 내려오는 빛줄기 — 페이지 끝까지 이어지는 파란 세로선 */
+  .spine{position:fixed;left:50%;transform:translateX(-50%);top:0;bottom:0;width:2px;z-index:6;opacity:0;pointer-events:none;background:linear-gradient(180deg,rgba(124,180,255,.34),rgba(43,127,255,.22));box-shadow:0 0 10px rgba(43,127,255,.25)}
 
   /* 1. 인트로 영상 (제대로 밝게) */
   .hero{height:100vh;position:relative;overflow:hidden;display:flex;align-items:flex-end;justify-content:center}
@@ -97,6 +99,7 @@
 </head>
 <body>
 <div class="rail"><i id="railFill"></i></div>
+<div class="spine" id="spine"></div>
 
 <!-- 1. 인트로 영상 -->
 <section class="hero">
@@ -157,6 +160,8 @@
   var v=document.getElementById('heroVid'); if(v){ var go=function(){v.play().catch(function(){});}; go(); document.addEventListener('visibilitychange',function(){if(!document.hidden)go();}); }
   gsap.to('#sh',{opacity:1,duration:1,delay:1.2});
   ScrollTrigger.create({start:0,end:'max',onUpdate:function(self){var f=document.getElementById('railFill');if(f)f.style.height=(self.progress*100)+'%';}});
+  // 빛줄기(spine): 뇌 시퀀스 들어가면 나타나 카드~끝까지 이어짐
+  ScrollTrigger.create({trigger:'#show',start:'top 78%',onEnter:function(){gsap.to('#spine',{opacity:1,duration:.8});},onLeaveBack:function(){gsap.to('#spine',{opacity:0,duration:.5});}});
   gsap.utils.toArray('.cta .eye,.cta .big,.cta .btn').forEach(function(el){ gsap.to(el,{opacity:1,y:0,duration:1,ease:'power2.out',scrollTrigger:{trigger:el,start:'top 88%',once:true}}); });
 
   var IC = {
@@ -207,7 +212,7 @@
     // 흡수 (칩 → 뇌, 연한 흰 입자)
     if(S.absorb>0 && S.absorb<1){ for(var s=0;s<srcEls.length;s++){ var el=srcEls[s],sx=el._hx+el.offsetWidth/2,sy=el._hy+el.offsetHeight/2; for(var k=0;k<3;k++){ var tt=((S.absorb*2)+s*0.13+k*0.33)%1,px=sx+(cx-sx)*tt,py=sy+(cy-sy)*tt,o=Math.sin(tt*Math.PI); x.beginPath(); x.arc(px,py,1.8,0,6.28); x.fillStyle='rgba(220,232,255,'+(o*0.55).toFixed(2)+')'; x.fill(); } } }
     // 빛줄기 (뇌 → 태블릿, 연한 흰)
-    if(S.beam>0){ var by0=cy+R,by1=H*1.05,grd=x.createLinearGradient(0,by0,0,by1); grd.addColorStop(0,'rgba(210,228,255,'+(S.beam*0.42).toFixed(3)+')'); grd.addColorStop(1,'rgba(160,190,255,0)'); x.fillStyle=grd; x.fillRect(cx-2,by0,4,by1-by0); for(var k=0;k<6;k++){ var tt=((tms*0.0004)+(k/6))%1,py=by0+(by1-by0)*tt; x.beginPath(); x.arc(cx,py,2,0,6.28); x.fillStyle='rgba(225,236,255,'+((1-tt)*S.beam*0.7).toFixed(2)+')'; x.fill(); } }
+    if(S.beam>0){ var by0=cy+R,by1=H*1.08,grd=x.createLinearGradient(0,by0,0,by1); grd.addColorStop(0,'rgba(124,180,255,'+(S.beam*0.5).toFixed(3)+')'); grd.addColorStop(1,'rgba(43,127,255,0)'); x.fillStyle=grd; x.fillRect(cx-1.5,by0,3,by1-by0); for(var k=0;k<6;k++){ var tt=((tms*0.0004)+(k/6))%1,py=by0+(by1-by0)*tt; x.beginPath(); x.arc(cx,py,2,0,6.28); x.fillStyle='rgba(150,190,255,'+((1-tt)*S.beam*0.75).toFixed(2)+')'; x.fill(); } }
     // 칩 위치 (흡수에 따라 뇌로 빨려듦)
     var ab=S.absorb;
     for(var s=0;s<srcEls.length;s++){ var el=srcEls[s],tx=el._hx+(cx-el.offsetWidth/2-el._hx)*ab,ty=el._hy+(cy-el.offsetHeight/2-el._hy)*ab; el.style.transform='translate('+tx.toFixed(1)+'px,'+ty.toFixed(1)+'px) scale('+(1-ab*0.5).toFixed(2)+')'; }

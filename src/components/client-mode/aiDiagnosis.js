@@ -526,11 +526,11 @@ export function buildDiagnosisBundle({ cards, kosisBoxData, collectedData, dataA
       강수일비율: _num(c11.rainyPct),
     }),
     // 12 상권 경쟁 분석 (ROI 5축 — 점수는 화면값 그대로, 변경 금지)
+    //   [2026-06-29 예언 제거] '예상월수익만원·회수개월'은 AI가 예언 문장을 쓰는 재료라 facts에서 뺀다(점수는 유지).
     _clean({
       카페밀집도라벨: _str(c12.level), 종합점수: _num(c12.score),
       수익성점수: _num(c12.scoreMarket), 투자회수점수: _num(c12.scoreCompete),
       경쟁여건점수: _num(c12.scoreChange), 생존안정점수: _num(c12.scoreSurvival), 성장성점수: _num(c12.scoreCost),
-      예상월수익만원: _num(c12.roiMonthlyProfit), 회수개월: _num(c12.roiPaybackMonths),
     }),
     // 13 AI 종합 분석
     _clean({
@@ -962,9 +962,9 @@ function computeGroundedFacts(cardData) {
     F('searchIntents', '검색 의도', c10.검색의도.slice(0, 4).map((k) => _str(k && (k.intent || k.name || k))).filter(Boolean).join(', '), null, 'SNS 트렌드', '외부');
   }
   // ROI 종합 (성장·리스크 렌즈)
+  // [2026-06-29 예언 제거] '예상 월수익·투자 회수개월'은 창업자에게 위험한 단정 예측이라 디렉터/릴스 AI 근거에서 제외.
+  //   (종합점수=상권평가는 유지. 점수 계산은 dataMapper에서 그대로 — 여기선 AI가 예언 문장을 쓸 재료만 뺀다.)
   F('roiScore', 'ROI 종합점수', c12.종합점수, '점', '상권 경쟁 분석', '추정');
-  F('roiMonthlyProfit', '예상 월수익', c12.예상월수익만원, '만원', '상권 경쟁 분석', '추정');
-  F('roiPayback', '투자 회수개월', c12.회수개월, '개월', '상권 경쟁 분석', '추정');
   // 기회/리스크
   F('opportunities', '기회 건수', c13.기회건수, '건', 'AI 종합 분석', '실측');
   F('risks', '리스크 건수', c13.리스크건수, '건', 'AI 종합 분석', '실측');
@@ -1241,7 +1241,7 @@ ${_CHAIN_RULES}
 - 고객 특성(연령분포·성별·소득·1인가구·라이프스타일)
 - 시간·요일(유동/매출 피크 시간·피크 요일·주중주말)
 - 경쟁 구조(카페 수·개인/프랜 비중·브랜드 수·개인vs프랜 객단가)
-- 비용·수익(평당 월세·보증금·권리금·예상 월수익·회수개월·공실률)
+- 비용·구조(평당 월세·보증금·권리금·공실률·고정비 부담)
 - 생존·리스크(1/3/5년 생존율·신규/폐업·기회/리스크 건수)
 - 매출·소비(분위 상/중/하·시군구 대비·소비심리)
 - 수요·SNS(SNS 키워드·검색 의도·인기 메뉴·배달 비중)
