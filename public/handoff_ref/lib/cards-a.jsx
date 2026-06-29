@@ -43,7 +43,7 @@ function Card01({ body = {} }) {
   // [2026-05-21] rentSeries(marketRentSeries.series)는 이미 '만원/평' 단위 → /10000 금지.
   // 기존 /10000 때문에 값이 전부 0으로 깎여 추이 그래프가 평탄 폴백([rentPerPyeong]x2)으로 빠지던 버그 수정.
   const rentSeriesRaw = (Array.isArray(body.rentSeries) && body.rentSeries.length > 0)
-    ? body.rentSeries.map(s => Math.round(Number(s?.value) || 0)).filter(v => v > 0)
+    ? body.rentSeries.map(s => Math.round((Number(s?.value) || 0) * 10) / 10).filter(v => v > 0)
     : [];
   // [2026-05-19] 임계값 완화: 1개라도 있으면 표시 (단일값은 동일값 복제로 평탄 라인)
   const rentSeries = rentSeriesRaw.length >= 2

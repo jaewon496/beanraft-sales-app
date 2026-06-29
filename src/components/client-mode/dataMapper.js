@@ -5921,9 +5921,47 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   //   AI가 매출 카드(901·보통)와 다른 매출 숫자(예: 소상공인 단일월 1,086)나 다른 판정 단어(낮은 편 등)를
   //   써 보내도, 화면에 나가기 전에 단일 진실값(c14CafeSales=901)·단일 판정 단어(c14SalesLevelWord)로 강제 치환한다.
   //   난수/Date 없음 → 같은 지역 재검색 시 항상 동일. 매출 외 다른 주제 문장은 건드리지 않는다.
+  // [2026-06-29 정보분산 패스7 §1-10] AI 종합(card14)이 인용하는 평당월세·공실률도 카드 표시 단일값으로 강제.
+  //   카드7 표시 평당월세 = card7.bodyData.rentPerPyeong(=화면 41). 공실률 = extractVacancy(상권코드)(=화면 6.9, 카드1 vacancyRate와 동일 출처).
+  //   AI가 17만원/9.05% 또는 "한국부동산원 자료에 따르면" 같은 출처명을 써 보내도 화면 전 단계에서 41/6.9로 치환하고 출처명은 제거.
+  const _c14RentPy = Number(card7?.bodyData?.rentPerPyeong) || 0;
+  const _c14Vacancy = (() => {
+    try {
+      const _addr = String(cd?.addressInfo?.address || cd?.address || cd?.region || dong?.address || '').trim();
+      const _sk = mapToCommercialDistrict(_addr);
+      const v = extractVacancy(apis, _sk);
+      return (v && Number(v.value) > 0) ? Math.round(Number(v.value) * 10) / 10 : 0;
+    } catch (e) { return 0; }
+  })();
+  // 화면 출처표기 금지(사장님 결정): "한국부동산원/부동산원/KOSIS/공식 통계/통계청 (자료/통계) (에 따르면/기준으로)" 인용구 제거. 값은 남김.
+  const _stripSourceNames = (s) => {
+    if (!s || typeof s !== 'string') return s;
+    let t = s;
+    if (/한국부동산원|부동산원|KOSIS|kosis|공식\s*통계|공식통계|통계청/.test(t)) {
+      t = t.replace(/(한국부동산원|부동산원|KOSIS|kosis|공식\s*통계|통계청)\s*(자료|통계|데이터|발표|조사|기준|집계)?\s*(에\s*따르면|에\s*의하면|을\s*기준으로|기준으로|에\s*따라|상)?\s*(으로|로|에)?\s*[,，]?\s*/g, '');
+      ['한국부동산원', '부동산원', 'KOSIS', 'kosis', '공식 통계', '공식통계', '통계청'].forEach((w) => { t = t.split(w).join(''); });
+      t = t.replace(/^\s*(자료|통계|데이터)?\s*(에\s*따르면|에\s*의하면|기준으로|으로|로)\s*[,，]?\s*/, '');
+      // 괄호 안 출처를 떼고 남은 빈/슬래시만 남은 괄호 정리: "(/)" "( · )" "()" → 삭제, "(/ 기준)" 류도.
+      t = t.replace(/[\(（]\s*[\/·,，、\s]*\s*(기준|출처|자료)?\s*[\)）]/g, '');
+      t = t.replace(/\s*[,，]\s*[,，]/g, ', ').replace(/^\s*[,，·、]\s*/, '').replace(/\s{2,}/g, ' ').trim();
+    }
+    return t;
+  };
   const _normalizeSalesText = (txt) => {
     if (!txt || typeof txt !== 'string') return txt;
     let out = txt;
+    // 평당월세 숫자 → 카드 표시 단일값(41)으로 치환 ("평당 월세가 17만원" / "평당월세 17만 원" 류)
+    if (_c14RentPy > 0) {
+      out = out.replace(/((?:평당\s*월세|평당월세|평당\s*임대료)[^\d]{0,8})([\d,]+)\s*만\s*원?/g,
+        (m, pre) => `${pre}${_c14RentPy.toLocaleString()}만원`);
+    }
+    // 공실률 숫자 → 카드 표시 단일값(6.9)으로 치환 ("공실률은 9.05%" / "공실률 9%" 류)
+    if (_c14Vacancy > 0) {
+      out = out.replace(/(공실률[^\d]{0,6})([\d.]+)\s*%/g,
+        (m, pre) => `${pre}${_c14Vacancy}%`);
+    }
+    // 출처명·출처 인용구 제거(화면 출처표기 0건).
+    out = _stripSourceNames(out);
     if (c14CafeSales > 0) {
       // "월평균 매출이 1,086만원" / "월매출 1086만원" 류의 매출 숫자 → 901만원으로 치환
       out = out.replace(/((?:월\s*평균\s*매출|월평균\s*매출|월매출|카페\s*매출|평균\s*매출)[^\d]{0,6})([\d,]+)\s*만원/g,
@@ -6624,38 +6662,40 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       '여건이 도전적인 자리입니다. 규모를 예산에 맞추고 뚜렷한 콘셉트로 차별화하면 비집고 들어갈 여지는 분명히 있습니다.'
     );
     return {
-      intro,
+      // [2026-06-29 §1-10/패스7] 디렉터 전 섹션 텍스트에 출처명(한국부동산원 등) 제거 + 매출/평당월세/공실 단일값 치환.
+      intro: _normalizeSalesText(intro),
       market: {
-        headline: _aiDirector?.market?.headline || `카페 ${_mkt.totalCafes || 0}개 밀집 상권`,
-        observations: (_aiDirector?.market?.observations?.length ? _aiDirector.market.observations : mktObs).filter(Boolean),
+        headline: _normalizeSalesText(_aiDirector?.market?.headline || `카페 ${_mkt.totalCafes || 0}개 밀집 상권`),
+        observations: (_aiDirector?.market?.observations?.length ? _aiDirector.market.observations : mktObs).map(_normalizeSalesText).filter(Boolean),
         keyMetric: _aiDirector?.market?.keyMetric || { label: '총 카페 수', value: `${_mkt.totalCafes || 0}개` },
         citation: '카드 1·3·4'
       },
       customer: {
-        headline: _aiDirector?.customer?.headline || `${_cus.topAge || '주요 연령대'} 중심 고객`,
-        observations: (_aiDirector?.customer?.observations?.length ? _aiDirector.customer.observations : cusObs).filter(Boolean),
+        headline: _normalizeSalesText(_aiDirector?.customer?.headline || `${_cus.topAge || '주요 연령대'} 중심 고객`),
+        observations: (_aiDirector?.customer?.observations?.length ? _aiDirector.customer.observations : cusObs).map(_normalizeSalesText).filter(Boolean),
         keyMetric: _aiDirector?.customer?.keyMetric || (_cus.floatingPop ? { label: '월 유동인구', value: `${(_cus.floatingPop / 10000).toFixed(1)}만명` } : null),
         citation: '카드 2·6'
       },
       competition: {
-        headline: _aiDirector?.competition?.headline || `종합 ${c14OverallScore || 0}점 상권`,
-        observations: (_aiDirector?.competition?.observations?.length ? _aiDirector.competition.observations : cmpObs).filter(Boolean),
+        headline: _normalizeSalesText(_aiDirector?.competition?.headline || `종합 ${c14OverallScore || 0}점 상권`),
+        observations: (_aiDirector?.competition?.observations?.length ? _aiDirector.competition.observations : cmpObs).map(_normalizeSalesText).filter(Boolean),
         keyMetric: _aiDirector?.competition?.keyMetric || { label: '종합 점수', value: `${c14OverallScore || 0}점 / 100점` },
         citation: '카드 12'
       },
       profit: {
-        headline: _aiDirector?.profit?.headline || (_pft.monthlySales ? `월매출 ${_pft.monthlySales.toLocaleString()}만원 수준` : '수익 구조'),
-        observations: (_aiDirector?.profit?.observations?.length ? _aiDirector.profit.observations : pftObs).filter(Boolean),
+        // [2026-06-29 §1-10] AI 디렉터 수익 텍스트도 평당월세·공실률을 카드값(41/6.9)으로 치환하고 출처명 제거.
+        headline: _normalizeSalesText(_aiDirector?.profit?.headline || (_pft.monthlySales ? `월매출 ${_pft.monthlySales.toLocaleString()}만원 수준` : '수익 구조')),
+        observations: (_aiDirector?.profit?.observations?.length ? _aiDirector.profit.observations : pftObs).map(_normalizeSalesText).filter(Boolean),
         keyMetric: _aiDirector?.profit?.keyMetric || (_pft.monthlySales ? { label: '월평균 매출', value: `${_pft.monthlySales.toLocaleString()}만원` } : null),
         citation: '카드 5·7·11'
       },
       direction: {
-        headline: _aiDirector?.direction?.headline || `${_dir.storeTrendLabel || '점포 추이'} 흐름`,
-        observations: (_aiDirector?.direction?.observations?.length ? _aiDirector.direction.observations : dirObs).filter(Boolean),
+        headline: _normalizeSalesText(_aiDirector?.direction?.headline || `${_dir.storeTrendLabel || '점포 추이'} 흐름`),
+        observations: (_aiDirector?.direction?.observations?.length ? _aiDirector.direction.observations : dirObs).map(_normalizeSalesText).filter(Boolean),
         keyMetric: _aiDirector?.direction?.keyMetric || (_dir.survivalRate3y ? { label: '3년 생존율', value: `${_dir.survivalRate3y}%` } : null),
         citation: '카드 3·9·10·11·13'
       },
-      closing
+      closing: _normalizeSalesText(closing)
     };
   })();
 

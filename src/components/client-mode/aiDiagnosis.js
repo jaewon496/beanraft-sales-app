@@ -380,6 +380,15 @@ export function buildDiagnosisBundle({ cards, kosisBoxData, collectedData, dataA
     return null;
   })();
 
+  // [2026-06-29 정보분산 패스7 §1-10 통일] AI 종합/디렉터가 인용하는 평당월세·공실률을
+  //   '카드 화면이 실제로 표시하는 단일값'과 같게 만든다. 예전엔 평당월세를 integratedRentPy
+  //   (한국부동산원/KOSIS 가중=17)부터 잡아 카드 표시값(41=카드7 rentPerPyeong, 네이버 매물)과 어긋났음.
+  //   화면 카드1(cards-a.jsx) 체인과 100% 동일하게 맞춘다:
+  //     평당월세 = cards[7].bodyData.rentPerPyeong (=화면 41) 우선 → 없으면 integratedRentPy 폴백.
+  //     공실률   = kosisBoxData.vacancy.value (=화면 6.9, 카드1 vacancyRate와 동일 출처).
+  const displayRentPy = _num(c7.rentPerPyeong) || integratedRentPy;
+  const displayVacancy = (kosisBoxData && kosisBoxData.vacancy && _num(kosisBoxData.vacancy.value)) || _num(c8.vacancy);
+
   // 메뉴 급등 항목 + 계절 성격 힌트(순행/역행 판정 재료). cards[?] 에 menuTrend류가 있으면 사용.
   const menuRising = (() => {
     const raw = c4.risingMenus || c4.menuTrend || c5.risingMenus || (collectedData && collectedData.menuTrend);
@@ -476,19 +485,23 @@ export function buildDiagnosisBundle({ cards, kosisBoxData, collectedData, dataA
       피크요일: _str(c6.peakDay) || _str(c6.salesPeakDay),
     }),
     // 7 임대/창업
-    //   ★[2026-06-25 단위버그 수정] 평당월세는 반드시 '만원/평' 단위 필드(rentPerPyeongManwon)를 쓴다.
-    //     bd.rentPerPyeong(=406)은 원시/잘못된 단위라 신호 추출기가 "1665% 높은 406만원" 쓰레기를 냈음.
-    //     화면 카드(cards-b.jsx)도 rentPerPyeongManwon → integratedRent → rentPerPyeong 순으로 만원값을 잡는다(동일 체인).
+    //   ★[2026-06-29 정보분산 패스7 §1-10] 평당월세는 '화면 카드 표시 단일값'(displayRentPy=카드7 rentPerPyeong=41)을
+    //     1순위로 쓴다. 예전엔 rentPerPyeongManwon/integratedRentPy(한국부동산원 17)부터 잡아 카드(41)와 어긋났음.
+    //     화면 카드1(cards-a.jsx) 체인(rentPerPyeong || integratedRent)과 동일. 한국부동산원 평균은 '평당월세_지역평균만원'에만.
     //     보증금도 depositManwon(만원) 우선, 권리금 premiumCost(만원)은 그대로.
     _clean({
-      평당월세만원: _num(c7.rentPerPyeongManwon) || integratedRentPy || _num(c7.rentPerPyeong),
+      평당월세만원: displayRentPy,
       권리금만원: _num(c7.premiumCost),
       보증금만원: _num(c7.depositManwon) || _num(c7.deposit),
-      평당월세_지역평균만원: integratedRentPy,
+      // [2026-06-29 §1-10] 지역평균 기준도 표시 단일값으로 맞춘다 → 평당월세 신호가 '17만원 대비 +141%'
+      //   같은 어긋난 비교를 만들지 않고 '평균수준'으로 자연 탈락하게(카드와 다른 17 숫자 출력 차단).
+      평당월세_지역평균만원: displayRentPy,
     }),
     // 8 카페 기회
+    //   ★[2026-06-29 정보분산 패스7 §1-10] 공실률은 카드1(cards-a.jsx) vacancyRate와 동일 출처
+    //     (kosisBoxData.vacancy.value=화면 6.9). 예전엔 cards[8].bodyData.vacancy(미설정/한국부동산원 9.05)로 갈렸음.
     _clean({
-      공실률: _num(c8.vacancy), 신규오픈: _num(c8.newOpen), 개인비중: _num(c8.individualPct),
+      공실률: displayVacancy, 신규오픈: _num(c8.newOpen), 개인비중: _num(c8.individualPct),
     }),
     // 9 배달 객단가
     //   ★[2026-06-28 B관찰자형] 배달 비중(전체 매출 중 배달%)도 있으면 facts 재료로 — 채널 렌즈.
@@ -526,7 +539,8 @@ export function buildDiagnosisBundle({ cards, kosisBoxData, collectedData, dataA
     소비심리: _str(kosisBoxData && kosisBoxData.consumerSentiment && kosisBoxData.consumerSentiment.value),
     소비심리기준: _str(kosisBoxData && kosisBoxData.consumerSentiment && kosisBoxData.consumerSentiment.period),
     카페폐업률: _str(kosisBoxData && kosisBoxData.cafeClosure && kosisBoxData.cafeClosure.value),
-    평당월세_지역평균만원: integratedRentPy,
+    // [2026-06-29 §1-10] 벤치마크 평당월세도 카드 표시 단일값으로(AI는 averages 언급 금지지만 출처 일관성 유지).
+    평당월세_지역평균만원: displayRentPy,
   });
 
   // Phase 1 — 통계 선별: "진짜 튀는 신호"만 추리고, 평균 수준은 averages로 분리.
@@ -555,7 +569,9 @@ export function buildDiagnosisBundle({ cards, kosisBoxData, collectedData, dataA
 //   새 경로가 실패/예외면 getUnifiedDiagnosis 가 자동으로 v9 결과를 반환한다.
 // ═════════════════════════════════════════════════════════════════════════
 
-const AI_DIAG_V10_PREFIX = 'bc_ai_diag_v10pro_';  // 종합(배너/진단/설계방향) pro 단일콜 추론 전용 캐시
+const AI_DIAG_V10_PREFIX = 'bc_ai_diag_v10pro2_';  // 종합(배너/진단/설계방향) pro 단일콜 추론 전용 캐시
+//   ★[2026-06-29 정보분산 패스7] v10pro_→v10pro2_ : 평당월세·공실률을 카드 표시 단일값(41/6.9)으로 통일하며
+//     캐시 무효화. 옛 17/9.05 텍스트가 남아있던 캐시를 버리고 다음 검색 때 41/6.9로 재생성되게 함.
 //   ★[2026-06-28] 모델 'flash'→'pro'(gemini-2.5-pro, 판단력 최강) 업그레이드. 캐시키도 v10pro로 올려
 //     기존 flash 캐시와 섞이지 않게 함(같은 동은 pro로 1회만 돌고 캐시). 14장 cardLines는 여전히 flash.
 //   ★[2026-06-28 긴급] 4~5홉 순차호출이 504(24초 타임아웃)·과다호출(차단/과금 위험)이라 → pro '단일콜'로 압축.
@@ -1029,6 +1045,13 @@ function _hasBanned(text) {
 // 자사 홍보어 — 프롬프트로 금지했지만, 만에 하나 남으면 후처리로 제거(문장은 안 버리고 그 구절만 잘라냄).
 const SELF_PROMO_WORDS = ['빈크래프트', 'beancraft', 'BeanCraft'];
 
+// ★[2026-06-29 정보분산 패스7] 화면 출처표기 전면 금지(사장님 결정 report-output-audit-fix).
+//   AI가 "한국부동산원 자료에 따르면 …" 같은 출처명을 붙이면 그 출처 인용 구절만 들어내고 값(숫자)은 살린다.
+//   값은 통합 단일값이므로 출처를 댈 필요가 없다. 자사명과 동일 방식(절 단위 제거)으로 처리.
+const SOURCE_NAME_WORDS = ['한국부동산원', '부동산원', 'KOSIS', 'kosis', '공식 통계', '공식통계', '통계청'];
+// 출처 인용 상투구(앞에 출처명, 뒤에 "자료/통계에 따르면/기준으로/에 의하면")까지 통째로 지우는 패턴.
+const SOURCE_CITATION_RE = /(한국부동산원|부동산원|KOSIS|kosis|공식\s*통계|통계청)\s*(자료|통계|데이터|발표|조사|기준|집계)?\s*(에\s*따르면|에\s*의하면|을\s*기준으로|기준으로|에\s*따라|상)?\s*(으로|로|에)?\s*[,，]?\s*/g;
+
 // ★[2026-06-28] 출력 후처리 — ①남은 대괄호([근거:...]·[...]) 제거 ②자사 홍보 문구 정리.
 //   대괄호: 통째 삭제. 자사명: 그 자사명이 든 '절(clause)'을 잘라내되 문장은 살린다.
 function _postProcessLine(text) {
@@ -1036,6 +1059,17 @@ function _postProcessLine(text) {
   if (!t) return '';
   // ① 대괄호 태그 제거([근거:항목=값], [출처:...], 그 외 [..] 모두). 전각 대괄호도.
   t = t.replace(/\s*[\[【][^\]】]*[\]】]/g, '');
+  // ①-b ★[2026-06-29 패스7] 출처명/출처 인용 상투구 제거(화면 출처표기 금지). 값(숫자)은 남긴다.
+  //   "한국부동산원 자료에 따르면 평당 월세는 41만원이며" → "평당 월세는 41만원이며".
+  if (SOURCE_NAME_WORDS.some((w) => t.indexOf(w) >= 0)) {
+    t = t.replace(SOURCE_CITATION_RE, '');                 // 출처 인용 상투구 통째 제거
+    SOURCE_NAME_WORDS.forEach((w) => { t = t.split(w).join(''); });  // 남은 출처명 단어 제거
+    // 출처명만 떼고 남은 어색한 조사/구두점 정리("이며·이고·자료에 따르면·으로/로" 잔재)
+    t = t.replace(/^\s*(자료|통계|데이터)?\s*(에\s*따르면|에\s*의하면|기준으로|으로|로)\s*[,，]?\s*/, '');
+    // 괄호 안 출처를 떼고 남은 빈/슬래시만 남은 괄호 정리: "(/)" "( · )" "()" → 삭제.
+    t = t.replace(/[\(（]\s*[\/·,，、\s]*\s*(기준|출처|자료)?\s*[\)）]/g, '');
+    t = t.replace(/\s*[,，]\s*[,，]/g, ', ').replace(/^\s*[,，·、]\s*/, '').trim();
+  }
   // ② 자사명이 들어간 경우: 그 자사명을 포함하는 절(쉼표/구분 단위)을 들어내고 나머지로 자연스럽게 잇는다.
   const hasPromo = SELF_PROMO_WORDS.some((w) => t.indexOf(w) >= 0);
   if (hasPromo) {
@@ -1167,7 +1201,8 @@ const _CHAIN_RULES = `[관찰 규칙 — 엄수]
 3. doom·상투어 절대 금지: 쇠퇴/포화/블루오션/레드오션/붕괴/몰락/대박/핫플/"시그니처로 차별화" 같은 마케팅 클리셰.
 4. 회사명·자사 서비스(빈크래프트/인테리어/메뉴개발/운영교육/시공) 언급 절대 금지. 오직 '자리(상권) 자체의 방향'만 서술한다.
 5. 평범한(특이점 없는) 축은 억지로 끼우지 말고 뺀다. 근거가 부족하면 "대체로 평균 수준, 특이점 적음"으로 정직히 줄인다(지어내기 금지).
-6. 구체 제품을 단정하지 마라("○○ 메뉴를 팔아라" 금지). "이 자리는 ○○ 특성이라 △△ 방향이 맞는다"까지만.`;
+6. 구체 제품을 단정하지 마라("○○ 메뉴를 팔아라" 금지). "이 자리는 ○○ 특성이라 △△ 방향이 맞는다"까지만.
+7. 출처명·기관명 인용 절대 금지: "한국부동산원/부동산원/KOSIS/공식 통계/통계청 자료에 따르면" 같은 표현 쓰지 마라. 값은 그대로 쓰되 출처를 대지 않는다(값은 이미 통합 단일값이다).`;
 
 // pro 단일콜 프롬프트 — ★[2026-06-28] 'B 관찰자형'. 신호 3개에만 매달리지 말고 근거 facts '전체'를
 //   여러 렌즈로 훑어 이 자리만의 해석을 펼친다. designDirection 이 핵심(서로 다른 축 4~6줄).
@@ -1308,6 +1343,7 @@ ${abstain
 1. 클리셰("차별화하세요"류) 금지.
 2. 지어내기 금지 — [튀는 신호]에 없는 외부사실(교통 개통·뉴스·정책 등)·미측정 단정("대부분 평범하다/포화다"류) 절대 금지. 신호로 못 받치면 말하지 마라.
 3. 빈 의미 라벨 금지 — "이 동네만의 신호"처럼 알맹이 없는 말 금지. 신호의 항목·편차를 그대로 풀어 적는다.
+4. ★출처명·기관명 인용 금지 — "한국부동산원/부동산원/KOSIS/공식 통계/통계청 자료에 따르면" 같은 출처 인용 표현 절대 쓰지 마라. 값(숫자)만 쓰고 출처는 대지 않는다.
 
 [★cardLines(14개 카드 한 줄평) — '관찰자' 품질로]
 - cardLines 의 14줄은 위 bannerLine/diagnosis 규칙과 달리, 각 줄이 '그 카드'의 데이터를 '관찰자 시점'으로 해석한 한 줄이다([참고용 전체 수치]의 해당 카드 숫자를 근거로).
@@ -1514,10 +1550,13 @@ export async function getUnifiedDiagnosis({ cards, kosisBoxData, collectedData, 
       //   이제 v9 캐시 hit 여도 v10 레이어를 거친다(v10 자체 캐시로 같은 동 1회만 pro).
       _v10trace('0b_v9_cache_hit', { hasEnough });
       const v9Cached = { ...validate(cached), designDirection: cached.designDirection || null, _source: 'cache', _key: key };
-      // 옛 캐시(후처리 전)에도 대괄호/자사명/지어낸숫자 줄 정리 적용(화면 일관성).
+      // 옛 캐시(후처리 전)에도 대괄호/자사명/출처명/지어낸숫자 줄 정리 적용(화면 일관성).
       try {
         const _facts = computeGroundedFacts(bundle.cards);
         v9Cached.cardLines = _cleanCardLines(v9Cached.cardLines, _facts);
+        // ★[2026-06-29 패스7] 옛 v9 캐시 배너/진단의 출처명·대괄호·자사명 세탁(출처표기 0건 보장).
+        if (v9Cached.bannerLine) v9Cached.bannerLine = _postProcessLine(v9Cached.bannerLine) || v9Cached.bannerLine;
+        if (v9Cached.diagnosis) v9Cached.diagnosis = _postProcessLine(v9Cached.diagnosis) || v9Cached.diagnosis;
       } catch (eCl) { /* 유지 */ }
       if (!hasEnough) return v9Cached;   // 데이터 빈약하면 v10 안 돌리고 v9 캐시 그대로
       return await _applyV10Layer(v9Cached, bundle, { dongCd, address, radius });
@@ -1570,6 +1609,10 @@ export async function getUnifiedDiagnosis({ cards, kosisBoxData, collectedData, 
     try {
       const _facts = computeGroundedFacts(bundle.cards);
       validated.cardLines = _cleanCardLines(validated.cardLines, _facts);
+      // ★[2026-06-29 패스7] v9 배너/진단도 후처리(대괄호·자사명·출처명 제거). v10 실패 시 이게 화면에 남으므로
+      //   출처표기(한국부동산원 등) 0건 보장을 위해 여기서도 세탁한다.
+      if (validated.bannerLine) validated.bannerLine = _postProcessLine(validated.bannerLine) || validated.bannerLine;
+      if (validated.diagnosis) validated.diagnosis = _postProcessLine(validated.diagnosis) || validated.diagnosis;
     } catch (eCl) { /* 후처리 실패해도 원본 cardLines 유지 */ }
 
     // v9(통역) 결과 = 14 cardLines 의 안전한 기반. 이게 곧 폴백 베이스다.
