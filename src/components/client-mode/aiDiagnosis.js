@@ -14,7 +14,7 @@
 // ════════════════════════════════════════════════════════════════════════
 
 const AI_DIAG_CACHE_PREFIX = 'bc_ai_diag_';   // 기존 키 컨벤션(bc_* snake_case) 준수
-const AI_DIAG_SCHEMA_VER = 'v9';              // 프롬프트/스키마 바뀌면 올려서 캐시 무효화 (v9: 개인/프랜 비중 신호를 진짜 전국 평균 기준으로 — 전국 카페 개인 75%/프랜 25%(통계청 서비스업조사+공정위 가맹 2022, 출처 있는 실값)와 비교. 편차(%p) ≥10%p 일 때만 "전국 평균(개인 75%) 대비 N%p 높음/낮음" 신호, 미만이면 "전국 평균과 비슷한 수준"으로 자동 탈락. 옛 "내부 50/50 lean" 내부비교 폐기(배수는 보조로만 유지) / v8: 전년대비 매출 변화율을 동 단위(saleAmt/prevYearAmt, 점포 60~70개 소표본 노이즈로 ±수십% 요동)에서 구 단위(guAmt/prevYearGuAmt, 점포 600여 개 안정)로 교정 — '전년 대비 28% 감소·하락세' 거짓 신호 제거, 시장규모 +31%·구 평탄과 일관 / v7: 가짜 비교기준 전수 제거 — 개인/프랜 "전국평균(반반=50)"·ROI "평균 50"·공실률 "통상 7%" 상수 가정 삭제. 개인↔프랜=내부 배수, ROI=점수자체, 공실=값자체, 전년대비=전년기준으로 정직화 / v6: 매출 시군구 기준을 실제 필드 guAvg로 교정·드롭됐던 매출 신호 복구 / v5: bundle에서 상위20%매출 raw 제거·매출 비교 앵커 시군구 한정 / v4: 매출 신호 시군구 라벨 명시 / 개인↔프랜 거울상 한쪽만 신호)
+const AI_DIAG_SCHEMA_VER = 'v10';            // 프롬프트/스키마 바뀌면 올려서 캐시 무효화 (v10[패스8]: 평당월세 facts 진짜 출처 교정 — '가게 전체 월세(619/17)'를 per평 통합값(41)으로 바꿈. 옛 v9 캐시에 619/17 facts로 생성된 디렉터/한줄평 텍스트가 남아 화면에 그대로 떠서, 캐시 무효화로 41 기준 재생성 강제. / v9: 개인/프랜 비중 신호를 진짜 전국 평균 기준으로 — 전국 카페 개인 75%/프랜 25%(통계청 서비스업조사+공정위 가맹 2022, 출처 있는 실값)와 비교. 편차(%p) ≥10%p 일 때만 "전국 평균(개인 75%) 대비 N%p 높음/낮음" 신호, 미만이면 "전국 평균과 비슷한 수준"으로 자동 탈락. 옛 "내부 50/50 lean" 내부비교 폐기(배수는 보조로만 유지) / v8: 전년대비 매출 변화율을 동 단위(saleAmt/prevYearAmt, 점포 60~70개 소표본 노이즈로 ±수십% 요동)에서 구 단위(guAmt/prevYearGuAmt, 점포 600여 개 안정)로 교정 — '전년 대비 28% 감소·하락세' 거짓 신호 제거, 시장규모 +31%·구 평탄과 일관 / v7: 가짜 비교기준 전수 제거 — 개인/프랜 "전국평균(반반=50)"·ROI "평균 50"·공실률 "통상 7%" 상수 가정 삭제. 개인↔프랜=내부 배수, ROI=점수자체, 공실=값자체, 전년대비=전년기준으로 정직화 / v6: 매출 시군구 기준을 실제 필드 guAvg로 교정·드롭됐던 매출 신호 복구 / v5: bundle에서 상위20%매출 raw 제거·매출 비교 앵커 시군구 한정 / v4: 매출 신호 시군구 라벨 명시 / 개인↔프랜 거울상 한쪽만 신호)
 const AI_DIAG_TIMEOUT_MS = 26000;
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -380,13 +380,16 @@ export function buildDiagnosisBundle({ cards, kosisBoxData, collectedData, dataA
     return null;
   })();
 
-  // [2026-06-29 정보분산 패스7 §1-10 통일] AI 종합/디렉터가 인용하는 평당월세·공실률을
-  //   '카드 화면이 실제로 표시하는 단일값'과 같게 만든다. 예전엔 평당월세를 integratedRentPy
-  //   (한국부동산원/KOSIS 가중=17)부터 잡아 카드 표시값(41=카드7 rentPerPyeong, 네이버 매물)과 어긋났음.
-  //   화면 카드1(cards-a.jsx) 체인과 100% 동일하게 맞춘다:
-  //     평당월세 = cards[7].bodyData.rentPerPyeong (=화면 41) 우선 → 없으면 integratedRentPy 폴백.
-  //     공실률   = kosisBoxData.vacancy.value (=화면 6.9, 카드1 vacancyRate와 동일 출처).
-  const displayRentPy = _num(c7.rentPerPyeong) || integratedRentPy;
+  // [2026-06-29 정보분산 패스8 §1-10 통일] AI 종합/디렉터가 인용하는 평당월세·공실률을
+  //   '카드 화면 KPI 단일값(41)'과 같게 만든다.
+  //   ★[패스7 버그·패스8 교정] 직전엔 cards[7].bodyData.rentPerPyeong 을 '41(per평)'이라 착각해 1순위로 썼다.
+  //     그러나 그 키는 dataMapper(line 2896 avgRent→rentPerPyeong)·Gemini 원본에선 '가게 전체 월세(만원, 예 619/17)'다
+  //     (UnifiedLayout line 5434 주석 동일 경고). 그래서 displayRentPy 가 619/17이 되어 facts·프롬프트로 흘러
+  //     AI 종합이 '평당 17만원·619만원'을 뱉었다. ⇒ 진짜 per평 단일값인 integratedRentPy(=kosisBoxData.integratedRent,
+  //     buildIntegratedRent 한국부동산원+네이버 가중, KPI/카드1/카드8과 동일=41)를 1순위로 쓴다.
+  //     폴백은 firebaseRent 평당단가(c7.perPyeong, 만원/평)만 — '가게 전체 월세(c7.rentPerPyeong)'는 절대 쓰지 않는다.
+  //     공실률 = kosisBoxData.vacancy.value (=화면 6.9, 카드1 vacancyRate와 동일 출처).
+  const displayRentPy = integratedRentPy || _num(c7.perPyeong);
   const displayVacancy = (kosisBoxData && kosisBoxData.vacancy && _num(kosisBoxData.vacancy.value)) || _num(c8.vacancy);
 
   // 메뉴 급등 항목 + 계절 성격 힌트(순행/역행 판정 재료). cards[?] 에 menuTrend류가 있으면 사용.
@@ -413,7 +416,7 @@ export function buildDiagnosisBundle({ cards, kosisBoxData, collectedData, dataA
     _clean({
       카페수: _num(c0.cafes), 개인: _num(c0.individual), 프랜차이즈: _num(c0.franchise),
       개인비중퍼센트: (_num(c0.cafes) && _num(c0.individual)) ? Math.round(c0.individual / c0.cafes * 100) : null,
-      반경m: _num(radius), 평당월세만원: integratedRentPy,
+      반경m: _num(radius), 평당월세만원: displayRentPy,   // [패스8] 카드0도 단일값(displayRentPy=41)으로 — 옛 integratedRentPy 직참조 폐기
     }),
     // 1 고객 분석
     //   ★[2026-06-28] 연령분포(ageGroups: {name,pct}[])도 같이 넘긴다 — pro가 "60대 37%·50대 22%"처럼
@@ -485,9 +488,9 @@ export function buildDiagnosisBundle({ cards, kosisBoxData, collectedData, dataA
       피크요일: _str(c6.peakDay) || _str(c6.salesPeakDay),
     }),
     // 7 임대/창업
-    //   ★[2026-06-29 정보분산 패스7 §1-10] 평당월세는 '화면 카드 표시 단일값'(displayRentPy=카드7 rentPerPyeong=41)을
-    //     1순위로 쓴다. 예전엔 rentPerPyeongManwon/integratedRentPy(한국부동산원 17)부터 잡아 카드(41)와 어긋났음.
-    //     화면 카드1(cards-a.jsx) 체인(rentPerPyeong || integratedRent)과 동일. 한국부동산원 평균은 '평당월세_지역평균만원'에만.
+    //   ★[2026-06-29 정보분산 패스8 §1-10] 평당월세는 KPI 단일값 displayRentPy(=integratedRentPy=통합 per평=41).
+    //     ★패스7은 'displayRentPy=카드7 rentPerPyeong'을 41로 착각했으나 그 키는 '가게 전체 월세(619/17)'였다(상단 정의부 참조).
+    //     이제 통합 per평(buildIntegratedRent, 카드1/카드8 KPI와 동일)만 facts로 들어가 41 단일. 지역평균도 같은 값.
     //     보증금도 depositManwon(만원) 우선, 권리금 premiumCost(만원)은 그대로.
     _clean({
       평당월세만원: displayRentPy,
@@ -569,7 +572,10 @@ export function buildDiagnosisBundle({ cards, kosisBoxData, collectedData, dataA
 //   새 경로가 실패/예외면 getUnifiedDiagnosis 가 자동으로 v9 결과를 반환한다.
 // ═════════════════════════════════════════════════════════════════════════
 
-const AI_DIAG_V10_PREFIX = 'bc_ai_diag_v10pro2_';  // 종합(배너/진단/설계방향) pro 단일콜 추론 전용 캐시
+const AI_DIAG_V10_PREFIX = 'bc_ai_diag_v10pro3_';  // 종합(배너/진단/설계방향) pro 단일콜 추론 전용 캐시
+//   ★[2026-06-29 정보분산 패스8] v10pro2_→v10pro3_ : 평당월세 facts 의 '진짜 출처'를 교정(가게 전체 월세 619/17
+//     → 통합 per평 41)하며 캐시 무효화. 패스7은 표면(displayRentPy 변수)만 바꾸고 실제 facts에 619/17이 남아
+//     AI가 그걸 그대로 인용했음. 옛 캐시를 버리고 다음 검색 때 41/6.9로 재생성되게 함.
 //   ★[2026-06-29 정보분산 패스7] v10pro_→v10pro2_ : 평당월세·공실률을 카드 표시 단일값(41/6.9)으로 통일하며
 //     캐시 무효화. 옛 17/9.05 텍스트가 남아있던 캐시를 버리고 다음 검색 때 41/6.9로 재생성되게 함.
 //   ★[2026-06-28] 모델 'flash'→'pro'(gemini-2.5-pro, 판단력 최강) 업그레이드. 캐시키도 v10pro로 올려

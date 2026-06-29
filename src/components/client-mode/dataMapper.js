@@ -5921,10 +5921,27 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   //   AI가 매출 카드(901·보통)와 다른 매출 숫자(예: 소상공인 단일월 1,086)나 다른 판정 단어(낮은 편 등)를
   //   써 보내도, 화면에 나가기 전에 단일 진실값(c14CafeSales=901)·단일 판정 단어(c14SalesLevelWord)로 강제 치환한다.
   //   난수/Date 없음 → 같은 지역 재검색 시 항상 동일. 매출 외 다른 주제 문장은 건드리지 않는다.
-  // [2026-06-29 정보분산 패스7 §1-10] AI 종합(card14)이 인용하는 평당월세·공실률도 카드 표시 단일값으로 강제.
-  //   카드7 표시 평당월세 = card7.bodyData.rentPerPyeong(=화면 41). 공실률 = extractVacancy(상권코드)(=화면 6.9, 카드1 vacancyRate와 동일 출처).
-  //   AI가 17만원/9.05% 또는 "한국부동산원 자료에 따르면" 같은 출처명을 써 보내도 화면 전 단계에서 41/6.9로 치환하고 출처명은 제거.
-  const _c14RentPy = Number(card7?.bodyData?.rentPerPyeong) || 0;
+  // [2026-06-29 정보분산 패스8 §1-10] AI 종합(card14)이 인용하는 평당월세·공실률을 '화면 KPI 단일값'으로 강제.
+  //   ★[패스8 진짜 출처 교정] 평당월세 단일값(=화면 41)은 buildIntegratedRent(한국부동산원+네이버매물 가중, 만원/평)다.
+  //     카드1/카드8 KPI '평당 월세'(_roiIntegratedRent, line 4072)와 '완전히 동일한 체인'으로 맞춘다.
+  //     ★[패스7 버그] 직전엔 card7.bodyData.rentPerPyeong을 41로 착각해 썼는데, 그 값은 'rentPerPyeong'으로
+  //       명명됐지만 실은 '가게 전체 월세(만원, 예 619)'다(line 2896 avgRent → rentPerPyeong, 5434 주석 동일 경고).
+  //       그래서 _c14RentPy=619가 되어 치환이 41이 아니라 619로 나가 '619만원' 오기·미수정이 그대로 노출됐다.
+  //     공실률 = extractVacancy(상권코드)(=화면 6.9, 카드1 vacancyRate와 동일 출처).
+  //   AI가 17만원/9.05%/619 또는 "한국부동산원 자료에 따르면" 같은 출처명을 써 보내도 화면 전 단계에서 41/6.9로 치환하고 출처명은 제거.
+  const _c14RentPy = (() => {
+    try {
+      const _addr = String(cd?.addressInfo?.address || cd?.address || cd?.region || dong?.address || '').trim();
+      const _sk = mapToCommercialDistrict(_addr);
+      const _ir = buildIntegratedRent(apis, _sk);                          // 만원/평 (KPI/카드1/카드8과 동일)
+      if (_ir && Number(_ir.value) > 0) return Math.round(Number(_ir.value));
+    } catch (e) { /* 폴백으로 */ }
+    // 폴백: 카드8 통합 평당월세(만원) → 카드7 firebaseRent 평당단가(만원/평). 가게 전체 월세(rentPerPyeong)는 쓰지 않음.
+    return Number(card8?.bodyData?.rentPerPyeongManwon)
+      || Number(card7?.bodyData?.perPyeong)
+      || Number(apis.firebaseRent?.data?.summary?.avgRentPerPyeong)
+      || 0;
+  })();
   const _c14Vacancy = (() => {
     try {
       const _addr = String(cd?.addressInfo?.address || cd?.address || cd?.region || dong?.address || '').trim();
@@ -5941,6 +5958,9 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       t = t.replace(/(한국부동산원|부동산원|KOSIS|kosis|공식\s*통계|통계청)\s*(자료|통계|데이터|발표|조사|기준|집계)?\s*(에\s*따르면|에\s*의하면|을\s*기준으로|기준으로|에\s*따라|상)?\s*(으로|로|에)?\s*[,，]?\s*/g, '');
       ['한국부동산원', '부동산원', 'KOSIS', 'kosis', '공식 통계', '공식통계', '통계청'].forEach((w) => { t = t.split(w).join(''); });
       t = t.replace(/^\s*(자료|통계|데이터)?\s*(에\s*따르면|에\s*의하면|기준으로|으로|로)\s*[,，]?\s*/, '');
+      // [패스8] 출처명만 떼고 남은 잔여 "자료/통계 기준"·홀로 남은 "기준" 청소.
+      //   예: "한국부동산원 자료 기준 높은 편" → (출처 제거 후) ", 자료 기준 높은 편" → "높은 편".
+      t = t.replace(/[,，]?\s*(자료|통계|데이터)?\s*기준\s+(?=[가-힣])/g, ' ');
       // 괄호 안 출처를 떼고 남은 빈/슬래시만 남은 괄호 정리: "(/)" "( · )" "()" → 삭제, "(/ 기준)" 류도.
       t = t.replace(/[\(（]\s*[\/·,，、\s]*\s*(기준|출처|자료)?\s*[\)）]/g, '');
       t = t.replace(/\s*[,，]\s*[,，]/g, ', ').replace(/^\s*[,，·、]\s*/, '').replace(/\s{2,}/g, ' ').trim();
@@ -5953,6 +5973,10 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     // 평당월세 숫자 → 카드 표시 단일값(41)으로 치환 ("평당 월세가 17만원" / "평당월세 17만 원" 류)
     if (_c14RentPy > 0) {
       out = out.replace(/((?:평당\s*월세|평당월세|평당\s*임대료)[^\d]{0,8})([\d,]+)\s*만\s*원?/g,
+        (m, pre) => `${pre}${_c14RentPy.toLocaleString()}만원`);
+      // [패스8] '평당 N만원 … 임대료/월세/임대' 어순(예: "평당 17만원에 달하는 높은 임대료")도 치환.
+      //   앞 패턴은 "평당 월세/임대료"가 숫자 앞에 와야 잡혀 analysis 한 줄("평당 17만원…임대료")을 놓쳤다.
+      out = out.replace(/(평당\s*)([\d,]+)\s*만\s*원?(?=[^\d]{0,12}(?:임대료|월세|임대|렌트))/g,
         (m, pre) => `${pre}${_c14RentPy.toLocaleString()}만원`);
     }
     // 공실률 숫자 → 카드 표시 단일값(6.9)으로 치환 ("공실률은 9.05%" / "공실률 9%" 류)
@@ -6527,7 +6551,8 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     }
     // 객단가 (Card 6)
     if (_pft.bizmapAvgUnitPrice) pftObs.push(`평균 객단가는 ${_pft.bizmapAvgUnitPrice}입니다`);
-    if (_pft.avgRent) pftObs.push(`평당 임대료가 월 ${_pft.avgRent.toLocaleString()}만원 수준입니다`);
+    // [패스8] 평당 월세는 KPI 단일값(_c14RentPy=통합 per평=41)으로. (_pft.avgRent 는 '가게 전체 월세'라 '평당'이 아님)
+    if (_c14RentPy > 0) pftObs.push(`평당 월세가 ${_c14RentPy.toLocaleString()}만원 수준입니다`);
     // [Firebase 빈크래프트 수집기] 검색 동 직접 vs 주변 평균 비교 (Card 8 보강)
     {
       const rb = _pft.rentBase;
