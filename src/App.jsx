@@ -30,6 +30,7 @@ import {
   mapToCommercialDistrict,
   extractMarketRent,
   extractVacancy,
+  buildIntegratedRent,
   extractPriceChange,
   extractConversionRate,
   extractYieldRate,
@@ -16513,29 +16514,37 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
      const _isFallbackCode = !!_sangkwonCode && /^A\d{2}$/.test(_sangkwonCode);
      const _fallbackNote = _isFallbackCode ? ' (우리 상권 자료 없어 시도 평균으로)' : '';
 
-     const _marketRentVal = extractMarketRent(collectedData.apis, _sangkwonCode);
-     const _marketRentStr = _marketRentVal && _marketRentVal.value ?
-       `[이 상권 평당 월세] ${Math.round(_marketRentVal.value/10000).toLocaleString()}만원/평 (한국부동산원 ${_marketRentVal.period||''}분기, ${_marketRentVal.region||''}${_fallbackNote})` : '';
+     // [2026-06-29 정보분산 패스10 §입력교정] ★디렉터 AI가 보는 '평당 월세'를 카드 KPI 단일값(=통합 평당월세 41)으로
+     //   먹인다. 예전엔 extractMarketRent(한국부동산원 원본 17/평)를 그대로 줘서 AI가 "평당 17만원, 한국부동산원
+     //   자료에 따르면"이라 썼다(사후 치환으론 어순이 매번 달라 계속 샜음). 입력 자체를 41로 끊고 출처명도 제거.
+     //   통합 평당월세 = buildIntegratedRent(네이버매물+부동산원 가중, 카드1/카드8 KPI·_c14RentPy와 동일).
+     const _integRent = buildIntegratedRent(collectedData.apis, _sangkwonCode);
+     const _integRentPy = (_integRent && Number(_integRent.value) > 0) ? Math.round(Number(_integRent.value)) : null;
+     const _marketRentStr = _integRentPy ?
+       `[이 상권 평당 월세] ${_integRentPy.toLocaleString()}만원/평${_fallbackNote}` : '';
 
+     // ★공실률도 카드1(cards-a) vacancyRate와 동일 출처(extractVacancy) 단일값으로 먹이되 출처명(한국부동산원)은 제거.
+     //   값(6.9)은 그대로, '한국부동산원' 문구만 없앤다 → AI가 출처를 댈 데이터가 입력에 없게 한다.
      const _vacancyVal = extractVacancy(collectedData.apis, _sangkwonCode);
      const _vacancyStr = _vacancyVal && _vacancyVal.value !== null && _vacancyVal.value !== undefined ?
-       `[공실률] ${_vacancyVal.value}% (${_vacancyVal.region||''}${_fallbackNote}, 한국부동산원)` : '';
+       `[공실률] ${_vacancyVal.value}%${_fallbackNote}` : '';
 
+     // [패스10] 아래 외부 지표들도 화면 출처표기 금지(사장님 결정)에 맞춰 출처명(한국부동산원) 제거 — 값은 보존.
      const _priceChgVal = extractPriceChange(collectedData.apis, _sangkwonCode);
      const _priceChgStr = _priceChgVal && _priceChgVal.value !== null && _priceChgVal.value !== undefined ?
-       `[임대가격 1년 변동] ${_priceChgVal.value > 0 ? '+' : ''}${_priceChgVal.value}% (${_priceChgVal.region||''}${_fallbackNote}, 한국부동산원)` : '';
+       `[임대가격 1년 변동] ${_priceChgVal.value > 0 ? '+' : ''}${_priceChgVal.value}%${_fallbackNote}` : '';
 
      const _conversionVal = extractConversionRate(collectedData.apis, _sangkwonCode);
      const _conversionStr = _conversionVal && _conversionVal.value ?
-       `[전환율(보증금→월세)] ${_conversionVal.value}% (${_conversionVal.region||''}${_fallbackNote}, 한국부동산원)` : '';
+       `[전환율(보증금→월세)] ${_conversionVal.value}%${_fallbackNote}` : '';
 
      const _yieldVal = extractYieldRate(collectedData.apis, _sangkwonCode);
      const _yieldStr = _yieldVal && _yieldVal.value ?
-       `[수익률(종합)] ${_yieldVal.value}% (${_yieldVal.region||''}${_fallbackNote}, 한국부동산원)` : '';
+       `[수익률(종합)] ${_yieldVal.value}%${_fallbackNote}` : '';
 
      const _netIncomeVal = extractNetIncome(collectedData.apis, _sangkwonCode);
      const _netIncomeStr = _netIncomeVal && _netIncomeVal.value ?
-       `[순영업소득] ${Math.round(_netIncomeVal.value/10000).toLocaleString()}만원/평/년 (${_netIncomeVal.region||''}${_fallbackNote}, 한국부동산원)` : '';
+       `[순영업소득] ${Math.round(_netIncomeVal.value/10000).toLocaleString()}만원/평/년${_fallbackNote}` : '';
 
      const _cafeClosureVal = extractCafeClosure(collectedData.apis, _sidoForExt);
      const _cafeClosureStr = _cafeClosureVal && _cafeClosureVal.value ?
@@ -16594,8 +16603,10 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
 
      // [신규 KOSIS 외부 자료 - 6개 에이전트 공통 주입 블록] 한국부동산원/국세청/한국은행 9종 + 시계열 추세 5종
      // sharedContext에 추가해서 overview/consumer/sales/cost/risk/insight 모두 자연스럽게 받음
+     // [패스10] '답변 시 출처 명확히 발화' 지시 제거 — 출처표기 금지(사장님 결정)와 정면 충돌해 AI가
+     //   "한국부동산원 자료에 따르면"을 쓰게 만든 원흉. 값만 주고 출처는 언급하지 말라고 명시.
      const _kosisExtBlock = (_kosisExtStr || _kosisTrendStr)
-       ? `\n[신규 KOSIS 외부 자료 - 한국부동산원·국세청·한국은행 9종]\n${_kosisExtStr}\n(평당 월세·공실률·임대 변동·수익률·폐업 수·소비심리 - 답변 시 출처 명확히 발화)\n${_kosisTrendStr ? `\n[시계열 추세 - 최근 1년 변화]\n${_kosisTrendStr}\n(상권 흐름 발화 시 활용 - "오름세/내림세" 단순 표현)\n` : ''}`
+       ? `\n[외부 지표 자료 9종]\n${_kosisExtStr}\n(평당 월세·공실률·임대 변동·수익률·폐업 수·소비심리 - 값만 인용하고 출처(기관명)는 절대 언급하지 마라)\n${_kosisTrendStr ? `\n[시계열 추세 - 최근 1년 변화]\n${_kosisTrendStr}\n(상권 흐름 발화 시 활용 - "오름세/내림세" 단순 표현)\n` : ''}`
        : '';
      // sharedContext를 확장한 버전 (이후 6개 에이전트 프롬프트에서 사용)
      const sharedContextExt = sharedContext + _kosisExtBlock;
@@ -17081,15 +17092,14 @@ ${_premiumStr}
 ${_kosisDeliveryStr}
 ${_floatStr}
 
-[신규 한국부동산원/국세청/한국은행 자료 - 디렉터 발화 시 반드시 활용]
-${_kosisExtStr || '(신규 자료 수집 실패)'}
+[외부 지표 자료 - 디렉터 발화 시 활용]
+${_kosisExtStr || '(자료 수집 실패)'}
 
-[신규 자료 발화 가이드 - 절대 준수]
-- 임대 시세는 "한국부동산원 분기별 자료"라고 출처를 명확히 발화
-- 카페 폐업 수는 "국세청 작년 자료"라고 출처를 명확히 발화
-- 소비심리는 "한국은행 이번 달 자료, 100 기준"이라고 출처와 기준을 함께 발화
-- 평당 월세, 공실률, 폐업 수치를 두루뭉실하게 말하지 말고 정확한 숫자로 (예: "평당 월세 23만원", "공실률 8.4%")
-- 값이 시도 평균 폴백이면 그 사실을 발화 ("우리 상권 자료가 없어 시도 평균으로 보면 ~")
+[외부 자료 발화 가이드 - 절대 준수]
+- ★출처(기관명) 절대 언급 금지: "한국부동산원/부동산원/국세청/한국은행/KOSIS/통계청 자료에 따르면" 같은 출처 인용 표현을 절대 쓰지 마라. 값(숫자)만 발화하고 출처는 대지 않는다(값은 이미 통합 단일값이라 출처를 댈 필요가 없다).
+- ★평당 월세는 위 [이 상권 평당 월세] 값을 그대로 써라(다른 숫자로 환산·재계산 금지). 공실률도 위 [공실률] 값을 그대로 써라.
+- 평당 월세, 공실률, 폐업 수치를 두루뭉실하게 말하지 말고 정확한 숫자로 (예: "평당 월세 41만원", "공실률 6.9%")
+- 값이 시도 평균 폴백이면 그 사실만 발화 ("우리 상권 자료가 없어 시도 평균으로 보면 ~", 단 기관명은 빼고)
 - profit 영역에 평당 월세·공실률·수익률 중 1개 이상 한 줄 추가
 - direction 영역에 임대가격 1년 변동·시도 카페 폐업 수·소비심리 중 1개 이상 한 줄 추가
 

@@ -5982,10 +5982,19 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       //   앞 두 패턴은 모두 '평당'이 숫자 바로 앞/뒤 임대어를 요구해, "월세 … 평당 N만원"을 놓쳐 director.market이 샜다.
       out = out.replace(/((?:월세|임대료|임대|렌트)[^\d]{0,12}평당\s*)([\d,]+)\s*만\s*원?/g,
         (m, pre) => `${pre}${_c14RentPy.toLocaleString()}만원`);
+      // [패스10 §입력교정 보조망] '평당 N만원' 어디든(임대어 동반 없이 단독으로 와도) 치환 — 단, 매출/객단가/소득/
+      //   투자/권리금/보증금 등 다른 금액 문맥이 12자 이내 따라오면(평당매출 등) 건드리지 않는다(오치환 방지).
+      //   예: "평당 17만원으로 높은 편" "평당 619만 원" → 41만원. (앞 패턴이 임대어를 요구해 놓친 잔여 케이스 마감.)
+      out = out.replace(/(평당\s*)([\d,]+)\s*만\s*원?(?![^\d]{0,12}(?:매출|객단가|소득|투자|권리금|보증금|수익))/g,
+        (m, pre) => `${pre}${_c14RentPy.toLocaleString()}만원`);
     }
-    // 공실률 숫자 → 카드 표시 단일값(6.9)으로 치환 ("공실률은 9.05%" / "공실률 9%" 류)
+    // 공실률 숫자 → 카드 표시 단일값(6.9)으로 치환.
+    //   ["공실률은 9.05%로" "공실률 9%" "공실률이 9.05 %" "공실률: 9%"] 등 어순·구두점 변형까지.
     if (_c14Vacancy > 0) {
-      out = out.replace(/(공실률[^\d]{0,6})([\d.]+)\s*%/g,
+      out = out.replace(/(공실률[^\d]{0,8})([\d.]+)\s*%/g,
+        (m, pre) => `${pre}${_c14Vacancy}%`);
+      // [패스10] '공실(률) … 9.05(%)' 처럼 '률'이 빠지거나 % 앞 어구가 길어 위 패턴을 벗어난 변형도 마감.
+      out = out.replace(/(공실[^\d%]{0,10})([\d.]+)\s*%/g,
         (m, pre) => `${pre}${_c14Vacancy}%`);
     }
     // 출처명·출처 인용구 제거(화면 출처표기 0건).
@@ -6356,8 +6365,20 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     laborPct: typeof _bizmapLaborPct === 'number' ? _bizmapLaborPct : 0,
     materialPct: typeof _bizmapMaterialPct === 'number' ? _bizmapMaterialPct : 0,
     rentPct: typeof _avgRentPct === 'number' ? _avgRentPct : 0,
-    // [Firebase 임대 수집기] 검색 동 vs 주변 비교용
-    rentBase: card7?.chartData?.rentBase ?? null,
+    // [2026-06-29 정보분산 패스10 §입력교정] ★평당월세 단일 진실값(=통합 평당월세 41, 카드1/카드8 KPI·_c14RentPy 동일).
+    //   디렉터/BEP/수익구조가 이 값을 1순위로 보게 한다. 옛 17(한국부동산원 강남구 평균/15평 환산)·rentBase per평 폐기.
+    rentBasePy: (_c14RentPy > 0 ? _c14RentPy : null),
+    // [Firebase 임대 수집기] 검색 동 vs 주변 비교용 (월세 만원 비교; source 출처명은 제거 — 화면 출처표기 금지).
+    rentBase: (() => {
+      const rb = card7?.chartData?.rentBase ?? null;
+      if (!rb || typeof rb !== 'object') return rb;
+      // source 문자열에서 '한국부동산원/부동산원' 출처명만 제거(값·구조는 보존). "(서울 강남구 평균, 15평 기준 환산)"류 잔여 정리.
+      const _src = typeof rb.source === 'string' ? rb.source : '';
+      const cleanedSource = _src
+        ? _src.replace(/한국부동산원|부동산원/g, '').replace(/^[\s,，·]+/, '').replace(/\s{2,}/g, ' ').trim() || null
+        : rb.source;
+      return { ...rb, source: cleanedSource };
+    })(),
     // [KOSIS 외식업체경영실태조사] 카페(커피전문점) 전국 평균 - 비교용
     kosisCafe: _kosisStats,
   };
@@ -8263,13 +8284,15 @@ export function buildIntegratedRent(apis, sangkwonCode) {
     });
   }
 
-  // 2) 한국부동산원 (원/평 → 만원/평 환산)
+  // 2) 공식 임대 통계 (원/평 → 만원/평 환산)
+  //   ★[2026-06-29 정보분산 패스10] sources 배열에 노출되는 출처명(한국부동산원)을 제거(화면 출처표기 금지·
+  //     AI 입력 누출 차단). 값·가중은 그대로. breakdown 의 type='official' 로만 구분(화면/AI엔 기관명 안 나감).
   const roneObj = extractMarketRent(apis, sangkwonCode);
   if (roneObj && roneObj.value && Number(roneObj.value) > 0) {
     const valManwon = Math.round(Number(roneObj.value) / 10000);
     if (valManwon > 0) {
       sources.push({
-        name: '한국부동산원',
+        name: '공식 임대 통계',
         value: valManwon,
         weight: 0.4,
         type: 'official',
