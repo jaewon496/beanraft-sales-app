@@ -14136,7 +14136,8 @@ B. 방문 동기 키워드 (사람들이 왜 오는가)
 
 지금 작성 (찾은 만큼만):`;
 
-       const topShopsRes = await callGeminiProxy(
+       // [2026-06-29 견고화] 504/5xx/네트워크 실패면 짧게 대기 후 '딱 1회' 재시도(무한 금지). 재시도도 실패면 빈 값(폴백).
+       const _callTopShops = () => callGeminiProxy(
          [{ role: 'user', parts: [{ text: topShopsPrompt }] }],
          {
            temperature: 0.4,
@@ -14146,6 +14147,21 @@ B. 방문 동기 키워드 (사람들이 왜 오는가)
          AbortSignal.timeout(60000),
          [{ google_search: {} }]
        );
+       let topShopsRes;
+       try {
+         topShopsRes = await _callTopShops();
+       } catch (eFirst) {
+         // 1차 네트워크 예외 → 2초 대기 후 1회 재시도(그래도 실패면 아래 catch 가 빈 값 처리).
+         console.warn('[topShops Grounded] 1차 호출 예외:', eFirst && eFirst.message, '→ 2초 후 1회 재시도');
+         await new Promise((r) => setTimeout(r, 2000));
+         topShopsRes = await _callTopShops();
+       }
+       // 응답이 ok 아님(504/5xx 등) → 2초 대기 후 1회만 재시도.
+       if (!topShopsRes.ok && (topShopsRes.status >= 500 || topShopsRes.status === 0 || topShopsRes.status === 429)) {
+         console.warn('[topShops Grounded] 1차 응답 실패 (status:', topShopsRes.status, ') → 2초 후 1회 재시도');
+         await new Promise((r) => setTimeout(r, 2000));
+         try { topShopsRes = await _callTopShops(); } catch (eRetry) { console.warn('[topShops Grounded] 재시도 예외:', eRetry && eRetry.message); }
+       }
 
        if (topShopsRes.ok) {
          const topShopsResult = await topShopsRes.json();
@@ -14207,11 +14223,16 @@ B. 방문 동기 키워드 (사람들이 왜 오는가)
              console.log('[topShops Grounded] 프랜차이즈 제외:', name);
              continue;
            }
-           const menu = cleanMenu(rawMenu);
-           if (!menu) {
-             console.log('[topShops Grounded] 카페 메뉴 없음 (식사만)으로 제외:', name, rawMenu);
+           // [2026-06-29 필터 완화] cleanMenu 가 다 걸러도(메뉴 애매/판정 불확실) 매장을 통째로 버리지 않는다.
+           //   '명백히' 식사 메뉴만 적힌 경우(모든 항목이 NON_CAFE_MENU 매칭)에만 제외하고,
+           //   그 외(애매한 표현·짧은 메뉴 등)는 살려서 최소 몇 곳은 남게 한다. (프랜·placeholder 는 위에서 이미 제외함.)
+           const _menuItems = rawMenu.split(/[,，、]/).map(s => s.trim()).filter(Boolean);
+           const _allNonCafe = _menuItems.length > 0 && _menuItems.every(item => NON_CAFE_MENU.some(bad => item.includes(bad)));
+           if (_allNonCafe) {
+             console.log('[topShops Grounded] 메뉴가 전부 식사류로 명백 → 제외:', name, rawMenu);
              continue;
            }
+           const menu = cleanMenu(rawMenu) || rawMenu;   // 카페 메뉴만 남기되, 애매해서 다 걸리면 원문 메뉴 유지(살림)
            topShops.push({ name, menu, reason });
          }
          if (topShops.length > 0) {

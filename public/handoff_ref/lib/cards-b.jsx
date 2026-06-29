@@ -616,7 +616,7 @@ function Card11({ body = {} }) {
             })}
             </window.DrStagger>
           ) : (
-            <div style={{fontSize:13, color:"var(--matte-fg-4)", padding:"30px 0"}}>후기 좋은 매장 데이터 수집 중</div>
+            <div style={{fontSize:13, color:"var(--matte-fg-4)", padding:"30px 0", lineHeight:1.6}}>블로그 후기 기반 추천 매장을 찾지 못했어요. 후기가 적은 지역이거나 일시적 오류일 수 있어요 (다시 검색하면 채워질 수 있습니다).</div>
           )}
         </div>
       </div>
