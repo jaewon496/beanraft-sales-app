@@ -357,6 +357,12 @@
     .bc-cap-chk.on{ background:#3182F6; border-color:#3182F6; }
     .bc-cap-chk svg{ display:none; }
     .bc-cap-chk.on svg{ display:block; }
+    /* 카드별 1장씩 저장 옵션 행 (JPG 저장 버튼 위, 다크 톤) */
+    .bc-cap-splitrow{
+      display:flex; align-items:center; gap:10px;
+      padding:10px 18px 4px; cursor:pointer; user-select:none;
+    }
+    .bc-cap-splitrow .bc-cap-splitlabel{ font-size:13px; font-weight:600; color:#C9C9D0; }
     .bc-cap-foot{ display:flex; gap:8px; padding:14px; border-top:1px solid rgba(255,255,255,0.08); }
     .bc-cap-foot button{
       border:none; border-radius:10px; font-size:14px; cursor:pointer;
@@ -503,6 +509,10 @@
           '<p class="bc-cap-note" data-cap-note>PDF 만드는 중…</p>' +
         '</div>' +
         '<p class="bc-cap-err" data-cap-err style="display:none;"></p>' +
+        '<div class="bc-cap-splitrow" data-cap-splitrow>' +
+          '<span class="bc-cap-chk" data-cap-splitchk id="cap-split-jpg">' + checkSvg() + '</span>' +
+          '<span class="bc-cap-splitlabel">카드별로 1장씩 저장</span>' +
+        '</div>' +
         '<div class="bc-cap-foot">' +
           '<button type="button" class="bc-cap-cancel" data-cap-cancel>취소</button>' +
           '<button type="button" class="bc-cap-confirm" data-cap-confirm>PDF 저장</button>' +
@@ -528,6 +538,7 @@
     var cards = [];                 // [{el,id,label,...}]
     var checked = {};               // { id:true }
     var busy = false;
+    var splitJpg = false;           // "카드별로 1장씩 저장" 옵션 (기본 해제)
 
     var listEl    = overlay.querySelector("[data-cap-list]");
     var allRow    = overlay.querySelector("[data-cap-all]");
@@ -536,6 +547,8 @@
     var cancelBtn = overlay.querySelector("[data-cap-cancel]");
     var confirmBtn= overlay.querySelector("[data-cap-confirm]");
     var confirmJpgBtn = overlay.querySelector("[data-cap-confirm-jpg]");
+    var splitRow  = overlay.querySelector("[data-cap-splitrow]");
+    var splitChk  = overlay.querySelector("[data-cap-splitchk]");
     var progress  = overlay.querySelector("[data-cap-progress]");
     var barFill   = overlay.querySelector("[data-cap-barfill]");
     var noteEl    = overlay.querySelector("[data-cap-note]");
@@ -651,6 +664,8 @@
         cards = collectCards();
         checked = {};
         cards.forEach(function(c){ checked[c.id] = true; });   // 기본 전체 선택
+        splitJpg = false;                                      // 카드별 저장 옵션은 열 때마다 해제로 초기화
+        if (splitChk) splitChk.className = "bc-cap-chk";
         renderList();
         overlay.classList.add("open");
       });
@@ -668,6 +683,13 @@
       var turnOn = !allOn();
       cards.forEach(function(c){ checked[c.id] = turnOn; });
       renderList();
+    });
+
+    // "카드별로 1장씩 저장" 체크박스 토글 (JPG 저장에만 적용)
+    if (splitRow) splitRow.addEventListener("click", function(){
+      if (busy) return;
+      splitJpg = !splitJpg;
+      if (splitChk) splitChk.className = "bc-cap-chk" + (splitJpg ? " on" : "");
     });
 
     confirmBtn.addEventListener("click", function(){ runCapture(); });
@@ -1225,15 +1247,25 @@
         return out;
       }
 
+      // 카드 라벨("01 상권 변화" 등)에서 2자리 번호를 뽑아 파일명 꼬리표를 만든다.
+      //   번호가 없으면 순번(1-based)을 2자리로 패딩해서 쓴다.
+      function cardFileTag(slice, idx){
+        var lab = (slice && slice.label) || "";
+        var m = lab.match(/\d+/);
+        var num = m ? parseInt(m[0], 10) : (idx + 1);
+        return "카드" + (num < 10 ? "0" + num : String(num));
+      }
+
       // 합친 canvas 를 JPEG blob 으로 만들어 <a download> 로 저장 (PDF 의 downloadViaBlob 과 동일 방식)
-      function exportJpg(canvas){
+      //   fileName 을 넘기면 그 이름으로, 안 넘기면 기존 묶음 파일명으로 저장한다.
+      function exportJpg(canvas, fileName){
         return new Promise(function(resolve){
           var done = false;
           function saveBlob(blob){
             if (!blob){ resolve(false); return; }
             try {
               var url = (window.URL || window.webkitURL).createObjectURL(blob);
-              var name = "빈크래프트_상권분석_" + todayStamp() + ".jpg";
+              var name = fileName || ("빈크래프트_상권분석_" + todayStamp() + ".jpg");
               var a = document.createElement("a");
               a.href = url;
               a.download = name;
@@ -1294,9 +1326,61 @@
         showErr("JPG 저장에 실패했습니다. 다시 시도해 주세요.");
       }
 
+      // [카드별 1장씩] 선택 카드를 각각 별도 JPEG 로 내려받는다.
+      //   - 큰 canvas(big)는 1회 캡처분을 재사용(개별 재캡처 안 함) — buildStitched 와 동일하게 슬라이스만 잘라 그린다.
+      //   - 릴스 emit(bc:reelimg)도 버튼/묶음과 동일하게 카드마다 1번씩 보낸다(출력 무영향).
+      //   - 다운로드 사이 250ms 지연 → 브라우저 다중 다운로드 차단 회피.
+      function exportSplitJpg(big, slices){
+        var bigW = big.width;
+        var tot = slices.length;
+        var stamp = todayStamp();
+        var okCount = 0;
+        function step(j){
+          if (j >= slices.length){
+            try { setProgress(95, "JPG 저장 중…"); } catch(_){}
+            if (okCount > 0){ finishJpg(); overlay.classList.remove("open"); }
+            else { failJpg(); }
+            return;
+          }
+          var s = slices[j];
+          var pct = Math.round((j / Math.max(1, tot)) * 100);
+          setProgress(pct, "JPG 저장 중… (" + (j + 1) + "/" + tot + ")");
+          setBusyProgress(j + 1, tot);
+
+          // 카드 1장 크기 canvas 로 슬라이스를 그린다 (축소 없이 원본 픽셀)
+          var cv = document.createElement("canvas");
+          cv.width = Math.max(1, bigW);
+          cv.height = Math.max(1, s.srcH);
+          var cctx = cv.getContext("2d");
+          cctx.fillStyle = bg;
+          cctx.fillRect(0, 0, cv.width, cv.height);
+          try {
+            cctx.drawImage(big, 0, s.srcY, bigW, s.srcH, 0, 0, cv.width, cv.height);
+          } catch(_){}
+
+          // [릴스 공개 우편함] 묶음 저장과 동일하게 카드별 1장 전송 (출력 무영향)
+          try { bcReelEmit(cv, s.id, s.label || ""); } catch(_){}
+
+          var fname = "빈크래프트_상권분석_" + cardFileTag(s, j) + "_" + stamp + ".jpg";
+          exportJpg(cv, fname).then(function(ok){
+            if (ok) okCount++;
+            try { cv.width = cv.height = 0; } catch(_){}
+            // 다음 다운로드 전 지연(다중 다운로드 차단 회피)
+            wait(250).then(function(){ step(j + 1); });
+          });
+        }
+        step(0);
+      }
+
       function buildAndExport(big, container, effScale){
         var slices = computeSlices(big, container, effScale);
         if (slices.length === 0){ failJpg(); return; }
+        // [분기] "카드별로 1장씩 저장" 체크 시 → 카드마다 개별 JPEG 다운로드
+        if (splitJpg){
+          exportSplitJpg(big, slices);
+          return;
+        }
+        // 기본: 선택 카드 묶어서 1장 (무변경)
         var stitched = buildStitched(big, slices, Math.round(GAP * effScale));
         if (!stitched || !stitched.width || !stitched.height){ failJpg(); return; }
         setProgress(95, "JPG 저장 중…");
