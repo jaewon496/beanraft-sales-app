@@ -4956,17 +4956,17 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   const _cafeSalesRank = card5?.bodyData?.cafeSalesRank;
   if (_cafeSalesRank) _bonusItems.push({ label: '이 동 업종 중 카페 매출 순위', value: _cafeSalesRank });
 
-  // 2. 이 동 카페 매출 vs 시군구(구) 카페 평균 (만원 단위)
+  // 2. 이 동 카페 월평균 매출 (만원 단위)
+  // [2026-06-30 저울섞임 제거] 예전엔 'monthlyAvgSales(비즈맵) vs guAvg(소상공인 구 평균)'로 "구 평균 대비 +N%"를
+  //   냈는데, 두 값이 서로 다른 저울(비즈맵 커피 점포평균 2,558 vs 소상공인365 구 평균 8,052)이라 강남도 저매출로
+  //   왜곡됐다(매출 띠 '68% 낮음' 사고와 같은 뿌리). → 구 평균(guAvg) 비교를 제거하고, 같은 비즈맵 저울인
+  //   '월평균 + 동 안 자리별 격차(상위20%/하위20%, 아래 항목)'로만 매출을 보여준다.
   // [2026-06-30 매출 한 저울] 점포당 카페 월매출 = 단일 진실값(card5.monthlyAvgSales). 우선순위: ① 비즈맵 커피 분위 평균(bmAvgSalesNum) 1순위 → ② 안정 동평균 → ③ 소상공인 카페 평균(최후 폴백).
-  // guAvg = 구 카페 평균
   const _card5CafeMonthly = (card5?.bodyData?.monthlyAvgSales) || (card5?.bodyData?.dongCafeAvgStable) || (card5?.bodyData?.monthly) || 0;
-  const _card5GuAvg = card5?.bodyData?.guAvg || 0;
-  if (_card5CafeMonthly > 0 && _card5GuAvg > 0) {
-    const _ratioPct = Math.round(((_card5CafeMonthly / _card5GuAvg) - 1) * 100);
-    const _vsLabel = _ratioPct >= 0 ? `+${_ratioPct}%` : `${_ratioPct}%`;
+  if (_card5CafeMonthly > 0) {
     _bonusItems.push({
-      label: '이 동 카페 매출 vs 구 평균',
-      value: `${_card5CafeMonthly.toLocaleString()}만원 / 구 평균 ${_card5GuAvg.toLocaleString()}만원 (${_vsLabel})`,
+      label: '이 동 카페 월평균 매출',
+      value: `${_card5CafeMonthly.toLocaleString()}만원`,
     });
   }
 

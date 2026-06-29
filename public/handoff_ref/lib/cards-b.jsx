@@ -317,14 +317,12 @@ function Card09({ body = {} }) {
           <div style={{fontSize:16, fontWeight:600, marginBottom:18}}>핵심 발견</div>
           <window.DrStagger id="c9.list" delay={120} style={{display:"flex", flexDirection:"column", gap:14}}>
           {(() => {
-            const cafeAvgRatio = (cafeMonthly > 0 && guAvg > 0) ? (cafeMonthly / guAvg) : 0;
+            // [2026-06-30 매출 한 저울] 비즈맵 월매출 vs 소상공인 구평균(guAvg)은 저울이 달라 비교 금지(강남 -68% 왜곡). 월매출 값만 표시.
             return [
               ["시장 매력도",
-                cafeMonthly > 0 && guAvg > 0
-                  ? `월매출 ${window.bcFmtMan(cafeMonthly)} — ${sigungu || '시군구'} 평균 ${cafeAvgRatio > 1 ? '+' : ''}${Math.round((cafeAvgRatio - 1) * 100)}%`
-                  : (cafeMonthly > 0 ? `월매출 ${window.bcFmtMan(cafeMonthly)}` : '매출 데이터 수집 중'),
-                cafeAvgRatio > 1 ? Math.min(0.95, cafeAvgRatio - 0.5) : 0.5,
-                cafeAvgRatio > 1.1],
+                cafeMonthly > 0 ? `월매출 ${window.bcFmtMan(cafeMonthly)}` : '매출 데이터 수집 중',
+                0.5,
+                false],
               ["경쟁 환경",
                 individualPct > 0 ? `개인 카페 ${individualPct}% — 차별화 여지` : '경쟁 데이터 수집 중',
                 individualPct / 100, false],

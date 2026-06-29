@@ -334,7 +334,7 @@ function Card13({ body = {} }) {
           <div style={{display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:14}}>
             {[
               ["3년 생존", survival3y > 0 ? String(survival3y) : '-', survival3y > 0 ? '%' : '', survival3y > 0 ? `전국 평균 대비 ${survival3y >= 39 ? '+' : ''}${(survival3y - 39).toFixed(1)}%${survival3y >= 39 ? '↑' : '↓'}` : '', survival3y >= 60, survival3y > 0 && _isEst13('survival3y', 'survival')],
-              ["월매출", cafeSales > 0 ? (window.bcFmtMan(cafeSales) || cafeSales.toLocaleString() + '만원') : '-', '', cafeSales > 0 && guAvg > 0 ? `${sigungu || '시군구'} 평균 대비 ${cafeSales > guAvg ? '+' : ''}${Math.round((cafeSales/guAvg-1)*100)}%` : '', false, cafeSales > 0 && _isEst13('monthlyAvgSales', 'cafeSales')],
+              ["월매출", cafeSales > 0 ? (window.bcFmtMan(cafeSales) || cafeSales.toLocaleString() + '만원') : '-', '', ''/* [2026-06-30] 비즈맵 월매출 vs 소상공인 구평균(guAvg)=저울 달라 비교 제거(강남 -68% 왜곡 방지) */, false, cafeSales > 0 && _isEst13('monthlyAvgSales', 'cafeSales')],
               [focusAxis ? focusAxis.label : '핵심 지표', total > 0 && focusAxis ? axisGrade(focusRatio) : '-', '', total > 0 && focusAxis ? `우리 분석 ${focusAxis.score}/${focusAxis.max}점 (${Math.round(focusRatio*100)}%)` : '', focusRatio >= 0.65, false],
             ].map(([l, v, u, sub, acc, est]) => (
               <div key={l} style={{padding:"20px 22px", background:"rgba(255,255,255,0.03)", borderRadius:12, border:"1px solid var(--matte-line)"}}>
