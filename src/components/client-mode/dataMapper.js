@@ -1682,21 +1682,13 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   }
 
   // ── 비즈맵 보강: 매출 분위 (averageSalesList) - 상위/평균/하위 6개월 ──
-  const bmAvgSales = aiData?.apis?.bizMapAverageSales?.data ?? apis.bizMapAverageSales?.data;
-  let bmTopSalesStr = null;
-  let bmAvgSalesStr = null;
-  let bmBtmSalesStr = null;
-  let bmMidSalesStr = null; // [2026-06-25 v6] 중위50% = mercAmtMdn (점포평균과 별개)
-  // [2026-06-24] 분위 상/평균/하 숫자값(만원) 보존 → 헤드라인·한줄평·경쟁분석 '월평균 매출' 단일 진실값으로 재사용.
-  //   화면에 보이는 분위 '평균'(bmAvgSalesStr)과 반드시 같은 월·같은 값이어야 하므로 같은 latest 행에서 추출한다.
-  let bmTopSalesNum = 0;
-  let bmAvgSalesNum = 0;
-  let bmBtmSalesNum = 0;
-  let bmMidSalesNum = 0; // [2026-06-25 v6] 중위50% 숫자값(만원)
-  let bmQuantileTrend = null; // [2026-06-25 v6] { labels, top[], avg[], bottom[] } 6개월 월순 (만원)
-  if (Array.isArray(bmAvgSales) && bmAvgSales.length > 0) {
+  // [2026-06-30 매출 한 저울 통일] 분위 추출 로직을 헬퍼로 묶어 커피/제과(베이커리) 두 구간에 동일 적용.
+  //   반환: { topNum,topStr, avgNum,avgStr, midNum,midStr, btmNum,btmStr, trend:{labels,top,avg,bottom} }
+  //   데이터 없으면 null (가짜 값 만들지 않음). fmtWon·최신월 선택·정렬·6개월 slice 기존 로직 그대로 재사용.
+  const extractQuantile = (averageSalesList) => {
+    if (!Array.isArray(averageSalesList) || averageSalesList.length === 0) return null;
     // 가장 최신 yyyymm 기준 상/중/하 매출 추출 (DOM 추출 키: top20/avg/bot20, 폴백: 영문 키)
-    const sortedAvg = [...bmAvgSales].sort((a, b) => String(a?.yyyymm || a?.stdYm || a?.ym || '').localeCompare(String(b?.yyyymm || b?.stdYm || b?.ym || '')));
+    const sortedAvg = [...averageSalesList].sort((a, b) => String(a?.yyyymm || a?.stdYm || a?.ym || '').localeCompare(String(b?.yyyymm || b?.stdYm || b?.ym || '')));
     const latest = sortedAvg[sortedAvg.length - 1] || {};
     const topVal = parseFloat(latest.mercAmtOu20 ?? latest.top20 ?? latest.topAvgSlamt ?? latest.topSlamt ?? latest.upperSlamt ?? latest.top ?? 0);
     // [2026-06-25 v6] '평균'(점포평균) = mercAmtAvg 우선, '중위'(중앙값) = mercAmtMdn 별도 추출.
@@ -1705,12 +1697,13 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     const midVal = parseFloat(latest.mercAmtMdn ?? latest.midSlamt ?? latest.median ?? 0);
     const btmVal = parseFloat(latest.mercAmtOo80 ?? latest.bot20 ?? latest.btmAvgSlamt ?? latest.btmSlamt ?? latest.lowerSlamt ?? latest.bottom ?? 0);
     // 비즈맵 매출 값은 '만원' 단위 정수 → fmtWon 으로 한국식 표기 (억/만원)
-    if (topVal > 0) { bmTopSalesStr = fmtWon(topVal); bmTopSalesNum = Math.round(topVal); }
+    const out = { topNum: 0, topStr: null, avgNum: 0, avgStr: null, midNum: 0, midStr: null, btmNum: 0, btmStr: null, trend: null };
+    if (topVal > 0) { out.topStr = fmtWon(topVal); out.topNum = Math.round(topVal); }
     // 점포평균: mercAmtAvg 우선, 없으면 중위로 폴백(기존 동작 보존 → 회귀 방지)
     const avgOrMid = avgVal > 0 ? avgVal : midVal;
-    if (avgOrMid > 0) { bmAvgSalesStr = fmtWon(avgOrMid); bmAvgSalesNum = Math.round(avgOrMid); }
-    if (midVal > 0) { bmMidSalesStr = fmtWon(midVal); bmMidSalesNum = Math.round(midVal); }
-    if (btmVal > 0) { bmBtmSalesStr = fmtWon(btmVal); bmBtmSalesNum = Math.round(btmVal); }
+    if (avgOrMid > 0) { out.avgStr = fmtWon(avgOrMid); out.avgNum = Math.round(avgOrMid); }
+    if (midVal > 0) { out.midStr = fmtWon(midVal); out.midNum = Math.round(midVal); }
+    if (btmVal > 0) { out.btmStr = fmtWon(btmVal); out.btmNum = Math.round(btmVal); }
 
     // [2026-06-25 v6] 6개월 분위 추이 — 상위20%/평균/하위20% 월순 배열 (만원 숫자)
     const trendRows = sortedAvg.slice(-6); // 최근 6개월(월순 정렬됨)
@@ -1732,9 +1725,30 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     });
     // 유효한 추이가 있을 때만(상위20% 한 점이라도) 노출, 아니면 null → 렌더가 추이 섹션 숨김
     if (tLabels.length >= 2 && tTop.some(v => v != null)) {
-      bmQuantileTrend = { labels: tLabels, top: tTop, avg: tAvg, bottom: tBtm };
+      out.trend = { labels: tLabels, top: tTop, avg: tAvg, bottom: tBtm };
     }
-  }
+    return out;
+  };
+
+  // 커피(기존 averageSalesList) → 하위호환 변수(bmTopSalesNum 등)는 계속 커피 결과로 채운다.
+  const bmAvgSales = aiData?.apis?.bizMapAverageSales?.data ?? apis.bizMapAverageSales?.data;
+  // [2026-06-30] 커피 분위(=기존 bizMapAverageSales). 매출분석 카드 '커피만' 구간.
+  const coffeeQuant = extractQuantile(bmAvgSales);
+  // [2026-06-30] 제과(베이커리) 분위(=bizMapAverageSalesBakery). 매출분석 카드 '커피+베이커리' 구간.
+  const bmAvgSalesBakery = aiData?.apis?.bizMapAverageSalesBakery?.data ?? apis.bizMapAverageSalesBakery?.data;
+  const cafeBakeryQuant = extractQuantile(bmAvgSalesBakery);
+
+  // ── 하위호환: 기존 bmTopSalesNum/... 변수는 커피 분위 결과로 그대로 채운다(전 카드 공유 진실값) ──
+  // [2026-06-24] 분위 상/평균/하 숫자값(만원) 보존 → 헤드라인·한줄평·경쟁분석 '월평균 매출' 단일 진실값으로 재사용.
+  const bmTopSalesStr = coffeeQuant?.topStr ?? null;
+  const bmAvgSalesStr = coffeeQuant?.avgStr ?? null;
+  const bmBtmSalesStr = coffeeQuant?.btmStr ?? null;
+  const bmMidSalesStr = coffeeQuant?.midStr ?? null; // [2026-06-25 v6] 중위50% = mercAmtMdn
+  const bmTopSalesNum = coffeeQuant?.topNum ?? 0;
+  const bmAvgSalesNum = coffeeQuant?.avgNum ?? 0;
+  const bmBtmSalesNum = coffeeQuant?.btmNum ?? 0;
+  const bmMidSalesNum = coffeeQuant?.midNum ?? 0; // [2026-06-25 v6] 중위50% 숫자값(만원)
+  const bmQuantileTrend = coffeeQuant?.trend ?? null; // [2026-06-25 v6] 6개월 월순 (만원)
 
   // ── 비즈맵 보강: 이용건수·결제단가 6개월 추이 (usageAndPaymentTrendList) ──
   const bmUsagePay = aiData?.apis?.bizMapUsageAndPayment?.data ?? apis.bizMapUsageAndPayment?.data;
@@ -1812,10 +1826,10 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       _card5Estimated.push('unitPrice', 'avgPrice');
     }
   }
-  // [2026-06-26 → 2026-06-28 매출 단일화] 월평균 매출(monthlyAvgSales) 1순위 = 소상공인 카페 평균(cafeSales=1086),
-  //   2순위 = 비즈맵 분위 평균(bmAvgSalesNum=901). 둘 중 하나라도 실측이면 실측 → 배지 없음.
-  //   둘 다 없어 안정 동평균/단일월로만 떨어진 경우에만 '추정' 표기.
-  if (!((typeof cafeSales === 'number' && cafeSales > 0) || (typeof bmAvgSalesNum === 'number' && bmAvgSalesNum > 0))) {
+  // [2026-06-26 → 2026-06-30 매출 한 저울] 월평균 매출(monthlyAvgSales) 1순위 = 비즈맵 커피 분위 평균(bmAvgSalesNum),
+  //   폴백 = 안정 동평균 → 소상공인 카페 평균(cafeSales). 비즈맵 실측이면 실측 → 배지 없음.
+  //   비즈맵이 없어 소상공인/동평균으로만 떨어진 경우에만 '추정' 표기(거짓 실측 배지 방지).
+  if (!(typeof bmAvgSalesNum === 'number' && bmAvgSalesNum > 0)) {
     _card5Estimated.push('monthlyAvgSales');
   }
 
@@ -2211,6 +2225,13 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   if (bmAvgSales || bmUsagePay || bmMarketSize) card5Sources.push('비즈맵');
   if (Array.isArray(cd.sigunguDongsSales) && cd.sigunguDongsSales.length > 0) card5Sources.push('비즈맵 RTDB');
 
+  // [2026-06-30 매출 한 저울 잔재수정] 매출카드 내부 큰숫자/요약/AI폴백이 더 이상 소상공인 단일월(cafeSales=1억)을
+  //   직접 읽지 않도록 단일 우선순위 값으로 통일. bodyData.monthly(아래)와 동일한 식:
+  //   ① 비즈맵 커피 분위 평균(bmAvgSalesNum) → ② 안정 카페 동평균 → ③ 소상공인 카페 평균(cafeSales, 최후 폴백).
+  const _card5Monthly = (bmAvgSalesNum > 0)
+    ? Math.round(bmAvgSalesNum)
+    : (Math.round(saDongCafeAvgStable) || Math.round(cafeSales) || 0);
+
   const card5 = {
     title: '매출 분석',
     subtitle: '월평균 예상 매출',
@@ -2218,16 +2239,18 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     source: card5Sources.join('/'),
     bruSummary: aiData?.topSales?.bruSummary || null,
     aiSummary: aiData?.topSales?.bruFeedback
-      || (cafeSales
-      ? `카페 업종 월평균 매출 ${fmtWon(cafeSales)}${dongAvg ? `, 동 전체 업종 평균 ${fmtWon(dongAvg)}` : ''}. ${cafeSales > (dongAvg || 0) ? '동 평균 대비 높은 매출 수준입니다.' : '동 평균 수준의 매출입니다.'}`
+      || (_card5Monthly
+      ? `카페 업종 월평균 매출 ${fmtWon(_card5Monthly)}${dongAvg ? `, 동 전체 업종 평균 ${fmtWon(dongAvg)}` : ''}. ${_card5Monthly > (dongAvg || 0) ? '동 평균 대비 높은 매출 수준입니다.' : '동 평균 수준의 매출입니다.'}`
       : ''),
     chartType: 'bigNumberTrend',
     metaInfo: '매출',
     chartData: salesChartItems.length > 0
-      ? { bigNumber: cafeSales ? Math.round(cafeSales) : (salesChartItems[salesChartItems.length - 1]?.value || 0), unit: '만원', displayText: fmtWon(cafeSales || (salesChartItems[salesChartItems.length - 1]?.value || 0)), labels: salesChartItems.map(d => d.label), values: salesChartItems.map(d => d.value) }
-      : (cafeSales > 0 ? { bigNumber: Math.round(cafeSales), unit: '만원', displayText: fmtWon(cafeSales), labels: [], values: [] } : null),
+      ? { bigNumber: _card5Monthly ? _card5Monthly : (salesChartItems[salesChartItems.length - 1]?.value || 0), unit: '만원', displayText: fmtWon(_card5Monthly || (salesChartItems[salesChartItems.length - 1]?.value || 0)), labels: salesChartItems.map(d => d.label), values: salesChartItems.map(d => d.value) }
+      : (_card5Monthly > 0 ? { bigNumber: _card5Monthly, unit: '만원', displayText: fmtWon(_card5Monthly), labels: [], values: [] } : null),
     bodyData: {
-      monthly: cafeSales || 0,
+      // [2026-06-30 매출 한 저울] 비즈맵 커피 점포평균 먼저 → 안정 동평균 → 소상공인으로 정직 폴백.
+      //   summaryText/bigNumber/displayText/aiSummary 폴백과 동일한 단일값(_card5Monthly) 재사용.
+      monthly: _card5Monthly,
       dongAvg: dongAvg || 0,
       guAvg: saGuAvg || 0,
       siAvg: saSiAvg,
@@ -2238,19 +2261,24 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       // [2026-06-24] 매출 추이: avgList 월별 avg(만원, 헤드라인과 동일 스케일) 우선,
       //   없으면 기존 annualSales(타단위) 폴백. 헤드라인(만원)과 ~7배 어긋나던 것 교정.
       annualSalesTrend: saAvgListTrend || saAnnualTrend,
-      // [2026-06-24] 헤드라인용 안정 동평균(만원): avgList avg 평균 → dongAvg → monthly 순.
-      //   단일월 변동(monthly=1086)을 다개월 평균으로 안정화.
-      dongCafeAvgStable: (saDongCafeAvgStable && saDongCafeAvgStable > 0)
-        ? saDongCafeAvgStable
-        : ((dongAvg && dongAvg > 0) ? Math.round(dongAvg) : ((cafeSales && cafeSales > 0) ? Math.round(cafeSales) : 0)),
-      // [2026-06-28 사장님 확정] '평균 월매출' 단일 진실값(만원) = 소상공인 카페·디저트 평균(cafeSales=1086) 1순위.
+      // [2026-06-24 → 2026-06-30 매출 한 저울] 헤드라인용 안정 동평균(만원): 비즈맵 커피 점포평균 우선
+      //   → avgList avg 평균(소상공인) → dongAvg → 소상공인 단일월 순.
+      //   ★소상공인 단일월(cafeSales)이 헤드라인/점수로 부활하지 않도록 비즈맵을 먼저 둔다.
+      //   비즈맵이 전혀 없는 지역에선 기존 소상공인 안정 동평균으로 정직하게 폴백(체인 유지).
+      dongCafeAvgStable: (bmAvgSalesNum > 0)
+        ? bmAvgSalesNum
+        : ((saDongCafeAvgStable && saDongCafeAvgStable > 0)
+            ? saDongCafeAvgStable
+            : ((dongAvg && dongAvg > 0) ? Math.round(dongAvg) : ((cafeSales && cafeSales > 0) ? Math.round(cafeSales) : 0))),
+      // [2026-06-30 매출 한 저울 통일] '평균 월매출' 단일 진실값(만원) = 비즈맵 커피 점포평균(bmAvgSalesNum) 1순위.
+      //   소상공인 카페(cafeSales=강남 10,153=1억, 점포당보다 4~5배 과대)는 더 이상 1순위가 아니라 '최후 폴백'.
       //   헤드라인·한줄평·경쟁분석·시장매력도·점수·AI종합이 전부 이 값을 읽으므로 여기 한 곳만 바꾸면 전 카드 통일.
-      //   우선순위: ① 소상공인 카페·디저트 평균(cafeSales) → ② 비즈맵 분위 평균(bmAvgSalesNum) → ③ 안정 카페 동평균.
-      //   ※ 상위20%/중위/하위 분위(bizmapTop/Mid/BottomSalesNum)는 별도 필드 = 비즈맵 그대로(평균만 소상공인).
-      //   ※ 전체업종 동평균(dongAvg=병원/금융 섞임)은 카페 매출 아니라 체인에서 제외.
-      monthlyAvgSales: ((cafeSales && cafeSales > 0) ? Math.round(cafeSales)
-        : ((bmAvgSalesNum > 0) ? bmAvgSalesNum
-            : ((saDongCafeAvgStable && saDongCafeAvgStable > 0) ? saDongCafeAvgStable : 0))),
+      //   우선순위: ① 비즈맵 커피 분위 평균(bmAvgSalesNum) → ② 안정 카페 동평균 → ③ 소상공인 카페 평균(cafeSales, 최후 폴백).
+      //   ※ 상위20%/중위/하위 분위(bizmapTop/Mid/BottomSalesNum)는 별도 필드 = 비즈맵 커피 그대로.
+      //   ※ 비즈맵이 전혀 없는 비수도권 일부는 소상공인으로 정직하게 폴백되게 체인은 유지.
+      monthlyAvgSales: ((bmAvgSalesNum > 0) ? bmAvgSalesNum
+        : ((saDongCafeAvgStable && saDongCafeAvgStable > 0) ? saDongCafeAvgStable
+            : ((cafeSales && cafeSales > 0) ? Math.round(cafeSales) : 0))),
       // [2026-06-24] 한줄평 '최고~최저'를 분위 상/하위 20%로 통일하기 위한 숫자값(만원). 없으면 0 → 소비처가 소상공인 동최고/최저로 자연 폴백.
       bizmapTopSalesNum: bmTopSalesNum,
       bizmapBottomSalesNum: bmBtmSalesNum,
@@ -2270,6 +2298,11 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       bizmapMidSales: bmMidSalesStr,
       bizmapMidSalesNum: bmMidSalesNum,
       bizmapQuantileTrend: bmQuantileTrend,
+      // [2026-06-30 매출 한 저울] 매출분석 카드 두 구간 분위(비즈맵 같은 저울):
+      //   coffeeQuant = 커피만(bizMapAverageSales), cafeBakeryQuant = 커피+베이커리(bizMapAverageSalesBakery).
+      //   각 { topNum,topStr, avgNum,avgStr, midNum,midStr, btmNum,btmStr, trend }. 데이터 없으면 null.
+      coffeeQuant: coffeeQuant,
+      cafeBakeryQuant: cafeBakeryQuant,
       bizmapAvgUsageCnt: bmAvgUsageStr,
       bizmapAvgUnitPrice: card5UnitPriceStr,
       bizmapUsageTrend: bmUsageTrend,
@@ -3987,12 +4020,11 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   // 우리가 모은 데이터(소상공인 매출, LOCALDATA, 카페 수, 임대료)로 직접 계산
   // ─────────────────────────────────────────────────
   // 자체 데이터 추출 (모두 이미 dataMapper 위쪽에서 정의됨)
-  // [2026-06-24 → 2026-06-28 매출 단일화] 시장 매력도·비용 축의 '카페 월매출(만원)' = '월평균 매출' 단일 진실값(monthlyAvgSales)과 동일 우선순위로 통일.
-  //   ① 소상공인 카페 평균(cafeSales=1086) → ② 비즈맵 분위 평균(bmAvgSalesNum=901)
-  //   → ③ 동 평균(dongAvg) → ④ 비즈맵 점포당평균. ★헤드라인·점수·AI 종합과 같은 값(1086)으로 계산★
-  // [2026-05-31] 비수도권은 salesAvg '카페'행이 비어 cafeSales=0 → 그땐 비즈맵 분위로 자연 폴백(비용부담 축 붕괴 방지).
-  const _selfCafeSales = (typeof cafeSales === 'number' && cafeSales > 0) ? cafeSales
-    : (bmAvgSalesNum > 0) ? bmAvgSalesNum
+  // [2026-06-24 → 2026-06-30 매출 한 저울] 시장 매력도·비용 축의 '카페 월매출(만원)' = 매출카드 헤드라인 단일 진실값(monthlyAvgSales)을 직접 읽어 점수경로=헤드라인경로 일치.
+  //   ★ 점수와 헤드라인이 다른 값(소상공인 1086 vs 비즈맵 901)으로 갈라지던 것을 단일출처로 통일.
+  //   monthlyAvgSales 우선순위 = 비즈맵 커피 분위 평균 → 안정 카페 동평균 → 소상공인(최후 폴백).
+  // [2026-05-31] 비수도권 등으로 그 값마저 0이면 동평균/비즈맵 점포당평균으로 정직 폴백(비용부담 축 붕괴 방지).
+  const _selfCafeSales = (card5?.bodyData?.monthlyAvgSales > 0) ? card5.bodyData.monthlyAvgSales
     : (typeof dongAvg === 'number' && dongAvg > 0) ? dongAvg
     : (Number(cd.nicebizmapStats?.perStoreAvg) > 0 ? Math.round(Number(cd.nicebizmapStats.perStoreAvg)) : 0);  // 카페 월매출 (만원)
   const _selfTotalCafes = totalCafes || 0;                                                       // 카페 수 (오픈업+카카오)
@@ -4780,16 +4812,23 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   let _natCafeAvgManwon = 0;
   let _natCafeSrc = '';
   try {
-    // 1순위: markets/chart/national (App.jsx에서 collectedData.apis.bmNationalChart 저장)
-    const _natRaw = apis.bmNationalChart?.data;
-    if (_natRaw && (_natRaw.latestPerStoreManwon || _natRaw.perStoreAvgManwon)) {
-      _natCafeAvgManwon = _natRaw.latestPerStoreManwon || _natRaw.perStoreAvgManwon;
-      _natCafeSrc = 'bmNational';
+    // [2026-06-30 회귀수정] 1순위는 '진짜 전국/광역 점포당 평균'이어야 '전국 평균 대비'가 진실이 된다.
+    //   markets/chart/national (apis.bmNationalChart.data.latestPerStoreManwon || perStoreAvgManwon, 만원).
+    //   ★직전 작업이 1순위를 같은 동 자기 시계열(bizMapAverageSales) 평균으로 바꿔, 분자(_dongCafeSalesManwon
+    //     =같은 동 비즈맵 커피 평균)와 자기참조가 되어 비율 항상 ~1.0 → 백분위 ~52 고정 → 무의미했음.
+    const _natRaw = apis.bmNationalChart?.data ?? aiData?.apis?.bmNationalChart?.data;
+    if (_natRaw && typeof _natRaw === 'object') {
+      const _natPerStore = parseFloat(_natRaw.latestPerStoreManwon ?? _natRaw.perStoreAvgManwon ?? 0) || 0;
+      if (_natPerStore > 0) {
+        _natCafeAvgManwon = Math.round(_natPerStore);
+        _natCafeSrc = 'bmNational';
+      }
     }
-    // 2순위: bizMapAverageSales 시계열 평균
+    // 2순위(전국 없을 때만 폴백): bizMapAverageSales 시계열 평균(같은 동 비즈맵 커피 평균).
+    //   자기참조라 비율이 ~1.0로 눌리지만, 전국 데이터가 전혀 없는 비수도권 일부에서 0보다는 낫다.
     if (!_natCafeAvgManwon && Array.isArray(_bmAvgSalesArr) && _bmAvgSalesArr.length > 0) {
       const _avgVals = _bmAvgSalesArr
-        .map(r => parseFloat(r?.avg ?? r?.avgSlamt ?? r?.midSlamt ?? 0) || 0)
+        .map(r => parseFloat(r?.mercAmtAvg ?? r?.avg ?? r?.avgSlamt ?? r?.midSlamt ?? 0) || 0)
         .filter(v => v > 0);
       if (_avgVals.length > 0) {
         _natCafeAvgManwon = Math.round(_avgVals.reduce((s, v) => s + v, 0) / _avgVals.length);
@@ -4803,9 +4842,10 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     }
   } catch (e) { /* 0 유지 */ }
 
-  // 카드 5의 메인 동 카페 매출 (만원) - card5는 이미 line ~1230 에서 생성됨
-  // [2026-06-28 매출 단일화] 백분위 비교도 헤드라인·점수와 같은 단일 진실값(monthlyAvgSales=소상공인 카페 평균 1086 1순위, 비즈맵 분위 평균 폴백)을 쓴다.
-  //   ★ 한 리포트 안에서 매출 개념이 901 vs 1086으로 갈라지지 않도록, 모든 소비처가 monthlyAvgSales 한 값을 읽는다.
+  // 카드 5의 메인 동(地) 카페 매출 (만원) - card5는 이미 위에서 생성됨 = 백분위의 분자.
+  // [2026-06-30 매출 한 저울] 백분위 분자도 헤드라인·점수와 같은 단일 진실값(monthlyAvgSales)을 쓴다.
+  //   monthlyAvgSales 우선순위: ① 비즈맵 커피 분위 평균(bmAvgSalesNum) 1순위 → ② 안정 동평균 → ③ 소상공인 카페 평균(최후 폴백).
+  //   ★분자=동(地), 분모(_natCafeAvgManwon)=전국 점포당 평균 → '전국 평균 대비'가 진짜가 되도록 둘이 다른 척도여야 함.
   const _dongCafeSalesManwon = (card5?.bodyData?.monthlyAvgSales) || (card5?.bodyData?.dongCafeAvgStable) || (card5?.bodyData?.monthly) || 0;
   // 백분위 산출 (동 매출 / 전국 평균 비율 → 백분위)
   // 비율 1.0 = 전국 평균과 동일 = 백분위 50
@@ -4917,7 +4957,7 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   if (_cafeSalesRank) _bonusItems.push({ label: '이 동 업종 중 카페 매출 순위', value: _cafeSalesRank });
 
   // 2. 이 동 카페 매출 vs 시군구(구) 카페 평균 (만원 단위)
-  // [2026-06-28 매출 단일화] 점포당 카페 월매출 = 단일 진실값(monthlyAvgSales=소상공인 카페 평균 1086 1순위, 비즈맵 분위 평균 폴백). 없으면 안정 동평균→단일월.
+  // [2026-06-30 매출 한 저울] 점포당 카페 월매출 = 단일 진실값(card5.monthlyAvgSales). 우선순위: ① 비즈맵 커피 분위 평균(bmAvgSalesNum) 1순위 → ② 안정 동평균 → ③ 소상공인 카페 평균(최후 폴백).
   // guAvg = 구 카페 평균
   const _card5CafeMonthly = (card5?.bodyData?.monthlyAvgSales) || (card5?.bodyData?.dongCafeAvgStable) || (card5?.bodyData?.monthly) || 0;
   const _card5GuAvg = card5?.bodyData?.guAvg || 0;
@@ -5894,8 +5934,9 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   const c14IndepRatio = c14Total > 0 ? Math.round((c14Indep / c14Total) * 100) : 0;
   const c14FranchRatio = c14Total > 0 ? Math.round((c14Franch / c14Total) * 100) : 0;
 
-  // 매출 추출 — [2026-06-25 → 2026-06-28] ★ '월평균 매출' 단일 진실값(card5.monthlyAvgSales = 소상공인 카페 평균 1086 1순위, 비즈맵 분위 평균 폴백) 사용.
-  //   화면 헤드라인=AI 종합=점수가 모두 같은 값(1086)·같은 판정 단어를 쓰도록 한 출처(monthlyAvgSales)에서 읽는다.
+  // 매출 추출 — [2026-06-30 매출 한 저울] ★ '월평균 매출' 단일 진실값(card5.monthlyAvgSales) 사용.
+  //   우선순위: ① 비즈맵 커피 분위 평균(bmAvgSalesNum) 1순위 → ② 안정 동평균 → ③ 소상공인 카페 평균(최후 폴백).
+  //   화면 헤드라인=AI 종합=점수가 모두 같은 값·같은 판정 단어를 쓰도록 한 출처(monthlyAvgSales)에서 읽는다.
   //   판정/% 분자도 이 단일값 기준으로 통일. dongAvg/guAvg 도 매출카드(card5)와 동일 출처에서 가져온다.
   let c14CafeSales = (card5?.bodyData?.monthlyAvgSales || card5?.bodyData?.dongCafeAvgStable || card5?.bodyData?.monthly) || 0;
   let c14DongAvg = card5?.bodyData?.dongAvg || 0;
@@ -6362,7 +6403,7 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   const _kosisStats = buildKosisCafeStats(apis.kosisFoodSurvey?.data || null);
 
   const c14ProfitStructure = {
-    // [2026-06-24 → 2026-06-28] AI 종합 '카페 월평균 매출'도 매출카드와 같은 단일 진실값(monthlyAvgSales=소상공인 카페 평균 1086 1순위, 비즈맵 분위 평균 폴백). 없으면 안정 동평균→단일월 폴백.
+    // [2026-06-30 매출 한 저울] AI 종합 '카페 월평균 매출'도 매출카드와 같은 단일 진실값(monthlyAvgSales). 우선순위: ① 비즈맵 커피 분위 평균(bmAvgSalesNum) 1순위 → ② 안정 동평균 → ③ 소상공인 카페 평균(최후 폴백).
     monthlySales: (card5?.bodyData?.monthlyAvgSales || card5?.bodyData?.dongCafeAvgStable || card5?.bodyData?.monthly) ?? 0,
     dongAvg: card5?.bodyData?.dongAvg ?? 0,
     guAvg: card5?.bodyData?.guAvg ?? 0,

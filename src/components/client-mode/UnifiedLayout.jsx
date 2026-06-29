@@ -4351,7 +4351,7 @@ function __dsScenesForCard(cardN, body, allBodies) {
       break;
     }
     case '05': {
-      // [2026-06-28 매출 단일화] 카페 월평균 매출 = 단일 진실값(monthlyAvgSales=소상공인 카페 평균 1086 1순위, 비즈맵 분위 평균 폴백). 없으면 안정 동평균→단일월.
+      // [2026-06-30 매출 한 저울] 카페 월평균 매출 = 단일 진실값(monthlyAvgSales=비즈맵 커피 분위 평균 1순위, 안정 동평균→소상공인 최후 폴백). 없으면 안정 동평균→단일월.
       const monthly = __dsN(bd.monthlyAvgSales) || __dsN(bd.dongCafeAvgStable) || __dsN(bd.monthly) || __dsN(getBody(5).monthlyAvgSales) || __dsN(getBody(5).dongCafeAvgStable) || __dsN(getBody(5).monthly);
       const guAvg = __dsN(bd.guAvg) || __dsN(getBody(5).guAvg);
       if (monthly > 0) {
@@ -5490,7 +5490,11 @@ export default function UnifiedLayout({
             ]);
             if (topOverAvg) {
               // 평균 대비 상위20%가 또렷 → "입지보다 운영력" 핵심 해석 + 희망 처방.
-              const _avgWord = monthly < 700 ? '평균은 낮은 편이지만' : '평균은 보통 수준이지만';
+              // [2026-06-30 매출 한 저울] '낮은 편' 판정 = 절대 700만원 경계 폐기(이제 monthly가 비즈맵 커피 평균 스케일).
+              //   같은 카드의 상대 기준: 평균(monthly)이 하위~상위(botS~topS) 사이에서 아래쪽 40% 미만이면 '낮은 편'.
+              //   분위 표본 없으면(botS/topS 부재) 보수적으로 '보통 수준'으로 둔다.
+              const _avgRelPos = (topS > botS && monthly > 0) ? (monthly - botS) / (topS - botS) : null;
+              const _avgWord = (_avgRelPos !== null && _avgRelPos < 0.4) ? '평균은 낮은 편이지만' : '평균은 보통 수준이지만';
               _sum = `이 동네는 ${_avgWord} 상위 카페는 ${_manToWon(topS)}을 벌어, 입지보다 '운영력'이 매출을 가르는 곳입니다.`
                 + (_crossSales || ' 분명한 콘셉트 하나로 차별화하면 상위권이 충분히 열립니다.');
             } else if (hasQuant) {
@@ -6548,7 +6552,7 @@ export default function UnifiedLayout({
           put(values, '등급', total > 0 ? grade : null);
         } else if (screen === 11) {    // 매출 분석 (컴포넌트 n=05)
           title = '매출 분석';
-          // [2026-06-28 매출 단일화] 월평균매출 = 단일 진실값(monthlyAvgSales=소상공인 카페 평균 1086 1순위, 비즈맵 분위 평균 폴백). 없으면 안정 동평균→단일월.
+          // [2026-06-30 매출 한 저울] 월평균매출 = 단일 진실값(monthlyAvgSales=비즈맵 커피 분위 평균 1순위, 안정 동평균→소상공인 최후 폴백). 없으면 안정 동평균→단일월.
           const monthly = _num(bd.monthlyAvgSales) || _num(bd.dongCafeAvgStable) || _num(bd.monthly) || 0;
           put(values, '월평균매출', monthly > 0 ? (monthly >= 10000 ? `${(monthly / 10000).toFixed(1)}억` : `${monthly.toLocaleString('ko-KR')}만원`) : null);
           // 객단가 = 화면 unitPriceDisplay 우선순위(비즈맵 → 가중평균)
@@ -8088,10 +8092,27 @@ export default function UnifiedLayout({
         const monthlySales = dCard5?.bodyData?.monthlyAvgSales || dCard5?.bodyData?.dongCafeAvgStable || dCard5?.bodyData?.monthly || 0;
         const avgRent = dCard7?.bodyData?.rentPerPyeong || 0;
         const survivalRate1y = dCard13?.bodyData?.survivalRate1y || null;
-        // 매출등급: 기준표 적용 (S=일50만+ A=40~50만 B=30~40만 C=20~30만 D=20만미만)
-        const _monthlySalesNum = parseInt(String(monthlySales).replace(/[^0-9]/g, '')) || 0;
-        const _dailySales = _monthlySalesNum > 0 ? Math.round(_monthlySalesNum / 30) : 0;
-        const salesGrade = _dailySales >= 50 ? 'S' : _dailySales >= 40 ? 'A' : _dailySales >= 30 ? 'B' : _dailySales >= 20 ? 'C' : _dailySales > 0 ? 'D' : (dCard12?.chartData?.tierLabel || null);
+        // [2026-06-30 매출 한 저울] 매출등급 S/A/B/C/D — 옛 '일매출 절대 임계(일50만+=S)' 폐기.
+        //   입력 monthlySales가 비즈맵 점포평균(강남 2558=일85)으로 바뀌어 죄다 'S'로 굳어 변별력을 잃었음.
+        //   대신 '같은 비즈맵 저울의 상대 위치'로 등급:
+        //   1순위 = 매출 백분위(salesPercentile.percentile, 동 vs 전국 카페 평균, dataMapper가 AI종합 카드에 노출) →
+        //           S(90+)/A(75+)/B(50+)/C(28+)/D(그외).
+        //   폴백 = coffeeQuant(비즈맵 커피 분위)에서 평균이 하위~상위 사이 어디인지 비율 (avg-btm)/(top-btm) →
+        //           >=0.8 S /0.6 A /0.4 B /0.2 C /그외 D.
+        const _salesPctl = (typeof dCard12?.bodyData?.salesPercentile?.percentile === 'number')
+          ? dCard12.bodyData.salesPercentile.percentile : null;
+        const salesGrade = (() => {
+          if (typeof _salesPctl === 'number' && _salesPctl > 0) {
+            return _salesPctl >= 90 ? 'S' : _salesPctl >= 75 ? 'A' : _salesPctl >= 50 ? 'B' : _salesPctl >= 28 ? 'C' : 'D';
+          }
+          const _cq = dCard5?.bodyData?.coffeeQuant;
+          const _avgN = _cq?.avgNum || 0, _topN = _cq?.topNum || 0, _btmN = _cq?.btmNum || 0;
+          if (_avgN > 0 && _topN > _btmN) {
+            const _pos = (_avgN - _btmN) / (_topN - _btmN); // 0~1 상대 위치
+            return _pos >= 0.8 ? 'S' : _pos >= 0.6 ? 'A' : _pos >= 0.4 ? 'B' : _pos >= 0.2 ? 'C' : 'D';
+          }
+          return dCard12?.chartData?.tierLabel || null;
+        })();
         const _deliveryDetail = collectedData?.deliveryDetail;
         const topDeliveryCat = _deliveryDetail?.categories?.[0]?.name || null;
         const deliveryTotal = _deliveryDetail?.totalOrders || 0;

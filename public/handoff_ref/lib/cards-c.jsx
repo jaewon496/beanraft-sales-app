@@ -70,9 +70,10 @@ function Card13({ body = {} }) {
   const grade = (window.bcScoreGrade ? window.bcScoreGrade(total).word
     : (total >= 80 ? "유리한 자리" : total >= 60 ? "무난한 자리" : total >= 40 ? "보통 — 운영이 관건" : total >= 20 ? "비용 관리가 관건인 자리" : "도전적·보완 필요한 자리"));
   const survival3y = Number(body.survival3y) || 0;
-  // [2026-06-24] 경쟁분석 '월매출' = 매출카드와 같은 단일 진실값(monthlyAvgSales=비즈맵 분위 평균). 없으면 안정 동평균→단일월 폴백.
-  const cafeSales = Number(body.cafeSales)
-    || Number(body.bodyData?.monthlyAvgSales)
+  // [2026-06-30] 경쟁분석 '월매출' = 매출카드와 같은 단일 진실값(monthlyAvgSales=비즈맵 커피 분위 평균) 1순위.
+  //   body.cafeSales(옛 소상공인 raw)가 어쩌다 주입돼도 단일값이 항상 이기게 순서 고정(1억 부활 방어).
+  const cafeSales = Number(body.bodyData?.monthlyAvgSales)
+    || Number(body.cafeSales)
     || Number(body.bodyData?.dongCafeAvgStable)
     || Number(body.bodyData?.monthly)
     || 0;
