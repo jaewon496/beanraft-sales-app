@@ -572,7 +572,11 @@ export function buildDiagnosisBundle({ cards, kosisBoxData, collectedData, dataA
 //   새 경로가 실패/예외면 getUnifiedDiagnosis 가 자동으로 v9 결과를 반환한다.
 // ═════════════════════════════════════════════════════════════════════════
 
-const AI_DIAG_V10_PREFIX = 'bc_ai_diag_v10pro6_';  // 종합(배너/진단/설계방향) pro 단일콜 추론 전용 캐시
+const AI_DIAG_V10_PREFIX = 'bc_ai_diag_v10pro7_';  // 종합(배너/진단/설계방향) pro 단일콜 추론 전용 캐시
+//   ★[2026-06-29 정보분산 패스12] v10pro6_→v10pro7_ : 화면 렌더 직전(__BC_DATA__ 푸시 지점)에서 디렉터 전 섹션
+//     문자열을 카드1 평당월세(rentPerPyeong)·공실률(vacancyRate)로 마지막-마일 강제 치환(injectCard1RentVacancyIntoDirector)
+//     하는 안전망 추가. App.jsx 검색직원 AI가 만든 디렉터가 dataMapper 정규화를 우회해 31/9% 누수하던 경로 차단.
+//     옛 캐시(31/9% 텍스트) 무효화해 다음 검색 때 41/6.9로 재생성.
 //   ★[2026-06-29 정보분산 패스11] v10pro5_→v10pro6_ : 평당월세/공실 단일값을 buildIntegratedRent().value 그냥
 //     round(=31 누수) 대신 'resolveCard1Rent/Vacancy(카드1 화면 표시 체인 단일 함수)'로 교체 → 입력·출력 모두
 //     카드1 표시값(41/6.9)에 결정적으로 수렴. 옛 캐시(31/619/17/9% 텍스트) 무효화해 다음 검색 때 41/6.9로 재생성.

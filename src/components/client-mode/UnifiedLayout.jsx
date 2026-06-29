@@ -74,6 +74,93 @@ function injectTtsIntoCards(cardsArr, regionKey) {
   return out;
 }
 
+// [2026-06-29 정보분산 패스12] ★마지막-마일 강제 치환.
+//   문제: 화면 렌더 디렉터(cards[13].body.chartData.director)는 App.jsx 검색직원 AI 경로에서 만들어져
+//     dataMapper 정규화(_normalizeSalesText)를 우회 → 라이브에서 "평당 월세 31만원·공실률 9%"가 계속 샜다.
+//     (카드1 KPI는 41만원/6.9%로 정상.)
+//   해법: __BC_DATA__로 푸시하기 직전, cards[0].body의 카드1 단일값(rentPerPyeong=R, vacancyRate=V)을 읽어
+//     디렉터 전 섹션 문자열(intro·closing·각 탭 headline/observations[]/keyMetric)을 R/V로 강제 치환한다.
+//   ★R/V 하드코딩 금지(지역마다 cards[0]에서 자동 읽음). ★공실 '변동률'(36.4% 상승/하락 등)은 절대 안 건드림.
+//   ★원본 불변(얕은 클론). dataMapper 정규화는 그대로 둠(이중 안전망).
+function injectCard1RentVacancyIntoDirector(cardsArr) {
+  if (!Array.isArray(cardsArr)) return cardsArr;
+  const c0 = cardsArr[0];
+  const c13 = cardsArr[13];
+  const dir = c13 && c13.body && c13.body.chartData && c13.body.chartData.director;
+  if (!c0 || !c0.body || !dir) return cardsArr;
+  // 카드1 표시 단일값 — 평당월세(만원) R, 공실률(%) V(소수1자리 반올림)
+  const _toNum = (v) => { const n = Number(v); return (typeof n === 'number' && isFinite(n)) ? n : 0; };
+  const R = Math.round(_toNum(c0.body.rentPerPyeong));
+  const V = Math.round(_toNum(c0.body.vacancyRate) * 10) / 10;
+  if (!(R > 0) && !(V > 0)) return cardsArr;   // 카드1 값이 없으면 치환 안 함(누수 위험도 없음)
+
+  // 공실 '변동률'(36.4% 상승/하락/올랐/내렸/증감/p/포인트 등) 식별 — 이런 % 는 절대 안 건드린다.
+  const _VAR_VERB = '(?:\\s*(?:상승|하락|올랐|올라|내렸|내려|오름|내림|증가|감소|늘었|줄었|변동|오름세|내림세|p|포인트|％\\s*p))';
+
+  const _fixStr = (s) => {
+    if (!s || typeof s !== 'string') return s;
+    let out = s;
+    // ── 평당월세 → R만원 (숫자 부분만 치환, 앞 어구·조사는 그대로 보존) ──
+    if (R > 0) {
+      const _rep = `${R.toLocaleString()}만원`;
+      // (가) "평당 월세[는은과] N만원" / "평당월세 N만 원" / "평당 임대료 N만원" (임대어가 '평당' 뒤·숫자 앞)
+      out = out.replace(/((?:평당\s*월세|평당월세|평당\s*임대료|평당\s*임대|평당\s*렌트)\s*(?:[는은과이가]\s*|:\s*)?)([\d,]+)\s*만\s*원?/g,
+        (m, pre) => `${pre}${_rep}`);
+      // (나) 역어순 "월세[는은] 평당 N만원" / "임대료가 평당 N만원" (임대어가 '평당' 앞)
+      out = out.replace(/((?:월세|임대료|임대|렌트)\s*(?:[는은이가]\s*)?평당\s*)([\d,]+)\s*만\s*원?/g,
+        (m, pre) => `${pre}${_rep}`);
+      // (다) "평당 N만원[…12자 이내…]임대료/월세/임대/렌트" (숫자 뒤에 임대어)
+      out = out.replace(/(평당\s*)([\d,]+)\s*만\s*원?(?=[^\d]{0,12}(?:임대료|월세|임대|렌트))/g,
+        (m, pre) => `${pre}${_rep}`);
+    }
+    // ── 공실률 → V% (변동률은 제외: % 뒤에 변동 동사 오면 스킵) ──
+    if (V > 0) {
+      // (가) "공실률[은는이가] N%" / "공실률: N %" — 공실어가 숫자 앞(숫자만 치환)
+      out = out.replace(new RegExp(`(공실률?\\s*(?:[은는이가]\\s*|:\\s*)?)([\\d.]+)(\\s*)%(?!${_VAR_VERB})`, 'g'),
+        (m, pre) => `${pre}${V}%`);
+      // (나) 숫자-선행 어순 "N% 공실(률)"(예: closing "…41만원과 9% 공실률을 고려") — 숫자가 공실 앞 6자 이내
+      out = out.replace(new RegExp(`([\\d.]+)\\s*%(?!${_VAR_VERB})([^\\d%]{0,6}공실)`, 'g'),
+        (m, num, tail) => `${V}%${tail}`);
+    }
+    return out;
+  };
+
+  // keyMetric: 라벨이 평당월세/임대면 값을 R만원, 공실이면 V% 로 강제(바 "N만원"은 정규식이 못 잡음).
+  const _fixKeyMetric = (km) => {
+    if (!km || typeof km !== 'object') return km;
+    let label = typeof km.label === 'string' ? _fixStr(km.label) : km.label;
+    let value = typeof km.value === 'string' ? _fixStr(km.value) : km.value;
+    const _lbl = String(km.label || '');
+    if (R > 0 && /(평당)?\s*(월세|임대료|임대|렌트)/.test(_lbl) && !/매출|점수|인구|생존|면적|객단가/.test(_lbl)) {
+      value = `${R.toLocaleString()}만원`;
+    } else if (V > 0 && /공실/.test(_lbl)) {
+      value = `${V}%`;
+    }
+    return { ...km, label, value };
+  };
+
+  const _fixSection = (sec) => {
+    if (!sec || typeof sec !== 'object') return sec;
+    const next = { ...sec };
+    if (typeof next.headline === 'string') next.headline = _fixStr(next.headline);
+    if (typeof next.intro === 'string') next.intro = _fixStr(next.intro);
+    if (Array.isArray(next.observations)) next.observations = next.observations.map(_fixStr);
+    if (next.keyMetric) next.keyMetric = _fixKeyMetric(next.keyMetric);
+    return next;
+  };
+
+  const nextDir = { ...dir };
+  if (typeof nextDir.intro === 'string') nextDir.intro = _fixStr(nextDir.intro);
+  if (typeof nextDir.closing === 'string') nextDir.closing = _fixStr(nextDir.closing);
+  ['market', 'customer', 'competition', 'profit', 'direction'].forEach((tab) => {
+    if (nextDir[tab]) nextDir[tab] = _fixSection(nextDir[tab]);
+  });
+
+  const out = cardsArr.slice();
+  out[13] = { ...c13, body: { ...c13.body, chartData: { ...c13.body.chartData, director: nextDir } } };
+  return out;
+}
+
 // ─── Naver Map SDK Loader (uses global script from index.html, never loads a second script) ───
 let naverSDKLoadPromise = null;
 
@@ -6237,7 +6324,9 @@ export default function UnifiedLayout({
     if (!win) return;
     try {
       const _rk = `${bcSearchAddress || ''}|${radius}`;
-      let _cardsForReport = injectTtsIntoCards(bcCardsBodiesSwapped, _rk);
+      // [2026-06-29 패스12] ★마지막-마일: 디렉터 평당월세/공실을 카드1 단일값(41/6.9)으로 강제(누수 차단).
+      //   TTS 주입 '전'에 텍스트를 먼저 잡아 음성도 정확한 값으로 가게 한다.
+      let _cardsForReport = injectTtsIntoCards(injectCard1RentVacancyIntoDirector(bcCardsBodiesSwapped), _rk);
 
       // [2026-06-25] 통합 AI 진단 배선 — 있을 때만 덮고, 없으면(폴백) 기존 결정적 텍스트 그대로.
       //   ★스왑 주의: bcCardsBodiesSwapped 는 화면자리(idx4↔5 스왑)지만 aiDiag.cardLines 는
@@ -8993,7 +9082,8 @@ export default function UnifiedLayout({
                       if (!win) return;
                       try {
                         const _rk = `${bcSearchAddress || ''}|${radius}`;
-                        win.__BC_DATA__ = { cards: injectTtsIntoCards(bcCardsBodiesSwapped, _rk), address: bcSearchAddress, radius, summary: bcOneLineSummary, dataAsOf: bcDataAsOf };
+                        // [2026-06-29 패스12] ★마지막-마일: 디렉터 평당월세/공실을 카드1 단일값으로 강제(누수 차단). TTS 주입 전.
+                        win.__BC_DATA__ = { cards: injectTtsIntoCards(injectCard1RentVacancyIntoDirector(bcCardsBodiesSwapped), _rk), address: bcSearchAddress, radius, summary: bcOneLineSummary, dataAsOf: bcDataAsOf };
                         if (typeof win.__bcRender === 'function') win.__bcRender();
                       } catch (_) {}
                     }}
