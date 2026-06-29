@@ -5978,6 +5978,10 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       //   앞 패턴은 "평당 월세/임대료"가 숫자 앞에 와야 잡혀 analysis 한 줄("평당 17만원…임대료")을 놓쳤다.
       out = out.replace(/(평당\s*)([\d,]+)\s*만\s*원?(?=[^\d]{0,12}(?:임대료|월세|임대|렌트))/g,
         (m, pre) => `${pre}${_c14RentPy.toLocaleString()}만원`);
+      // [패스9 §1-10] 역어순 '월세/임대료 … 평당 N만원'(예: "월세는 평당 17만원입니다")도 치환.
+      //   앞 두 패턴은 모두 '평당'이 숫자 바로 앞/뒤 임대어를 요구해, "월세 … 평당 N만원"을 놓쳐 director.market이 샜다.
+      out = out.replace(/((?:월세|임대료|임대|렌트)[^\d]{0,12}평당\s*)([\d,]+)\s*만\s*원?/g,
+        (m, pre) => `${pre}${_c14RentPy.toLocaleString()}만원`);
     }
     // 공실률 숫자 → 카드 표시 단일값(6.9)으로 치환 ("공실률은 9.05%" / "공실률 9%" 류)
     if (_c14Vacancy > 0) {
@@ -6686,38 +6690,56 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       _scoreForTone >= 20 ? '초기 투자·비용이 큰 자리라 수익률 점수는 낮게 나오지만, 시장이 받쳐주는 만큼 객단가와 회전율로 만회할 수 있는 구조입니다.' :
       '여건이 도전적인 자리입니다. 규모를 예산에 맞추고 뚜렷한 콘셉트로 차별화하면 비집고 들어갈 여지는 분명히 있습니다.'
     );
+    // [패스9 §1-10] ★keyMetric 단일값 강제기. 직전 패스(59fb20c)는 observations/headline/closing만
+    //   _normalizeSalesText로 정규화하고 keyMetric은 AI값을 '그대로' 통과시켜, director.market.keyMetric.value="17만원"
+    //   처럼 평당월세/공실 keyMetric이 전체월세(17)·KOSIS공실(9.05)로 샜다. 여기서 라벨·값을 보고 41/6.9로 강제.
+    const _normalizeKeyMetric = (km) => {
+      if (!km || typeof km !== 'object') return km;
+      let label = typeof km.label === 'string' ? _normalizeSalesText(km.label) : km.label;
+      let value = typeof km.value === 'string' ? _normalizeSalesText(km.value) : km.value;
+      const _lbl = String(km.label || '');
+      // 라벨이 평당 월세/임대료면 값을 통합 평당월세 단일값(41만원)으로 강제(바 'N만원'은 정규식이 못 잡음).
+      if (_c14RentPy > 0 && /(평당)?\s*(월세|임대료|임대|렌트)/.test(_lbl) && !/매출|점수|인구|생존|면적|객단가/.test(_lbl)) {
+        value = `${_c14RentPy.toLocaleString()}만원`;
+      }
+      // 라벨이 공실(률)이면 값을 카드1 공실률 단일값(6.9%)으로 강제.
+      else if (_c14Vacancy > 0 && /공실/.test(_lbl)) {
+        value = `${_c14Vacancy}%`;
+      }
+      return { ...km, label, value };
+    };
     return {
       // [2026-06-29 §1-10/패스7] 디렉터 전 섹션 텍스트에 출처명(한국부동산원 등) 제거 + 매출/평당월세/공실 단일값 치환.
       intro: _normalizeSalesText(intro),
       market: {
         headline: _normalizeSalesText(_aiDirector?.market?.headline || `카페 ${_mkt.totalCafes || 0}개 밀집 상권`),
         observations: (_aiDirector?.market?.observations?.length ? _aiDirector.market.observations : mktObs).map(_normalizeSalesText).filter(Boolean),
-        keyMetric: _aiDirector?.market?.keyMetric || { label: '총 카페 수', value: `${_mkt.totalCafes || 0}개` },
+        keyMetric: _normalizeKeyMetric(_aiDirector?.market?.keyMetric) || { label: '총 카페 수', value: `${_mkt.totalCafes || 0}개` },
         citation: '카드 1·3·4'
       },
       customer: {
         headline: _normalizeSalesText(_aiDirector?.customer?.headline || `${_cus.topAge || '주요 연령대'} 중심 고객`),
         observations: (_aiDirector?.customer?.observations?.length ? _aiDirector.customer.observations : cusObs).map(_normalizeSalesText).filter(Boolean),
-        keyMetric: _aiDirector?.customer?.keyMetric || (_cus.floatingPop ? { label: '월 유동인구', value: `${(_cus.floatingPop / 10000).toFixed(1)}만명` } : null),
+        keyMetric: _normalizeKeyMetric(_aiDirector?.customer?.keyMetric) || (_cus.floatingPop ? { label: '월 유동인구', value: `${(_cus.floatingPop / 10000).toFixed(1)}만명` } : null),
         citation: '카드 2·6'
       },
       competition: {
         headline: _normalizeSalesText(_aiDirector?.competition?.headline || `종합 ${c14OverallScore || 0}점 상권`),
         observations: (_aiDirector?.competition?.observations?.length ? _aiDirector.competition.observations : cmpObs).map(_normalizeSalesText).filter(Boolean),
-        keyMetric: _aiDirector?.competition?.keyMetric || { label: '종합 점수', value: `${c14OverallScore || 0}점 / 100점` },
+        keyMetric: _normalizeKeyMetric(_aiDirector?.competition?.keyMetric) || { label: '종합 점수', value: `${c14OverallScore || 0}점 / 100점` },
         citation: '카드 12'
       },
       profit: {
         // [2026-06-29 §1-10] AI 디렉터 수익 텍스트도 평당월세·공실률을 카드값(41/6.9)으로 치환하고 출처명 제거.
         headline: _normalizeSalesText(_aiDirector?.profit?.headline || (_pft.monthlySales ? `월매출 ${_pft.monthlySales.toLocaleString()}만원 수준` : '수익 구조')),
         observations: (_aiDirector?.profit?.observations?.length ? _aiDirector.profit.observations : pftObs).map(_normalizeSalesText).filter(Boolean),
-        keyMetric: _aiDirector?.profit?.keyMetric || (_pft.monthlySales ? { label: '월평균 매출', value: `${_pft.monthlySales.toLocaleString()}만원` } : null),
+        keyMetric: _normalizeKeyMetric(_aiDirector?.profit?.keyMetric) || (_pft.monthlySales ? { label: '월평균 매출', value: `${_pft.monthlySales.toLocaleString()}만원` } : null),
         citation: '카드 5·7·11'
       },
       direction: {
         headline: _normalizeSalesText(_aiDirector?.direction?.headline || `${_dir.storeTrendLabel || '점포 추이'} 흐름`),
         observations: (_aiDirector?.direction?.observations?.length ? _aiDirector.direction.observations : dirObs).map(_normalizeSalesText).filter(Boolean),
-        keyMetric: _aiDirector?.direction?.keyMetric || (_dir.survivalRate3y ? { label: '3년 생존율', value: `${_dir.survivalRate3y}%` } : null),
+        keyMetric: _normalizeKeyMetric(_aiDirector?.direction?.keyMetric) || (_dir.survivalRate3y ? { label: '3년 생존율', value: `${_dir.survivalRate3y}%` } : null),
         citation: '카드 3·9·10·11·13'
       },
       closing: _normalizeSalesText(closing)

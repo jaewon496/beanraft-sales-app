@@ -572,7 +572,10 @@ export function buildDiagnosisBundle({ cards, kosisBoxData, collectedData, dataA
 //   새 경로가 실패/예외면 getUnifiedDiagnosis 가 자동으로 v9 결과를 반환한다.
 // ═════════════════════════════════════════════════════════════════════════
 
-const AI_DIAG_V10_PREFIX = 'bc_ai_diag_v10pro3_';  // 종합(배너/진단/설계방향) pro 단일콜 추론 전용 캐시
+const AI_DIAG_V10_PREFIX = 'bc_ai_diag_v10pro4_';  // 종합(배너/진단/설계방향) pro 단일콜 추론 전용 캐시
+//   ★[2026-06-29 정보분산 패스9] v10pro3_→v10pro4_ : 디렉터 keyMetric(평당월세/공실)이 정규화를 거치지 않아
+//     market.keyMetric.value="17만원" 등으로 샌 것을 _normalizeKeyMetric으로 41/6.9 강제 + 역어순('월세…평당 N만원')
+//     치환 추가. 옛 캐시(17/9.05/출처명 keyMetric)를 버리고 다음 검색 때 41/6.9·출처 0으로 재생성되게 함.
 //   ★[2026-06-29 정보분산 패스8] v10pro2_→v10pro3_ : 평당월세 facts 의 '진짜 출처'를 교정(가게 전체 월세 619/17
 //     → 통합 per평 41)하며 캐시 무효화. 패스7은 표면(displayRentPy 변수)만 바꾸고 실제 facts에 619/17이 남아
 //     AI가 그걸 그대로 인용했음. 옛 캐시를 버리고 다음 검색 때 41/6.9로 재생성되게 함.
