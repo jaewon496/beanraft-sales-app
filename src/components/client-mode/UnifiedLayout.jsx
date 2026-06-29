@@ -4425,11 +4425,18 @@ function __dsScenesForCard(cardN, body, allBodies) {
         deltaText: kosisCafe > 0 ? (() => { const d = __dsDeltaPct(rentPy, kosisCafe); return d != null ? `전국 평균보다 ${d >= 0 ? '+' : ''}${d}%` : ''; })() : '',
         deltaPositive: false,
       });
+      // [2026-06-29 총창업비 단일 정의·범위 통일] 화면(카드04 KPI·한줄·카드14)과 같은 단일 출처(ROI 엔진 범위)를 우선.
+      //   주입된 roiTotalStartupRangeText/Min/Max가 있으면 범위로, 없으면 옛 AI totalStartupCostManwon 폴백.
+      const _dsRange = bd.roiTotalStartupRangeText || '';
+      const _dsMin = __dsN(bd.roiTotalStartupMin);
+      const _dsMax = __dsN(bd.roiTotalStartupMax);
       const total = __dsN(bd.totalStartupCostManwon);
       const dep = __dsN(bd.depositManwon);
       {
         const stats = [];
-        if (total > 0) stats.push({ value: __dsManToWon(total), name: '총 창업비(15평)' });
+        if (_dsRange) stats.push({ value: _dsRange, name: '총 창업비(15평)' });
+        else if (_dsMin > 0 && _dsMax > 0) stats.push({ value: `${__dsManToWon(_dsMin)} ~ ${__dsManToWon(_dsMax)}`, name: '총 창업비(15평)' });
+        else if (total > 0) stats.push({ value: __dsManToWon(total), name: '총 창업비(15평)' });
         if (dep > 0) stats.push({ value: __dsManToWon(dep), name: '보증금' });
         if (rentPy > 0) stats.push({ value: `${__dsComma(rentPy)}만원`, name: '평당 월세' });
         if (stats.length >= 2) push('kpiQuad', { label: '들어가는 돈', stats: stats.slice(0, 4) });
@@ -5535,14 +5542,26 @@ export default function UnifiedLayout({
             const premium = premWon > 0 ? Math.round(premWon / 10000) : _num(_bd.premiumCost);
             // 평당 임대료가 높은지 판정(서울 핵심 상권 평당 30만원/월 이상을 '비싼' 기준선으로)
             const highRent = rentPy >= 30;
-            // [2026-06-16] 총창업비 = 인테리어(평당×15) + 권리금. 보증금 제외(환급성).
-            //   cards-b Card08 시뮬레이터·bcOneLineSummary 의 정의와 동일하게 통일한다.
-            //   (AI totalStartupCostManwon 은 보증금 포함값이라 새 정의와 어긋나 더 이상 쓰지 않음.)
-            const _c7kc = (hfBody.chartData && hfBody.chartData.kosisCafe) || {};
-            const _interiorPerPy = _num(_c7kc.interiorPerPyeong);
-            const _interior15 = _interiorPerPy > 0 ? Math.round(_interiorPerPy * 15) : 0;
-            const startupRaw = (_interior15 + (premium > 0 ? premium : 0)) > 0 ? _interior15 + (premium > 0 ? premium : 0) : 0;
-            const startupTxt = startupRaw > 0 ? `, 총창업비 ${_manToWon(startupRaw)}` : '';
+            // [2026-06-29 총창업비 단일 정의·범위 통일] 총창업비 = 인테리어 + 권리금 + 시설·장비(저~고 범위). 보증금 제외(환급성).
+            //   ★단일 출처: dataMapper ROI 엔진이 주입한 roiTotalStartupRangeText/Min/Max(카드04 KPI·카드14와 동일).
+            //   기존엔 여기서 '인테리어+권리금'만(시설장비 누락) 단일숫자로 적어 카드04 KPI(범위)와 어긋났음(정보분산).
+            //   주입값이 없을 때만 옛 산식(인테리어 평당×15 + 권리금)으로 폴백.
+            const _roiRange7 = (_bd.roiTotalStartupRangeText && String(_bd.roiTotalStartupRangeText)) || '';
+            const _roiMin7 = _num(_bd.roiTotalStartupMin);
+            const _roiMax7 = _num(_bd.roiTotalStartupMax);
+            let startupTxt = '';
+            if (_roiRange7) {
+              startupTxt = `, 총창업비 ${_roiRange7}`;
+            } else if (_roiMin7 > 0 && _roiMax7 > 0) {
+              startupTxt = `, 총창업비 ${_manToWon(_roiMin7)} ~ ${_manToWon(_roiMax7)}`;
+            } else {
+              const _c7kc = (hfBody.chartData && hfBody.chartData.kosisCafe) || {};
+              const _interiorPerPy = _num(_c7kc.interiorPerPyeong);
+              const _interior15 = _interiorPerPy > 0 ? Math.round(_interiorPerPy * 15) : 0;
+              const startupRaw = (_interior15 + (premium > 0 ? premium : 0)) > 0 ? _interior15 + (premium > 0 ? premium : 0) : 0;
+              // 폴백도 시설·장비(1,000~3,000)를 포함한 범위로 통일.
+              startupTxt = startupRaw > 0 ? `, 총창업비 ${_manToWon(startupRaw + 1000)} ~ ${_manToWon(startupRaw + 3000)}` : '';
+            }
             if (rentPy > 0 && (highRent || premium >= 3000)) {
               _sum = `평당 월세 ${_manToWon(rentPy)}`
                 + (premium > 0 ? `, 권리금 ${_manToWon(premium)}` : '')
@@ -5867,6 +5886,22 @@ export default function UnifiedLayout({
       const sum = interior15 + premiumManwon;
       return sum > 0 ? Math.round(sum) : 0;
     })();
+    // [2026-06-29 총창업비 단일 정의·범위 통일] 화면 3곳(카드04 KPI·카드04 한줄·카드14 AI종합)이 같은 '범위'로 보이게 한다.
+    //   단일 출처 = dataMapper ROI 엔진의 roiTotalStartupMin/Max(인테리어+권리금+시설장비 저~고). 그 텍스트를 그대로 쓴다.
+    //   ★회수기간(payback) 계산은 단일값(totalStartup)을 분모로 그대로 사용(범위로 나누지 않음).
+    const roiTotalStartupMin = num(c12.roiTotalStartupMin);
+    const roiTotalStartupMax = num(c12.roiTotalStartupMax);
+    const totalStartupRangeText = (() => {
+      if (c12.roiTotalStartupRangeText) return String(c12.roiTotalStartupRangeText); // 데이터층 단일 출처
+      if (roiTotalStartupMin > 0 && roiTotalStartupMax > 0) return `${fmtMan(roiTotalStartupMin)} ~ ${fmtMan(roiTotalStartupMax)}`;
+      // 폴백(옛 데이터): 단일 totalStartup(=인테리어+권리금+시설장비 평균2,500) 기준 저(−1,500)~고(+500) 범위 재구성.
+      if (totalStartup > 0) {
+        const lo = Math.max(0, totalStartup - 1500);
+        const hi = totalStartup + 500;
+        return `${fmtMan(lo)} ~ ${fmtMan(hi)}`;
+      }
+      return '';
+    })();
 
     // ── 월 고정비(만원) ── [2026-06-29 정보분산 패스6 §1-11] 단일 출처: dataMapper ROI 엔진의 실측 고정비(roiFixedMonthly)
     //   = (인건+기타)%×월매출 + 임대료. 예전 'rentMonthly×2.2' 단순상수를 폐기하고 데이터층 단일값을 그대로 읽는다.
@@ -6043,7 +6078,10 @@ export default function UnifiedLayout({
           realProfitText: '',
           realProfitNote: '',
           totalStartup,             // 만원 — 매출 무관(인테리어+권리금+시설장비)이라 유지
-          totalStartupText: _estTag(totalStartup > 0 ? fmtMan(totalStartup) : '', totalStartupEstimated),
+          totalStartupText: _estTag(totalStartupRangeText || (totalStartup > 0 ? fmtMan(totalStartup) : ''), totalStartupEstimated),
+          totalStartupMin: roiTotalStartupMin,
+          totalStartupMax: roiTotalStartupMax,
+          totalStartupRangeText,
           totalStartupEstimated,
           fixedMonthly,             // 만원 — 임대 기반(매출 무관)
           fixedMonthlyText: fixedMonthly > 0 ? fmtMan(fixedMonthly) : '',
@@ -6093,8 +6131,12 @@ export default function UnifiedLayout({
         realProfitNote: (realProfitMonthly != null && realProfitMonthly <= 0)
           ? '사장 본인 인건비도 못 건지는 수준 — 흑자전환이 먼저'
           : '',
-        totalStartup,             // 만원 (=인테리어+권리금+시설장비)
-        totalStartupText: _estTag(totalStartup > 0 ? fmtMan(totalStartup) : '', totalStartupEstimated),
+        totalStartup,             // 만원 (=인테리어+권리금+시설장비 평균 — 회수기간 분모용 단일값)
+        // [2026-06-29] 표시는 범위 텍스트(카드04 KPI·한줄과 동일 단일 출처). 단일 totalStartup은 회수기간 계산에만.
+        totalStartupText: _estTag(totalStartupRangeText || (totalStartup > 0 ? fmtMan(totalStartup) : ''), totalStartupEstimated),
+        totalStartupMin: roiTotalStartupMin,
+        totalStartupMax: roiTotalStartupMax,
+        totalStartupRangeText,
         totalStartupEstimated,
         fixedMonthly,             // 만원
         fixedMonthlyText: fixedMonthly > 0 ? fmtMan(fixedMonthly) : '',
@@ -6106,6 +6148,7 @@ export default function UnifiedLayout({
       consult: {
         pyeong: 15,
         totalStartup,
+        totalStartupRangeText,   // [2026-06-29] 상담 토스트도 화면과 같은 범위 표기 공유
         monthly,
         verdict,
       },
@@ -6490,12 +6533,22 @@ export default function UnifiedLayout({
           const premiumValue = _num((cd.premium && cd.premium.value)) || _num(bd.premiumCost) || 0;
           const premiumManwon = premiumValue > 0 ? ((cd.premium && cd.premium.value) ? premiumValue / 10000 : premiumValue) : 0;
           put(values, '권리금', fmtMan(premiumManwon));
-          // 총 창업비(15평) = 인테리어(평당×15) + 권리금 — 화면 산식과 동일
-          const kc = cd.kosisCafe || null;
-          const interiorPerPy = (kc && _num(kc.interiorPerPyeong) > 0) ? _num(kc.interiorPerPyeong) : 0;
-          const interior = interiorPerPy > 0 ? 15 * interiorPerPy : 0;
-          const totalStartup = (interior + premiumManwon) > 0 ? (interior + premiumManwon) : 0;
-          put(values, '총창업비', fmtMan(totalStartup));
+          // [2026-06-29 총창업비 단일 정의·범위 통일] 화면(카드04 KPI·한줄·카드14)과 같은 단일 출처(ROI 엔진 범위).
+          //   인테리어+권리금+시설장비(저~고) 범위. 주입값 없으면 옛 산식(인테리어+권리금)에 시설장비 범위 더한 폴백.
+          const _vRange = (bd.roiTotalStartupRangeText && String(bd.roiTotalStartupRangeText)) || '';
+          const _vMin = _num(bd.roiTotalStartupMin);
+          const _vMax = _num(bd.roiTotalStartupMax);
+          if (_vRange) {
+            put(values, '총창업비', _vRange);
+          } else if (_vMin > 0 && _vMax > 0) {
+            put(values, '총창업비', `${fmtMan(_vMin)} ~ ${fmtMan(_vMax)}`);
+          } else {
+            const kc = cd.kosisCafe || null;
+            const interiorPerPy = (kc && _num(kc.interiorPerPyeong) > 0) ? _num(kc.interiorPerPyeong) : 0;
+            const interior = interiorPerPy > 0 ? 15 * interiorPerPy : 0;
+            const base = (interior + premiumManwon) > 0 ? (interior + premiumManwon) : 0;
+            put(values, '총창업비', base > 0 ? `${fmtMan(base + 1000)} ~ ${fmtMan(base + 3000)}` : fmtMan(0));
+          }
         } else if (screen === 5) {     // 고객 분석 (컴포넌트 n=02)
           title = '고객 분석';
           // [2026-06-29 연령충돌] '주요연령대' = 화면 KPI와 동일한 단일 최다 구간(topAge, 예 "60대+ (37%)").
@@ -6624,9 +6677,13 @@ export default function UnifiedLayout({
         try {
           const py = Number(ev.data.pyeong);
           const ts = Number(ev.data.totalStartup);
+          const tsRange = (typeof ev.data.totalStartupRangeText === 'string') ? ev.data.totalStartupRangeText : '';
           const parts = [];
           if (Number.isFinite(py) && py > 0) parts.push(`${py}평`);
-          if (Number.isFinite(ts) && ts > 0) {
+          // [2026-06-29 총창업비 단일 정의·범위 통일] 상담 토스트도 화면과 같은 범위로 표기(있으면 우선).
+          if (tsRange) {
+            parts.push(`예상 창업비 ${tsRange}`);
+          } else if (Number.isFinite(ts) && ts > 0) {
             const eok = ts >= 10000 ? `${(ts / 10000).toFixed(1)}억` : `${Math.round(ts).toLocaleString('ko-KR')}만원`;
             parts.push(`예상 창업비 ${eok}`);
           }

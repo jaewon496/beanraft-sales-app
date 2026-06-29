@@ -52,11 +52,21 @@ function Card08({ body = {} }) {
   ];
   const facilityLow = FACILITY_TIERS[0].min;            // 1,000만
   const facilityHigh = FACILITY_TIERS[FACILITY_TIERS.length - 1].max; // 3,000만
-  // [2026-06-29] 총 창업비 = 인테리어(15평 평균시공) + 권리금 + 시설·장비(단계 범위).
-  //   가짜 정밀 단일숫자 금지 → '저~고' 범위. 보증금은 퇴거 시 환급성이라 제외(별도 타일).
-  const totalBase = interior + premiumManwon;           // 시설장비 제외 고정분(만원)
-  const totalMin = (totalBase + facilityLow) > 0 ? totalBase + facilityLow : 0;
-  const totalMax = (totalBase + facilityHigh) > 0 ? totalBase + facilityHigh : 0;
+  // [2026-06-29 총창업비 단일 출처] 카드14(AI종합)·카드04 한줄요약과 '같은 단일 산출'을 쓰기 위해
+  //   dataMapper ROI 엔진이 주입한 총창업비 범위(roiTotalStartupMin/Max = 인테리어+권리금+시설장비 저~고)를 1순위로 사용.
+  //   ROI 엔진 인테리어(규모별 평당×면적)·권리금(시도 실측)·시설장비(1,000~3,000)가 카드14와 동일.
+  //   주입값이 없을 때만(옛 데이터) 아래 자체 계산(15평 인테리어+권리금+시설장비)으로 폴백 → 두 경로 모두 같은 정의.
+  const _roiMin = Number(bd.roiTotalStartupMin) || 0;
+  const _roiMax = Number(bd.roiTotalStartupMax) || 0;
+  const _roiInterior = Number(bd.roiInteriorCost) || 0;  // ROI 엔진 인테리어(만원) — 가이드 표시도 같은 값 사용
+  const _roiPremium = Number(bd.roiPremiumCost) || 0;    // ROI 엔진 권리금(만원)
+  // 총 창업비 = 인테리어 + 권리금 + 시설·장비(단계 범위). 가짜 정밀 단일숫자 금지 → '저~고' 범위. 보증금 제외.
+  const totalBase = (_roiInterior > 0 || _roiPremium > 0) ? (_roiInterior + _roiPremium) : (interior + premiumManwon); // 시설장비 제외 고정분(만원)
+  const totalMin = _roiMin > 0 ? _roiMin : ((totalBase + facilityLow) > 0 ? totalBase + facilityLow : 0);
+  const totalMax = _roiMax > 0 ? _roiMax : ((totalBase + facilityHigh) > 0 ? totalBase + facilityHigh : 0);
+  // 가이드 내 인테리어·권리금 항목도 총창업비와 같은 단일 출처(ROI 엔진)를 우선 표시 → 항목 합 = 총합 일치.
+  const interiorShown = _roiInterior > 0 ? _roiInterior : interior;
+  const premiumShown = _roiPremium > 0 ? _roiPremium : premiumManwon;
   // 보증금 안내: 월세(15평 기준) 기반 — 통상 월세의 약 10배가 보증금 관행.
   const rentMonthly15 = rentPerPyeong > 0 ? Math.round(rentPerPyeong * REF_PY) : 0;
   const depositGuide = rentMonthly15 > 0 ? rentMonthly15 * 10 : 0; // 월세의 약 10배(안내)
@@ -69,7 +79,7 @@ function Card08({ body = {} }) {
         <StatTile id="c8.tile1" tone="blue"  label="통합 평당 월세" value={rentPerPyeong > 0 ? String(rentPerPyeong) : '-'} unit={rentPerPyeong > 0 ? '만원' : ''} hero/>
         <StatTile id="c8.tile2" tone="lilac" label="평균 보증금"   value={depositPerPy > 0 ? Math.round(depositPerPy).toLocaleString() : '-'} unit={depositPerPy > 0 ? '만/평' : ''}/>
         <StatTile id="c8.tile3" tone="mint"  label="총 창업비 (15평·보증금별도)" value={(totalMin > 0 && totalMax > 0) ? (window.bcFmtMan(totalMin) || (Math.round(totalMin).toLocaleString() + '만원')) + ' ~ ' + (window.bcFmtMan(totalMax) || (Math.round(totalMax).toLocaleString() + '만원')) : '-'}/>
-        <StatTile id="c8.tile4" tone="rose"  label="권리금"  value={premiumManwon > 0 ? (premiumManwon >= 10000 ? (premiumManwon / 10000).toFixed(1) : Math.round(premiumManwon).toLocaleString()) : '-'} unit={premiumManwon > 0 ? (premiumManwon >= 10000 ? '억' : '만원') : ''}/>
+        <StatTile id="c8.tile4" tone="rose"  label="권리금"  value={premiumShown > 0 ? (premiumShown >= 10000 ? (premiumShown / 10000).toFixed(1) : Math.round(premiumShown).toLocaleString()) : '-'} unit={premiumShown > 0 ? (premiumShown >= 10000 ? '억' : '만원') : ''}/>
       </div>
 
       <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16}}>
@@ -164,13 +174,13 @@ function Card08({ body = {} }) {
           {/* ① 인테리어 (15평 평균시공) */}
           <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", padding:"12px 0", borderTop:"1px solid var(--matte-line)"}}>
             <span style={{fontSize:14, color:"var(--matte-fg-2)", fontWeight:600, display:"flex", alignItems:"center", gap:6}}>인테리어 <span style={{fontSize:12, color:"var(--matte-fg-4)", fontWeight:400}}>평균 시공</span>{_isEst('interiorPerPyeong', 'interiorAvg') && window.EstBadge ? <window.EstBadge/> : null}</span>
-            <span style={{fontSize:16, color:"var(--matte-fg)", fontWeight:700, fontVariantNumeric:"tabular-nums"}}>{interior > 0 ? (window.bcFmtMan(interior) || `${Math.round(interior).toLocaleString()}만원`) : '왼쪽 분포 참고'}</span>
+            <span style={{fontSize:16, color:"var(--matte-fg)", fontWeight:700, fontVariantNumeric:"tabular-nums"}}>{interiorShown > 0 ? (window.bcFmtMan(interiorShown) || `${Math.round(interiorShown).toLocaleString()}만원`) : '왼쪽 분포 참고'}</span>
           </div>
 
           {/* ② 권리금 (지역 실측값) */}
           <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", padding:"12px 0", borderTop:"1px solid var(--matte-line)"}}>
             <span style={{fontSize:14, color:"var(--matte-fg-2)", fontWeight:600, display:"flex", alignItems:"center", gap:6}}>권리금 {kosisRegion ? <span style={{fontSize:12, color:"var(--matte-fg-4)", fontWeight:400}}>{kosisRegion} 평균</span> : null}{_isEst('premiumCost', 'premium') && window.EstBadge ? <window.EstBadge/> : null}</span>
-            <span style={{fontSize:16, color:"var(--matte-fg)", fontWeight:700, fontVariantNumeric:"tabular-nums"}}>{premiumManwon > 0 ? (window.bcFmtMan(premiumManwon) || `${Math.round(premiumManwon).toLocaleString()}만원`) : '자리마다 상이'}</span>
+            <span style={{fontSize:16, color:"var(--matte-fg)", fontWeight:700, fontVariantNumeric:"tabular-nums"}}>{premiumShown > 0 ? (window.bcFmtMan(premiumShown) || `${Math.round(premiumShown).toLocaleString()}만원`) : '자리마다 상이'}</span>
           </div>
 
           {/* ③ 보증금 (월세 기준 안내 — 통상 월세의 약 10배) */}

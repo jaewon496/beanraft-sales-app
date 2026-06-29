@@ -131,7 +131,9 @@ function Card13({ body = {} }) {
       //   대신 '들어가는 투자비(총 창업비)' 규모만 정직하게 표기 — 회수 시점은 단정하지 않는다.
       headline: (() => {
         if (_roiUnavail) return '매출 미수집 — 투자 회수 미산정 (재검색 권장)';
-        const _startupTxt = body.roiTotalStartupText || _roiSt.totalStartupText || '';
+        // [2026-06-29 총창업비 단일 정의·범위 통일] 카드04 KPI·한줄과 같은 '범위' 텍스트 우선(단일 출처 = 한 장 요약 stats).
+        const _startupTxt = _roiSt.totalStartupRangeText || body.roiTotalStartupRangeText
+          || body.roiTotalStartupText || _roiSt.totalStartupText || '';
         return _startupTxt
           ? `총 창업비 ${_startupTxt} — 회수 속도는 운영(객단가·회전율)에 따라 달라집니다`
           : '투자비 데이터 수집 중';
