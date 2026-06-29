@@ -77,8 +77,9 @@ const NARRATION = [
       { id: "s.total",   anim: ["roulette","bounce","glow"] },
     ],
   },
-  { tab: "surv", dur: 5200, beat: "회수",
-    text: "회수 시나리오는 약 28개월. 강남 평균보다 약간 짧습니다. 프리미엄 또는 배달 안전 노선, 두 갈래 중 하나로 결정하시면 됩니다.",
+  { tab: "surv", dur: 5200, beat: "비용 구조",
+    // [2026-06-29 예언 제거] '회수 시나리오 약 28개월/강남 평균' 회수 시점 단정 제거 → 비용·운영 구조 정성 표현으로 교체.
+    text: "초기 투자가 큰 자리인 만큼 비용 구조 관리가 관건입니다. 프리미엄 또는 배달 안전 노선, 두 갈래 중 하나로 결정하시면 됩니다.",
     triggers: [
       { id: "s.recoveryLine", anim: ["sweep","wobble"] },
       { id: "s.recovery",     anim: ["roulette","bounce","sparkle"] },

@@ -6380,7 +6380,7 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     interiorCost: card7?.bodyData?.interiorCost ?? 0,
     equipmentCost: card7?.bodyData?.equipmentCost ?? 0,
     premiumCost: card7?.bodyData?.premiumCost ?? 0,
-    totalStartupCost: card7?.bodyData?.totalStartupCost ?? 0,
+    // [2026-06-29 예언 제거] totalStartupCost는 회수 N개월 observation 삭제로 더 이상 읽는 곳이 없어 제거(합계 표기 폐기 정합).
     opIncomePct: typeof _bizmapOpIncome === 'number' ? _bizmapOpIncome : 0,
     laborPct: typeof _bizmapLaborPct === 'number' ? _bizmapLaborPct : 0,
     materialPct: typeof _bizmapMaterialPct === 'number' ? _bizmapMaterialPct : 0,
@@ -6623,16 +6623,9 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       const burden = Math.round((_pft.avgRent / _pft.monthlySales) * 100);
       if (burden > 0) pftObs.push(`매출 대비 임대료 부담률은 약 ${burden}%입니다`);
     }
-    // 회수 기간 (Card 8) - 총 창업비 / 월매출
-    if (_pft.totalStartupCost && _pft.monthlySales) {
-      const months = Math.max(1, Math.round(_pft.totalStartupCost / _pft.monthlySales));
-      pftObs.push(`총 창업비 기준 매출 회수에는 약 ${months}개월이 걸립니다`);
-    } else if (_pft.deposit && _pft.avgRent && _pft.monthlySales) {
-      // 폴백: 보증금+월임대*12를 기준
-      const investEst = _pft.deposit + _pft.avgRent * 12;
-      const months = Math.max(1, Math.round(investEst / _pft.monthlySales));
-      pftObs.push(`초기 투자 회수 추정 기간은 약 ${months}개월입니다`);
-    }
+    // [2026-06-29 예언 제거] 옛 '총 창업비 기준 매출 회수 N개월/초기 투자 회수 N개월' observation은
+    //   ① 총창업비 합계 ② 회수 N개월 예언을 동시에 담아 위험한 단정이라 삭제. (months/investEst 변수도 함께 제거)
+    //   비용 구조는 임대료 부담률(위)·전국 평균 비교(아래)로 정성 표현되므로 별도 회수 예언 문장 불필요.
     if (_pft.opIncomePct) pftObs.push(`업계 평균 영업이익률은 ${_pft.opIncomePct}% 안팎입니다`);
     // [KOSIS 카페 전국 평균 비교] 통계청 외식업체경영실태조사 (커피전문점)
     {

@@ -161,7 +161,7 @@ function CompStage() {
 function SurvStage() {
   const { DrKpiTile, DrLineChart, DrGauge } = window;
 
-  // 회수 시나리오 — 36개월 누적 수익 (백만)
+  // [2026-06-29] 누적 손익 곡선용 시뮬레이션(백만) — 0선 통과 = 손익분기. (회수 '개월수' 예언 KPI는 제거, 곡선만 유지)
   const rec = [-210, -195, -178, -158, -138, -118, -98, -78, -58, -38, -18, 0, 22, 44, 66, 88, 110, 130, 150, 168, 184, 198, 210, 222, 232, 240, 248, 254, 260, 266, 272, 278, 284, 290, 296, 302];
 
   return (
@@ -185,11 +185,13 @@ function SurvStage() {
       </div>
 
       {/* cost row */}
+      {/* [2026-06-29 예언 제거 + 합계 폐기] '총 창업 합계(2.1억)'·'회수 28개월/강남 평균 31개월'(회수 시점 예언) KPI 제거.
+          항목별 비용(권리금/인테리어/시설장비/보증금)만 남긴다(합계·회수개월 없음). 트리거 id(s.total/s.recovery)는 항목 타일로 재사용. */}
       <div className="dr-grid-4" style={{marginBottom: 14}}>
         <DrKpiTile id="s.deposit"  label="권리금"        value={1.8} decimals={1} suffix="억" tone="rose" src="중기부 KOSIS 142" delta={114} deltaPositive={false} pulse/>
-        <DrKpiTile id="s.total"    label="총 창업 (15평)" value={2.1} decimals={1} suffix="억" tone="cream" src="자체 추정 모델" pulse hero/>
-        <DrKpiTile id="s.recovery" label="회수 (예상)"    value={28} suffix="개월" tone="mint" src="자체 모델" pulse hero/>
-        <DrKpiTile id="s.recovery2" label="강남 평균 회수" value={31} suffix="개월" tone="lilac" src="자체 모델"/>
+        <DrKpiTile id="s.total"    label="인테리어 (15평)" value={6000} suffix="만원" tone="cream" src="전국 평당 단가" pulse/>
+        <DrKpiTile id="s.recovery" label="시설·장비"    value={2000} suffix="만원" tone="mint" src="컨셉 평균" pulse/>
+        <DrKpiTile id="s.recovery2" label="보증금 (참고)" value={5000} suffix="만원" tone="lilac" src="월세 약 10배"/>
       </div>
 
       {/* recovery line */}

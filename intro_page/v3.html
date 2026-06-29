@@ -14,7 +14,7 @@
   .rail{position:fixed;left:clamp(16px,2.4vw,42px);top:16vh;bottom:16vh;width:1px;background:var(--line);z-index:40}
   .rail i{position:absolute;left:-1px;top:0;width:3px;border-radius:2px;height:0;background:rgba(255,255,255,.32)}
   /* 뇌에서 내려오는 빛줄기 — 페이지 끝까지 이어지는 파란 세로선 */
-  .spine{position:fixed;left:50%;transform:translateX(-50%);top:0;bottom:0;width:2px;z-index:50;opacity:0;pointer-events:none;mix-blend-mode:screen;background:linear-gradient(180deg,rgba(140,190,255,.55),rgba(70,140,255,.42));box-shadow:0 0 12px rgba(80,150,255,.45)}
+  .spine{position:fixed;left:50%;transform:translateX(-50%);top:0;bottom:0;width:1px;z-index:50;opacity:0;transition:opacity .55s ease;pointer-events:none;mix-blend-mode:screen;background:linear-gradient(180deg,rgba(120,170,255,.22),rgba(70,140,255,.13));box-shadow:0 0 5px rgba(80,150,255,.16)}
 
   /* 1. 인트로 영상 (제대로 밝게) */
   .hero{height:100vh;position:relative;overflow:hidden;display:flex;align-items:flex-end;justify-content:center}
@@ -159,10 +159,13 @@
   // 영상
   var v=document.getElementById('heroVid'); if(v){ var go=function(){v.play().catch(function(){});}; go(); document.addEventListener('visibilitychange',function(){if(!document.hidden)go();}); }
   gsap.to('#sh',{opacity:1,duration:1,delay:1.2});
-  ScrollTrigger.create({start:0,end:'max',onUpdate:function(self){var f=document.getElementById('railFill');if(f)f.style.height=(self.progress*100)+'%';}});
+  ScrollTrigger.create({start:0,end:'max',onUpdate:function(self){
+    var f=document.getElementById('railFill');if(f)f.style.height=(self.progress*100)+'%';
+    var sp=document.getElementById('spine'),sw=document.getElementById('show'),ct=document.querySelector('.cta');
+    if(sp&&sw&&ct){var vh=window.innerHeight,sR=sw.getBoundingClientRect(),cR=ct.getBoundingClientRect();sp.style.opacity=((sR.top<vh*0.55)&&(cR.top>vh*0.42))?'1':'0';}
+  }});
   // 빛줄기(spine): 뇌 시퀀스 들어가면 나타나 카드~끝까지 이어짐
-  ScrollTrigger.create({trigger:'#show',start:'top 78%',onEnter:function(){gsap.to('#spine',{opacity:1,duration:.8});},onLeaveBack:function(){gsap.to('#spine',{opacity:0,duration:.5});}});
-  ScrollTrigger.create({trigger:'.cta',start:'top 70%',onEnter:function(){gsap.to('#spine',{opacity:0,duration:.7});},onLeaveBack:function(){gsap.to('#spine',{opacity:1,duration:.7});}});
+  // spine opacity는 위 onUpdate에서 위치 기반으로 처리
   gsap.utils.toArray('.cta .eye,.cta .big,.cta .btn').forEach(function(el){ gsap.to(el,{opacity:1,y:0,duration:1,ease:'power2.out',scrollTrigger:{trigger:el,start:'top 88%',once:true}}); });
 
   var IC = {
