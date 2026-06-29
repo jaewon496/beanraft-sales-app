@@ -14,7 +14,7 @@
   .rail{position:fixed;left:clamp(16px,2.4vw,42px);top:16vh;bottom:16vh;width:1px;background:var(--line);z-index:40}
   .rail i{position:absolute;left:-1px;top:0;width:3px;border-radius:2px;height:0;background:rgba(255,255,255,.32)}
   /* 뇌에서 내려오는 빛줄기 — 페이지 끝까지 이어지는 파란 세로선 */
-  .spine{position:fixed;left:50%;transform:translateX(-50%);top:0;bottom:0;width:2px;z-index:6;opacity:0;pointer-events:none;background:linear-gradient(180deg,rgba(124,180,255,.34),rgba(43,127,255,.22));box-shadow:0 0 10px rgba(43,127,255,.25)}
+  .spine{position:fixed;left:50%;transform:translateX(-50%);top:0;bottom:0;width:2px;z-index:50;opacity:0;pointer-events:none;mix-blend-mode:screen;background:linear-gradient(180deg,rgba(140,190,255,.55),rgba(70,140,255,.42));box-shadow:0 0 12px rgba(80,150,255,.45)}
 
   /* 1. 인트로 영상 (제대로 밝게) */
   .hero{height:100vh;position:relative;overflow:hidden;display:flex;align-items:flex-end;justify-content:center}
@@ -51,7 +51,7 @@
   .cap h2 b{font-weight:700;color:#fff}
 
   /* 3. CTA */
-  .cta{min-height:78vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:90px 24px;position:relative}
+  .cta{min-height:78vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:90px 24px;position:relative;z-index:60;background:transparent}
   .cta .eye{font-size:11px;letter-spacing:3px;color:var(--ink3);text-transform:uppercase;margin-bottom:22px;opacity:0}
   .cta .big{font-weight:300;font-size:clamp(28px,4.6vw,54px);letter-spacing:-1.2px;line-height:1.3;opacity:0}
   .cta .big b{font-weight:600}
@@ -59,7 +59,7 @@
   footer{padding:54px 0;border-top:1px solid var(--line);color:var(--ink3);font-size:12px;text-align:center}
 
   /* 카드 덱 (14장 폴더 스택) — 은은 톤 */
-  .show{position:relative;height:100vh;min-height:640px;overflow:hidden;background:#000}
+  .show{position:relative;z-index:10;height:100vh;min-height:640px;overflow:hidden;background:#000}
   .show-bgnum{position:absolute;right:clamp(10px,4vw,70px);top:50%;transform:translateY(-50%);z-index:0;font-family:var(--mono);font-weight:600;font-size:clamp(180px,34vw,440px);line-height:.8;color:rgba(255,255,255,.025);letter-spacing:-10px;pointer-events:none;user-select:none}
   .show-inner{position:relative;z-index:2;height:100%;max-width:1640px;margin:0 auto;padding:84px clamp(28px,5vw,90px) 40px;display:grid;grid-template-columns:1.25fr .75fr;align-items:center;gap:clamp(36px,5vw,96px)}
   .show-deck{position:relative;width:100%;aspect-ratio:5/4;perspective:1800px;transform-style:preserve-3d}
@@ -162,6 +162,7 @@
   ScrollTrigger.create({start:0,end:'max',onUpdate:function(self){var f=document.getElementById('railFill');if(f)f.style.height=(self.progress*100)+'%';}});
   // 빛줄기(spine): 뇌 시퀀스 들어가면 나타나 카드~끝까지 이어짐
   ScrollTrigger.create({trigger:'#show',start:'top 78%',onEnter:function(){gsap.to('#spine',{opacity:1,duration:.8});},onLeaveBack:function(){gsap.to('#spine',{opacity:0,duration:.5});}});
+  ScrollTrigger.create({trigger:'.cta',start:'top 70%',onEnter:function(){gsap.to('#spine',{opacity:0,duration:.7});},onLeaveBack:function(){gsap.to('#spine',{opacity:1,duration:.7});}});
   gsap.utils.toArray('.cta .eye,.cta .big,.cta .btn').forEach(function(el){ gsap.to(el,{opacity:1,y:0,duration:1,ease:'power2.out',scrollTrigger:{trigger:el,start:'top 88%',once:true}}); });
 
   var IC = {

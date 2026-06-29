@@ -71,7 +71,7 @@ const NARRATION = [
     ],
   },
   { tab: "surv", dur: 5000, beat: "비용",
-    text: "들어가는 비용은 만만치 않습니다. 권리금 1.8억 — 시도 평균 8,400만 대비 +114%. 15평 기준 총 창업비 약 2.1억으로 잡혀요.",
+    text: "들어가는 비용은 만만치 않습니다. 권리금 1.8억 — 시도 평균 8,400만 대비 +114%. 초기 진입 비용이 평균보다 높은 편의 입지예요.",
     triggers: [
       { id: "s.deposit", anim: ["glitch","roulette","flash"] },
       { id: "s.total",   anim: ["roulette","bounce","glow"] },

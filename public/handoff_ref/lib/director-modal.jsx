@@ -67,11 +67,10 @@ const DIRECTOR_SCRIPT = [
       { at:6500, id:"c7.donut", anim:["dolly","spin-in"],        fx:"circle",    phrase:"주중 비중이 77%" },
     ]},
   { card:"08", beat:"들어가는 비용", dur:8600,
-    text:"비용이 만만치 않습니다. 평당 월세 42만원, 권리금 1.8억 — 시도 평균 +114%. 15평 기준 총 창업비 약 2.1억으로 잡혀요.",
+    text:"비용이 만만치 않습니다. 평당 월세 42만원, 권리금 1.8억 — 시도 평균 +114%. 초기 진입 비용이 평균보다 높은 편의 입지예요.",
     beats:[
       { at:1200, id:"c8.tile1", anim:["rise","roulette"],        fx:"swipe",     phrase:"42만원" },
-      { at:3000, id:"c8.tile3", anim:["dolly","roulette"],       fx:"circle",    phrase:"1.8억" },
-      { at:5000, id:"c8.tile4", anim:["focus","roulette","flash"], fx:"box",     phrase:"2.1억" },
+      { at:3000, id:"c8.tile4", anim:["dolly","roulette"],       fx:"circle",    phrase:"1.8억" },
     ]},
   { card:"09", beat:"기회 신호", dur:8000,
     text:"기회 포인트입니다. 공실률 6.9% — 보통이지만 안정권. 12분기 추이가 5%대에서 6.9%로 살짝 올랐지만 강남 평균 6.4% 수준이라 큰 위협은 아니에요.",

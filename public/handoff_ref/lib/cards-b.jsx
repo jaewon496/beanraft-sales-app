@@ -25,8 +25,7 @@ function Card08({ body = {} }) {
   const premiumValue = Number(premium?.value) || Number(bd.premiumCost) || 0;
   // premium.value는 원 단위, premiumCost(폴백)는 만원 단위 → 단위 통일 (만원)
   const premiumManwon = premiumValue > 0 ? (premium?.value ? premiumValue / 10000 : premiumValue) : 0;
-  // [2026-05-18] totalStartupCost: UnifiedLayout에서 정규화한 totalStartupCostManwon 우선
-  const totalStartupCost = Number(bd.totalStartupCostManwon) || Number(bd.totalStartupCost) || 0;
+  // [2026-06-29 사장님 확정] 총 창업비 합계 표기 폐기 → totalStartupCost(미사용) 제거.
   const marketRent = kosis?.marketRent?.value ? Math.round(kosis.marketRent.value / 10000) : 0;
   const conversionRate = Number(kosis?.conversionRate?.value) || 0;
   const yieldRate = Number(kosis?.yieldRate?.value) || 0;
@@ -50,26 +49,29 @@ function Card08({ body = {} }) {
     { key: 'avg',  label: '평균',   desc: '베이커리 여유',       min: 2000, max: 2000 },
     { key: 'high', label: '고급',   desc: '빵집 수준',           min: 2500, max: 3000 },
   ];
-  const facilityLow = FACILITY_TIERS[0].min;            // 1,000만
-  const facilityHigh = FACILITY_TIERS[FACILITY_TIERS.length - 1].max; // 3,000만
-  // [2026-06-29 총창업비 단일 출처] 카드14(AI종합)·카드04 한줄요약과 '같은 단일 산출'을 쓰기 위해
-  //   dataMapper ROI 엔진이 주입한 총창업비 범위(roiTotalStartupMin/Max = 인테리어+권리금+시설장비 저~고)를 1순위로 사용.
-  //   ROI 엔진 인테리어(규모별 평당×면적)·권리금(시도 실측)·시설장비(1,000~3,000)가 카드14와 동일.
-  //   주입값이 없을 때만(옛 데이터) 아래 자체 계산(15평 인테리어+권리금+시설장비)으로 폴백 → 두 경로 모두 같은 정의.
-  const _roiMin = Number(bd.roiTotalStartupMin) || 0;
-  const _roiMax = Number(bd.roiTotalStartupMax) || 0;
+  // [2026-06-29 사장님 확정] '총 창업비 합계'(roiTotalStartupMin/Max 범위) 표기 폐기 — 합계가 동네별로 안 변해 무의미.
+  //   → totalBase/totalMin/totalMax 합산 변수 제거. 항목별 참고(인테리어·권리금·시설장비 단계)만 남긴다.
   const _roiInterior = Number(bd.roiInteriorCost) || 0;  // ROI 엔진 인테리어(만원) — 가이드 표시도 같은 값 사용
   const _roiPremium = Number(bd.roiPremiumCost) || 0;    // ROI 엔진 권리금(만원)
-  // 총 창업비 = 인테리어 + 권리금 + 시설·장비(단계 범위). 가짜 정밀 단일숫자 금지 → '저~고' 범위. 보증금 제외.
-  const totalBase = (_roiInterior > 0 || _roiPremium > 0) ? (_roiInterior + _roiPremium) : (interior + premiumManwon); // 시설장비 제외 고정분(만원)
-  const totalMin = _roiMin > 0 ? _roiMin : ((totalBase + facilityLow) > 0 ? totalBase + facilityLow : 0);
-  const totalMax = _roiMax > 0 ? _roiMax : ((totalBase + facilityHigh) > 0 ? totalBase + facilityHigh : 0);
-  // 가이드 내 인테리어·권리금 항목도 총창업비와 같은 단일 출처(ROI 엔진)를 우선 표시 → 항목 합 = 총합 일치.
+  // 가이드 내 인테리어·권리금 항목은 단일 출처(ROI 엔진)를 우선 표시.
   const interiorShown = _roiInterior > 0 ? _roiInterior : interior;
   const premiumShown = _roiPremium > 0 ? _roiPremium : premiumManwon;
   // 보증금 안내: 월세(15평 기준) 기반 — 통상 월세의 약 10배가 보증금 관행.
   const rentMonthly15 = rentPerPyeong > 0 ? Math.round(rentPerPyeong * REF_PY) : 0;
   const depositGuide = rentMonthly15 > 0 ? rentMonthly15 * 10 : 0; // 월세의 약 10배(안내)
+  // [2026-06-29 사장님 확정] 총 창업비 '합계'는 동네별로 안 변해(권리금=광역평균·인테리어=전국단가·시설장비=컨셉) 무의미 → 합계 표기 폐기.
+  //   대신 KPI 자리는 '평균 대비 위/아래' 정성 가이드로 채운다. 비교 기준 = 전국 카페 평균 평당월세(kc.rentPerPyeong).
+  //   평당월세는 동네별 실데이터라 평균 대비 위/아래가 자리마다 실제로 달라진다.
+  const _avgRentPerPy = Number(kc?.rentPerPyeong) || 0;       // 전국 카페 평균 평당월세(만원/평)
+  const _rentVsAvgPct = (_avgRentPerPy > 0 && rentPerPyeong > 0)
+    ? Math.round(((rentPerPyeong - _avgRentPerPy) / _avgRentPerPy) * 100)
+    : null;
+  const _rentVsAvgText = (_rentVsAvgPct == null)
+    ? '-'
+    : (_rentVsAvgPct >= 8 ? '평균보다 높음' : _rentVsAvgPct <= -8 ? '평균보다 낮음' : '평균 수준');
+  const _rentVsAvgSub = (_rentVsAvgPct == null)
+    ? '전국 카페 평균 대비'
+    : `전국 평균 ${_rentVsAvgPct >= 0 ? '+' : ''}${_rentVsAvgPct}%`;
   return (
     <CardShell n="08" id="08"
       bruSummary={body.bruSummary}
@@ -78,7 +80,7 @@ function Card08({ body = {} }) {
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
         <StatTile id="c8.tile1" tone="blue"  label="통합 평당 월세" value={rentPerPyeong > 0 ? String(rentPerPyeong) : '-'} unit={rentPerPyeong > 0 ? '만원' : ''} hero/>
         <StatTile id="c8.tile2" tone="lilac" label="평균 보증금"   value={depositPerPy > 0 ? Math.round(depositPerPy).toLocaleString() : '-'} unit={depositPerPy > 0 ? '만/평' : ''}/>
-        <StatTile id="c8.tile3" tone="mint"  label="총 창업비 (15평·보증금별도)" value={(totalMin > 0 && totalMax > 0) ? (window.bcFmtMan(totalMin) || (Math.round(totalMin).toLocaleString() + '만원')) + ' ~ ' + (window.bcFmtMan(totalMax) || (Math.round(totalMax).toLocaleString() + '만원')) : '-'}/>
+        <StatTile id="c8.tile3" tone="mint"  label="평당 월세 (평균 대비)" value={_rentVsAvgText} sub={_rentVsAvgSub}/>
         <StatTile id="c8.tile4" tone="rose"  label="권리금"  value={premiumShown > 0 ? (premiumShown >= 10000 ? (premiumShown / 10000).toFixed(1) : Math.round(premiumShown).toLocaleString()) : '-'} unit={premiumShown > 0 ? (premiumShown >= 10000 ? '억' : '만원') : ''}/>
       </div>
 
@@ -211,11 +213,8 @@ function Card08({ body = {} }) {
             </div>
           </div>
 
-          {/* 총 창업비 — 단일 정밀숫자 대신 단계/범위 */}
-          <div style={{marginTop:16, paddingTop:16, borderTop:"1px solid var(--matte-line)", display:"flex", justifyContent:"space-between", alignItems:"baseline"}}>
-            <span style={{fontSize:14, color:"var(--matte-fg-3)", fontWeight:600}}>총 창업비 <span style={{fontSize:12, color:"var(--matte-fg-4)", fontWeight:400}}>(보증금 별도)</span></span>
-            <span style={{fontSize:20, fontWeight:700, color:"#4C7BE4", fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{(totalMin > 0 && totalMax > 0) ? `${(window.bcFmtMan(totalMin) || `${Math.round(totalMin).toLocaleString()}만원`)} ~ ${(window.bcFmtMan(totalMax) || `${Math.round(totalMax).toLocaleString()}만원`)}` : '-'}</span>
-          </div>
+          {/* [2026-06-29 사장님 확정] '총 창업비 합계' 줄 삭제 — 동네별로 안 변해 무의미.
+              위 항목별 참고(인테리어/권리금/보증금/시설·장비 3단계)로 '평균 위/아래'만 안내한다. */}
 
           {/* 하단 작은 글씨 면책 + 브랜드 멘트 (정확히 지정 문구) */}
           <div style={{marginTop:14, fontSize:12, color:"var(--matte-fg-4)", lineHeight:1.6}}>

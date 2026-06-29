@@ -94,8 +94,10 @@ function Card13({ body = {} }) {
   const externalIndicators = body.externalIndicators || null;
 
   // [2026-06-28 ROI 가중치 정합] 5축 = 수익성25·투자회수15·경쟁여건20·생존안정20·성장성20 (합=100)
-  //   한 장 요약 배너 값(__BC_DATA__.summary.stats: 회수기간·손익분기 등)을 headline에 인용해 모순 0건.
+  //   한 장 요약 배너 값(__BC_DATA__.summary.stats: 손익분기 등)을 headline에 인용해 모순 0건.
+  //   ※[2026-06-29] 총 창업비 합계 표기 폐기 후, 투자회수 headline은 점수 비율 기반 정성표현만 사용(_roiSt는 보조 인용 슬롯으로 유지).
   const _roiSt = (typeof window !== 'undefined' && window.__BC_DATA__ && window.__BC_DATA__.summary && window.__BC_DATA__.summary.stats) || {};
+  void _roiSt;
   const axes = [
     {
       key: "profit",
@@ -126,17 +128,20 @@ function Card13({ body = {} }) {
       // 매출 미수집이면 점수 미산정(null) — 막대/숫자 대신 '미산정' 표기.
       score: _roiUnavail ? null : (Number(body.scoreCompete) || 0),
       unavail: _roiUnavail,
-      // [2026-06-29 예언 제거] 투자 회수 축은 '동네평균 기준 상권평가 점수'라 점수(score)는 그대로 둔다.
-      //   다만 headline에서 '내 카페 회수 N개월/월수익 N만원' 같은 예언성 단정은 뺀다(창업자에게 위험).
-      //   대신 '들어가는 투자비(총 창업비)' 규모만 정직하게 표기 — 회수 시점은 단정하지 않는다.
+      // [2026-06-29 예언 제거 + 사장님 확정] 투자 회수 축은 '동네평균 기준 상권평가 점수'라 점수(score)는 그대로 둔다.
+      //   headline에서 ① '내 카페 회수 N개월/월수익 N만원'(예언) ② '총 창업비 합계 N만원'(동네별로 안 변해 무의미) 둘 다 뺀다.
+      //   대신 점수 비율로 '초기 투자 부담이 평균 대비 위/아래'인지 정성으로만 안내(숫자 없이). 회수 시점은 단정하지 않는다.
       headline: (() => {
         if (_roiUnavail) return '매출 미수집 — 투자 회수 미산정 (재검색 권장)';
-        // [2026-06-29 총창업비 단일 정의·범위 통일] 카드04 KPI·한줄과 같은 '범위' 텍스트 우선(단일 출처 = 한 장 요약 stats).
-        const _startupTxt = _roiSt.totalStartupRangeText || body.roiTotalStartupRangeText
-          || body.roiTotalStartupText || _roiSt.totalStartupText || '';
-        return _startupTxt
-          ? `총 창업비 ${_startupTxt} — 회수 속도는 운영(객단가·회전율)에 따라 달라집니다`
-          : '투자비 데이터 수집 중';
+        const _sc = Number(body.scoreCompete) || 0;        // 투자회수 점수(0~15)
+        const _ratio = _sc / 15;                            // 점수 비율(높을수록 회수 유리)
+        if (_sc > 0) {
+          const _burden = _ratio >= 0.6 ? '초기 투자 회수 여건이 평균보다 좋은 편'
+            : _ratio >= 0.35 ? '초기 투자 회수 여건은 평균 수준'
+            : '초기 투자 부담이 평균보다 큰 편';
+          return `${_burden} — 회수 속도는 운영(객단가·회전율)에 따라 달라집니다`;
+        }
+        return '회수 속도는 운영(객단가·회전율)에 따라 달라집니다';
       })(),
     },
     {
@@ -521,11 +526,11 @@ function Card14({ body = {}, onOpenDirector }) {
         </button>
       }>
 
-      {/* [2026-06-29 예언 제거] 한 장 요약 — '예상 월매출·회수기간'(내 카페 예언)은 창업자에게 위험한 단정 예측이라 화면 표시 제거.
-            남기는 값은 둘: 손익분기(목표=얼마 팔아야 본전, 예측 아님) · 총 창업비(들어가는 비용, 예측 아님).
-            ※ ROI 5축 점수(수익성·투자회수)는 동네평균 기준 상권평가라 그대로 둠 — 여기선 '내 카페 예언' 표시만 뺀다. */}
+      {/* [2026-06-29 예언 제거 + 사장님 확정] 한 장 요약 — '예상 월매출·회수기간'(내 카페 예언)은 위험한 단정이라 제거.
+            '총 창업비'(합계)도 동네별로 안 변해 무의미 → 삭제. 남기는 값은 하나: 손익분기(목표=얼마 팔아야 본전, 예측 아님).
+            ※ ROI 5축 점수(수익성·투자회수)는 동네평균 기준 상권평가라 그대로 둠 — 여기선 '내 카페 예언/합계' 표시만 뺀다. */}
       {(_sum.verdict || _headLine || (_sum.reasons && _sum.reasons.length) || _sum.riskLine ||
-        _st.bepSalesText || _st.totalStartupText) && (
+        _st.bepSalesText) && (
         <>
           <div className="bc-box" style={{padding:18, borderLeft:"3px solid #4C7BE4", marginBottom:16}}>
             {_sum.verdict && (
@@ -544,10 +549,11 @@ function Card14({ body = {}, onOpenDirector }) {
             )}
           </div>
 
-          {(_st.bepSalesText || _st.totalStartupText) && (
-            <div className="bc-grid-2" style={{gap:16, marginBottom:16}}>
+          {/* [2026-06-29 사장님 확정] '총 창업비' 타일(sum4) 삭제 — 합계가 동네별로 안 변해 무의미.
+              남는 칸 = 손익분기(목표=얼마 팔아야 본전, 예측 아님)만 단독 표기. */}
+          {_st.bepSalesText && (
+            <div style={{marginBottom:16}}>
               <StatTile id="c14.sum2" tone="mint"  label="손익분기 (목표 매출)" value={_st.bepSalesText || '-'} sub={_st.bepCups ? ('하루 약 ' + _st.bepCups + '잔') : ''} hero/>
-              <StatTile id="c14.sum4" tone="cream" label="총 창업비"  value={_st.totalStartupText || '-'} sub="15평 기준"/>
             </div>
           )}
           <div style={{fontSize:12, color:"var(--matte-fg-4)", lineHeight:1.65, marginBottom:4}}>

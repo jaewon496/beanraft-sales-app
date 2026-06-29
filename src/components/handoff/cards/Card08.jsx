@@ -11,9 +11,7 @@ export default function Card08({ body = {} }) {
   // 통합 임대료 (kosisBoxData.integratedRent.value 만원/평) → 폴백: bodyData.rentPerPyeong
   const rentPerPyeong = Number(kosis?.integratedRent?.value) || Number(bodyData.rentPerPyeong) || 0;
   const deposit = Number(bodyData.deposit) || 0;
-  const interiorCost = Number(bodyData.interiorCost) || 0;
-  const equipmentCost = Number(bodyData.equipmentCost) || 0;
-  const totalStartupCost = Number(bodyData.totalStartupCost) || 0;
+  // [2026-06-29 사장님 확정] 총 창업비 합계 표기 폐기 → interiorCost/equipmentCost/totalStartupCost(합계용) 제거.
 
   // KOSIS 박스 4종 (kosisBoxData)
   const marketRent = kosis?.marketRent?.value ? Math.round(kosis.marketRent.value / 10000) : 0;
@@ -38,8 +36,7 @@ export default function Card08({ body = {} }) {
   const [pyeong, setPyeong] = useState(15);
   const monthly = rentPerPyeong > 0 ? Math.round(pyeong * rentPerPyeong) : 0;
   const simDeposit = (deposit > 0 ? deposit : (rentPerPyeong > 0 ? rentPerPyeong * 30 : 0)) * (pyeong / 15);
-  const simInterior = (interiorCost > 0 ? interiorCost : (kc?.interiorPerPyeong > 0 ? kc.interiorPerPyeong * pyeong : pyeong * 350)) * 1;
-  const simTotal = simDeposit + simInterior + (premiumManwon || 3000);
+  // [2026-06-29 사장님 확정] 시뮬레이터 '총 창업비' 합계(simTotal/simInterior) 제거 — 합계 표기 폐기.
 
   return (
     <CardShell n="08" id="08"
@@ -50,7 +47,7 @@ export default function Card08({ body = {} }) {
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
         {rentPerPyeong > 0 && <StatTile id="c8.tile1" tone="blue"  label="통합 평당 월세" value={String(rentPerPyeong)} unit="만원" hero/>}
         {deposit > 0 && <StatTile id="c8.tile2" tone="lilac" label="평균 보증금"   value={(deposit / 10000).toFixed(2)} unit="억"/>}
-        {(totalStartupCost > 0 || simTotal > 0) && <StatTile id="c8.tile3" tone="mint"  label="총 창업 (15평)" value={totalStartupCost > 0 ? (totalStartupCost / 10000).toFixed(2) : (simTotal / 10000).toFixed(2)} unit="억"/>}
+        {/* [2026-06-29 사장님 확정] '총 창업(15평)' 합계 타일 삭제 — 동네별로 안 변해 무의미. */}
         {premiumManwon > 0 && <StatTile id="c8.tile4" tone="rose"  label="권리금"  value={(premiumManwon / 10000).toFixed(1)} unit="억"/>}
       </div>
 
@@ -169,12 +166,7 @@ export default function Card08({ body = {} }) {
                 <div style={{fontSize:22, fontWeight:700, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{(simDeposit/10000).toFixed(2)}<span style={{fontSize:13, color:"var(--matte-fg-3)", marginLeft:3, fontWeight:500}}>억</span></div>
               </div>
             )}
-            {simTotal > 0 && (
-              <div style={{padding:"16px 18px", background:"rgba(84,120,201,0.10)", borderRadius:10, border:"1px solid rgba(84,120,201,0.45)"}}>
-                <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:6, fontWeight:500}}>총 창업비</div>
-                <div style={{fontSize:22, fontWeight:700, color:"#4C7BE4", fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{(simTotal/10000).toFixed(2)}<span style={{fontSize:13, color:"var(--matte-fg-3)", marginLeft:3, fontWeight:500}}>억</span></div>
-              </div>
-            )}
+            {/* [2026-06-29 사장님 확정] 시뮬레이터 '총 창업비' 합계 타일 삭제 — 동네별로 안 변해 무의미. */}
           </div>
           {premiumManwon > 0 && premiumOk && (
             <div style={{marginTop:14, fontSize:13, color:"var(--matte-fg-3)"}}>{premiumOk} 기준 권리금 평균 {premiumManwon.toLocaleString()}만원 포함</div>

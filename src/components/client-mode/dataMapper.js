@@ -4123,40 +4123,23 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   //   개인카페 기준 약 2,500만원. (총창업비 = 인테리어 + 권리금 + 시설장비, 보증금 제외 유지.)
   const _roiFacilityManwon = 2500;
   _roiEstimated.push('facilityCost'); // 시설장비비는 상수 추정값 → 항상 추정 배지
+  // [2026-06-29 사장님 확정] 단일 총창업비(_roiTotalStartup)는 '투자회수 점수·회수기간 분모'로만 산다(화면 표기 안 함).
+  //   합계 '범위 표기'(_roiTotalStartupBase/Min/Max/RangeText)는 동네별로 안 변해 무의미 → 폐기.
   const _roiTotalStartup = (_roiInterior15 + _roiPremiumManwon + _roiFacilityManwon) > 0
     ? (_roiInterior15 + _roiPremiumManwon + _roiFacilityManwon) : 0;
-  // [2026-06-29 정보분산 — 총창업비 단일 정의·범위 통일] 시설·장비는 3단계(저가1,000 / 평균2,000 / 고급2,500~3,000)라
-  //   총창업비도 '단일 정밀숫자'가 아니라 '범위'(저가 시설장비 합 ~ 고급 시설장비 합)로 표기한다.
-  //   ★단일 출처: 여기서 한 번만 계산해 카드04 한줄/카드04 KPI/카드14(AI종합)가 전부 이 값을 공유한다.
-  //   (cards-b Card08 FACILITY_TIERS 저가 min=1000 / 고급 max=3000 과 동일 상수.)
-  const _roiFacilityLow = 1000;          // 저가형 시설·장비(만원)
-  const _roiFacilityHigh = 3000;         // 고급 시설·장비(만원)
-  const _roiTotalStartupBase = (_roiInterior15 + _roiPremiumManwon) > 0 ? (_roiInterior15 + _roiPremiumManwon) : 0; // 인테리어+권리금(만원)
-  const _roiTotalStartupMin = _roiTotalStartupBase > 0 ? (_roiTotalStartupBase + _roiFacilityLow) : 0;   // 저가 시설장비 포함 최소
-  const _roiTotalStartupMax = _roiTotalStartupBase > 0 ? (_roiTotalStartupBase + _roiFacilityHigh) : 0;  // 고급 시설장비 포함 최대
-  const _roiTotalStartupRangeText = (_roiTotalStartupMin > 0 && _roiTotalStartupMax > 0)
-    ? convertAmountsInText(_roiTotalStartupMin.toLocaleString() + '만원') + ' ~ ' + convertAmountsInText(_roiTotalStartupMax.toLocaleString() + '만원')
-    : '';
-  // [2026-06-29 총창업비 단일 출처] 카드04(임대/창업, card7)의 KPI·한줄요약도 위 단일 산출을 공유하도록 주입.
-  //   ① 카드04 KPI(cards-b Card08)가 자체 interior/premium/facility 로 따로 계산하던 걸 막기 위해
-  //      ROI 엔진의 인테리어·권리금·범위 값을 card7.bodyData 에 실어 보낸다(cards-b 가 있으면 이것을 우선 사용).
-  //   ② 카드04 한줄요약(bruSummary)의 AI 자유서술 "총창업비 N만원"(시설장비 누락)을 범위 텍스트로 치환.
+  // [2026-06-29 사장님 확정] 카드04(임대/창업, card7)에는 항목별 참고값(인테리어·권리금)만 주입한다.
+  //   ① 카드04 KPI(cards-b Card08)의 항목별 줄(인테리어/권리금)이 ROI 엔진과 같은 값을 쓰도록 주입.
+  //   ② '총창업비 합계'(Min/Max/RangeText) 주입·bruSummary 합계 치환은 폐기. 대신 한줄요약에 합계가 남아 있으면 '제거'한다.
   if (card7 && card7.bodyData) {
     card7.bodyData.roiInteriorCost = _roiInterior15;
     card7.bodyData.roiPremiumCost = _roiPremiumManwon;
-    card7.bodyData.roiFacilityLow = _roiFacilityLow;
-    card7.bodyData.roiFacilityHigh = _roiFacilityHigh;
-    card7.bodyData.roiTotalStartupMin = _roiTotalStartupMin;
-    card7.bodyData.roiTotalStartupMax = _roiTotalStartupMax;
-    card7.bodyData.roiTotalStartupRangeText = _roiTotalStartupRangeText;
-    // 한줄요약 내 '총창업비/총 창업비 ... 만원|억' 표현을 단일 범위로 치환(시설장비 포함 정의 일치).
-    if (typeof card7.bruSummary === 'string' && card7.bruSummary && _roiTotalStartupRangeText) {
-      // "총창업비 8,321만원", "총 창업비 약 1억 2천만원", "총창업비는 8,321만 원" 등 다양한 표기를 한 번에 잡는다.
-      //   (이 경로는 보통 UnifiedLayout case7 한줄 생성으로 덮이는 안전망이지만, 직접 읽는 경로 대비 정직 치환.)
-      card7.bruSummary = card7.bruSummary.replace(
-        /(총\s*창업비(?:는|은|가)?)\s*(?:약\s*)?[\d,]+\s*(?:억\s*)?(?:[\d,]+\s*)?(?:천|백)?\s*만?\s*원?/g,
-        `$1 ${_roiTotalStartupRangeText}`
-      );
+    // 한줄요약 내 '총창업비/총 창업비 ... 만원|억' 합계 표현이 남아 있으면 정직하게 삭제(합계 표기 폐기 정합).
+    if (typeof card7.bruSummary === 'string' && card7.bruSummary) {
+      card7.bruSummary = card7.bruSummary
+        // ", 총창업비 8,321만원" / " 총 창업비는 약 1억 2천만원" 등 앞 구분자(쉼표/공백)까지 함께 제거.
+        .replace(/[,·\s]*총\s*창업비(?:는|은|가)?\s*(?:약\s*)?[\d,]+\s*(?:억\s*)?(?:[\d,]+\s*)?(?:천|백)?\s*만?\s*원?/g, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
     }
   }
   // ── 월 고정비/손익분기 ── 한 장 요약과 동일 계수·식(배너 손익분기 타일과 일치).
@@ -5290,19 +5273,14 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       perStorePop: (_roiPopPerCafe > 0) ? _roiPopPerCafe : null,
       // 'resident'(거주인구 기준) | 'flow'(유동 기준 폴백) | null — 참고표시 단위 라벨용.
       perStorePopBasis: (_roiPopPerCafe > 0) ? _roiPopBasis : null,
-      roiTotalStartup: _roiTotalStartup,          // 총 창업비(만원) = 인테리어 + 권리금 + 시설장비(보증금 제외)
+      roiTotalStartup: _roiTotalStartup,          // 총 창업비(만원) = 인테리어 + 권리금 + 시설장비(보증금 제외) — ★회수기간 분모용(화면 표기 안 함)
       // [2026-06-29 정보분산 패스6 §1-11] 월 고정비 단일 출처 — 비즈맵 실측 원가구조((인건+기타)%×월매출+임대료).
       //   AI종합 배너 BEP가 예전 'rentMonthly×2.2' 단순상수로 따로 계산하던 걸 폐기하고 이 값을 그대로 읽게 한다.
       roiFixedMonthly: _roiFixedMonthly,          // 월 고정비(만원, 실측 원가구조 유도; 폴백 시 임대×2.2·추정배지)
-      roiInteriorCost: _roiInterior15,            // 인테리어비(만원, 규모별 평당×면적)
-      roiPremiumCost: _roiPremiumManwon,          // 권리금(만원, 시도 실측표)
+      roiInteriorCost: _roiInterior15,            // 인테리어비(만원, 규모별 평당×면적) — 카드04 항목별 참고
+      roiPremiumCost: _roiPremiumManwon,          // 권리금(만원, 시도 실측표) — 카드04 항목별 참고
       roiFacilityCost: _roiFacilityManwon,        // 시설·장비비(만원, 2,500 평균 — 회수기간 분모용 단일값)
-      roiTotalStartupText: _roiTotalStartup > 0 ? convertAmountsInText(_roiTotalStartup.toLocaleString() + '만원') : '',
-      // [2026-06-29 총창업비 단일 정의·범위 통일] 시설·장비 저가~고급 범위를 반영한 총창업비 범위(단일 출처).
-      //   카드04 KPI/카드04 한줄/카드14가 전부 아래 값을 공유 → 정보분산 0.
-      roiTotalStartupMin: _roiTotalStartupMin,      // 만원 (인테리어+권리금+저가 시설장비 1,000)
-      roiTotalStartupMax: _roiTotalStartupMax,      // 만원 (인테리어+권리금+고급 시설장비 3,000)
-      roiTotalStartupRangeText: _roiTotalStartupRangeText, // "9,321만원 ~ 1억 1,321만원"
+      // [2026-06-29 사장님 확정] 총 창업비 합계 화면 표기(roiTotalStartupText/Min/Max/RangeText) 폐기 — 동네별로 안 변해 무의미.
       // 기존 (외부 지표 가산 전) 점수 - 디버그/비교용
       scoreBase: {
         market: _scoreMarket,
