@@ -5704,16 +5704,17 @@ export default function UnifiedLayout({
               : _densMid ? ` 카페 밀집도는 '${densW}'이라 차별화 여지가 있는 자리.`
               : densW === '여유' ? ` 카페 밀집도는 '여유'라 진입 부담이 낮은 자리.`
               : '';
-            // ROI 부호 — 수익성/투자회수 축과 같은 단일 월영업이익. 적자=흑자전환 우선(긍정 처방), 흑자=회수 관점.
+            // ROI 부호 — 수익성/투자회수 축과 같은 단일 월영업이익. 적자=흑자전환 우선(긍정 처방), 흑자=비용·수익 구조 관점.
+            // [2026-06-29 예언 제거] 회수 '시점/개월수' 예측(예: "약 N개월에 회수")은 예언이라 전부 제거.
+            //   비용·구조 관점의 정직한 비예언 문구로 대체(긍정 톤 유지, 회수 N개월 표기 금지).
             const roiProfit = (_bd.roiMonthlyProfit != null) ? _num(_bd.roiMonthlyProfit) : null;
-            const roiMonths = _num(_bd.roiPaybackMonths);
             let roiPhrase;
             if (roiProfit != null && roiProfit <= 0) {
-              roiPhrase = ` 지금 비용 구조에선 흑자 전환이 먼저지만, 객단가·회전율을 끌어올리면 회수가 시작되는 구조.`;
-            } else if (roiProfit != null && roiProfit > 0 && roiMonths > 0) {
-              roiPhrase = ` 투자금은 약 ${roiMonths}개월에 회수되는 구조.`;
+              roiPhrase = ` 지금은 비용 구조상 흑자 전환에 먼저 집중할 자리.`;
+            } else if (roiProfit != null && roiProfit > 0) {
+              roiPhrase = ` 비용 대비 수익 구조는 안정적인 편.`;
             } else {
-              roiPhrase = ` 초기 투자 규모를 예산에 맞추면 회수가 빨라지는 구조.`;
+              roiPhrase = ` 초기 투자 규모를 예산에 맞추는 게 관건인 자리.`;
             }
             if (score12 > 0) {
               _sum = `${scoreTxt}.${roiPhrase}${densPhrase}`;
@@ -6397,9 +6398,15 @@ export default function UnifiedLayout({
         // [2026-06-28] v10 추론엔진 설계방향: 있을 때만 AI종합(데이터인덱스13) body.designDirection 덮어씀.
         //   없으면(폴백) 기존 dataMapper c14DesignDirection(템플릿) 그대로 — 잘 되는 폴백 보존.
         //   ★B관찰자형: 서로 다른 렌즈 4~6줄을 그대로 노출(slice 4→6).
-        const _aiDir = (Array.isArray(aiDiag.designDirection) && aiDiag.designDirection.length >= 2)
-          ? aiDiag.designDirection.filter((s) => typeof s === 'string' && s.trim()).slice(0, 6)
+        // [2026-06-29 예언 마무리 안전망] AI 설계방향 줄에 '회수 기간/회수 N개월/투자 회수' 같은 회수 시점
+        //   예측이 섞여 들어오면, 그 줄 전체를 빼서 노출하지 않는다(프롬프트+캐시 갱신의 보수적 백업).
+        //   문장 중간을 잘라 문법을 깨지 않도록, '회수' 시점 표현이 든 줄만 통째로 제거한다(나머지 줄은 보존).
+        const _hasPayback = (s) => /(투자\s*금?\s*회수|회수\s*기간|회수\s*(?:가|는|를|에)?\s*\d|\d\s*개월\s*(?:만에\s*)?회수|회수가\s*(?:빨라|시작))/.test(String(s || ''));
+        const _aiDirRaw = (Array.isArray(aiDiag.designDirection) && aiDiag.designDirection.length >= 2)
+          ? aiDiag.designDirection.filter((s) => typeof s === 'string' && s.trim() && !_hasPayback(s)).slice(0, 6)
           : null;
+        // 회수 줄을 다 빼서 빈 배열이 되면 null 로(빈 배열은 truthy라 designDirection 을 지워버림 → 템플릿 폴백 유지).
+        const _aiDir = (_aiDirRaw && _aiDirRaw.length >= 1) ? _aiDirRaw : null;
         _cardsForReport = _cardsForReport.map((el, screenIdx) => {
           // 화면자리 → 데이터 인덱스 (4↔5만 스왑)
           const dataIdx = screenIdx === 4 ? 5 : (screenIdx === 5 ? 4 : screenIdx);

@@ -949,7 +949,7 @@ function Card06({ body = {} }) {
     <CardShell n="05" id="05"
       bruSummary={body.bruSummary}
       title="매출 분석"
-      sub="월평균 예상 매출"
+      sub="동네 월평균 매출"
       date={null}>
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
         {/* [2026-06-24 → 2026-06-28] 헤드라인 = '월평균 매출' 단일 진실값(bd.monthlyAvgSales = 소상공인 카페 평균 1086 1순위, 비즈맵 분위 평균 폴백, 만원). 매출추이 '동 평균'과 같은 값. 없으면 안정 동평균→단일월 폴백. 라벨은 '동 평균' 유지. */}
