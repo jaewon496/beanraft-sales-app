@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>빈크래프트 — 전국 커버</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<style>
+  :root{
+    --bg:#000;
+    --blue:#2b7fff;
+    --blue-bright:#7db4ff;
+    --line:rgba(255,255,255,.08);
+    --line2:rgba(255,255,255,.045);
+    --txt:#fff;
+    --dim:rgba(255,255,255,.42);
+    --dim2:rgba(255,255,255,.26);
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%;background:var(--bg);color:var(--txt);font-family:var(--sans);overflow:hidden}
+  .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+
+  .stage{
+    position:relative;width:100vw;height:100vh;height:100dvh;
+    background:radial-gradient(120% 90% at 50% 18%, #060810 0%, #020308 46%, #000 100%);
+    overflow:hidden;
+  }
+
+  /* faint engineering grid */
+  .grid{
+    position:absolute;inset:0;
+    background-image:
+      linear-gradient(var(--line2) 1px,transparent 1px),
+      linear-gradient(90deg,var(--line2) 1px,transparent 1px);
+    background-size:64px 64px;
+    mask-image:radial-gradient(110% 80% at 50% 30%,#000 35%,transparent 78%);
+    -webkit-mask-image:radial-gradient(110% 80% at 50% 30%,#000 35%,transparent 78%);
+    opacity:0;
+  }
+  .scan{
+    position:absolute;left:0;right:0;height:1px;top:0;
+    background:linear-gradient(90deg,transparent,rgba(123,180,255,.5),transparent);
+    box-shadow:0 0 18px rgba(43,127,255,.5);
+    opacity:0;
+  }
+
+  /* ---- copy ---- */
+  .copy{
+    position:absolute;left:0;right:0;top:7.5vh;z-index:6;
+    text-align:center;padding:0 24px;pointer-events:none;
+  }
+  .eyebrow{
+    font-family:var(--mono);font-size:11px;letter-spacing:.42em;
+    color:var(--blue-bright);text-transform:uppercase;
+    display:inline-flex;align-items:center;gap:10px;margin-bottom:20px;opacity:0;
+  }
+  .eyebrow .dot{width:6px;height:6px;border-radius:50%;background:var(--blue);
+    box-shadow:0 0 10px var(--blue);animation:pulse 1.8s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.7)}}
+  h1{
+    font-size:clamp(26px,4.6vw,52px);font-weight:650;line-height:1.18;
+    letter-spacing:-.02em;opacity:0;
+  }
+  h1 .hl{color:var(--blue-bright)}
+  .sub{
+    margin-top:16px;font-size:clamp(12px,1.5vw,15px);color:var(--dim);
+    letter-spacing:.01em;opacity:0;font-weight:420;
+  }
+
+  /* ---- dashboard ---- */
+  .dash{
+    position:absolute;left:50%;top:54%;transform:translate(-50%,-50%);
+    width:min(1080px,92vw);
+    z-index:4;
+    display:grid;
+    grid-template-columns:1.15fr 1fr 1fr;
+    grid-template-rows:auto auto;
+    gap:14px;
+    perspective:1400px;
+  }
+  .panel{
+    position:relative;
+    background:linear-gradient(180deg,rgba(13,17,27,.72),rgba(7,9,15,.66));
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:16px 18px;
+    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+    opacity:0;
+    overflow:hidden;
+  }
+  .panel::before{
+    content:"";position:absolute;inset:0;border-radius:14px;pointer-events:none;
+    background:linear-gradient(180deg,rgba(123,180,255,.06),transparent 38%);
+  }
+  .panel.glow{box-shadow:0 0 0 1px rgba(43,127,255,.18),0 18px 60px -28px rgba(43,127,255,.5)}
+
+  .p-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+  .p-title{font-family:var(--mono);font-size:10.5px;letter-spacing:.22em;color:var(--dim);text-transform:uppercase}
+  .p-tag{font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:var(--blue-bright);
+    border:1px solid rgba(43,127,255,.35);border-radius:20px;padding:3px 8px;display:flex;align-items:center;gap:5px}
+  .p-tag .lv{width:5px;height:5px;border-radius:50%;background:var(--blue);box-shadow:0 0 8px var(--blue);animation:pulse 1.6s ease-in-out infinite}
+
+  /* big number panel */
+  .kpi{grid-column:1;grid-row:1}
+  .kpi-main{display:flex;align-items:baseline;gap:8px}
+  .kpi-val{font-family:var(--mono);font-size:clamp(34px,5.2vw,56px);font-weight:600;
+    letter-spacing:-.02em;line-height:1;
+    background:linear-gradient(180deg,#fff,#9fc4ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .kpi-unit{font-family:var(--mono);font-size:14px;color:var(--dim)}
+  .kpi-sub{margin-top:14px;display:flex;gap:22px}
+  .kpi-cell .l{font-family:var(--mono);font-size:9px;letter-spacing:.16em;color:var(--dim2);text-transform:uppercase}
+  .kpi-cell .v{font-family:var(--mono);font-size:17px;margin-top:5px;color:#dfeaff}
+  .kpi-cell .v small{font-size:11px;color:var(--blue-bright);margin-left:3px}
+  .spark{margin-top:16px;width:100%;height:42px;display:block}
+
+  /* line chart */
+  .trend{grid-column:2;grid-row:1}
+  .trend canvas{width:100%;height:86px;display:block;margin-top:2px}
+  .legend{display:flex;gap:14px;margin-top:8px}
+  .legend span{font-family:var(--mono);font-size:9px;letter-spacing:.1em;color:var(--dim);display:flex;align-items:center;gap:5px}
+  .legend i{width:14px;height:2px;border-radius:2px;display:inline-block}
+
+  /* gauges */
+  .gauges{grid-column:3;grid-row:1;display:flex;flex-direction:column;justify-content:center;gap:14px}
+  .grow{display:flex;align-items:center;gap:12px}
+  .gbar{flex:1;height:6px;border-radius:6px;background:rgba(255,255,255,.07);overflow:hidden;position:relative}
+  .gbar i{position:absolute;inset:0;width:0;border-radius:6px;
+    background:linear-gradient(90deg,var(--blue),var(--blue-bright));
+    box-shadow:0 0 12px rgba(43,127,255,.6)}
+  .glab{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;color:var(--dim);width:74px;text-transform:uppercase}
+  .gnum{font-family:var(--mono);font-size:12px;color:#dfeaff;width:38px;text-align:right}
+
+  /* bottom bar chart spanning */
+  .bars{grid-column:1 / 3;grid-row:2}
+  .bars canvas{width:100%;height:90px;display:block;margin-top:6px}
+
+  /* feed / radar mini */
+  .feed{grid-column:3;grid-row:2}
+  .feed-list{font-family:var(--mono);font-size:10px;line-height:1.9;color:var(--dim)}
+  .feed-list div{display:flex;justify-content:space-between;white-space:nowrap;opacity:0}
+  .feed-list .ok{color:var(--blue-bright)}
+  .feed-list b{color:#cfe0ff;font-weight:500}
+
+  .footer-line{
+    position:absolute;left:0;right:0;bottom:3.2vh;text-align:center;z-index:6;
+    font-family:var(--mono);font-size:10px;letter-spacing:.3em;color:var(--dim2);
+    text-transform:uppercase;opacity:0;
+  }
+
+  @media (max-width:760px){
+    .dash{grid-template-columns:1fr 1fr;grid-template-rows:auto auto auto;width:94vw;gap:10px}
+    .panel{padding:13px 14px;border-radius:12px}
+    .kpi{grid-column:1 / 3;grid-row:1}
+    .trend{grid-column:1;grid-row:2}
+    .gauges{grid-column:2;grid-row:2}
+    .bars{grid-column:1 / 3;grid-row:3}
+    .feed{display:none}
+    .copy{top:5vh}
+    .kpi-sub{gap:16px}
+  }
+  @media (max-width:420px){
+    .trend{grid-column:1 / 3}
+    .gauges{grid-column:1 / 3}
+  }
+</style>
+</head>
+<body>
+<h2 class="sr-only">전국 어디를 찍어도 그 동네가 분석되는 빈크래프트 라이브 데이터 대시보드. 매출, 유동인구, 경쟁밀도, 임대시세 수치가 실시간으로 산출됩니다.</h2>
+
+<div class="stage" id="stage">
+  <div class="grid" id="grid"></div>
+  <div class="scan" id="scan"></div>
+
+  <div class="copy">
+    <div class="eyebrow" id="eyebrow"><span class="dot"></span>NATIONWIDE COVERAGE · 행정동 단위</div>
+    <h1 id="h1">전국 어디를 찍어도, <span class="hl">그 동네가 분석</span>됩니다.</h1>
+    <div class="sub" id="sub">좌표 하나면 — 매출·유동·경쟁·임대까지 그 자리에서 산출.</div>
+  </div>
+
+  <div class="dash" id="dash">
+    <!-- KPI -->
+    <div class="panel kpi glow" data-p>
+      <div class="p-head">
+        <div class="p-title">월평균 추정매출</div>
+        <div class="p-tag"><span class="lv"></span>LIVE</div>
+      </div>
+      <div class="kpi-main">
+        <span class="kpi-val" id="kpiVal">0</span><span class="kpi-unit">만원</span>
+      </div>
+      <div class="kpi-sub">
+        <div class="kpi-cell"><div class="l">전년 대비</div><div class="v" id="kpiYoy">0<small>%</small></div></div>
+        <div class="kpi-cell"><div class="l">객단가</div><div class="v" id="kpiAvg">0<small>원</small></div></div>
+        <div class="kpi-cell"><div class="l">표본 점포</div><div class="v" id="kpiN">0</div></div>
+      </div>
+      <canvas class="spark" id="spark" width="600" height="84"></canvas>
+    </div>
+
+    <!-- TREND line -->
+    <div class="panel trend" data-p>
+      <div class="p-head">
+        <div class="p-title">유동인구 추이</div>
+        <div class="p-tag"><span class="lv"></span>24M</div>
+      </div>
+      <canvas id="lineC" width="640" height="172"></canvas>
+      <div class="legend">
+        <span><i style="background:var(--blue-bright)"></i>주중</span>
+        <span><i style="background:rgba(255,255,255,.32)"></i>주말</span>
+      </div>
+    </div>
+
+    <!-- GAUGES -->
+    <div class="panel gauges" data-p>
+      <div class="p-head" style="margin-bottom:6px">
+        <div class="p-title">상권 지표</div>
+        <div class="p-tag"><span class="lv"></span>SCAN</div>
+      </div>
+      <div class="grow"><span class="glab">경쟁밀도</span><span class="gbar"><i data-g="74"></i></span><span class="gnum" data-gn="74">0</span></div>
+      <div class="grow"><span class="glab">소비력</span><span class="gbar"><i data-g="88"></i></span><span class="gnum" data-gn="88">0</span></div>
+      <div class="grow"><span class="glab">성장성</span><span class="gbar"><i data-g="61"></i></span><span class="gnum" data-gn="61">0</span></div>
+      <div class="grow"><span class="glab">접근성</span><span class="gbar"><i data-g="92"></i></span><span class="gnum" data-gn="92">0</span></div>
+    </div>
+
+    <!-- BARS -->
+    <div class="panel bars" data-p>
+      <div class="p-head">
+        <div class="p-title">동별 매출 분포 · 시간대 집중도</div>
+        <div class="p-tag"><span class="lv"></span>12 ZONE</div>
+      </div>
+      <canvas id="barC" width="820" height="180"></canvas>
+    </div>
+
+    <!-- FEED -->
+    <div class="panel feed" data-p>
+      <div class="p-head">
+        <div class="p-title">분석 로그</div>
+        <div class="p-tag"><span class="lv"></span>RUN</div>
+      </div>
+      <div class="feed-list" id="feed">
+        <div><span>좌표 → 행정동</span><b class="ok">매칭</b></div>
+        <div><span>점포 수집</span><b>339</b></div>
+        <div><span>매출 분위</span><b class="ok">산출</b></div>
+        <div><span>임대시세 ㎡</span><b>14.4만</b></div>
+        <div><span>경쟁 카페</span><b>31 / 9</b></div>
+        <div><span>신뢰도</span><b class="ok">94%</b></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-line" id="footer">BEANCRAFT · LIVE COMMERCIAL-DISTRICT ENGINE</div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ---------- DPR-aware canvas ---------- */
+  function fit(cv){
+    var dpr = Math.min(window.devicePixelRatio||1, 2);
+    var r = cv.getBoundingClientRect();
+    cv.width = Math.max(1, Math.round(r.width*dpr));
+    cv.height = Math.max(1, Math.round(r.height*dpr));
+    var ctx = cv.getContext("2d");
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    cv._w = r.width; cv._h = r.height;
+    return ctx;
+  }
+
+  /* ---------- seeded data ---------- */
+  function rnd(seed){ return function(){ seed=(seed*9301+49297)%233280; return seed/233280; }; }
+  var rg = rnd(73);
+  // smooth-ish trend series
+  function series(n, base, vol, up){
+    var a=[], v=base;
+    for(var i=0;i<n;i++){ v += (rg()-0.5)*vol + up; a.push(Math.max(2,v)); }
+    return a;
+  }
+  var weekday = series(48, 60, 9, 0.35);
+  var weekend = series(48, 42, 11, 0.18);
+  var bars = []; for(var i=0;i<12;i++) bars.push(0.3+rg()*0.9);
+  var sparkData = series(40, 50, 6, 0.4);
+
+  var COL = { blue:"#2b7fff", bright:"#7db4ff", dim:"rgba(255,255,255,.30)" };
+
+  /* ---------- chart renderers (progress 0..1) ---------- */
+  var lineC = document.getElementById("lineC");
+  var barC  = document.getElementById("barC");
+  var spark = document.getElementById("spark");
+  var lctx, bctx, sctx;
+  function setup(){ lctx=fit(lineC); bctx=fit(barC); sctx=fit(spark); }
+  setup();
+
+  function drawLine(p){
+    var ctx=lctx, w=lineC._w, h=lineC._h; ctx.clearRect(0,0,w,h);
+    var padT=8, padB=10, n=weekday.length;
+    var all=weekday.concat(weekend), mx=Math.max.apply(null,all), mn=Math.min.apply(null,all);
+    function plot(arr, color, fill, prog){
+      var cnt=Math.max(2, Math.floor(n*prog));
+      ctx.beginPath();
+      for(var i=0;i<cnt;i++){
+        var x=(i/(n-1))*w;
+        var y=padT+(1-(arr[i]-mn)/(mx-mn))*(h-padT-padB);
+        i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+      }
+      if(fill){
+        var lx=((cnt-1)/(n-1))*w;
+        ctx.lineTo(lx,h); ctx.lineTo(0,h); ctx.closePath();
+        var g=ctx.createLinearGradient(0,0,0,h);
+        g.addColorStop(0,"rgba(43,127,255,.28)"); g.addColorStop(1,"rgba(43,127,255,0)");
+        ctx.fillStyle=g; ctx.fill();
+      } else {
+        ctx.strokeStyle=color; ctx.lineWidth=1.6; ctx.lineJoin="round";
+        ctx.shadowColor="rgba(43,127,255,.5)"; ctx.shadowBlur=8; ctx.stroke(); ctx.shadowBlur=0;
+      }
+    }
+    // weekend (dim, behind)
+    var wp=Math.min(1,p*1.1);
+    ctx.beginPath();
+    var cnt2=Math.max(2,Math.floor(n*wp));
+    for(var j=0;j<cnt2;j++){ var x=(j/(n-1))*w, y=padT+(1-(weekend[j]-mn)/(mx-mn))*(h-padT-padB); j?ctx.lineTo(x,y):ctx.moveTo(x,y); }
+    ctx.strokeStyle=COL.dim; ctx.lineWidth=1.1; ctx.setLineDash([4,4]); ctx.stroke(); ctx.setLineDash([]);
+    // weekday fill + line
+    plot(weekday,null,true,p);
+    plot(weekday,COL.bright,false,p);
+    // head dot
+    var hc=Math.max(2,Math.floor(n*p))-1;
+    var hx=(hc/(n-1))*w, hy=padT+(1-(weekday[hc]-mn)/(mx-mn))*(h-padT-padB);
+    ctx.beginPath(); ctx.arc(hx,hy,3,0,7); ctx.fillStyle=COL.bright;
+    ctx.shadowColor=COL.bright; ctx.shadowBlur=10; ctx.fill(); ctx.shadowBlur=0;
+  }
+
+  function drawBars(p){
+    var ctx=bctx, w=barC._w, h=barC._h; ctx.clearRect(0,0,w,h);
+    var n=bars.length, gap=8, bw=(w-gap*(n-1))/n, mx=Math.max.apply(null,bars);
+    for(var i=0;i<n;i++){
+      var full=(bars[i]/mx)*(h-14);
+      // staggered reveal
+      var local=Math.max(0,Math.min(1,(p*1.6)-(i/n)*0.6));
+      var bh=full*local;
+      var x=i*(bw+gap), y=h-bh;
+      var g=ctx.createLinearGradient(0,y,0,h);
+      g.addColorStop(0, i===4?COL.bright:"rgba(43,127,255,.85)");
+      g.addColorStop(1,"rgba(43,127,255,.12)");
+      ctx.fillStyle=g;
+      var r=3; roundRect(ctx,x,y,bw,bh,r); ctx.fill();
+      if(i===4 && local>0.9){ ctx.fillStyle=COL.bright; ctx.fillRect(x,y-2,bw,2); }
+    }
+  }
+  function roundRect(ctx,x,y,w,h,r){
+    if(h<r)r=h; ctx.beginPath();
+    ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+  }
+
+  function drawSpark(p){
+    var ctx=sctx, w=spark._w, h=spark._h; ctx.clearRect(0,0,w,h);
+    var n=sparkData.length, mx=Math.max.apply(null,sparkData), mn=Math.min.apply(null,sparkData);
+    var cnt=Math.max(2,Math.floor(n*p));
+    ctx.beginPath();
+    for(var i=0;i<cnt;i++){ var x=(i/(n-1))*w, y=4+(1-(sparkData[i]-mn)/(mx-mn))*(h-8); i?ctx.lineTo(x,y):ctx.moveTo(x,y); }
+    var lx=((cnt-1)/(n-1))*w;
+    ctx.lineTo(lx,h); ctx.lineTo(0,h); ctx.closePath();
+    var g=ctx.createLinearGradient(0,0,0,h);
+    g.addColorStop(0,"rgba(123,180,255,.22)"); g.addColorStop(1,"rgba(123,180,255,0)");
+    ctx.fillStyle=g; ctx.fill();
+    ctx.beginPath();
+    for(var k=0;k<cnt;k++){ var x2=(k/(n-1))*w, y2=4+(1-(sparkData[k]-mn)/(mx-mn))*(h-8); k?ctx.lineTo(x2,y2):ctx.moveTo(x2,y2); }
+    ctx.strokeStyle=COL.bright; ctx.lineWidth=1.3; ctx.stroke();
+  }
+
+  /* ---------- count-up helper ---------- */
+  function countUp(el, to, dur, fmt){
+    var o={v:0};
+    gsap.to(o,{v:to,duration:dur,ease:"power2.out",onUpdate:function(){ el.firstChild ? el.firstChild.nodeValue=fmt(o.v) : el.textContent=fmt(o.v); }});
+  }
+  function num(n){ return Math.round(n).toLocaleString("en-US"); }
+
+  /* ---------- visibility-guarded RAF for charts during build ---------- */
+  var prog={line:0,bar:0,spark:0};
+  var running=true, visible=true;
+  document.addEventListener("visibilitychange",function(){ visible=!document.hidden; });
+  function loop(){
+    if(running && visible){
+      drawLine(prog.line); drawBars(prog.bar); drawSpark(prog.spark);
+    }
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  /* ---------- orchestration ---------- */
+  function build(){
+    if(reduce){
+      prog.line=prog.bar=prog.spark=1;
+      gsap.set(["#eyebrow","#h1","#sub","#footer","[data-p]"],{opacity:1});
+      gsap.set(".gbar i",{width:function(i,t){return t.getAttribute("data-g")+"%";}});
+      document.querySelectorAll("[data-gn]").forEach(function(e){e.textContent=e.getAttribute("data-gn");});
+      document.querySelectorAll("#feed div").forEach(function(e){e.style.opacity=1;});
+      document.getElementById("kpiVal").textContent="1,086";
+      document.getElementById("kpiYoy").textContent="+6.4%";
+      document.getElementById("kpiAvg").textContent="5,856원";
+      document.getElementById("kpiN").textContent="339";
+      drawLine(1);drawBars(1);drawSpark(1);
+      return;
+    }
+
+    var tl=gsap.timeline({defaults:{ease:"power3.out"}});
+    tl.to("#grid",{opacity:1,duration:1.0});
+    tl.to("#eyebrow",{opacity:1,y:0,duration:.6},.1);
+    tl.from("#h1",{y:22,duration:.9,opacity:0},"-=.3");
+    tl.to("#h1",{opacity:1,duration:.01},"<");
+    tl.from("#sub",{y:14,opacity:0,duration:.7},"-=.55");
+    tl.to("#sub",{opacity:1,duration:.01},"<");
+
+    // scan sweep across stage
+    tl.fromTo("#scan",{top:"22%",opacity:0},{opacity:1,duration:.25},"-=.2");
+    tl.to("#scan",{top:"82%",duration:1.05,ease:"power1.inOut"},"<");
+    tl.to("#scan",{opacity:0,duration:.3},"-=.25");
+
+    // panels rise
+    tl.to("[data-p]",{opacity:1,y:0,duration:.7,stagger:.09,ease:"power2.out"},"-=1.0");
+    tl.from("[data-p]",{y:26,duration:.7,stagger:.09,ease:"power2.out"},"<");
+
+    // charts draw
+    tl.to(prog,{line:1,duration:1.4,ease:"power2.out"},"-=.7");
+    tl.to(prog,{bar:1,duration:1.3,ease:"power2.out"},"<+.15");
+    tl.to(prog,{spark:1,duration:1.2,ease:"power2.out"},"<");
+
+    // numbers
+    tl.add(function(){
+      countUp(document.getElementById("kpiVal"),1086,1.5,num);
+      var yoy={v:0}; gsap.to(yoy,{v:6.4,duration:1.4,ease:"power2.out",onUpdate:function(){document.getElementById("kpiYoy").textContent="+"+yoy.v.toFixed(1)+"%";}});
+      var avg={v:0}; gsap.to(avg,{v:5856,duration:1.4,ease:"power2.out",onUpdate:function(){document.getElementById("kpiAvg").textContent=num(avg.v)+"원";}});
+      countUp(document.getElementById("kpiN"),339,1.3,num);
+    },"-=1.2");
+
+    // gauges
+    tl.to(".gbar i",{width:function(i,t){return t.getAttribute("data-g")+"%";},duration:1.2,stagger:.12,ease:"power3.out"},"-=1.1");
+    tl.add(function(){
+      document.querySelectorAll("[data-gn]").forEach(function(e){
+        var o={v:0}; gsap.to(o,{v:+e.getAttribute("data-gn"),duration:1.0,ease:"power2.out",onUpdate:function(){e.textContent=Math.round(o.v);}});
+      });
+    },"<");
+
+    // feed log
+    tl.to("#feed div",{opacity:1,x:0,duration:.4,stagger:.13,ease:"power1.out"},"-=1.0");
+    tl.from("#feed div",{x:-8,duration:.4,stagger:.13},"<");
+
+    tl.to("#footer",{opacity:1,duration:.8},"-=.4");
+
+    // subtle continuous pulse on glow panel
+    gsap.to(".kpi.glow",{boxShadow:"0 0 0 1px rgba(43,127,255,.30),0 22px 70px -26px rgba(43,127,255,.65)",duration:2.4,repeat:-1,yoyo:true,ease:"sine.inOut",delay:3});
+  }
+
+  // resize handling
+  var rT;
+  window.addEventListener("resize",function(){
+    clearTimeout(rT);
+    rT=setTimeout(function(){ setup(); },120);
+  });
+
+  // kick off
+  if(document.readyState!=="loading") build();
+  else document.addEventListener("DOMContentLoaded",build);
+})();
+</script>
+</body>
+</html>

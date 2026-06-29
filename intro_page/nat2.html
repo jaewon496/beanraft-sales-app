@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>빈크래프트 — 전국 커버</title>
+<style>
+  :root{
+    --bg:#000000;
+    --blue:#2b7fff;
+    --blue-bright:#7db4ff;
+    --ink:#e8eef7;
+    --dim:#5a6678;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%;background:var(--bg);overflow:hidden}
+  body{
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+  }
+  .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+
+  .stage{position:fixed;inset:0;width:100vw;height:100dvh;background:var(--bg)}
+  canvas#scene{position:absolute;inset:0;width:100%;height:100%;display:block}
+
+  /* vignette + subtle top/bottom fade to seat the canvas */
+  .vignette{
+    position:absolute;inset:0;pointer-events:none;
+    background:
+      radial-gradient(120% 90% at 50% 42%, transparent 38%, rgba(0,0,0,.55) 78%, #000 100%),
+      linear-gradient(180deg, rgba(0,0,0,.55) 0%, transparent 22%, transparent 70%, rgba(0,0,0,.85) 100%);
+    z-index:2;
+  }
+
+  /* HUD frame corners */
+  .frame{position:absolute;inset:0;pointer-events:none;z-index:3}
+  .corner{position:absolute;width:46px;height:46px;border:1px solid rgba(125,180,255,.28)}
+  .corner.tl{top:26px;left:26px;border-right:0;border-bottom:0}
+  .corner.tr{top:26px;right:26px;border-left:0;border-bottom:0}
+  .corner.bl{bottom:26px;left:26px;border-right:0;border-top:0}
+  .corner.br{bottom:26px;right:26px;border-left:0;border-top:0}
+
+  /* top status strip */
+  .topbar{
+    position:absolute;top:30px;left:0;right:0;z-index:4;
+    display:flex;justify-content:center;gap:26px;
+    font-size:10.5px;letter-spacing:.18em;color:var(--dim);
+    text-transform:uppercase;pointer-events:none;
+  }
+  .topbar .live{color:var(--blue-bright);display:inline-flex;align-items:center;gap:7px}
+  .topbar .dot{
+    width:6px;height:6px;border-radius:50%;background:var(--blue-bright);
+    box-shadow:0 0 8px var(--blue-bright);animation:pulse 1.8s ease-in-out infinite;
+  }
+  .topbar .sep{opacity:.35}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+
+  /* center copy */
+  .copy{
+    position:absolute;left:0;right:0;z-index:4;
+    bottom:14%;text-align:center;padding:0 24px;pointer-events:none;
+  }
+  .copy .eyebrow{
+    font-size:11px;letter-spacing:.34em;color:var(--blue-bright);
+    text-transform:uppercase;margin-bottom:20px;opacity:0;
+    transform:translateY(10px);animation:rise .9s .25s cubic-bezier(.2,.7,.2,1) forwards;
+  }
+  .copy h1{
+    font-size:clamp(26px,4.6vw,52px);font-weight:650;line-height:1.18;
+    letter-spacing:-.015em;color:#fff;margin:0 auto;max-width:18ch;
+    opacity:0;transform:translateY(16px);
+    animation:rise 1s .42s cubic-bezier(.2,.7,.2,1) forwards;
+  }
+  .copy h1 .hl{color:var(--blue-bright)}
+  .copy p{
+    margin-top:18px;font-size:clamp(12.5px,1.5vw,15px);color:#9aa6b8;
+    letter-spacing:.02em;font-weight:400;
+    opacity:0;transform:translateY(16px);
+    animation:rise 1s .62s cubic-bezier(.2,.7,.2,1) forwards;
+  }
+  @keyframes rise{to{opacity:1;transform:translateY(0)}}
+
+  /* bottom readout ticker */
+  .readout{
+    position:absolute;bottom:34px;left:0;right:0;z-index:4;
+    display:flex;justify-content:center;gap:34px;
+    font-size:10.5px;letter-spacing:.14em;color:var(--dim);
+    text-transform:uppercase;pointer-events:none;
+    font-variant-numeric:tabular-nums;
+  }
+  .readout b{color:var(--blue-bright);font-weight:600;letter-spacing:.05em}
+
+  @media (max-width:680px){
+    .corner{width:30px;height:30px}
+    .corner.tl,.corner.tr{top:18px}
+    .corner.bl,.corner.br{bottom:18px}
+    .corner.tl,.corner.bl{left:18px}
+    .corner.tr,.corner.br{right:18px}
+    .topbar{gap:14px;font-size:9px;top:24px}
+    .topbar .sep:nth-of-type(2){display:none}
+    .copy{bottom:18%}
+    .readout{gap:16px;font-size:8.5px;bottom:24px;flex-wrap:wrap;padding:0 16px}
+  }
+</style>
+</head>
+<body>
+  <h2 class="sr-only">전국 어디를 검색해도 그 동네 상권이 분석되는 빈크래프트의 공간 인텔리전스 시각화. 추상 도시 평면 위로 스캔이 지나가며 좌표와 데이터 지점이 실시간으로 분석됩니다.</h2>
+
+  <div class="stage">
+    <canvas id="scene"></canvas>
+    <div class="vignette"></div>
+
+    <div class="frame">
+      <span class="corner tl"></span>
+      <span class="corner tr"></span>
+      <span class="corner bl"></span>
+      <span class="corner br"></span>
+    </div>
+
+    <div class="topbar">
+      <span class="live"><span class="dot"></span>SPATIAL ENGINE · LIVE</span>
+      <span class="sep">/</span>
+      <span>GRID&nbsp;<b style="color:var(--blue-bright)">RESOLVED</b></span>
+      <span class="sep">/</span>
+      <span id="t-nodes">NODES&nbsp;0000</span>
+    </div>
+
+    <div class="copy">
+      <div class="eyebrow">NATIONWIDE COVERAGE</div>
+      <h1>전국 어디를 찍어도,<br><span class="hl">그 동네</span>가 분석됩니다.</h1>
+      <p>좌표 하나면 충분합니다. 상권·유동·매출까지, 그 자리에서.</p>
+    </div>
+
+    <div class="readout">
+      <span>SCAN&nbsp;<b id="r-scan">000%</b></span>
+      <span>DENSITY&nbsp;<b id="r-density">0.00</b></span>
+      <span>SIGNAL&nbsp;<b id="r-signal">—</b></span>
+      <span>LAT/LNG&nbsp;<b id="r-coord">— · —</b></span>
+    </div>
+  </div>
+
+<script>
+(function(){
+  "use strict";
+  const cvs = document.getElementById('scene');
+  const ctx = cvs.getContext('2d', { alpha:false });
+
+  const C_BLUE   = '43,127,255';   // #2b7fff
+  const C_BRIGHT = '125,180,255';  // #7db4ff
+
+  let W=0,H=0,DPR=1,CX=0,CY=0;
+  let running = true;
+
+  // ---- isometric projection of an abstract grid plane ----
+  // grid in "world" units, projected to iso, tilted toward horizon
+  const GRID = 26;            // cells per side
+  let cellW=0, cellH=0;       // iso cell size (px)
+  const ISO_K = 0.5;          // vertical squash for iso look
+
+  // data nodes scattered on the plane (abstract "places")
+  let nodes = [];
+  let links = [];
+  // contour blobs (abstract density terrain)
+  let blobs = [];
+
+  function rand(a,b){ return a + Math.random()*(b-a); }
+
+  function buildField(){
+    nodes = [];
+    links = [];
+    blobs = [];
+
+    // density blobs — soft analytic centers used for contour + node weight
+    const nb = 4;
+    for(let i=0;i<nb;i++){
+      blobs.push({
+        gx: rand(GRID*0.18, GRID*0.82),
+        gy: rand(GRID*0.18, GRID*0.82),
+        r:  rand(GRID*0.16, GRID*0.30),
+        amp: rand(0.55, 1.0)
+      });
+    }
+
+    // nodes: place where density is interesting
+    const NODE_TARGET = (W<680) ? 26 : 46;
+    let tries = 0;
+    while(nodes.length < NODE_TARGET && tries < 4000){
+      tries++;
+      const gx = rand(1, GRID-1);
+      const gy = rand(1, GRID-1);
+      const d = densityAt(gx,gy);
+      // accept biased toward higher density, but keep some sparse coverage
+      if(Math.random() < 0.18 + d*0.85){
+        nodes.push({
+          gx, gy, d,
+          v: Math.round(rand(40,99)),         // a "score"
+          size: 1.4 + d*2.4,
+          // reveal state driven by scan
+          on:0, target:0,
+          phase: rand(0,Math.PI*2),
+          big: d>0.62 && Math.random()<0.5
+        });
+      }
+    }
+
+    // links: connect nearby strong nodes (analysis relations)
+    const strong = nodes.filter(n=>n.d>0.42);
+    for(let i=0;i<strong.length;i++){
+      let best=-1,bd=1e9;
+      for(let j=0;j<strong.length;j++){
+        if(i===j) continue;
+        const dx=strong[i].gx-strong[j].gx, dy=strong[i].gy-strong[j].gy;
+        const dd=dx*dx+dy*dy;
+        if(dd<bd){bd=dd;best=j;}
+      }
+      if(best>=0 && Math.sqrt(bd) < GRID*0.32){
+        links.push({a:strong[i], b:strong[best], on:0, target:0});
+      }
+    }
+  }
+
+  function densityAt(gx,gy){
+    let s=0;
+    for(const b of blobs){
+      const dx=gx-b.gx, dy=gy-b.gy;
+      const dist=Math.sqrt(dx*dx+dy*dy);
+      s += b.amp * Math.exp(-(dist*dist)/(2*b.r*b.r));
+    }
+    return Math.min(1, s);
+  }
+
+  // world grid coords -> screen
+  function project(gx,gy){
+    const ox = (gx - GRID/2);
+    const oy = (gy - GRID/2);
+    const sx = CX + (ox - oy) * cellW;
+    const sy = CY + (ox + oy) * cellH * ISO_K;
+    return [sx, sy];
+  }
+
+  function resize(){
+    DPR = Math.min(window.devicePixelRatio||1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    cvs.width = Math.floor(W*DPR);
+    cvs.height= Math.floor(H*DPR);
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+    CX = W*0.5;
+    CY = H*0.40;
+    const span = Math.min(W,H);
+    cellW = (Math.min(W*0.92, 1180) / GRID) * 0.5;
+    cellH = cellW; // squared later by ISO_K
+    buildField();
+  }
+
+  // ---- scan state ----
+  // scan is an angular/positional sweep expressed as a moving "front" along
+  // the plane's main diagonal (ox+oy). nodes light up as the front passes.
+  let scanT = 0;          // 0..1 normalized position of scan front
+  let scanDir = 1;
+  let revealed = 0;
+
+  // animated readout numbers
+  let rScan=0, rDensity=0, rNodes=0;
+  const signals = ['STABLE','RISING','DENSE','PRIME','ACTIVE'];
+
+  let last = performance.now();
+  let elapsed = 0;
+
+  function frame(now){
+    if(!running){ last=now; requestAnimationFrame(frame); return; }
+    let dt = (now-last)/1000; last=now;
+    if(dt>0.05) dt=0.05;
+    elapsed += dt;
+
+    // advance scan
+    scanT += scanDir * dt * 0.16;
+    if(scanT>1.08){ scanT=1.08; scanDir=-1; }
+    if(scanT<-0.08){ scanT=-0.08; scanDir=1; }
+
+    draw(dt);
+    requestAnimationFrame(frame);
+  }
+
+  function draw(dt){
+    // background
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0,0,W,H);
+
+    // subtle radial floor glow under the plane
+    const g = ctx.createRadialGradient(CX, CY+H*0.06, 0, CX, CY+H*0.06, Math.max(W,H)*0.62);
+    g.addColorStop(0, 'rgba('+C_BLUE+',0.10)');
+    g.addColorStop(0.5,'rgba('+C_BLUE+',0.03)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle=g;
+    ctx.fillRect(0,0,W,H);
+
+    drawGrid();
+    drawContours();
+    drawScanFront();
+    updateAndDrawLinks(dt);
+    updateAndDrawNodes(dt);
+    drawHorizonHaze();
+    updateReadout(dt);
+  }
+
+  // diagonal coordinate (ox+oy) normalized 0..1 across the plane, used for scan
+  function diagNorm(gx,gy){
+    const ox=(gx-GRID/2), oy=(gy-GRID/2);
+    const d = (ox+oy);                 // range about -GRID..+GRID
+    return (d/(GRID)) * 0.5 + 0.5;     // 0..1
+  }
+
+  function drawGrid(){
+    ctx.lineWidth = 1;
+    // depth fade: lines farther (smaller oy effect) get dimmer.
+    for(let i=0;i<=GRID;i++){
+      // lines along gx (constant gy)
+      strokeGridLine(i, true);
+      strokeGridLine(i, false);
+    }
+  }
+
+  function strokeGridLine(idx, alongX){
+    ctx.beginPath();
+    let started=false;
+    for(let t=0;t<=GRID;t++){
+      const gx = alongX ? t : idx;
+      const gy = alongX ? idx : t;
+      const [sx,sy]=project(gx,gy);
+      if(!started){ctx.moveTo(sx,sy);started=true;} else ctx.lineTo(sx,sy);
+    }
+    // alpha by vertical position (depth)
+    const [, syMid] = project(alongX?GRID/2:idx, alongX?idx:GRID/2);
+    const depth = (syMid - (CY - cellH*GRID*ISO_K)) / (cellH*GRID*ISO_K*2);
+    const a = 0.04 + Math.max(0, Math.min(1, depth)) * 0.10;
+    ctx.strokeStyle = 'rgba('+C_BLUE+','+a.toFixed(3)+')';
+    ctx.stroke();
+  }
+
+  // contour rings around density blobs (abstract terrain of "interest")
+  function drawContours(){
+    for(const b of blobs){
+      const rings = 4;
+      for(let r=1;r<=rings;r++){
+        const rr = b.r * (r/rings) * 1.15;
+        ctx.beginPath();
+        const seg=44;
+        for(let s=0;s<=seg;s++){
+          const ang = (s/seg)*Math.PI*2;
+          // wobble for organic contour
+          const wob = 1 + 0.12*Math.sin(ang*3 + b.gx + r);
+          const gx = b.gx + Math.cos(ang)*rr*wob;
+          const gy = b.gy + Math.sin(ang)*rr*wob;
+          const [sx,sy]=project(gx,gy);
+          if(s===0) ctx.moveTo(sx,sy); else ctx.lineTo(sx,sy);
+        }
+        ctx.closePath();
+        const a = (0.05 + b.amp*0.05) * (1 - r/(rings+1));
+        ctx.strokeStyle='rgba('+C_BRIGHT+','+a.toFixed(3)+')';
+        ctx.lineWidth=1;
+        ctx.stroke();
+      }
+    }
+  }
+
+  function drawScanFront(){
+    // the scan front is a band across the plane at diagNorm == scanT
+    // render as a glowing polyline where diagNorm crosses scanT.
+    const band = 0.020;
+    ctx.save();
+    ctx.lineWidth = 2.2;
+    ctx.strokeStyle='rgba('+C_BRIGHT+',0.85)';
+    ctx.shadowColor='rgba('+C_BRIGHT+',0.9)';
+    ctx.shadowBlur=18;
+    ctx.beginPath();
+    // the set of (gx,gy) with (ox+oy)=const is a line; sample its endpoints
+    // ox+oy = k  ->  pick gx from min..max, gy = (k_world) - ox ... convert.
+    // k_world (ox+oy) corresponds to scanT via diagNorm inverse:
+    const kWorld = (scanT - 0.5) * 2 * GRID; // == ox+oy
+    let pts=[];
+    for(let gx=0; gx<=GRID; gx++){
+      const ox = gx - GRID/2;
+      const oy = kWorld - ox;
+      const gy = oy + GRID/2;
+      if(gy>=0 && gy<=GRID) pts.push(project(gx,gy));
+    }
+    for(let i=0;i<pts.length;i++){
+      if(i===0) ctx.moveTo(pts[i][0],pts[i][1]);
+      else ctx.lineTo(pts[i][0],pts[i][1]);
+    }
+    ctx.stroke();
+
+    // trailing glow band (filled, faint)
+    if(pts.length>1){
+      const kPrev = ((scanT - scanDir*band) - 0.5) * 2 * GRID;
+      let prev=[];
+      for(let gx=GRID; gx>=0; gx--){
+        const ox=gx-GRID/2;
+        const oy=kPrev-ox;
+        const gy=oy+GRID/2;
+        if(gy>=0&&gy<=GRID) prev.push(project(gx,gy));
+      }
+      ctx.shadowBlur=0;
+      ctx.beginPath();
+      ctx.moveTo(pts[0][0],pts[0][1]);
+      for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]);
+      for(let i=0;i<prev.length;i++) ctx.lineTo(prev[i][0],prev[i][1]);
+      ctx.closePath();
+      ctx.fillStyle='rgba('+C_BLUE+',0.08)';
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // trigger node reveal as the front passes (only on forward pass)
+    for(const n of nodes){
+      const dn = diagNorm(n.gx,n.gy);
+      if(scanDir>0 && dn <= scanT) n.target = 1;
+      // on reverse sweep keep them lit (analysis stays), add gentle re-pulse
+    }
+    for(const l of links){
+      const dna = diagNorm(l.a.gx,l.a.gy);
+      const dnb = diagNorm(l.b.gx,l.b.gy);
+      if(scanT >= Math.max(dna,dnb)) l.target=1;
+    }
+  }
+
+  function updateAndDrawLinks(dt){
+    revealed = 0;
+    ctx.lineWidth=1;
+    for(const l of links){
+      l.on += (l.target - l.on) * Math.min(1, dt*3.2);
+      if(l.on<0.02) continue;
+      const [ax,ay]=project(l.a.gx,l.a.gy);
+      const [bx,by]=project(l.b.gx,l.b.gy);
+      ctx.beginPath();
+      ctx.moveTo(ax,ay);
+      ctx.lineTo(bx,by);
+      ctx.strokeStyle='rgba('+C_BLUE+','+(0.22*l.on).toFixed(3)+')';
+      ctx.stroke();
+
+      // a tiny data packet traveling the link
+      const tt = (elapsed*0.45 + (l.a.phase||0)) % 1;
+      const px = ax + (bx-ax)*tt;
+      const py = ay + (by-ay)*tt;
+      ctx.beginPath();
+      ctx.arc(px,py,1.6,0,Math.PI*2);
+      ctx.fillStyle='rgba('+C_BRIGHT+','+(0.7*l.on).toFixed(3)+')';
+      ctx.fill();
+    }
+  }
+
+  function updateAndDrawNodes(dt){
+    for(const n of nodes){
+      n.on += (n.target - n.on) * Math.min(1, dt*3.0);
+      if(n.on>0.05) revealed++;
+      const [sx,sy]=project(n.gx,n.gy);
+
+      const pulse = 0.5 + 0.5*Math.sin(elapsed*2.2 + n.phase);
+      const baseA = n.on;
+
+      // outer ring (scan ping) for nodes just lit
+      if(n.on>0.05 && n.on<0.99){
+        const rr = 4 + (1-n.on)*22;
+        ctx.beginPath();
+        ctx.arc(sx,sy,rr,0,Math.PI*2);
+        ctx.strokeStyle='rgba('+C_BRIGHT+','+((n.on)*(1-n.on)*1.6).toFixed(3)+')';
+        ctx.lineWidth=1;
+        ctx.stroke();
+      }
+
+      // glow
+      const gr = ctx.createRadialGradient(sx,sy,0,sx,sy,(n.size+5)*(1+pulse*0.3));
+      gr.addColorStop(0,'rgba('+C_BRIGHT+','+(0.5*baseA).toFixed(3)+')');
+      gr.addColorStop(1,'rgba('+C_BLUE+',0)');
+      ctx.fillStyle=gr;
+      ctx.fillRect(sx-22,sy-22,44,44);
+
+      // core
+      ctx.beginPath();
+      ctx.arc(sx,sy,n.size*0.9,0,Math.PI*2);
+      ctx.fillStyle='rgba('+C_BRIGHT+','+(0.95*baseA).toFixed(3)+')';
+      ctx.fill();
+
+      // big nodes get a label tag (abstract value) when fully on
+      if(n.big && n.on>0.85){
+        const a = (n.on-0.85)/0.15;
+        ctx.save();
+        ctx.globalAlpha = a;
+        ctx.strokeStyle='rgba('+C_BRIGHT+',0.5)';
+        ctx.lineWidth=1;
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(sx+10, sy-14);
+        ctx.lineTo(sx+44, sy-14);
+        ctx.stroke();
+        ctx.font='600 10px system-ui';
+        ctx.fillStyle='rgba('+C_BRIGHT+',0.92)';
+        ctx.textBaseline='bottom';
+        ctx.fillText(n.v+'', sx+14, sy-15);
+        ctx.font='400 8px system-ui';
+        ctx.fillStyle='rgba('+C_BLUE+',0.7)';
+        ctx.fillText('SCORE', sx+28, sy-15);
+        ctx.restore();
+      }
+    }
+  }
+
+  function drawHorizonHaze(){
+    // fade the far edge of the plane into black for depth
+    const topY = project(GRID, 0)[1];
+    const grad = ctx.createLinearGradient(0, topY-40, 0, topY+120);
+    grad.addColorStop(0,'rgba(0,0,0,0.85)');
+    grad.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=grad;
+    ctx.fillRect(0, topY-160, W, 220);
+  }
+
+  // ---- readout HUD numbers ----
+  const elScan = document.getElementById('r-scan');
+  const elDens = document.getElementById('r-density');
+  const elSig  = document.getElementById('r-signal');
+  const elCoord= document.getElementById('r-coord');
+  const elNodes= document.getElementById('t-nodes');
+  let sigTimer=0, sigIdx=0;
+  let coordTimer=0, coordLat=37.50, coordLng=127.03;
+
+  function updateReadout(dt){
+    const pScan = Math.max(0, Math.min(1, scanT)) * 100;
+    rScan += (pScan - rScan)*Math.min(1,dt*4);
+    elScan.textContent = String(Math.round(rScan)).padStart(3,'0')+'%';
+
+    const targD = nodes.length ? revealed/nodes.length : 0;
+    rDensity += (targD - rDensity)*Math.min(1,dt*3);
+    elDens.textContent = (rDensity*9.9).toFixed(2);
+
+    rNodes += (revealed - rNodes)*Math.min(1,dt*4);
+    elNodes.textContent = 'NODES '+String(Math.round(rNodes)).padStart(4,'0');
+
+    sigTimer+=dt;
+    if(sigTimer>1.6){ sigTimer=0; sigIdx=(sigIdx+1)%signals.length; }
+    elSig.textContent = revealed>3 ? signals[sigIdx] : '—';
+
+    coordTimer+=dt;
+    if(coordTimer>0.9){
+      coordTimer=0;
+      coordLat = 33 + Math.random()*5.6;   // KR-ish lat range, abstract
+      coordLng = 126 + Math.random()*3.2;
+    }
+    elCoord.textContent = coordLat.toFixed(2)+'° · '+coordLng.toFixed(2)+'°';
+  }
+
+  // visibility guard — pause raf work when tab/section hidden
+  document.addEventListener('visibilitychange', ()=>{
+    running = !document.hidden;
+    last = performance.now();
+  });
+  if('IntersectionObserver' in window){
+    const io = new IntersectionObserver((es)=>{
+      for(const e of es){ running = e.isIntersecting && !document.hidden; last=performance.now(); }
+    }, {threshold:0.05});
+    io.observe(cvs);
+  }
+
+  let rzT;
+  window.addEventListener('resize', ()=>{
+    clearTimeout(rzT);
+    rzT=setTimeout(resize, 140);
+  });
+
+  resize();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

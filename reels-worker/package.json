@@ -1,0 +1,15 @@
+{
+  "name": "reels-worker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "빈크래프트 릴스 자동 직원 — 요청 큐를 보고 영업앱을 자동 조작해 reels/{dongCd} 채움",
+  "scripts": {
+    "start": "node worker.js"
+  },
+  "dependencies": {
+    "playwright": "^1.48.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

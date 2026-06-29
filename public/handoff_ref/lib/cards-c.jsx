@@ -18,6 +18,39 @@ function bcJosa(word, withJong, noJong) {
   return word + (bcHasJong(word) ? withJong : noJong);
 }
 
+// [2026-06-29 정보분산 패스3 §1-15] 종합점수 → 등급어 단일 출처(화면·릴스·데이터셰어 공유).
+//   ★dataMapper.js 의 export function bcScoreGrade 와 동일 표(cutoff·어휘) — iframe/모듈 두 런타임이라 미러한다.
+//   고치면 양쪽을 함께 고쳐야 함. word=카드13 톤, letter=A~C 매핑.
+if (typeof window !== 'undefined' && !window.bcScoreGrade) {
+  window.bcScoreGrade = function (total) {
+    const t = Number(total);
+    if (!(t > 0) || !isFinite(t)) return { word: '데이터 수집 중', letter: '' };
+    if (t >= 80) return { word: '유리한 자리', letter: 'A' };
+    if (t >= 70) return { word: '무난한 자리', letter: 'A-' };
+    if (t >= 60) return { word: '무난한 자리', letter: 'B+' };
+    if (t >= 50) return { word: '보통 — 운영이 관건', letter: 'B' };
+    if (t >= 40) return { word: '보통 — 운영이 관건', letter: 'C+' };
+    if (t >= 20) return { word: '비용 관리가 관건인 자리', letter: 'C+' };
+    return { word: '도전적·보완 필요한 자리', letter: 'C' };
+  };
+}
+
+// [2026-06-29 정보분산 패스5 §1-7] 카페 밀집도 → 등급어 단일 출처(미러).
+//   ★dataMapper.js 의 export function bcDensityGrade 와 동일 표(임계·어휘) — iframe/모듈 두 런타임이라 미러한다.
+//   고치면 양쪽을 함께 고쳐야 함. 카드13 한줄평·카드14 종합·competLevel·릴스가 전부 이 6단계 등급어를 쓴다.
+if (typeof window !== 'undefined' && !window.bcDensityGrade) {
+  window.bcDensityGrade = function (cafeCount) {
+    const n = Number(cafeCount);
+    if (!(n > 0) || !isFinite(n)) return '';
+    if (n <= 15) return '여유';
+    if (n <= 40) return '보통';
+    if (n <= 80) return '다소 밀집';
+    if (n <= 150) return '밀집';
+    if (n <= 250) return '과밀';
+    return '매우 과밀';
+  };
+}
+
 function Card13({ body = {} }) {
   const total = Number(body.totalScore) || 0;
   // [2026-06-26 매출 미수집 보류] 데이터층 약속: 매출 미수집(차단/비수도권)이면 ROI 종합점수를
@@ -33,13 +66,9 @@ function Card13({ body = {} }) {
   const _estSet13 = (window.bcEstSet ? window.bcEstSet(body.bodyData || {}) : new Set());
   const _isEst13 = (...keys) => (window.bcIsEst ? window.bcIsEst(_estSet13, ...keys) : false);
   const EstBadge = window.EstBadge || (() => null);
-  // [2026-06-25 ROI 톤] 투자 대비 수익률 등급 — 긍정 처방 톤(균형). 점수·계산 무변경, 표현만.
-  //   높은 점수=과장 금지("유리한 자리" 톤), 낮은 점수=포기 유도 금지("관리가 관건/도전적" 톤, 거짓 아님).
-  const grade = total >= 80 ? "유리한 자리"
-    : total >= 60 ? "무난한 자리"
-    : total >= 40 ? "보통 — 운영이 관건"
-    : total >= 20 ? "비용 관리가 관건인 자리"
-    : "도전적·보완 필요한 자리";
+  // [2026-06-29 패스3 §1-15] 투자 대비 수익률 등급 — 단일 출처 bcScoreGrade(화면·릴스·셰어 공유). 점수·계산 무변경.
+  const grade = (window.bcScoreGrade ? window.bcScoreGrade(total).word
+    : (total >= 80 ? "유리한 자리" : total >= 60 ? "무난한 자리" : total >= 40 ? "보통 — 운영이 관건" : total >= 20 ? "비용 관리가 관건인 자리" : "도전적·보완 필요한 자리"));
   const survival3y = Number(body.survival3y) || 0;
   // [2026-06-24] 경쟁분석 '월매출' = 매출카드와 같은 단일 진실값(monthlyAvgSales=비즈맵 분위 평균). 없으면 안정 동평균→단일월 폴백.
   const cafeSales = Number(body.cafeSales)
@@ -134,17 +163,19 @@ function Card13({ body = {} }) {
       // [2026-06-28 신뢰지표 정합] 경쟁 한줄평 = '반경 내 카페 수(밀집도)' 기반.
       //   ★폐기: 점포당 배후인구(perStorePop) 기반 문구. 인구·유동 데이터가 불안정해 4·8명 같은 무의미값이
       //     나오던 결함 → 채점에서도 빠졌고(dataMapper), 한줄평에서도 빼고 카페 수 밀집도 등급으로 표현한다.
-      //   밀집도 등급: ≤15 여유 · ≤40 보통 · ≤80 다소 밀집 · ≤150 밀집 · ≤250 고밀 · 그 이상 초고밀.
+      //   [2026-06-29 패스5 §1-7] 밀집도 등급어 = 단일 출처 window.bcDensityGrade(카드14·competLevel·릴스와 동일):
+      //     ≤15 여유 · ≤40 보통 · ≤80 다소 밀집 · ≤150 밀집 · ≤250 과밀 · 그 이상 매우 과밀.
       //   + 개인 카페 비중(%)을 '차별화 여지'로 붙여 만회 경로 제시.
       //   perStorePop은 신뢰범위(점포당 ≥50명, dataMapper에서 이미 게이트)일 때만 보조 표시로 괄호 추가.
       headline: (() => {
         if (!(cafeCount > 0)) return '경쟁 데이터 수집 중';
-        const _grade = cafeCount <= 15 ? '여유'
-          : cafeCount <= 40 ? '보통'
-          : cafeCount <= 80 ? '다소 밀집'
-          : cafeCount <= 150 ? '밀집'
-          : cafeCount <= 250 ? '고밀'
-          : '초고밀';
+        const _grade = window.bcDensityGrade ? window.bcDensityGrade(cafeCount)
+          : (cafeCount <= 15 ? '여유'
+            : cafeCount <= 40 ? '보통'
+            : cafeCount <= 80 ? '다소 밀집'
+            : cafeCount <= 150 ? '밀집'
+            : cafeCount <= 250 ? '과밀'
+            : '매우 과밀');
         const _diff = individualCount > 0
           ? ` — 개인 ${Math.round(individualCount / cafeCount * 100)}% 차별화 여지`
           : '';
@@ -231,9 +262,12 @@ function Card13({ body = {} }) {
   //   낮은 점수도 "약점으로 끝"내지 않고, 가장 강한 축의 실제 수치(월매출/생존율/카페수 = strongest.headline)를
   //   레버로 붙여 만회 경로를 제시. 강한 축 수치가 실제 데이터라 빈말 응원이 아님.
   // [2026-06-25 버그2] 부제 = ROI 종합 관점 한 줄(경쟁 프레이밍 제거).
-  //   밀집도 표현을 쓰면 경쟁여건 축(76행)과 같은 등급어(과밀/보통/여유)를 그대로 인용해 카드 내 모순 0.
+  //   밀집도 표현을 쓰면 경쟁여건 축과 같은 등급어를 그대로 인용해 카드 내 모순 0.
+  //   [2026-06-29 패스5 §1-7] 등급어 = 단일 출처 window.bcDensityGrade(카드13 한줄평·competLevel·릴스와 동일 6단계).
+  //     ★옛 자체 임계(>200 과밀/>80 보통/else 여유) 폐기 → 같은 카페수에 같은 단어.
   //   [버그3] 축 이름 뒤 조사는 bcJosa로 받침 자동 처리(성장성이/투자 회수가/경쟁 여건이 …).
-  const densityWord = cafeCount > 0 ? (cafeCount > 200 ? '과밀' : cafeCount > 80 ? '보통' : '여유') : '';
+  const densityWord = window.bcDensityGrade ? window.bcDensityGrade(cafeCount)
+    : (cafeCount > 0 ? (cafeCount > 250 ? '매우 과밀' : cafeCount > 150 ? '과밀' : cafeCount > 80 ? '밀집' : cafeCount > 40 ? '다소 밀집' : cafeCount > 15 ? '보통' : '여유') : '');
   const headline = (() => {
     if (total === 0) return '데이터 수집 중';
     const strongest = strengths[0];
@@ -469,17 +503,15 @@ function Card14({ body = {}, onOpenDirector }) {
   const total = Number(body.totalScore) || 0;
   const opportunities = Number(body.opportunities) || 0;
   const risks = Number(body.risks) || 0;
-  // [2026-06-25 ROI 톤] 수익률 등급 — 균형 처방 톤. 점수 무변경, 표현만.
-  const recommendation = body.recommendation || (total >= 80 ? '수익률 유리' : total >= 60 ? '수익률 무난' : total >= 40 ? '보통 — 운영이 관건' : total >= 20 ? '비용 관리 관건' : '보완 필요');
-  const grade = total >= 80 ? 'A' : total >= 70 ? 'A-' : total >= 60 ? 'B+' : total >= 50 ? 'B' : total >= 40 ? 'C+' : 'C';
-  // [2026-06-28 버그수정] Card14 레이더·초점축 5축을 여기서 직접 구성(새 만점 수익성25·투자회수15·경쟁20·생존20·성장20).
-  //   ※버그1(고침): Card13의 로컬 변수 axes 참조 → ReferenceError로 검정. ※버그2(고침): body.scoreMarket 등으로 만들었으나
-  //     그 필드는 Card14 body에 없어(=0) 레이더가 '점수 데이터 수집 중'으로 빔. → 점수는 body.axes(여기 들어있음)에서 읽는다.
-  //   body.axes 점수(10/0/10/9/0)는 맞지만 max가 옛 가중치(30/25/20/15/10)라, 라벨로 새 만점(25/15/20/20/20)만 덮는다.
-  const _NEWMAX = { '수익성': 25, '투자 회수': 15, '경쟁 여건': 20, '생존 안정': 20, '성장성': 20 };
+  // [2026-06-29 패스3 §1-15] 수익률 등급(word)·letter 모두 단일 출처 bcScoreGrade. 점수 무변경.
+  const _g14 = (window.bcScoreGrade ? window.bcScoreGrade(total) : { word: '', letter: '' });
+  const recommendation = body.recommendation || _g14.word;
+  const grade = _g14.letter;
+  // [2026-06-29 패스3 §1-14] Card14 레이더·초점축 5축 = body.axes(= dataMapper card11.axes5 단일 배열)를 그대로 읽는다.
+  //   ★옛 _NEWMAX 라벨덮어쓰기 폐기 — max 가 이미 단일 배열(25/15/20/20/20)로 들어오므로 라벨매칭 어긋남 위험이 사라짐.
   const _srcAxes = Array.isArray(body.axes) ? body.axes : [];
   const axesArr = (_srcAxes.length === 5)
-    ? _srcAxes.map(a => ({ label: a.label, max: (_NEWMAX[a.label] || Number(a.max) || 1), score: Number(a.score) || 0 }))
+    ? _srcAxes.map(a => ({ label: a.label, max: Number(a.max) > 0 ? Number(a.max) : 1, score: Number(a.score) || 0 }))
     : [];
   const radarAxes = axesArr.length === 5
     ? axesArr.map(a => ({ label: a?.label || '-', max: Number(a?.max) > 0 ? Number(a.max) : 1 }))

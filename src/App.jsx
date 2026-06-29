@@ -42,6 +42,7 @@ import {
   extractPriceIndexSeries,
   extractCafeClosureSeries,
   extractConsumerSentimentSeries,
+  resolveCard2Demographics,
 } from './components/client-mode/dataMapper';
 import { fetchWithFallback, clearCache } from './services/DataStreamManager.js';
 
@@ -951,6 +952,10 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
   
   const d = result.data;
   const cd = result.collectedData || {};
+  // [2026-06-29 정보분산 패스4] 고객(연령대·성비) 단일 출처.
+  //   카드/릴스/AI가 쓰는 카드2 값(topAge·age50PlusPct·maleRatio·femaleRatio)을 그대로 읽어,
+  //   검색 직후 중간 AI 화면의 연령/성비가 14카드와 같은 값이 되게 한다.
+  const _card2Demo = resolveCard2Demographics(cd, d);
   const dark = theme === 'dark';
   
   const bg = dark ? '#17171C' : '#F9FAFB';
@@ -2288,35 +2293,53 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             );
           })()}
           {/* Card 2.5 강화: 유동인구 성별/연령 상세 */}
+          {/* [2026-06-29 정보분산 패스4] 성별/연령은 14카드와 같은 단일 출처(_card2Demo)를 1순위로 읽는다.
+              서울 한정 seoulFlpopDetail(fp.gender/fp.age)은 단일 출처가 비었을 때만 쓰는 보조 표기. */}
           {cd?.apis?.seoulFlpopDetail?.data && (() => {
             const fp = cd.apis.seoulFlpopDetail.data;
             const gd = fp.gender;
-            const topAge = fp.age?.[0];
-            return (gd || topAge) ? (
+            // 성별: 단일 출처(maleRatio/femaleRatio) 우선, 없으면 서울 보조(gd.malePct).
+            const _hasCanonGender = (_card2Demo.maleRatio + _card2Demo.femaleRatio) > 0;
+            const malePct = _hasCanonGender ? _card2Demo.maleRatio : (gd ? gd.malePct : null);
+            const femalePct = _hasCanonGender ? _card2Demo.femaleRatio : (gd ? (100 - gd.malePct) : null);
+            const showGender = malePct != null && femalePct != null;
+            // 연령: 단일 출처 버킷(_card2Demo.ageGroups, 합100) 우선, 없으면 서울 보조(fp.age).
+            const _canonTopBase = String(_card2Demo.topAge || '').replace(/\s*\([^)]*\)\s*$/, '').trim();
+            const _canonTopNum = (_canonTopBase.match(/\d+/) || [])[0];
+            const ageRows = (Array.isArray(_card2Demo.ageGroups) && _card2Demo.ageGroups.length > 0)
+              ? [..._card2Demo.ageGroups].sort((a, b) => (b.pct || 0) - (a.pct || 0)).slice(0, 3)
+                  .map(g => ({ age: g.name, pct: g.pct }))
+              : (Array.isArray(fp.age) ? fp.age.slice(0, 3) : []);
+            const showAge = ageRows.length > 0;
+            return (showGender || showAge) ? (
               <FadeUpToss inView={true} delay={0.3}>
-                <div style={{ display: 'grid', gridTemplateColumns: gd ? '1fr 1fr' : '1fr', gap: 12, marginTop: 8, marginBottom: 8 }}>
-                  {gd && (
+                <div style={{ display: 'grid', gridTemplateColumns: showGender ? '1fr 1fr' : '1fr', gap: 12, marginTop: 8, marginBottom: 8 }}>
+                  {showGender && (
                     <div style={{ background: cardBg, borderRadius: 14, padding: '12px 16px' }}>
                       <p style={{ fontSize: 11, color: t3, marginBottom: 8 }}>성별 비율</p>
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                        <div style={{ flex: gd.malePct, height: 8, borderRadius: 4, background: blue }} />
-                        <div style={{ flex: 100 - gd.malePct, height: 8, borderRadius: 4, background: '#F06595' }} />
+                        <div style={{ flex: malePct, height: 8, borderRadius: 4, background: blue }} />
+                        <div style={{ flex: femalePct, height: 8, borderRadius: 4, background: '#F06595' }} />
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
-                        <span style={{ fontSize: 12, color: blue, fontWeight: 600 }}>남 {gd.malePct}%</span>
-                        <span style={{ fontSize: 12, color: '#F06595', fontWeight: 600 }}>여 {100 - gd.malePct}%</span>
+                        <span style={{ fontSize: 12, color: blue, fontWeight: 600 }}>남 {malePct}%</span>
+                        <span style={{ fontSize: 12, color: '#F06595', fontWeight: 600 }}>여 {femalePct}%</span>
                       </div>
                     </div>
                   )}
-                  {topAge && (
+                  {showAge && (
                     <div style={{ background: cardBg, borderRadius: 14, padding: '12px 16px' }}>
                       <p style={{ fontSize: 11, color: t3, marginBottom: 6 }}>주요 연령대</p>
-                      {fp.age.slice(0, 3).map((a, ai) => (
-                        <div key={ai} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
-                          <span style={{ fontSize: 12, color: ai === 0 ? blue : t2, fontWeight: ai === 0 ? 700 : 500 }}>{a.age}</span>
-                          <span style={{ fontSize: 12, color: ai === 0 ? blue : t2, fontWeight: 600 }}>{a.pct}%</span>
-                        </div>
-                      ))}
+                      {ageRows.map((a, ai) => {
+                        const _rowNum = (String(a.age).match(/\d+/) || [])[0];
+                        const isTop = _canonTopNum ? (_rowNum === _canonTopNum) : (ai === 0);
+                        return (
+                          <div key={ai} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+                            <span style={{ fontSize: 12, color: isTop ? blue : t2, fontWeight: isTop ? 700 : 500 }}>{a.age}</span>
+                            <span style={{ fontSize: 12, color: isTop ? blue : t2, fontWeight: 600 }}>{a.pct}%</span>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -2847,17 +2870,23 @@ const TossStyleResults = ({ result, theme, onShowSources, salesModeShowSources }
             );
           })()}
           {/* 핵심 고객 + 고객 변화 */}
+          {/* [2026-06-29 정보분산 패스4] 핵심/2순위 고객 연령을 14카드와 같은 단일 출처(_card2Demo)로 통일.
+              (기존: cafeAgeData/vstCst per-segment % 별도 계산 → 카드와 다른 값이 나오던 문제) */}
           {(() => {
-            const _cAge = cd?.apis?.cafeAgeData?.data;
-            const _vstCst = cd?.apis?.vstCst?.data;
-            const _ageMap = { 'M10': '10대', 'M20': '20대', 'M30': '30대', 'M40': '40대', 'M50': '50대', 'M60': '60대+' };
-            const topAge = (_cAge && _cAge.length > 0) ? _cAge[0] : (_vstCst && Array.isArray(_vstCst) && _vstCst.length > 0) ? [..._vstCst].sort((a, b) => (b.pipcnt || 0) - (a.pipcnt || 0))[0] : null;
-            const secondAge = (_cAge && _cAge.length > 1) ? _cAge[1] : (_vstCst && Array.isArray(_vstCst) && _vstCst.length > 1) ? [..._vstCst].sort((a, b) => (b.pipcnt || 0) - (a.pipcnt || 0))[1] : null;
-            if (!topAge) return null;
-            const coreLabel = _ageMap[topAge.age] || topAge.age || '-';
-            const corePct = topAge.pct || (topAge.pipcnt ? Math.round(topAge.pipcnt / (_vstCst || []).reduce((s, d) => s + (d.pipcnt || 0), 0) * 100) : 0);
-            const secondLabel = secondAge ? (_ageMap[secondAge.age] || secondAge.age) : null;
-            const secondPct = secondAge ? (secondAge.pct || (secondAge.pipcnt ? Math.round(secondAge.pipcnt / (_vstCst || []).reduce((s, d) => s + (d.pipcnt || 0), 0) * 100) : 0)) : 0;
+            // 단일 출처: bd.topAge("30대 (31%)") + 합100 버킷(_card2Demo.ageGroups).
+            const _canonTop = String(_card2Demo.topAge || '').trim();
+            const _coreBase = _canonTop.replace(/\s*\([^)]*\)\s*$/, '').trim();
+            const _corePctMatch = _canonTop.match(/\((\d+)%?\)/);
+            const _groups = Array.isArray(_card2Demo.ageGroups) ? [..._card2Demo.ageGroups].sort((a, b) => (b.pct || 0) - (a.pct || 0)) : [];
+            const coreLabel = _coreBase || (_groups[0] ? _groups[0].name : '');
+            const _coreNum = (coreLabel.match(/\d+/) || [])[0];
+            const corePct = _corePctMatch ? Number(_corePctMatch[1])
+              : (_groups.find(g => (String(g.name).match(/\d+/) || [])[0] === _coreNum)?.pct ?? (_groups[0]?.pct ?? 0));
+            // 2순위 = 핵심 구간을 뺀 다음 최다 버킷.
+            const _secondGrp = _groups.find(g => (String(g.name).match(/\d+/) || [])[0] !== _coreNum);
+            const secondLabel = _secondGrp ? _secondGrp.name : null;
+            const secondPct = _secondGrp ? (_secondGrp.pct || 0) : 0;
+            if (!coreLabel) return null;
             return (
               <FadeUpToss inView={v2} delay={0.4}>
                 <div style={{ background: `${blue}08`, borderRadius: 14, padding: '12px 16px', marginTop: 12 }}>
@@ -16378,14 +16407,18 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
      const _crossDataStr = `[교차 분석 데이터] 카페당 잠재고객: ${_crossCafePerCapita}명, 월세가 매출에서 차지하는 비중: ${_crossRentBurdenRate}%, 투자금 회수: ${_crossInvestRecovery}개월, 손익분기: 월 ${_crossBreakEven}만원 이상`;
 
      // ─────────────────────────────────────────────────────────────
-     // [2026-06-25] ★ '월평균 매출' 단일 진실값 + 낮음/보통/높음 단일 판정 (만원)
-     //   AI 종합(카드14)·매출카드(case5)가 같은 값(901)·같은 단어를 쓰도록 한 출처에서 만든다.
-     //   값 우선순위 = dataMapper monthlyAvgSales 와 동일: ① 비즈맵 분위 평균(mercAmtAvg)
-     //     → ② 소상공인 단일월(mmavgSlsAmt). (소상공인 단일월 1086은 1순위 노출 금지 = 폴백만.)
+     // [2026-06-25 → 2026-06-28 사장님 확정] ★ '월평균 매출' 단일 진실값 + 낮음/보통/높음 단일 판정 (만원)
+     //   AI 종합(카드14)·매출카드(case5)가 같은 값(1086)·같은 단어를 쓰도록 한 출처에서 만든다.
+     //   값 우선순위 = dataMapper monthlyAvgSales 와 동일: ① 소상공인 단일월(mmavgSlsAmt=1086)
+     //     → ② 비즈맵 분위 평균(mercAmtAvg=901, 폴백). (소상공인 카페 매출이 1순위 노출값 = 화면=AI 일치.)
      //   판정 = 시군구(동 전체 업종) 평균(guAvg) 대비 ratio. guAvg 없으면 절대 임계(700/1300)로 폴백.
      // ─────────────────────────────────────────────────────────────
      const _stdMonthlySales = (() => {
-       // ① 비즈맵 분위 평균(mercAmtAvg) — dataMapper bmAvgSalesNum 과 같은 latest 행에서 추출
+       // ① 소상공인 단일월 카페 매출(1순위)
+       const _cafeItem = Array.isArray(_salesAvg) ? _salesAvg.find(s => s?.tpbizClscdNm === '카페') : null;
+       const _cafeVal = Math.round(_cafeItem?.mmavgSlsAmt || 0);
+       if (_cafeVal > 0) return _cafeVal;
+       // ② 비즈맵 분위 평균(mercAmtAvg) 폴백 — dataMapper bmAvgSalesNum 과 같은 latest 행에서 추출
        const _bmRows = apis.bizMapAverageSales?.data;
        if (Array.isArray(_bmRows) && _bmRows.length > 0) {
          const _sorted = [..._bmRows].sort((a, b) => String(a?.yyyymm || a?.stdYm || a?.ym || '').localeCompare(String(b?.yyyymm || b?.stdYm || b?.ym || '')));
@@ -16395,9 +16428,7 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
          const _avgOrMid = _avgVal > 0 ? _avgVal : _midVal;
          if (_avgOrMid > 0) return Math.round(_avgOrMid);
        }
-       // ② 소상공인 단일월 카페 매출(폴백)
-       const _cafeItem = Array.isArray(_salesAvg) ? _salesAvg.find(s => s?.tpbizClscdNm === '카페') : null;
-       return Math.round(_cafeItem?.mmavgSlsAmt || 0);
+       return 0;
      })();
      // 시군구(동 전체 업종) 평균 — 소상공인 salesAvg 전체 업종 단순평균 (dataMapper c14DongAvg 와 동일)
      const _stdDongAvg = (() => {
@@ -16405,7 +16436,7 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
        return Math.round(_salesAvg.reduce((s, it) => s + (it?.mmavgSlsAmt || 0), 0) / _salesAvg.length);
      })();
      // 낮음/보통/높음 단일 판정 (★ 매출카드 case5 한 줄과 완전히 동일한 기준 = 절대 임계 700만원 경계)
-     //   같은 지역(예: 901만원)에서 매출카드와 AI 종합이 둘 다 '보통 수준'으로 일치하도록 dataMapper salesLevelWord 와 동일 규칙.
+     //   같은 지역(예: 1086만원)에서 매출카드와 AI 종합이 둘 다 같은 단어로 일치하도록 dataMapper salesLevelWord 와 동일 규칙.
      const _salesLevelWord = (() => {
        if (_stdMonthlySales <= 0) return '';
        if (_stdDongAvg > 0 && _stdMonthlySales >= _stdDongAvg * 1.2) return '높은 편';

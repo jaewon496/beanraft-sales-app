@@ -1,0 +1,58 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+body{background:#000;margin:0;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif}
+.kmap{width:680px;height:auto;overflow:visible}
+.km-land{fill:rgba(43,127,255,.06);stroke:rgba(125,170,255,.6);stroke-width:1.2;stroke-linejoin:round;stroke-linecap:round}
+.km-rock{fill:rgba(125,170,255,.6)}
+.km-link{stroke:rgba(43,127,255,.18);stroke-width:1;stroke-dasharray:3 5}
+.km-flow{fill:#dbe7ff}
+.km-flow{animation:kflow 2.6s linear infinite}
+@keyframes kflow{0%{offset-distance:0%;opacity:0}8%{opacity:1}85%{opacity:1}100%{offset-distance:100%;opacity:0}}
+.km-src{fill:none;stroke:rgba(255,255,255,.5);stroke-width:1;transform-box:fill-box;transform-origin:center;animation:ksrc 3.2s ease-out infinite}
+@keyframes ksrc{0%{transform:scale(.3);opacity:.55}100%{transform:scale(7);opacity:0}}
+.km-city circle{fill:#2b7fff}
+.km-city text{fill:rgba(255,255,255,.7);font-size:13px;text-anchor:middle}
+.km-me .km-halo{fill:rgba(255,255,255,.14)}
+.km-me .km-dot{fill:#fff}
+.km-me text{fill:#fff;font-size:14px;font-weight:700;text-anchor:middle}
+</style></head><body>
+<svg class="kmap" viewBox="80 -8 452 482">
+  <path class="km-land" d="M138.1 73.5 L140 71.9 L140.2 62.6 L145.9 57.7 L162.4 36.8 L167.6 33.3 L172.7 31.6 L180.8 30.9 L196.2 31.6 L210 30.5 L220.3 32 L229 31.3 L237.4 27.3 L240.9 22.6 L248.4 7.4 L250.7 6.1 L266.5 41.9 L281.6 65 L294.5 81.8 L312.8 114 L318.2 131.3 L318.7 142 L321.8 156.6 L319.2 165.1 L319.9 178.3 L318.8 185.2 L316.5 190.2 L317.3 211.8 L318.7 214.5 L320.8 215.5 L324.1 213 L328.2 212 L327.5 220.2 L318.3 256.2 L312.4 269.4 L305 281.5 L296.1 286.2 L289.9 287.9 L277.9 288.5 L268 286.4 L259.5 287.9 L256.1 290.4 L253.5 294.7 L255.4 301.4 L255.2 306.4 L244.3 303.1 L236.3 302.7 L232.6 301.3 L228.8 294.2 L224.9 294.5 L218.2 298.7 L208 299.6 L204.4 301.9 L203.1 304.8 L204.6 308.5 L209.8 313.4 L208 318.3 L202.7 320.8 L195.6 308.8 L192.6 308.5 L187.9 310.2 L187 316.6 L192.7 326 L187.7 331.8 L186.4 335.9 L182.8 338.9 L173 332.3 L174.4 327.6 L178.6 323.1 L179.1 318.4 L177.7 315.6 L163.7 327.4 L155.1 340.9 L150.5 339.9 L148.6 336.5 L145.9 335.1 L136.6 343.7 L134.9 350.6 L131.4 350.9 L129.9 347.9 L129.8 341.7 L128.2 336.5 L118.6 328.8 L114.2 322.1 L116.5 318.4 L124.6 320.4 L131 320.2 L129.7 317 L127.6 315.5 L131.9 313.7 L135.4 310.1 L132.5 309.1 L128 311.2 L124.3 310.1 L122.8 301.4 L118.2 292.4 L115.9 283.7 L120.4 278.6 L128.9 255.9 L134.7 253.2 L136.8 250.3 L128.5 247.5 L128.7 244.2 L143.5 234.5 L145.8 226.2 L138.9 222.2 L141.9 214.9 L132 202.7 L133.1 197.1 L132.5 177.8 L129.8 169.1 L128.6 160.5 L122.2 163.9 L108.8 160.7 L107.4 154.2 L111.1 146.3 L119.8 139.3 L124.8 138.5 L128.6 135.4 L134.4 134.4 L141.5 139.2 L147.8 140.1 L151.3 148.3 L153.5 150 L153.9 147 L159 143.5 L160.3 140.8 L159.1 139.4 L153.3 137.9 L145.3 120.5 L148.2 112.4 L139.1 100.2 L139.5 91.9 L134.6 83.7 L133.5 78.7 L134.4 76.4 L137.2 75.6 L138.1 73.5Z M118.2 438.1 L115.3 439.9 L112.6 438.8 L107.8 431 L110 426.6 L118.9 419.2 L142 412.1 L146.2 411.7 L155.4 414.8 L157.3 420.5 L153.5 428.7 L142.9 434.3 L134.7 436.9 L118.2 438.1Z M274.4 312.1 L268.3 317.1 L260.1 310.4 L258.1 306.8 L269.7 295.3 L273.2 294.9 L274.4 312.1Z M230.7 311.5 L230 319.4 L225.4 319.7 L222.7 314.7 L219.8 317.2 L218.3 317.2 L216 310.9 L215.6 306 L221 302.3 L224.2 304.6 L228.9 305.7 L230.7 311.5Z M112.2 346.4 L108 347.6 L104.1 344.1 L105 340.5 L113.1 330.9 L119.3 332.4 L121.6 336.2 L118.8 341.9 L112.2 346.4Z M130.7 77.1 L130.4 87.6 L124.4 86.1 L120.9 74.2 L123.7 70.2 L129 73.4 L130.7 77.1Z M108.2 317.5 L107.3 319.4 L104.5 318.9 L100.4 309 L97.5 306.6 L102.1 302.8 L108 309.6 L108.2 317.5Z M124.1 176.6 L123.2 181.8 L118.9 178.4 L117.7 167 L122.1 170.3 L124.1 176.6Z M415.1 97.7 L412.2 100.1 L408.7 97.7 L408.3 95.2 L410.1 93 L414.3 91.7 L416.3 93.6 L415.1 97.7Z M145.8 348.5 L146.9 352.3 L141.6 351.6 L138.9 347.9 L139.2 344.8 L142.3 344.3 L145.8 348.5Z"/>
+  <circle class="km-rock" cx="477" cy="117" r="2.6"/>
+  <g class="km-links">
+    <line class="km-link" x1="212" y1="150" x2="160" y2="91"/>
+    <line class="km-link" x1="212" y1="150" x2="143" y2="100"/>
+    <line class="km-link" x1="212" y1="150" x2="187" y2="188"/>
+    <line class="km-link" x1="212" y1="150" x2="169" y2="230"/>
+    <line class="km-link" x1="212" y1="150" x2="265" y2="226"/>
+    <line class="km-link" x1="212" y1="150" x2="152" y2="283"/>
+    <line class="km-link" x1="212" y1="150" x2="296" y2="282"/>
+    <line class="km-link" x1="212" y1="150" x2="131" y2="424"/>
+    <line class="km-link" x1="212" y1="150" x2="412" y2="96"/>
+    <line class="km-link" x1="212" y1="150" x2="477" y2="117"/>
+  </g>
+  <g class="km-flows">
+    <circle class="km-flow" cx="0" cy="0" r="2.6" style="offset-path:path('M212 150L160 91');animation-delay:0s"/>
+    <circle class="km-flow" cx="0" cy="0" r="2.6" style="offset-path:path('M212 150L143 100');animation-delay:.26s"/>
+    <circle class="km-flow" cx="0" cy="0" r="2.6" style="offset-path:path('M212 150L187 188');animation-delay:.52s"/>
+    <circle class="km-flow" cx="0" cy="0" r="2.6" style="offset-path:path('M212 150L169 230');animation-delay:.78s"/>
+    <circle class="km-flow" cx="0" cy="0" r="2.6" style="offset-path:path('M212 150L265 226');animation-delay:1.04s"/>
+    <circle class="km-flow" cx="0" cy="0" r="2.6" style="offset-path:path('M212 150L152 283');animation-delay:1.3s"/>
+    <circle class="km-flow" cx="0" cy="0" r="2.6" style="offset-path:path('M212 150L296 282');animation-delay:1.56s"/>
+    <circle class="km-flow" cx="0" cy="0" r="2.6" style="offset-path:path('M212 150L131 424');animation-delay:1.82s"/>
+    <circle class="km-flow" cx="0" cy="0" r="2.6" style="offset-path:path('M212 150L412 96');animation-delay:2.08s"/>
+    <circle class="km-flow" cx="0" cy="0" r="2.6" style="offset-path:path('M212 150L477 117');animation-delay:2.34s"/>
+  </g>
+  <circle class="km-src" cx="212" cy="150" r="6"/>
+  <g class="km-city"><circle cx="160" cy="91" r="4"/><text x="160" y="83">서울</text></g>
+  <g class="km-city"><circle cx="143" cy="100" r="4"/><text x="135" y="104" style="text-anchor:end">인천</text></g>
+  <g class="km-city"><circle cx="187" cy="188" r="4"/><text x="187" y="206">대전</text></g>
+  <g class="km-city"><circle cx="169" cy="230" r="4"/><text x="160" y="246" style="text-anchor:end">전주</text></g>
+  <g class="km-city"><circle cx="265" cy="226" r="4"/><text x="274" y="230" style="text-anchor:start">대구</text></g>
+  <g class="km-city"><circle cx="152" cy="283" r="4"/><text x="143" y="287" style="text-anchor:end">광주</text></g>
+  <g class="km-city"><circle cx="296" cy="282" r="4"/><text x="305" y="286" style="text-anchor:start">부산</text></g>
+  <g class="km-city"><circle cx="131" cy="424" r="4"/><text x="131" y="460">제주</text></g>
+  <g class="km-city"><circle cx="412" cy="96" r="3.5"/><text x="412" y="82">울릉도</text></g>
+  <g class="km-city"><circle cx="477" cy="117" r="3.5"/><text x="477" y="135">독도</text></g>
+  <g class="km-me"><circle class="km-halo" cx="212" cy="150" r="12"/><circle class="km-dot" cx="212" cy="150" r="5.5"/><text x="212" y="170">내 동네</text></g>
+</svg>
+</body></html>

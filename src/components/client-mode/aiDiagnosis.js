@@ -168,8 +168,8 @@ function _makeSignal(label, value, baseline, sampleN) {
 
 // 매출 위치를 신호로: 매출이 '시군구 평균' 대비 어디인가. 비교 기준은 오직 시군구 평균.
 //   ★[2026-06-25 앵커 한정] 주 편차 기준 = '시군구평균'(md). 매출 카드 헤드라인이
-//     'monthlyAvgSales(분위 평균) vs 시군구평균'으로 -51%를 보이므로, AI 진단도 같은 기준을 써야
-//     한 리포트 안에서 두 숫자(-51% vs 옛 -60%)가 어긋나지 않는다.
+//     'monthlyAvgSales(소상공인 카페 평균 1086 1순위, 비즈맵 분위 평균 폴백) vs 시군구평균'을 보이므로, AI 진단도 같은 기준을 써야
+//     한 리포트 안에서 매출 편차 숫자가 어긋나지 않는다.
 //   ★상위20%(high) 폴백을 제거했다 — 통역가가 상위20%를 비교 기준으로 쓰는 길 자체를 닫는다.
 //     시군구평균이 없으면 매출 신호를 만들지 않는다(억지 비교 금지).
 function _quantileSignal(label, value, low, mid) {
@@ -444,7 +444,7 @@ export function buildDiagnosisBundle({ cards, kosisBoxData, collectedData, dataA
       개인대프랜차이즈가격차: (c4.indieFranchPriceCompare && _num(c4.indieFranchPriceCompare.indie) && _num(c4.indieFranchPriceCompare.franch))
         ? Math.round(c4.indieFranchPriceCompare.franch - c4.indieFranchPriceCompare.indie) : null,
     }),
-    // 5 매출 분석 (월평균=분위 평균901 단일값)
+    // 5 매출 분석 (월평균=monthlyAvgSales 단일값: 소상공인 카페 평균 1086 1순위, 비즈맵 분위 평균 폴백)
     //   ★[2026-06-25 앵커 한정] AI 진단 입력에는 매출 비교 기준을 '시군구평균(과 동평균)'만 남긴다.
     //     '상위20퍼센트매출만원' raw 숫자를 주면 통역가가 그걸 보고 멋대로 "상위 20% 대비"로
     //     비교해 매출 카드(-51%, 시군구 기준)와 숫자가 어긋났음 → bundle에서 통째로 제거.
@@ -461,8 +461,11 @@ export function buildDiagnosisBundle({ cards, kosisBoxData, collectedData, dataA
       동평균매출만원: _num(c5.dongCafeAvgStable) || _num(c5.dongAvg),
       시군구평균매출만원: _num(c5.guAvg) || _num(c5.dongAvg) || _num(c5.siAvg),
       전년대비성장: _num(c5.yoyGrowth) || _num(c5.prevYearRate),
-      상위20퍼센트매출만원: _num(c5.top20) || _num(c5.topAvgSlamt) || _num(c5.mercAmtOu20),
-      하위20퍼센트매출만원: _num(c5.bot20) || _num(c5.bottomAvgSlamt) || _num(c5.mercAmtUn20),
+      // [2026-06-28 키 교정] 카드5 bodyData 의 실제 분위 키(bizmapTop/Bottom/MidSalesNum)로 맞춘다.
+      //   예전 키(top20/topAvgSlamt/mercAmtOu20 등)는 bodyData에 없어 항상 null → facts가 비어 PCN 반려 유발했음.
+      상위20퍼센트매출만원: _num(c5.bizmapTopSalesNum),
+      하위20퍼센트매출만원: _num(c5.bizmapBottomSalesNum),
+      중위매출만원: _num(c5.bizmapMidSalesNum),
     }),
     // 6 유동인구
     //   ★[2026-06-28 B관찰자형] 이용 피크시간·피크요일도(있으면) facts 재료로 — 시간/요일 렌즈.

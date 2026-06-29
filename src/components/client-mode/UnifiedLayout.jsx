@@ -53,6 +53,8 @@ import {
   extractCafeClosureSeries,
   extractConsumerSentimentSeries,
   buildIntegratedRent,
+  bcScoreGrade,
+  bcDensityGrade,
 } from './dataMapper';
 // [2026-06-25] 통합 AI 진단(배너 한 줄·AI종합 진단·14카드 한 줄). 캐시+폴백 내장.
 import { getUnifiedDiagnosis } from './aiDiagnosis';
@@ -4251,7 +4253,7 @@ function __dsScenesForCard(cardN, body, allBodies) {
       break;
     }
     case '05': {
-      // [2026-06-28 매출 단일화] 카페 월평균 매출 = 단일 진실값(monthlyAvgSales=비즈맵 분위 평균). 없으면 안정 동평균→단일월.
+      // [2026-06-28 매출 단일화] 카페 월평균 매출 = 단일 진실값(monthlyAvgSales=소상공인 카페 평균 1086 1순위, 비즈맵 분위 평균 폴백). 없으면 안정 동평균→단일월.
       const monthly = __dsN(bd.monthlyAvgSales) || __dsN(bd.dongCafeAvgStable) || __dsN(bd.monthly) || __dsN(getBody(5).monthlyAvgSales) || __dsN(getBody(5).dongCafeAvgStable) || __dsN(getBody(5).monthly);
       const guAvg = __dsN(bd.guAvg) || __dsN(getBody(5).guAvg);
       if (monthly > 0) {
@@ -4263,14 +4265,21 @@ function __dsScenesForCard(cardN, body, allBodies) {
           deltaText: (delta != null) ? `구 평균보다 ${delta >= 0 ? '+' : ''}${delta}%` : '',
           deltaPositive: (delta == null) || delta >= 0,
         });
+        // [2026-06-28 매출 단일화] 헤드라인 월평균(monthly=소상공인 1086)과 추이 series(비즈맵 점포당 매출, ~901)는 출처·스케일이 다르다.
+        //   → 추이 라벨을 '비즈맵 점포평균 추이'로 분리하고, 추이 헤드라인 값도 series 끝점(같은 출처)으로 맞춰
+        //     한 카드 안에서 헤드라인≠끝점(1086 vs 901)으로 어긋나던 것을 없앤다. series 값 자체는 무변경(이미지=우편함 일치 유지).
         const series = __dsSeries(body);
         const pyr = __dsN(bd.prevYearRate);
-        if (series) push('trendArea', {
-          id: 'c5', value: __dsManToWon(monthly), label: '월매출 추이',
-          values: series.values, labels: series.labels,
-          deltaText: pyr ? `전년 대비 ${pyr >= 0 ? '+' : ''}${Math.round(pyr)}%` : '',
-          deltaPositive: pyr >= 0,
-        });
+        if (series) {
+          const _seriesLast = (Array.isArray(series.values) && series.values.length > 0)
+            ? __dsN(series.values[series.values.length - 1]) : 0;
+          push('trendArea', {
+            id: 'c5', value: _seriesLast > 0 ? __dsManToWon(_seriesLast) : __dsManToWon(monthly), label: '비즈맵 점포평균 추이',
+            values: series.values, labels: series.labels,
+            deltaText: pyr ? `전년 대비 ${pyr >= 0 ? '+' : ''}${Math.round(pyr)}%` : '',
+            deltaPositive: pyr >= 0,
+          });
+        }
       }
       break;
     }
@@ -4417,8 +4426,9 @@ function __dsScenesForCard(cardN, body, allBodies) {
       const totalScore = __dsN(c14.totalScore) || __dsN(c14.overallScore);
       const verdictRaw = String(c14.recommendation || '').trim();
       const verdict = verdictRaw || (totalScore >= 60 ? '조건부 진입 추천' : totalScore >= 40 ? '입지 재검토 후 진입' : '차별화 필수');
+      // [2026-06-29 패스3 §1-15] 등급어 = 화면 카드13과 같은 단일 출처(bcScoreGrade). 옛 70/50 컷오프·적극/신중/재검토 폐기.
       const grade = totalScore > 0
-        ? `종합 ${Math.round(totalScore)}점 · ${totalScore >= 70 ? '적극 검토' : totalScore >= 50 ? '신중 검토' : '재검토'}`
+        ? `종합 ${Math.round(totalScore)}점 · ${bcScoreGrade(totalScore).word}`
         : '';
       const tags = Array.isArray(c14.tags) ? c14.tags.filter(Boolean).slice(0, 4) : [];
       push('statement', {
@@ -4728,14 +4738,12 @@ export default function UnifiedLayout({
         hfBody.risks = card.bodyData?.risks || 0;
         hfBody.recommendation = card.bodyData?.recommendation || '';
         const c13bd = cards[12]?.bodyData || {};
-        // [2026-06-25 ROI] 레이더 5축 = 수익성30·투자회수25·경쟁여건20·생존안정15·성장성10
-        hfBody.axes = [
-          { label: '수익성', max: 30, score: Number(c13bd.scoreMarket) || 0 },
-          { label: '투자 회수', max: 25, score: Number(c13bd.scoreCompete) || 0 },
-          { label: '경쟁 여건', max: 20, score: Number(c13bd.scoreChange) || 0 },
-          { label: '생존 안정', max: 15, score: Number(c13bd.scoreSurvival) || 0 },
-          { label: '성장성', max: 10, score: Number(c13bd.scoreCost) || 0 },
-        ];
+        // [2026-06-29 패스3 §1-14] 5축 만점 = 단일 배열(dataMapper card11.axes5)에서만 읽는다.
+        //   옛 30/25/20/15/10 직접 생성 + 카드14 _NEWMAX 라벨덮어쓰기 폐기. axes5 {label,max,raw} → {label,max,score}.
+        const _axes5 = Array.isArray(c13bd.axes5) ? c13bd.axes5 : [];
+        hfBody.axes = (_axes5.length === 5)
+          ? _axes5.map(a => ({ label: a.label, max: Number(a.max) || 1, score: (a.raw != null && isFinite(Number(a.raw))) ? Number(a.raw) : 0 }))
+          : [];
         const sig = card.chartData?.signals || [];
         if (Array.isArray(sig) && sig.length > 0) {
           hfBody.signals = sig;
@@ -4802,12 +4810,13 @@ export default function UnifiedLayout({
         const c1bd = cards[0]?.bodyData || {};
         const c11bd = cards[12]?.bodyData || {};
         hfBody.vacancy = kosisBoxData?.vacancy?.value || 0;
-        hfBody.newOpen = Number(bd.recentOpen) || Number(bd.openCount)
-          || Number(c12bd.openCount) || Number(c11bd.recentOpen)
-          || Number(c1bd.newOpen) || 0;
-        hfBody.closed = Number(bd.recentClose) || Number(bd.closeCount)
-          || Number(c12bd.closeCount) || Number(c11bd.recentClose)
-          || Number(c1bd['폐업 매장']) || 0;
+        // [신폐 단일 해소계층] (2026-06-29) 릴스/카드09 신규·폐업 = 화면 카드와 같은 단일값.
+        //   1순위 = 상권변화 카드(cards[2]=card12 openCount/closeCount, __resolveNewClose 단일값).
+        //   카드01·카드11은 같은 값이므로 폴백으로만 둔다. (출처가 갈리지 않게 단일 소스 우선.)
+        hfBody.newOpen = Number(c12bd.openCount) || Number(c1bd.newOpen) || Number(c11bd.recentOpen)
+          || Number(bd.recentOpen) || Number(bd.openCount) || 0;
+        hfBody.closed = Number(c12bd.closeCount) || Number(c1bd['폐업 매장']) || Number(c11bd.recentClose)
+          || Number(bd.recentClose) || Number(bd.closeCount) || 0;
         // [2026-06-24] 카드09 핵심발견 '시장 매력도'도 매출/AI카드와 같은 단일 진실값(monthlyAvgSales=901, 분위 평균) 사용.
         //   예전엔 monthly(단일월 1086)를 읽어 시군구 평균 대비 -41%로 표기됐으나, 표준값 901 기준 -51%로 통일.
         hfBody.cafeMonthly = (cards[5]?.bodyData?.monthlyAvgSales) || (cards[5]?.bodyData?.monthly) || 0;
@@ -4837,12 +4846,12 @@ export default function UnifiedLayout({
         if (!Number(hfBody.bodyData.franchiseMaxPrice)) {
           hfBody.bodyData.franchiseMaxPrice = 4700; // 스타벅스 톨 아메
         }
-        // [2026-06-14] 폐업 동향 → 신규 개업 흐름으로 교체 (긍정 프레이밍). 상권분석/상권변화 카드의 신규 개업 수 인용.
+        // [신폐 단일 해소계층 §3] (2026-06-29) 카드06(개인 카페)의 '개인 카페 신규'는 카드01·11·13의
+        //   '전체 카페 신규'와 개념이 다르므로 전체 단일값을 주입하지 않는다.
+        //   개인 한정 실집계(newIndieList = 반경 내 isNewOpen 개인 카페)만 areaNewOpen 폴백으로 둔다.
         {
-          const _c0 = cards[0]?.bodyData || {};
-          const _c2 = cards[2]?.bodyData || {};
-          const _newOpen = Number(_c0.newOpen) || Number(_c2.openCount) || Number(_c2.recentOpen) || 0;
-          if (_newOpen > 0) hfBody.bodyData.areaNewOpen = _newOpen;
+          const _indieNew = Array.isArray(hfBody.bodyData?.newIndieList) ? hfBody.bodyData.newIndieList.length : 0;
+          if (_indieNew > 0) hfBody.bodyData.areaNewOpen = _indieNew;
         }
       }
       if (i === 5) {
@@ -4883,13 +4892,19 @@ export default function UnifiedLayout({
         hfBody.closed = bd['폐업 매장'] || 0;
         // [unit-safe] integratedRent는 unit이 '만원/평' (이미 만원)인 경우 그대로,
         // '원/평' 단위라면 /10000. marketRent는 항상 '원/평'이므로 /10000.
+        // [2026-06-29 정보분산 패스6 §1-10] 카드1 평당월세 = 카드8과 '동일 통합 평당월세 체인'으로 단일화.
+        //   카드8 표시 체인: rentPerPyeongManwon(=integratedRent/marketRent) || integratedRent || avgRent(card7.rentPerPyeong).
+        //   카드1도 integratedRent/marketRent가 비면 카드7 avgRent(cards[7].bodyData.rentPerPyeong)로 떨어지게 해
+        //   카드1=카드8 평당월세가 항상 같은 값이 되게 한다(예전엔 카드1만 integratedRent로 끝나 0/'-'로 갈렸음).
         {
           const _ir = kosisBoxData?.integratedRent;
-          hfBody.rentPerPyeong = _ir?.value
+          const _irOrMarket = _ir?.value
             ? (typeof _ir.unit === 'string' && _ir.unit.indexOf('만원') >= 0
                 ? Math.round(_ir.value)
                 : Math.round(_ir.value / 10000))
             : (kosisBoxData?.marketRent?.value ? Math.round(kosisBoxData.marketRent.value / 10000) : 0);
+          const _avgRentFallback = Number(cards[7]?.bodyData?.rentPerPyeong) || 0;
+          hfBody.rentPerPyeong = _irOrMarket || _avgRentFallback;
         }
         hfBody.vacancyRate = kosisBoxData?.vacancy?.value || 0;
         hfBody.priceChange = kosisBoxData?.priceChange?.value || 0;
@@ -5112,7 +5127,7 @@ export default function UnifiedLayout({
         const _xPos = (() => { const v = Math.round(_num(_cBd(10).positiveRatio) * 10) / 10; return (v > 0 && v <= 100) ? v : 0; })();
         // 유동 평일 비중(%) — cards[6].weekdayPct. 정수(카드 KPI toFixed(0)와 일치).
         const _xWeekday = (() => { const v = Math.round(_num(_cBd(6).weekdayPct)); return (v > 0 && v <= 100) ? v : 0; })();
-        // 상권 경쟁 강도 라벨 — cards[12].level ∈ {매우 과밀, 과밀, 보통, 양호}.
+        // 상권 경쟁 강도 라벨 — cards[12].level = 밀집도 단일출처(bcDensityGrade) ∈ {여유, 보통, 다소 밀집, 밀집, 과밀, 매우 과밀}.
         const _xCompetLevel = String(_cBd(12).level || '').trim();
         // 동네 카페 월매출(만원) — '월평균 매출' 단일 진실값(monthlyAvgSales=비즈맵 분위 평균). 없으면 안정 동평균→단일월.
         const _xMonthly = (() => { const v = _num(_cBd(5).monthlyAvgSales) || _num(_cBd(5).dongCafeAvgStable) || _num(_cBd(5).monthly); return v > 0 ? v : 0; })();
@@ -5182,7 +5197,7 @@ export default function UnifiedLayout({
         const _gSnsHigh    = _xPos >= 82;                 // SNS 긍정 매우 높음
         const _gSnsLow     = _xPos > 0 && _xPos <= 62;    // SNS 긍정 낮음(주의 신호)
         const _gWeekday    = _xWeekday >= 75;             // 평일 비중 강한 오피스 신호
-        const _gCompetExtr = /매우\s*과밀/.test(_xCompetLevel) || /양호/.test(_xCompetLevel); // 양극단만 notable
+        const _gCompetExtr = /매우\s*과밀/.test(_xCompetLevel) || /여유/.test(_xCompetLevel); // 양극단만 notable (밀집도 단일출처: 고밀=매우과밀/저밀=여유)
         const _gSalesHigh  = _xMonthly >= 8000;           // 월매출 높음(만원)
         const _gSalesSpread = _xDongCount >= 3 && _xDongMax > 0 && _xDongMin > 0 && _xDongMax >= _xDongMin * 2.5; // 편차 극심
         const _gRentHigh   = _xRentPy >= 30;              // 평당 임대 높음
@@ -5558,17 +5573,19 @@ export default function UnifiedLayout({
             // [2026-06-25 모순2] 부제(파란 박스)를 ROI 종합 관점 한 줄로 교체.
             //   ★옛 버그: dataMapper competLevel(카페 >80 "매우 과밀")을 그대로 써서, 카드13 경쟁여건 축
             //     (cafeCount >200 과밀/>80 보통/else 여유)과 등급어가 충돌(예: 139개 → 부제 '매우 과밀' vs 축 '보통').
-            //   → ① 밀집도 등급어는 '경쟁여건 축과 동일한 임계'(>200 과밀/>80 보통/else 여유)로만.
+            //   → ① [2026-06-29 패스5 §1-7] 밀집도 등급어 = 단일 출처 bcDensityGrade(카드13·14·competLevel과 동일 6단계).
             //      ② 경쟁 프레이밍("버틸 수는 있으나 무난하면 묻히는 밀도") 제거 → ROI(수익률·회수) 관점.
             //      ③ ROI 부호(흑자/적자)는 수익성·투자회수 축과 같은 단일 월영업이익(roiMonthlyProfit)을 따른다.
             const cafeCnt = _num(hfBody.cafeCount) || _num(_bd.cafeCount) || _num(_bd.totalCafes);
             // 종합점수(레이더 5축 합) — 자기 카드 값
             const score12 = Math.round(_num(hfBody.totalScore) || _num(_bd.score) || _num(_bd.totalScore));
             const scoreTxt = score12 > 0 ? `투자 대비 수익률 종합 ${score12}점` : '투자 대비 수익률 종합';
-            // 밀집도 등급어 — 카드13 경쟁여건 축과 100% 동일 임계.
-            const densW = cafeCnt > 0 ? (cafeCnt > 200 ? '과밀' : cafeCnt > 80 ? '보통' : '여유') : '';
-            const densPhrase = densW === '과밀' ? ` 카페 밀집도는 '과밀'이라 콘셉트로 비집고 들어가야 하는 자리.`
-              : densW === '보통' ? ` 카페 밀집도는 '보통'이라 차별화 여지가 있는 자리.`
+            // 밀집도 등급어 — 단일 출처(bcDensityGrade). 카드13/14·competLevel과 같은 단어.
+            const densW = bcDensityGrade(cafeCnt);
+            const _densHigh = (densW === '과밀' || densW === '매우 과밀');
+            const _densMid = (densW === '밀집' || densW === '다소 밀집' || densW === '보통');
+            const densPhrase = _densHigh ? ` 카페 밀집도는 '${densW}'이라 콘셉트로 비집고 들어가야 하는 자리.`
+              : _densMid ? ` 카페 밀집도는 '${densW}'이라 차별화 여지가 있는 자리.`
               : densW === '여유' ? ` 카페 밀집도는 '여유'라 진입 부담이 낮은 자리.`
               : '';
             // ROI 부호 — 수익성/투자회수 축과 같은 단일 월영업이익. 적자=흑자전환 우선(긍정 처방), 흑자=회수 관점.
@@ -5712,11 +5729,18 @@ export default function UnifiedLayout({
     const realProfitMonthly = (c12.realProfitMonthly != null && isFinite(Number(c12.realProfitMonthly)))
       ? Math.round(Number(c12.realProfitMonthly))
       : (roiMonthlyProfit != null ? Math.round(roiMonthlyProfit) : null);  // 폴백: 진짜수익 = roiMonthlyProfit(동일 정의)
-    // [2026-06-15] 객단가(원): 임대/창업 카드 시뮬레이터와 BEP 잔수를 일치시키기 위해
-    //   시뮬레이터가 쓰는 것과 '동일 출처·동일 우선순위'(전국 카페 평균 → 폴백 4,500원)로 통일한다.
-    //   (이전엔 매출분석 비즈맵 객단가(9,853원)를 써서 시뮬레이터(5,856원)와 BEP 잔수가 달라 보였음.)
+    // [2026-06-15 → 2026-06-29 정보분산 패스6 §1-12/§1-13] BEP 객단가(원) — 출처 단일화(동 실측 1순위).
+    //   ★화면 매출카드와 같은 '비즈맵 동 실측 객단가'(c5.bizmapAvgUnitPrice 문자열, 예 "9,853원")를 1순위로 파싱해 쓴다.
+    //     동 실측이 없을 때만 단일 폴백 상수(CAFE_UNIT_PRICE_FALLBACK=5,500원, 전국평균 추정)로 떨어진다.
+    //   예전엔 BEP만 4,500 고정폴백을 써서 매출카드(동 실측/5,500)와 같은 '객단가'가 두 값으로 갈렸음.
+    //     → 같은 동 실측을 1순위로, 폴백은 한 상수로 통일(객단가 폴백 상수 단일화 §1-12와 한 값).
+    const _unitPriceFallback = (typeof window !== 'undefined' && Number(window.bcCafeUnitPriceFallback) > 0)
+      ? Number(window.bcCafeUnitPriceFallback) : 5500;
     const unitPrice = (() => {
-      const p = (num(kc.unitPriceAvg) > 0 && num(kc.unitPriceAvg) < 100000) ? Math.round(num(kc.unitPriceAvg)) : 4500;
+      // 동 실측 객단가: 매출카드 표시문자열(bizmapAvgUnitPrice)에서 숫자만 파싱 → 화면과 동일 출처.
+      const _measuredStr = String(c5.bizmapAvgUnitPrice || '');
+      const _measured = Number(_measuredStr.replace(/[^0-9]/g, '')) || num(kc.unitPriceAvg);
+      const p = (_measured > 0 && _measured < 100000) ? Math.round(_measured) : _unitPriceFallback;
       return p;
     })();
     // [2026-06-26] 이익률(%): 회수기간이 화면 월매출과 같은 기준이 되도록 5축 ROI의 실측 영업이익률을
@@ -5747,9 +5771,13 @@ export default function UnifiedLayout({
       return sum > 0 ? Math.round(sum) : 0;
     })();
 
-    // ── 월 고정비(만원): 임대료 + 인건비/관리비 간단 추정(임대료의 2.2배). 임대료 없으면 0. ──
-    //   (시뮬레이터 fixedMonthly와 동일 계수 2.2)
-    const fixedMonthly = rentMonthly > 0 ? Math.round(rentMonthly * 2.2) : 0;
+    // ── 월 고정비(만원) ── [2026-06-29 정보분산 패스6 §1-11] 단일 출처: dataMapper ROI 엔진의 실측 고정비(roiFixedMonthly)
+    //   = (인건+기타)%×월매출 + 임대료. 예전 'rentMonthly×2.2' 단순상수를 폐기하고 데이터층 단일값을 그대로 읽는다.
+    //   (데이터층도 실측 원가구조가 없을 때만 임대×2.2 폴백 → 폴백 산식도 한 곳에서만 산다.)
+    //   roiFixedMonthly가 없는 옛 데이터/비정상 지역 폴백으로만 임대×2.2 유지.
+    const fixedMonthly = (num(c12.roiFixedMonthly) > 0)
+      ? num(c12.roiFixedMonthly)
+      : (rentMonthly > 0 ? Math.round(rentMonthly * 2.2) : 0);
     // ── 손익분기 매출(만원): 고정비 ÷ 공헌이익률 ──
     // [2026-06-27 ROI 업계기준 BEP 교정] 손익분기 = 고정비 ÷ 공헌이익률(=1−변동비율).
     //   기존엔 영업이익률(profitPct≈10~20%)로 나눠 손익분기가 약 3배 부풀려졌다(CVP 표준 위반).
@@ -6309,7 +6337,20 @@ export default function UnifiedLayout({
           put(values, '총 매장', totalStores > 0 ? totalStores : null);
           put(values, '프랜차이즈', _num(body.franchise));
           put(values, '개인카페', _num(body.individual));
-          put(values, '평당월세', (_num(body.rentPerPyeong) > 0) ? `${_num(body.rentPerPyeong)}만원` : null);
+          // [2026-06-29 정보분산 패스6 §2-3] 릴스 screen1 평당월세 = screen4(임대/창업)와 '동일 통합 평당월세 체인'.
+          //   예전 screen1은 body.rentPerPyeong(카드0)만 미러해 integratedRent 없는 동에서 null이 됐음.
+          //   screen4와 같은 (rentPerPyeongManwon || integratedRent || rentPerPyeong) 체인을 카드8 body에서 직접 끌어와
+          //   screen1=screen4 평당월세가 항상 같게 한다.
+          {
+            const _c8 = (bcCardsBodiesSwapped[IDX_BY_SCREEN[4]] || {}).body || {};
+            const _c8bd = _c8.bodyData || {};
+            const _c8ir = (_c8.kosisBoxData && _c8.kosisBoxData.integratedRent) || null;
+            const _c8irManwon = (_c8ir && _num(_c8ir.value))
+              ? ((typeof _c8ir.unit === 'string' && _c8ir.unit.indexOf('만원') >= 0) ? Math.round(_c8ir.value) : Math.round(_c8ir.value / 10000))
+              : 0;
+            const _rentPy = _num(_c8bd.rentPerPyeongManwon) || _c8irManwon || _num(_c8bd.rentPerPyeong) || _num(body.rentPerPyeong) || 0;
+            put(values, '평당월세', _rentPy > 0 ? `${_rentPy}만원` : null);
+          }
           { const vr = _num(body.vacancyRate); put(values, '공실률', (vr > 0) ? `${vr.toFixed(1)}%` : null); }
         } else if (screen === 2) {     // 상권 변화 추이
           title = '상권 변화 추이';
@@ -6391,12 +6432,13 @@ export default function UnifiedLayout({
         } else if (screen === 10) {    // 상권 경쟁 분석 (컴포넌트 n=13)
           title = '상권 경쟁 분석';
           const total = _num(body.totalScore) || 0;
-          const grade = total >= 80 ? '매우 좋음' : total >= 60 ? '좋음' : total >= 40 ? '보통' : total >= 20 ? '주의' : '낮음';
+          // [2026-06-29 패스3 §2-1] 등급어 = 화면 카드13과 같은 단일 출처(bcScoreGrade). 옛 '매우 좋음/좋음…' 폐기.
+          const grade = bcScoreGrade(total).word;
           put(values, '종합점수', total > 0 ? total : null);
           put(values, '등급', total > 0 ? grade : null);
         } else if (screen === 11) {    // 매출 분석 (컴포넌트 n=05)
           title = '매출 분석';
-          // [2026-06-28 매출 단일화] 월평균매출 = 단일 진실값(monthlyAvgSales=비즈맵 분위 평균). 없으면 안정 동평균→단일월.
+          // [2026-06-28 매출 단일화] 월평균매출 = 단일 진실값(monthlyAvgSales=소상공인 카페 평균 1086 1순위, 비즈맵 분위 평균 폴백). 없으면 안정 동평균→단일월.
           const monthly = _num(bd.monthlyAvgSales) || _num(bd.dongCafeAvgStable) || _num(bd.monthly) || 0;
           put(values, '월평균매출', monthly > 0 ? (monthly >= 10000 ? `${(monthly / 10000).toFixed(1)}억` : `${monthly.toLocaleString('ko-KR')}만원`) : null);
           // 객단가 = 화면 unitPriceDisplay 우선순위(비즈맵 → 가중평균)
@@ -6429,15 +6471,9 @@ export default function UnifiedLayout({
           put(values, '종합점수', total > 0 ? total : null);
           { const op = _num(body.opportunities); put(values, '기회', op > 0 ? op : null); }
           { const rk = _num(body.risks); put(values, '리스크', rk > 0 ? rk : null); }
-          // 신뢰점수 = 화면 trustScore 산식(50 + 축/시그널/태그 보너스)
-          const axesArr = Array.isArray(body.axes) ? body.axes : [];
-          const signalsArr = Array.isArray(body.signals) ? body.signals : [];
-          const tagsArr = Array.isArray(body.tags) ? body.tags : [];
-          let trust = 50;
-          if (axesArr.length === 5 && axesArr.every(a => _num(a && a.score) > 0)) trust += 30;
-          if (signalsArr.length >= 5) trust += 10;
-          if (tagsArr.length >= 8) trust += 10;
-          put(values, '신뢰점수', Math.min(100, trust));
+          // [2026-06-29 패스3 §2-2] 신뢰점수 = 화면 카드14와 같은 '실집계 비율'(trustInfo) 단일 출처 미러.
+          //   옛 자기참조(50+축/시그널/태그 보너스) 폐기. 화면이 null이면(추정정보 자체 없음) 릴스도 키 생략.
+          { const ti = bd.trustInfo; put(values, '신뢰점수', (ti && ti.pct != null) ? ti.pct : null); }
         }
 
         cards[String(screen)] = { title, values };
@@ -8942,7 +8978,7 @@ export default function UnifiedLayout({
                    public/handoff_ref/index.html을 iframe으로 띄움.
                    bcCardsBodies(useMemo)가 시안 14개 카드 body를 만들고
                    useEffect가 iframe.contentWindow.__BC_DATA__에 푸시 + __bcRender 호출.
-                   시안 내 우리 카드(window.Card01~14)는 bc-cards-override.jsx에서 덮어쓰기됨.
+                   시안 내 우리 카드(window.Card01~14)는 lib/cards-a/b/c.jsx 가 정의함(index.html 로드).
                    [2026-05-28] iframeReady 가드: 카드 진입 모션과 iframe 로딩 충돌 방지.
                    진입 모션 첫 프레임 양보 후 마운트 → 메인 스레드 frame drop 회피. */
                 iframeReady ? (
@@ -9066,15 +9102,13 @@ export default function UnifiedLayout({
                             hfBody.opportunities = card.bodyData?.opportunities || 0;
                             hfBody.risks = card.bodyData?.risks || 0;
                             hfBody.recommendation = card.bodyData?.recommendation || '';
-                            // [2026-06-25 ROI] 5축 = 수익성30·투자회수25·경쟁여건20·생존안정15·성장성10
+                            // [2026-06-29 패스3 §1-14] 5축 만점 = 단일 배열(dataMapper card11.axes5)에서만 읽는다.
+                            //   옛 30/25/20/15/10 직접 생성 폐기 — 위(iframe 경로 4732)와 동일하게 axes5 미러.
                             const c13bd = cards[12]?.bodyData || {};
-                            hfBody.axes = [
-                              { label: '수익성', max: 30, score: Number(c13bd.scoreMarket) || 0 },
-                              { label: '투자 회수', max: 25, score: Number(c13bd.scoreCompete) || 0 },
-                              { label: '경쟁 여건', max: 20, score: Number(c13bd.scoreChange) || 0 },
-                              { label: '생존 안정', max: 15, score: Number(c13bd.scoreSurvival) || 0 },
-                              { label: '성장성', max: 10, score: Number(c13bd.scoreCost) || 0 },
-                            ];
+                            const _axes5b = Array.isArray(c13bd.axes5) ? c13bd.axes5 : [];
+                            hfBody.axes = (_axes5b.length === 5)
+                              ? _axes5b.map(a => ({ label: a.label, max: Number(a.max) || 1, score: (a.raw != null && isFinite(Number(a.raw))) ? Number(a.raw) : 0 }))
+                              : [];
                             // 시그널 = collectedData.aiData에서, 폴백으로 c14의 Opps/Risks
                             const sig = card.chartData?.signals || [];
                             if (Array.isArray(sig) && sig.length > 0) {
@@ -9166,12 +9200,11 @@ export default function UnifiedLayout({
                             const c1bd = cards[0]?.bodyData || {};
                             const c11bd = cards[12]?.bodyData || {};   // 상권 경쟁 (recentOpen/recentClose)
                             hfBody.vacancy = kosisBoxData?.vacancy?.value || 0;
-                            hfBody.newOpen = Number(bd.recentOpen) || Number(bd.openCount)
-                              || Number(c12bd.openCount) || Number(c11bd.recentOpen)
-                              || Number(c1bd.newOpen) || 0;
-                            hfBody.closed = Number(bd.recentClose) || Number(bd.closeCount)
-                              || Number(c12bd.closeCount) || Number(c11bd.recentClose)
-                              || Number(c1bd['폐업 매장']) || 0;
+                            // [신폐 단일 해소계층] (2026-06-29) 릴스/카드09 = 화면 카드와 같은 단일값. 상권변화 카드 1순위.
+                            hfBody.newOpen = Number(c12bd.openCount) || Number(c1bd.newOpen) || Number(c11bd.recentOpen)
+                              || Number(bd.recentOpen) || Number(bd.openCount) || 0;
+                            hfBody.closed = Number(c12bd.closeCount) || Number(c1bd['폐업 매장']) || Number(c11bd.recentClose)
+                              || Number(bd.recentClose) || Number(bd.closeCount) || 0;
                             // [2026-06-24] 카드09 핵심발견도 단일 진실값(monthlyAvgSales=901) 사용. monthly(1086) 폴백.
                             hfBody.cafeMonthly = (cards[5]?.bodyData?.monthlyAvgSales) || (cards[5]?.bodyData?.monthly) || 0;
                             hfBody.guAvg = (cards[5]?.bodyData?.guAvg) || 0;
@@ -9201,12 +9234,10 @@ export default function UnifiedLayout({
                             if (!Number(hfBody.bodyData.franchiseMaxPrice)) {
                               hfBody.bodyData.franchiseMaxPrice = 4700;
                             }
-                            // [2026-06-14] 폐업 동향 → 신규 개업 흐름 교체용 데이터
+                            // [신폐 단일 해소계층 §3] (2026-06-29) 개인 카페 신규는 개인 한정 실집계만 사용. 전체 단일값 미주입.
                             {
-                              const _c0 = cards[0]?.bodyData || {};
-                              const _c2 = cards[2]?.bodyData || {};
-                              const _newOpen = Number(_c0.newOpen) || Number(_c2.openCount) || Number(_c2.recentOpen) || 0;
-                              if (_newOpen > 0) hfBody.bodyData.areaNewOpen = _newOpen;
+                              const _indieNew = Array.isArray(hfBody.bodyData?.newIndieList) ? hfBody.bodyData.newIndieList.length : 0;
+                              if (_indieNew > 0) hfBody.bodyData.areaNewOpen = _indieNew;
                             }
                           }
                           // Card05(매출)에 권역 sigungu 전달용

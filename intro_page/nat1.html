@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>빈크래프트 — 전국 커버</title>
+<style>
+  :root{
+    --blue:#2b7fff;
+    --blue-bright:#7db4ff;
+    --bg:#000;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{height:100%;background:var(--bg);overflow:hidden;}
+  body{
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    color:#fff;
+  }
+  #stage{
+    position:fixed;
+    inset:0;
+    width:100vw;
+    height:100vh;
+    overflow:hidden;
+    background:
+      radial-gradient(120% 90% at 50% 120%, rgba(43,127,255,0.16) 0%, rgba(43,127,255,0.04) 38%, rgba(0,0,0,0) 66%),
+      radial-gradient(80% 60% at 50% -10%, rgba(125,180,255,0.07) 0%, rgba(0,0,0,0) 60%),
+      #000;
+  }
+  canvas{position:absolute;inset:0;display:block;width:100%;height:100%;}
+
+  /* vignette + scanline atmosphere */
+  #stage::after{
+    content:"";
+    position:absolute;inset:0;
+    pointer-events:none;
+    background:
+      radial-gradient(130% 120% at 50% 46%, rgba(0,0,0,0) 52%, rgba(0,0,0,0.55) 100%);
+    z-index:3;
+  }
+
+  /* HUD overlay */
+  .hud{
+    position:absolute;
+    z-index:4;
+    pointer-events:none;
+    color:#cfe2ff;
+    font-variant-numeric:tabular-nums;
+  }
+  .hud-corner{
+    font-size:11px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:rgba(125,180,255,0.55);
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .hud-tl{top:26px;left:30px;}
+  .hud-tr{top:26px;right:30px;text-align:right;flex-direction:row-reverse;}
+  .hud-bl{bottom:26px;left:30px;}
+  .hud-br{bottom:26px;right:30px;text-align:right;}
+  .dot{
+    width:6px;height:6px;border-radius:50%;
+    background:var(--blue-bright);
+    box-shadow:0 0 10px var(--blue-bright);
+    animation:blink 2.4s ease-in-out infinite;
+  }
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:0.25}}
+
+  .ticker{
+    color:rgba(125,180,255,0.42);
+    font-size:11px;letter-spacing:0.05em;
+  }
+  .ticker b{color:var(--blue-bright);font-weight:600;}
+
+  /* center copy */
+  .copy{
+    position:absolute;
+    z-index:5;
+    left:0;right:0;
+    bottom:13%;
+    text-align:center;
+    padding:0 24px;
+    pointer-events:none;
+  }
+  .eyebrow{
+    font-size:12px;
+    letter-spacing:0.42em;
+    text-transform:uppercase;
+    color:var(--blue-bright);
+    margin-bottom:22px;
+    opacity:0;
+    transform:translateY(10px);
+  }
+  .eyebrow::before,.eyebrow::after{
+    content:"";display:inline-block;
+    width:30px;height:1px;vertical-align:middle;
+    background:linear-gradient(90deg,transparent,var(--blue));
+    margin:0 14px 3px;
+  }
+  .eyebrow::after{background:linear-gradient(90deg,var(--blue),transparent);}
+  h1{
+    font-size:clamp(26px,5vw,58px);
+    font-weight:700;
+    line-height:1.18;
+    letter-spacing:-0.02em;
+    color:#fff;
+    text-shadow:0 2px 40px rgba(43,127,255,0.35);
+  }
+  h1 .accent{
+    color:transparent;
+    background:linear-gradient(180deg,#fff 0%,var(--blue-bright) 130%);
+    -webkit-background-clip:text;background-clip:text;
+  }
+  .sub{
+    margin-top:18px;
+    font-size:clamp(13px,1.7vw,17px);
+    color:rgba(207,226,255,0.62);
+    letter-spacing:0.01em;
+    font-weight:400;
+  }
+  /* word reveal */
+  .reveal{display:inline-block;opacity:0;transform:translateY(16px);filter:blur(6px);}
+
+  @media (max-width:640px){
+    .hud-tl,.hud-tr{font-size:10px;}
+    .hud-bl,.hud-br{display:none;}
+    .copy{bottom:11%;}
+    h1{font-size:30px;}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .dot{animation:none;}
+  }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="city"></canvas>
+
+  <div class="hud hud-corner hud-tl"><span class="dot"></span>BEANCRAFT · 상권 인텔리전스</div>
+  <div class="hud hud-corner hud-tr">LIVE GRID · KR</div>
+  <div class="hud ticker hud-bl">표본 밀도 <b id="tk1">—</b> · 분석 노드 <b id="tk2">—</b></div>
+  <div class="hud hud-corner hud-br" id="tk3">SCAN 00.0%</div>
+
+  <div class="copy">
+    <div class="eyebrow" id="eyebrow">전국 커버리지</div>
+    <h1><span class="reveal" data-d="0">전국</span> <span class="reveal" data-d="1">어디를</span> <span class="reveal" data-d="2">찍어도,</span><br><span class="reveal accent" data-d="3">그</span> <span class="reveal accent" data-d="4">동네가</span> <span class="reveal accent" data-d="5">분석됩니다.</span></h1>
+    <div class="sub reveal" data-d="6">행정동 단위까지 — 매출·유동·경쟁·임대를 한 화면에서.</div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  const cv = document.getElementById('city');
+  const ctx = cv.getContext('2d', { alpha:true });
+  const stage = document.getElementById('stage');
+
+  let W=0, H=0, DPR=1;
+  function resize(){
+    DPR = Math.min(window.devicePixelRatio||1, 2);
+    W = stage.clientWidth; H = stage.clientHeight;
+    cv.width = Math.floor(W*DPR);
+    cv.height = Math.floor(H*DPR);
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+  }
+  window.addEventListener('resize', resize, {passive:true});
+  resize();
+
+  // ---- pseudo-3D projection -------------------------------------------
+  // World: ground plane on XZ. Camera orbits around origin, looking at a
+  // point slightly ahead. We project with a simple perspective camera.
+
+  const cam = {
+    dist: 560,       // orbit radius
+    height: 300,     // camera height above ground
+    yaw: 0,          // orbit angle
+    fov: 760,        // focal length (px)
+    targetY: 40
+  };
+
+  function project(x,y,z){
+    // rotate world around Y by -yaw (camera orbit)
+    const cy = Math.cos(cam.yaw), sy = Math.sin(cam.yaw);
+    // camera position
+    const camX = Math.sin(cam.yaw)*cam.dist;
+    const camZ = Math.cos(cam.yaw)*cam.dist;
+    // translate into camera space (camera looks toward origin)
+    let dx = x - camX;
+    let dy = y - cam.height;
+    let dz = z - camZ;
+    // yaw rotate so camera faces -Z toward origin
+    let rx =  cy*dx - sy*dz;
+    let rz =  sy*dx + cy*dz;
+    // pitch (look slightly down toward target)
+    const pitch = Math.atan2(cam.height - cam.targetY, cam.dist);
+    const cp = Math.cos(pitch), sp = Math.sin(pitch);
+    let ry = cp*dy - sp*rz;
+    let rz2 = sp*dy + cp*rz;
+    if (rz2 <= 1) return null; // behind camera
+    const f = cam.fov / rz2;
+    return {
+      x: W/2 + rx*f,
+      y: H/2 + ry*f,
+      s: f,        // scale factor (depth)
+      z: rz2       // depth for sorting
+    };
+  }
+
+  // ---- city blocks -----------------------------------------------------
+  const GRID = 9;          // blocks per side
+  const SPACING = 96;      // world units between block centers
+  const blocks = [];
+  const half = (GRID-1)/2;
+
+  // a few "hot" nodes get tall pulsing data columns
+  function rnd(a,b){ return a + Math.random()*(b-a); }
+
+  for(let i=0;i<GRID;i++){
+    for(let j=0;j<GRID;j++){
+      const x = (i-half)*SPACING + rnd(-10,10);
+      const z = (j-half)*SPACING + rnd(-10,10);
+      const distC = Math.hypot(i-half, j-half);
+      const isHot = Math.random() < 0.16;
+      blocks.push({
+        x, z,
+        w: rnd(36,58),
+        d: rnd(36,58),
+        h: rnd(18,70) * (1 - distC*0.05),        // building height
+        baseH: 0,
+        hot: isHot,
+        col: isHot ? rnd(140,260) : 0,            // data column target height
+        colCur: 0,
+        phase: Math.random()*Math.PI*2,
+        speed: rnd(0.6,1.4),
+        scanT: Math.random()                       // for scan ripple
+      });
+    }
+  }
+
+  // ---- drawing helpers -------------------------------------------------
+  function lerp(a,b,t){ return a+(b-a)*t; }
+
+  // draw an extruded box (building) given world base center + size + height
+  function drawBox(b, scanFront){
+    const bx=b.x, bz=b.z, w=b.w, d=b.d, h=b.h;
+    // 8 corners (top + bottom)
+    const c = [
+      project(bx-w/2,0,bz-d/2),
+      project(bx+w/2,0,bz-d/2),
+      project(bx+w/2,0,bz+d/2),
+      project(bx-w/2,0,bz+d/2),
+      project(bx-w/2,h,bz-d/2),
+      project(bx+w/2,h,bz-d/2),
+      project(bx+w/2,h,bz+d/2),
+      project(bx-w/2,h,bz+d/2)
+    ];
+    for(const p of c){ if(!p) return; }
+
+    // depth-based brightness
+    const depthN = Math.max(0, Math.min(1, 1 - (c[0].z-180)/900));
+    const lit = 0.10 + depthN*0.16;
+
+    // scan ripple: a moving "wavefront" highlights buildings as it passes
+    const scanGlow = Math.max(0, 1 - Math.abs(b.scanPos)*1.6);
+
+    // side faces (only the ones facing camera roughly) — draw all, painter handles
+    function face(i0,i1,i2,i3, shade){
+      ctx.beginPath();
+      ctx.moveTo(c[i0].x,c[i0].y);
+      ctx.lineTo(c[i1].x,c[i1].y);
+      ctx.lineTo(c[i2].x,c[i2].y);
+      ctx.lineTo(c[i3].x,c[i3].y);
+      ctx.closePath();
+      ctx.fillStyle = shade;
+      ctx.fill();
+    }
+    const base = lit;
+    const g = scanGlow*0.5;
+    // walls: deep blue-tinted dark
+    face(0,1,5,4, `rgba(${18+g*120|0},${42+g*120|0},${90+g*150|0},${(base+0.04)})`);
+    face(1,2,6,5, `rgba(${10+g*90|0},${28+g*100|0},${66+g*130|0},${base})`);
+    face(3,0,4,7, `rgba(${10+g*90|0},${28+g*100|0},${66+g*130|0},${base})`);
+    face(2,3,7,6, `rgba(${6},${18},${44},${base-0.02})`);
+    // roof — brighter, picks up scan
+    const roofA = 0.16 + depthN*0.18 + scanGlow*0.5;
+    face(4,5,6,7, `rgba(${60+g*160|0},${120+g*120|0},${200+g*55|0},${roofA})`);
+
+    // crisp top edge stroke (wireframe feel)
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = `rgba(${90+scanGlow*120|0},${160+scanGlow*70|0},255,${0.18+depthN*0.22+scanGlow*0.5})`;
+    ctx.beginPath();
+    ctx.moveTo(c[4].x,c[4].y);
+    ctx.lineTo(c[5].x,c[5].y);
+    ctx.lineTo(c[6].x,c[6].y);
+    ctx.lineTo(c[7].x,c[7].y);
+    ctx.closePath();
+    ctx.stroke();
+    // vertical front edge
+    ctx.strokeStyle = `rgba(80,150,255,${0.10+depthN*0.14})`;
+    ctx.beginPath();
+    ctx.moveTo(c[0].x,c[0].y); ctx.lineTo(c[4].x,c[4].y);
+    ctx.moveTo(c[1].x,c[1].y); ctx.lineTo(c[5].x,c[5].y);
+    ctx.stroke();
+  }
+
+  // glowing data column rising from a hot block
+  function drawColumn(b){
+    const ch = b.colCur;
+    if (ch < 2) return;
+    const w = b.w*0.42, d = b.d*0.42;
+    const baseY = b.h;
+    const topY = b.h + ch;
+    const bot = [
+      project(b.x-w/2, baseY, b.z-d/2),
+      project(b.x+w/2, baseY, b.z-d/2),
+      project(b.x+w/2, baseY, b.z+d/2),
+      project(b.x-w/2, baseY, b.z+d/2)
+    ];
+    const top = [
+      project(b.x-w/2, topY, b.z-d/2),
+      project(b.x+w/2, topY, b.z-d/2),
+      project(b.x+w/2, topY, b.z+d/2),
+      project(b.x-w/2, topY, b.z+d/2)
+    ];
+    for(const p of bot){ if(!p) return; }
+    for(const p of top){ if(!p) return; }
+
+    const pulse = 0.5 + 0.5*Math.sin(b.phase);
+    const alpha = 0.30 + pulse*0.45;
+
+    // gradient column body (vertical, screen-space approx)
+    const grad = ctx.createLinearGradient(bot[0].x, bot[0].y, top[0].x, top[0].y);
+    grad.addColorStop(0, `rgba(43,127,255,${alpha*0.85})`);
+    grad.addColorStop(0.55, `rgba(90,160,255,${alpha})`);
+    grad.addColorStop(1, `rgba(190,220,255,${alpha*0.9})`);
+
+    function quad(a,b2,c2,d2,fill){
+      ctx.beginPath();
+      ctx.moveTo(a.x,a.y);ctx.lineTo(b2.x,b2.y);ctx.lineTo(c2.x,c2.y);ctx.lineTo(d2.x,d2.y);
+      ctx.closePath();ctx.fillStyle=fill;ctx.fill();
+    }
+    ctx.save();
+    ctx.shadowColor = `rgba(90,160,255,${0.55*pulse+0.2})`;
+    ctx.shadowBlur = 18 + pulse*22;
+    // two visible side faces
+    quad(bot[0],bot[1],top[1],top[0], grad);
+    quad(bot[1],bot[2],top[2],top[1], grad);
+    ctx.restore();
+
+    // bright cap
+    ctx.beginPath();
+    ctx.moveTo(top[0].x,top[0].y);ctx.lineTo(top[1].x,top[1].y);
+    ctx.lineTo(top[2].x,top[2].y);ctx.lineTo(top[3].x,top[3].y);
+    ctx.closePath();
+    ctx.fillStyle = `rgba(220,235,255,${0.55+pulse*0.4})`;
+    ctx.fill();
+
+    // floating data tick above cap
+    const cap = top[0];
+    const r = 2.2 + pulse*2.6;
+    ctx.beginPath();
+    ctx.arc((top[0].x+top[2].x)/2,(top[0].y+top[2].y)/2 - 10, r, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(180,215,255,${0.8})`;
+    ctx.shadowColor = '#7db4ff'; ctx.shadowBlur = 14;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+
+  // ground grid (perspective) — sparse, recedes into dark
+  function drawGrid(){
+    const ext = (half+0.5)*SPACING;
+    const step = SPACING;
+    ctx.lineWidth = 1;
+    for(let gx=-ext; gx<=ext+1; gx+=step){
+      const a = project(gx,0,-ext), b2 = project(gx,0,ext);
+      if(a&&b2){
+        const fade = Math.max(0, 0.10 - Math.abs(gx)/ext*0.06);
+        ctx.strokeStyle = `rgba(43,127,255,${0.05+fade})`;
+        ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b2.x,b2.y);ctx.stroke();
+      }
+    }
+    for(let gz=-ext; gz<=ext+1; gz+=step){
+      const a = project(-ext,0,gz), b2 = project(ext,0,gz);
+      if(a&&b2){
+        const fade = Math.max(0, 0.10 - Math.abs(gz)/ext*0.06);
+        ctx.strokeStyle = `rgba(43,127,255,${0.05+fade})`;
+        ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b2.x,b2.y);ctx.stroke();
+      }
+    }
+  }
+
+  // ---- scan wavefront (sweeps across the city, lighting blocks) --------
+  let scanWorldX = 0;     // wavefront position in world along orbiting axis
+  const SCAN_RANGE = (half+1)*SPACING;
+
+  // ---- animation loop --------------------------------------------------
+  let running = true, last = performance.now(), t = 0;
+  // intersection / visibility guard
+  if ('IntersectionObserver' in window){
+    new IntersectionObserver((es)=>{
+      running = es[0].isIntersecting;
+      if(running){ last = performance.now(); requestAnimationFrame(loop); }
+    },{threshold:0.02}).observe(stage);
+  }
+  document.addEventListener('visibilitychange',()=>{
+    running = !document.hidden;
+    if(running){ last = performance.now(); requestAnimationFrame(loop); }
+  });
+
+  // subtle pointer parallax
+  let pX=0, pY=0, tpX=0, tpY=0;
+  window.addEventListener('pointermove',(e)=>{
+    tpX = (e.clientX/W - 0.5);
+    tpY = (e.clientY/H - 0.5);
+  },{passive:true});
+
+  // ticker DOM
+  const tk1=document.getElementById('tk1'),tk2=document.getElementById('tk2'),tk3=document.getElementById('tk3');
+  let tkAcc=0;
+
+  function loop(now){
+    if(!running) return;
+    let dt = (now-last)/1000; last = now;
+    if(dt>0.05) dt=0.05;            // clamp big gaps
+    t += dt;
+
+    // camera orbit
+    cam.yaw += dt*0.085;
+    pX = lerp(pX, tpX, 0.05);
+    pY = lerp(pY, tpY, 0.05);
+    cam.height = 300 + pY*70;
+    cam.targetY = 40 - pY*30;
+
+    // scan wavefront moves; wraps
+    scanWorldX += dt*150;
+    if (scanWorldX > SCAN_RANGE) scanWorldX = -SCAN_RANGE;
+
+    // update blocks: column growth + pulse + scan proximity
+    // project scan into the same axis blocks live on by comparing along a
+    // rotating direction so the wavefront visibly sweeps as camera turns.
+    const sdx = Math.cos(cam.yaw*0.6), sdz = Math.sin(cam.yaw*0.6);
+    for(const b of blocks){
+      b.phase += dt*b.speed*1.6;
+      const proj = (b.x*sdx + b.z*sdz);
+      b.scanPos = (proj - scanWorldX)/120;          // ~0 when wavefront on it
+      // hot columns grow when scan passes, then settle to animated target
+      if(b.hot){
+        const target = b.col * (0.7 + 0.3*(0.5+0.5*Math.sin(b.phase*0.5)));
+        const boost = Math.max(0,1-Math.abs(b.scanPos)*1.4)*60;
+        b.colCur = lerp(b.colCur, target+boost, 0.06);
+      }
+    }
+
+    // ---- render -------------------------------------------------------
+    ctx.clearRect(0,0,W,H);
+
+    // soft horizon haze band
+    const hz = ctx.createLinearGradient(0,H*0.30,0,H*0.62);
+    hz.addColorStop(0,'rgba(43,127,255,0)');
+    hz.addColorStop(0.5,'rgba(43,127,255,0.05)');
+    hz.addColorStop(1,'rgba(43,127,255,0)');
+    ctx.fillStyle = hz; ctx.fillRect(0,H*0.30,W,H*0.32);
+
+    drawGrid();
+
+    // depth sort blocks (far -> near) using projected z
+    for(const b of blocks){
+      const p = project(b.x,0,b.z);
+      b._z = p ? p.z : -1;
+    }
+    blocks.sort((a,b)=> b._z - a._z);
+
+    for(const b of blocks){
+      if(b._z<=1) continue;
+      drawBox(b);
+      if(b.hot) drawColumn(b);
+    }
+
+    // additive bloom-ish overlay glow at center-bottom
+    ctx.globalCompositeOperation='lighter';
+    const bloom = ctx.createRadialGradient(W/2,H*0.58,0,W/2,H*0.58,W*0.5);
+    bloom.addColorStop(0,'rgba(43,127,255,0.05)');
+    bloom.addColorStop(1,'rgba(43,127,255,0)');
+    ctx.fillStyle=bloom; ctx.fillRect(0,0,W,H);
+    ctx.globalCompositeOperation='source-over';
+
+    // ticker update (throttled)
+    tkAcc += dt;
+    if(tkAcc>0.12){
+      tkAcc=0;
+      const hot = blocks.filter(b=>b.hot && b.colCur>4).length;
+      tk1.textContent = (820 + Math.round(80*Math.abs(Math.sin(t*0.7)))) + '/㎢';
+      tk2.textContent = (blocks.length).toLocaleString();
+      const pct = (50 + 50*Math.sin(t*0.5)).toFixed(1);
+      tk3.textContent = 'SCAN ' + pct.padStart(4,'0') + '%';
+    }
+
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  // ---- intro text reveal ----------------------------------------------
+  const reduce = window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+  const words = Array.from(document.querySelectorAll('.reveal'));
+  if(reduce){
+    words.forEach(w=>{w.style.opacity=1;w.style.transform='none';w.style.filter='none';});
+    const eb=document.getElementById('eyebrow'); eb.style.opacity=1; eb.style.transform='none';
+  } else if(window.gsap){
+    gsap.to('#eyebrow',{opacity:1,y:0,duration:1,delay:0.3,ease:'power2.out'});
+    words.sort((a,b)=> (+a.dataset.d)-(+b.dataset.d));
+    gsap.to(words,{
+      opacity:1, y:0, filter:'blur(0px)',
+      duration:1.1, ease:'power3.out',
+      stagger:0.10, delay:0.7
+    });
+  } else {
+    words.forEach((w,i)=>{
+      setTimeout(()=>{w.style.transition='all .9s cubic-bezier(.2,.7,.2,1)';w.style.opacity=1;w.style.transform='none';w.style.filter='none';}, 700+i*110);
+    });
+    const eb=document.getElementById('eyebrow');
+    eb.style.transition='all .9s ease'; setTimeout(()=>{eb.style.opacity=1;eb.style.transform='none';},300);
+  }
+
+})();
+</script>
+</body>
+</html>

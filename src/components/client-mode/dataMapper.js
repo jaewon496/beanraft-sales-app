@@ -51,6 +51,70 @@ const fmt = (n) => {
   return Math.round(n).toLocaleString('ko-KR');
 };
 
+// [2026-06-29 정보분산 패스3 §1-15] 종합점수 → 등급어 단일 출처(cutoff·어휘 한 곳).
+//   화면 카드13 톤('유리한 자리/무난/보통/비용관리관건/보완필요')을 정본으로, letter는 A~C 매핑.
+//   화면(cards-c)·릴스·데이터셰어가 전부 이 결과를 읽어 어휘/컷오프가 어긋나지 않게 한다.
+//   (cards-c.jsx 의 window.bcScoreGrade 도 동일 로직 — iframe/모듈 두 런타임이라 같은 표를 미러한다.)
+export function bcScoreGrade(total) {
+  const t = Number(total);
+  if (!(t > 0) || !isFinite(t)) return { word: '데이터 수집 중', letter: '' };
+  if (t >= 80) return { word: '유리한 자리', letter: 'A' };
+  if (t >= 70) return { word: '무난한 자리', letter: 'A-' };
+  if (t >= 60) return { word: '무난한 자리', letter: 'B+' };
+  if (t >= 50) return { word: '보통 — 운영이 관건', letter: 'B' };
+  if (t >= 40) return { word: '보통 — 운영이 관건', letter: 'C+' };
+  if (t >= 20) return { word: '비용 관리가 관건인 자리', letter: 'C+' };
+  return { word: '도전적·보완 필요한 자리', letter: 'C' };
+}
+
+// [2026-06-29 정보분산 패스5 §1-7] ★진실의 원천★ 카페 밀집도(반경 내 카페 수) → 등급어 단일 출처.
+//   같은 카페수에 같은 단어가 나오게: 카드13 한줄평·카드14 종합·competLevel(카드11/12 level)·릴스(UnifiedLayout)가
+//   전부 이 표를 인용한다. 6단계로 통일(가장 표현이 풍부한 카드13 체계 기반).
+//   ★다운스트림 호환: UnifiedLayout 한줄평이 competLevel(level)을 정규식(/매우\s*과밀/·/과밀/·/여유/·/보통/)으로
+//     읽으므로, 고밀 구간은 '과밀'·'매우 과밀', 저밀 구간은 '여유'·'보통'으로 라벨을 잡아 정규식도 의미가 유지된다.
+//   ★cards-c.jsx(iframe) 의 window.bcDensityGrade 도 동일 표를 미러한다 — 두 런타임이라 같이 고쳐야 함.
+export function bcDensityGrade(cafeCount) {
+  const n = Number(cafeCount);
+  if (!(n > 0) || !isFinite(n)) return '';
+  if (n <= 15) return '여유';
+  if (n <= 40) return '보통';
+  if (n <= 80) return '다소 밀집';
+  if (n <= 150) return '밀집';
+  if (n <= 250) return '과밀';
+  return '매우 과밀';
+}
+
+// [2026-06-29 패스3 §1-14] 5축 만점(maxScore) 단일 출처.
+//   라벨·만점을 한 곳에 고정해 카드13/14·릴스·레이더가 모두 같은 max로 막대%/레이더를 그린다.
+//   ★옛 30/25/20/15/10 경로 폐기. 새 가중치=수익성25·투자회수15·경쟁여건20·생존안정20·성장성20(합100).
+const BC_AXIS5_DEF = [
+  { key: 'scoreMarket',   label: '수익성',   max: 25 },
+  { key: 'scoreCompete',  label: '투자 회수', max: 15 },
+  { key: 'scoreChange',   label: '경쟁 여건', max: 20 },
+  { key: 'scoreSurvival', label: '생존 안정', max: 20 },
+  { key: 'scoreCost',     label: '성장성',   max: 20 },
+];
+// bodyData(점수 필드 보유)를 받아 단일 5축 배열 {label,max,raw,pct} 1회 생성.
+function bcBuildAxes5(bd) {
+  const src = bd || {};
+  return BC_AXIS5_DEF.map(d => {
+    const raw = src[d.key];
+    const rawNum = (typeof raw === 'number' && isFinite(raw)) ? raw : (raw == null ? null : Number(raw));
+    const pct = (rawNum != null && isFinite(rawNum) && d.max > 0)
+      ? Math.max(0, Math.min(100, Math.round((rawNum / d.max) * 100)))
+      : null;
+    return { label: d.label, max: d.max, raw: (rawNum != null && isFinite(rawNum)) ? rawNum : null, pct };
+  });
+}
+
+// [2026-06-29 정보분산 패스6 §1-12] 카페 객단가 폴백 상수 단일 출처.
+//   실측(비즈맵 동 평균결제/메뉴가)이 전부 없을 때만 떨어지는 '일반 카페 객단가 추정' 값.
+//   예전엔 5,500 / 5,160 / 5,856 / 4,500 이 코드·주석에 흩어져 같은 '객단가'가 자리마다 달랐음.
+//   → 이 한 값(5,500원, ROI 업계기준)으로 통일. dataMapper·UnifiedLayout(BEP/배너)이 모두 이걸 참조한다.
+//   (UnifiedLayout 은 모듈 간 import 없이 window.bcCafeUnitPriceFallback 로 같은 값을 미러한다.)
+export const CAFE_UNIT_PRICE_FALLBACK = 5500;
+if (typeof window !== 'undefined') { try { window.bcCafeUnitPriceFallback = CAFE_UNIT_PRICE_FALLBACK; } catch (_e) {} }
+
 // 한국식 금액 표기 (원 단위 입력)
 /**
  * KOSIS 외식업체경영실태조사 응답에서 카페(커피전문점) 평균값 추출
@@ -423,7 +487,11 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   const _card1Estimated = [];
   // [2026-06-26 가짜상수 제거] 신규 오픈 = 수집 신규(isNewOpen) 1순위 → 비즈맵/AI 개업수 → (전부 0이면) 전국 평균(×1.5%, 추정 배지).
   //   ※ 비즈맵 시계열(recentOpenBiz)·인허가 최근개업은 이 시점 이후 라인에서 계산되어 카드13 openCnt 폴백에 이미 반영된다.
-  let newOpenCount = [...franchiseList, ...independentList].filter(c => c.isNewOpen).length;
+  // [신폐 단일 해소계층] 여기 newOpenCount/card1Closed 는 '잠정값'이다. 아래 단일 해소계층
+  //   (__resolveNewClose, LOCALDATA→비즈맵→AI→전국평균 단일 우선순위)이 최종값으로 덮어쓴다.
+  //   순수 수집 신규 카운트는 그 해소계층의 '실집계' 티어 후보로 보존한다.
+  const _collectedNewOpenPure = [...franchiseList, ...independentList].filter(c => c.isNewOpen).length;
+  let newOpenCount = _collectedNewOpenPure;
   if (newOpenCount === 0) {
     const _aiOpen = parseInt(aiData?.marketSurvival?.openCount, 10) || 0;   // 비즈맵/AI 개업 실값
     if (_aiOpen > 0) {
@@ -444,12 +512,25 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   }
 
   // 폐업 수 (AI 데이터 또는 stcarSttus에서 추출)
-  const card1Closed = (() => {
+  // [신폐 단일 해소계층] 잠정값 — 아래 __resolveNewClose 가 최종값으로 덮어쓴다(let).
+  let card1Closed = (() => {
     if (aiData?.marketSurvival?.closeCount) return aiData.marketSurvival.closeCount;
     const rawClosed = aiData?.overview?.closed;
     if (rawClosed) {
       const n = parseInt(String(rawClosed).replace(/[^0-9]/g, ''), 10);
       return (!isNaN(n) && n <= 200) ? n : 0;
+    }
+    return 0;
+  })();
+  // AI추정 폐업 후보(단일 해소계층 'AI' 티어용) — card1Closed가 위에서 이미 흡수하지만
+  //   해소계층에서 우선순위를 재계산하므로 원천 AI 값을 따로 보존한다.
+  const _aiClosePure = (() => {
+    const a = parseInt(aiData?.marketSurvival?.closeCount, 10);
+    if (!isNaN(a) && a > 0) return a;
+    const rawClosed = aiData?.overview?.closed;
+    if (rawClosed) {
+      const n = parseInt(String(rawClosed).replace(/[^0-9]/g, ''), 10);
+      return (!isNaN(n) && n <= 200 && n > 0) ? n : 0;
     }
     return 0;
   })();
@@ -492,6 +573,8 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       bakery: bakeryCount,
       newOpen: newOpenCount,
       '폐업 매장': card1Closed,
+      // [2026-06-29 정보분산 패스5 §3-C] 카드1 소제목 '반경 Nm'을 하드코딩 대신 실제 검색 반경으로 그리도록 전달.
+      radius: radius,
       _estimated: _card1Estimated,
     },
   };
@@ -1381,8 +1464,11 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   };
 
   // ── Card 4: 개인 카페 분석 ──
-  const indieList = cd.nearbyIndependentList || [];
-  const indieCount = cd.nearbyIndependentCafes || indieList.length || 0;
+  // [2026-06-29 정보분산 패스5 §1-6] 카드4 개인 카페 수 = 카드1과 '완전히 동일한' 단일 출처.
+  //   ★폐기: cd.nearbyIndependentCafes(수집 원본, 반경필터 안 됨) 우선 폴백 → 카드1(반경필터 적용)과
+  //     숫자가 달라지던 결함. 카드1에서 이미 filterByRadius 한 independentList/independentCount 를 그대로 쓴다.
+  const indieList = independentList;
+  const indieCount = independentCount;
 
   // 매출 추정 from nicebizmapStats or salesEstimates
   const avgMonthlySales = cd.nicebizmapStats?.perStoreAvg || 0;
@@ -1712,8 +1798,8 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   // [2026-06-26 추정 배지] 실측이 없어 추정으로 떨어진 카드05(매출분석) 표시 필드 목록.
   const _card5Estimated = [];
   // 객단가 폴백: 비즈맵 캐시(bmAvgPriceStr, 실측) 1순위 → 소상공인365 simpleAnls avgAmt.totAmt(실측) →
-  //   [2026-06-26 가짜상수] 둘 다 없으면 비즈맵 전국 카페 객단가 5,160원으로 떨어지되 추정 표시.
-  //   (예전 폴백 5,856은 KOSIS 외식 전체 평균이라 비즈맵 실측 분포와 어긋나 5,160으로 맞춤.)
+  //   [2026-06-29 정보분산 패스6 §1-12] 둘 다 없으면 단일 상수 CAFE_UNIT_PRICE_FALLBACK(5,500원, 추정)로 떨어진다.
+  //   (예전 5,160/5,856 흩어진 폴백 폐기 → 모듈 상단 단일 상수로 통일.)
   let card5UnitPriceStr = bmAvgPriceStr;
   if (!card5UnitPriceStr) {
     const _saUnit = parseInt(
@@ -1721,14 +1807,15 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     if (_saUnit > 0 && _saUnit < 100000) {
       card5UnitPriceStr = `${_saUnit.toLocaleString()}원`;
     } else {
-      card5UnitPriceStr = '5,500원'; // [2026-06-27 ROI 업계기준] 일반 카페 객단가 폴백 5,500원(추정)
+      card5UnitPriceStr = `${CAFE_UNIT_PRICE_FALLBACK.toLocaleString()}원`; // [2026-06-29 §1-12] 일반 카페 객단가 단일 폴백(추정)
       // [2026-06-26 HIGH-1 키통일] 객단가 추정 → 렌더 정식 키(unitPrice=카드 타일, avgPrice=신뢰타일) 함께 등록.
       _card5Estimated.push('unitPrice', 'avgPrice');
     }
   }
-  // [2026-06-26 HIGH-1 키통일] 월평균 매출이 비즈맵 분위 평균(실측)이 아니라 동평균/단일월로 떨어진 경우 추정 표기.
-  //   bmAvgSalesNum(비즈맵 분위 평균)이 있으면 실측 → 배지 없음. 없으면 폴백(추정).
-  if (!(typeof bmAvgSalesNum === 'number' && bmAvgSalesNum > 0)) {
+  // [2026-06-26 → 2026-06-28 매출 단일화] 월평균 매출(monthlyAvgSales) 1순위 = 소상공인 카페 평균(cafeSales=1086),
+  //   2순위 = 비즈맵 분위 평균(bmAvgSalesNum=901). 둘 중 하나라도 실측이면 실측 → 배지 없음.
+  //   둘 다 없어 안정 동평균/단일월로만 떨어진 경우에만 '추정' 표기.
+  if (!((typeof cafeSales === 'number' && cafeSales > 0) || (typeof bmAvgSalesNum === 'number' && bmAvgSalesNum > 0))) {
     _card5Estimated.push('monthlyAvgSales');
   }
 
@@ -3617,10 +3704,9 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     franchRatio = franchiseCount > 0 ? Math.round((franchiseCount / totalCafes) * 100) : 0;
   }
 
-  let competLevel = '양호';
-  if (totalCafes > 80) competLevel = '매우 과밀';
-  else if (totalCafes > 40) competLevel = '과밀';
-  else if (totalCafes > 15) competLevel = '보통';
+  // [2026-06-29 정보분산 패스5 §1-7] 등급어 = 밀집도 단일 출처(bcDensityGrade). 옛 자체 임계(80/40/15·양호/과밀/매우과밀) 폐기.
+  //   카드13 한줄평·카드14 종합·릴스와 같은 단어가 나오게 통일. 카페수 0이면 '양호'(데이터 없음 폴백).
+  let competLevel = bcDensityGrade(totalCafes) || '양호';
 
   const competBarItems = [];
   if (totalCafes > 0) competBarItems.push({ label: '카페수', value: totalCafes });
@@ -3687,6 +3773,10 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     recentOpenBiz = latest?.opBizCnt || 0;
     recentCloseBiz = latest?.clsBizCnt || 0;
   }
+  // [신폐 단일 해소계층] 비즈맵 detail 순수값 보존 (아래 newOpenCount 폴백으로 오염되기 전 캡처).
+  //   단일 해소계층(__resolveNewClose)의 '비즈맵' 티어가 이 순수값을 쓴다.
+  const _bizmapOpenPure = recentOpenBiz;
+  const _bizmapClosePure = recentCloseBiz;
   // fallback: newOpenCount(오픈업 gp-cafes)로 최근 개업 수 보충
   if (recentOpenBiz === 0 && newOpenCount > 0) {
     recentOpenBiz = newOpenCount;
@@ -3804,6 +3894,42 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       return false;
     }).length;
   }
+  // ═══════════════════════════════════════════════════════════════════════
+  // [신폐 단일 해소계층 — 조기 산출] (2026-06-29 정보분산 패스3 [추가])
+  //   ★ROI 5축 점수(생존안정·성장성)의 신폐 입력이 '잠정 AI값(예 폐업88)'을 쓰던 잔존 정합.★
+  //   화면(카드01/02/09/13/14·릴스)이 쓰는 단일 해소값과 '같은 값'으로 점수도 계산되게,
+  //   점수 블록(아래)보다 먼저 여기서 해소한다. 새 계산 아님 — 화면과 동일한 우선순위·동일 티어값.
+  //   우선순위: ① LOCALDATA 실집계 → ② 수집(신규만) → ③ 비즈맵 detail → ④ AI 추정 → ⑤ 전국평균(신2/폐5)
+  //   ※아래 4900번대 '신폐 단일 해소계층'은 이 값을 그대로 재사용한다(이중 계산 금지).
+  // ═══════════════════════════════════════════════════════════════════════
+  let __resolvedOpen = 0, __resolvedClose = 0;
+  let __resolvedOpenSrc = 'none', __resolvedCloseSrc = 'none';
+  {
+    const _oneYearAgoEarly = new Date(_nowEarly.getFullYear() - 1, _nowEarly.getMonth(), _nowEarly.getDate());
+    const _closedAllEarly = _ldRowsEarly.filter(r => (r.status || '').includes('폐업'));
+    // ① LOCALDATA 실집계
+    const _ldOpen = _activeEarly.filter(r => { const d = _parseDateEarly(r.apvDate); return d && d >= _oneYearAgoEarly; }).length;
+    const _ldClose = _closedAllEarly.filter(r => { const d = _parseDateEarly(r.closeDate); return d && d >= _oneYearAgoEarly; }).length;
+    // ① 수집 실집계(신규만)
+    const _colOpen = (typeof _collectedNewOpenPure === 'number') ? _collectedNewOpenPure : 0;
+    // ② 비즈맵 detail 순수값
+    const _bzOpen = (typeof _bizmapOpenPure === 'number' && _bizmapOpenPure > 0) ? _bizmapOpenPure : 0;
+    const _bzClose = (typeof _bizmapClosePure === 'number' && _bizmapClosePure > 0) ? _bizmapClosePure : 0;
+    // ③ AI 추정
+    const _aiOpen = parseInt(aiData?.marketSurvival?.openCount, 10) || 0;
+    const _aiClose = (typeof _aiClosePure === 'number') ? _aiClosePure : 0;
+    // 신규
+    if (_ldOpen > 0)        { __resolvedOpen = _ldOpen;  __resolvedOpenSrc = 'localdata'; }
+    else if (_colOpen > 0)  { __resolvedOpen = _colOpen; __resolvedOpenSrc = 'collected'; }
+    else if (_bzOpen > 0)   { __resolvedOpen = _bzOpen;  __resolvedOpenSrc = 'bizmap'; }
+    else if (_aiOpen > 0)   { __resolvedOpen = _aiOpen;  __resolvedOpenSrc = 'ai'; }
+    else                    { __resolvedOpen = 2;        __resolvedOpenSrc = 'estimate'; }
+    // 폐업
+    if (_ldClose > 0)       { __resolvedClose = _ldClose; __resolvedCloseSrc = 'localdata'; }
+    else if (_bzClose > 0)  { __resolvedClose = _bzClose; __resolvedCloseSrc = 'bizmap'; }
+    else if (_aiClose > 0)  { __resolvedClose = _aiClose; __resolvedCloseSrc = 'ai'; }
+    else                    { __resolvedClose = 5;        __resolvedCloseSrc = 'estimate'; }
+  }
   // 동 1순위 매출 업종 (시장 축 +3점용)
   let _ext_maxSlsBizName = '';
   let _ext_maxSlsBizDelta = 0;
@@ -3861,25 +3987,24 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   // 우리가 모은 데이터(소상공인 매출, LOCALDATA, 카페 수, 임대료)로 직접 계산
   // ─────────────────────────────────────────────────
   // 자체 데이터 추출 (모두 이미 dataMapper 위쪽에서 정의됨)
-  // [2026-06-24] 시장 매력도·비용 축의 '카페 월매출(만원)' = '월평균 매출' 단일 진실값과 동일하게 통일.
-  //   ① 비즈맵 분위 평균(bmAvgSalesNum, 화면 분위 '평균'=901) → ② 소상공인 카페 단일월(cafeSales)
-  //   → ③ 동 평균(dongAvg) → ④ 비즈맵 점포당평균. ★분위 있으면 점수도 분위 평균 기준으로 계산★
-  // [2026-05-31] 비수도권은 salesAvg '카페'행이 비어 cafeSales=0 → 비용부담 축 붕괴(대구 동성로) → 지역 폴백 보강.
-  const _selfCafeSales = (bmAvgSalesNum > 0) ? bmAvgSalesNum
-    : (typeof cafeSales === 'number' && cafeSales > 0) ? cafeSales
+  // [2026-06-24 → 2026-06-28 매출 단일화] 시장 매력도·비용 축의 '카페 월매출(만원)' = '월평균 매출' 단일 진실값(monthlyAvgSales)과 동일 우선순위로 통일.
+  //   ① 소상공인 카페 평균(cafeSales=1086) → ② 비즈맵 분위 평균(bmAvgSalesNum=901)
+  //   → ③ 동 평균(dongAvg) → ④ 비즈맵 점포당평균. ★헤드라인·점수·AI 종합과 같은 값(1086)으로 계산★
+  // [2026-05-31] 비수도권은 salesAvg '카페'행이 비어 cafeSales=0 → 그땐 비즈맵 분위로 자연 폴백(비용부담 축 붕괴 방지).
+  const _selfCafeSales = (typeof cafeSales === 'number' && cafeSales > 0) ? cafeSales
+    : (bmAvgSalesNum > 0) ? bmAvgSalesNum
     : (typeof dongAvg === 'number' && dongAvg > 0) ? dongAvg
     : (Number(cd.nicebizmapStats?.perStoreAvg) > 0 ? Math.round(Number(cd.nicebizmapStats.perStoreAvg)) : 0);  // 카페 월매출 (만원)
   const _selfTotalCafes = totalCafes || 0;                                                       // 카페 수 (오픈업+카카오)
   const _selfDailyPop = (typeof dailyPop === 'number' && dailyPop > 0) ? dailyPop : 0;          // 일평균 유동인구
   const _selfFranchRatio = franchRatio || 0;                                                     // 프랜차이즈 비율 (%)
-  const _selfClosedCount = card1Closed || 0;                                                     // 폐업 매장 수
-  const _selfNewOpenCount = newOpenCount || 0;
-  const _selfRecentOpen = recentOpenBiz || _selfNewOpenCount;
-  // [2026-06-26 성장성 폐업 누락 버그] 폐업 수는 bizmap 시계열(recentCloseBiz)이 0이면
-  //   카드(1/2/14)와 동일한 실데이터 폐업 수(_selfClosedCount = card1Closed = LOCALDATA 폐업)로 폴백한다.
-  //   기존엔 recentCloseBiz가 0이면 폐업 0으로 떨어져 '신3/폐10 수축'을 '신3/폐0 성장'으로 오판,
-  //   성장성 신폐순증이 0이어야 할 곳에서 최대 6점을 받아 수축 국면에 성장 점수가 붙던 핵심 원인.
-  const _selfRecentClose = recentCloseBiz || _selfClosedCount || 0;
+  // [2026-06-29 패스3 [추가]] 신폐 점수 입력 = 화면과 같은 '단일 해소값(__resolvedOpen/__resolvedClose)'.
+  //   ★옛 잠정값(card1Closed/newOpenCount/recentCloseBiz = AI·시계열 잠정)을 직접 쓰던 잔존 제거.
+  //   생존안정(폐업)·성장성(신폐순증) 점수가 화면 카드09/02 신폐 숫자와 어긋나지 않게 한다.
+  const _selfClosedCount = __resolvedClose || 0;                                                 // 폐업 매장 수(단일 해소값)
+  const _selfNewOpenCount = __resolvedOpen || 0;
+  const _selfRecentOpen = __resolvedOpen || 0;                                                    // 최근 1년 신규(단일 해소값)
+  const _selfRecentClose = __resolvedClose || 0;                                                  // 최근 1년 폐업(단일 해소값)
   const _selfAvgRent = (typeof avgRent === 'number' && avgRent > 0) ? avgRent : 0;              // 평균 월 임대료 (만원)
   const _selfMaxSlsBiz = String(_ext_maxSlsBizName || '').trim();                                // 동 1순위 매출 업종
 
@@ -4662,9 +4787,8 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   } catch (e) { /* 0 유지 */ }
 
   // 카드 5의 메인 동 카페 매출 (만원) - card5는 이미 line ~1230 에서 생성됨
-  // [2026-06-28 매출 단일화] 백분위 비교도 헤드라인·점수와 같은 단일 진실값(monthlyAvgSales=비즈맵 분위 평균)을 쓴다.
-  //   ★버그: 여기만 card5.monthly(소상공인 단일월=1086)를 써서 같은 리포트 안에 매출이 901 vs 1086으로 갈라졌음
-  //     (어제 '천만원대'·오늘 '904' 오해의 직접 원인). 헤드라인/점수=901인데 백분위만 1086이었음 → 통일.
+  // [2026-06-28 매출 단일화] 백분위 비교도 헤드라인·점수와 같은 단일 진실값(monthlyAvgSales=소상공인 카페 평균 1086 1순위, 비즈맵 분위 평균 폴백)을 쓴다.
+  //   ★ 한 리포트 안에서 매출 개념이 901 vs 1086으로 갈라지지 않도록, 모든 소비처가 monthlyAvgSales 한 값을 읽는다.
   const _dongCafeSalesManwon = (card5?.bodyData?.monthlyAvgSales) || (card5?.bodyData?.dongCafeAvgStable) || (card5?.bodyData?.monthly) || 0;
   // 백분위 산출 (동 매출 / 전국 평균 비율 → 백분위)
   // 비율 1.0 = 전국 평균과 동일 = 백분위 50
@@ -4776,7 +4900,7 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   if (_cafeSalesRank) _bonusItems.push({ label: '이 동 업종 중 카페 매출 순위', value: _cafeSalesRank });
 
   // 2. 이 동 카페 매출 vs 시군구(구) 카페 평균 (만원 단위)
-  // [2026-06-28 매출 단일화] 점포당 카페 월매출 = 단일 진실값(monthlyAvgSales=비즈맵 분위 평균). 없으면 안정 동평균→단일월.
+  // [2026-06-28 매출 단일화] 점포당 카페 월매출 = 단일 진실값(monthlyAvgSales=소상공인 카페 평균 1086 1순위, 비즈맵 분위 평균 폴백). 없으면 안정 동평균→단일월.
   // guAvg = 구 카페 평균
   const _card5CafeMonthly = (card5?.bodyData?.monthlyAvgSales) || (card5?.bodyData?.dongCafeAvgStable) || (card5?.bodyData?.monthly) || 0;
   const _card5GuAvg = card5?.bodyData?.guAvg || 0;
@@ -4890,37 +5014,34 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
 
   // [2026-06-26 추정 배지] 실집계/실측이 없어 추정으로 떨어진 카드11(상권 경쟁) 표시 필드 목록.
   const _card11Estimated = [];
-  // (2) 신규/폐업 개수 - 비즈맵 시계열(recentOpenBiz/recentCloseBiz) 1순위 → LOCALDATA 인허가 최근 1년 →
-  //   [2026-06-26 가짜상수] 둘 다 0이면 전국 평균(신2/폐5)으로 떨어지되 _card11Estimated 등록(추정 배지).
-  let _recentOpenCount = 0;
-  let _recentCloseCount = 0;
-  try {
-    _recentOpenCount = (typeof recentOpenBiz === 'number' && recentOpenBiz > 0) ? recentOpenBiz : 0;
-    _recentCloseCount = (typeof recentCloseBiz === 'number' && recentCloseBiz > 0) ? recentCloseBiz : 0;
-    if (_recentOpenCount === 0) {
-      // LOCALDATA 최근 1년 신규 개업 (apvDate >= 1년 전)
-      const _newCount = _activeAllCompet.filter(r => {
-        const d = _parseDateCompet(r.apvDate);
-        return d && d >= _oneYearAgoCompet;
-      }).length;
-      _recentOpenCount = _newCount;
-    }
-    if (_recentCloseCount === 0) {
-      // LOCALDATA 최근 1년 폐업
-      const _closeCount = _closedAllCompet.filter(r => {
-        const d = _parseDateCompet(r.closeDate);
-        return d && d >= _oneYearAgoCompet;
-      }).length;
-      _recentCloseCount = _closeCount;
-    }
-    // 전국 평균 폴백(추정): 일반 카페 상권 연 신규 2~3개 / 폐업 5~8개 (중기부 카페 통계 동 단위 평균)
-    // [2026-06-26 HIGH-1 키통일] 신규/폐업 추정 → 렌더 정식 키(newOpen/closed=신뢰타일)도 함께 등록.
-    if (_recentOpenCount === 0) { _recentOpenCount = 2; _card11Estimated.push('recentOpen', 'newOpen'); }
-    if (_recentCloseCount === 0) { _recentCloseCount = 5; _card11Estimated.push('recentClose', 'closed'); }
-  } catch (e) {
-    // 예외 시 안전한 추정값 보장 (추정 표시)
-    if (_recentOpenCount === 0) { _recentOpenCount = 2; _card11Estimated.push('recentOpen', 'newOpen'); }
-    if (_recentCloseCount === 0) { _recentCloseCount = 5; _card11Estimated.push('recentClose', 'closed'); }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // [신폐 단일 해소계층 — 재사용] (2026-06-29 정보분산 패스3)
+  //   ★이중 계산 제거: 값(__resolvedOpen/__resolvedClose/Src)은 위쪽 '조기 산출' 블록에서 이미 해소됨.
+  //   여기서는 그 단일값을 그대로 받아 ① 추정 배지 판정 ② 모든 소비처(카드01/11/13/14·릴스) 동기화만 한다.
+  //   (조기 산출 = 점수 블록보다 먼저 돌아 ROI 5축 신폐 입력도 화면과 같은 단일값을 쓰게 됨.)
+  // ═══════════════════════════════════════════════════════════════════════
+  // 추정 여부(실집계/실측이 아니면 true → 카드가 '추정' 배지)
+  const __resolvedOpenEstimated = (__resolvedOpenSrc === 'ai' || __resolvedOpenSrc === 'estimate');
+  const __resolvedCloseEstimated = (__resolvedCloseSrc === 'ai' || __resolvedCloseSrc === 'estimate');
+
+  // ── 모든 소비처를 이 단일값으로 통일 ──
+  // 카드11(상권 경쟁) detailRows
+  let _recentOpenCount = __resolvedOpen;
+  let _recentCloseCount = __resolvedClose;
+  if (__resolvedOpenEstimated)  _card11Estimated.push('recentOpen', 'newOpen');
+  if (__resolvedCloseEstimated) _card11Estimated.push('recentClose', 'closed');
+  // 카드01/13/14 공유 단일 진실값 (newOpenCount/card1Closed) 동기화 + 이미 빌드된 card1.bodyData 갱신
+  newOpenCount = __resolvedOpen;
+  card1Closed = __resolvedClose;
+  if (card1 && card1.bodyData) {
+    card1.bodyData.newOpen = __resolvedOpen;
+    card1.bodyData['폐업 매장'] = __resolvedClose;
+    // 카드01 추정 배지: 단일 해소계층 판정으로 재설정 (newOpen/closed 키)
+    const _c1Est = Array.isArray(card1.bodyData._estimated) ? card1.bodyData._estimated.filter(k => k !== 'newOpen' && k !== 'closed') : [];
+    if (__resolvedOpenEstimated)  _c1Est.push('newOpen');
+    if (__resolvedCloseEstimated) _c1Est.push('closed');
+    card1.bodyData._estimated = _c1Est;
   }
 
   // (5) 평균 영업기간 - _avgYearsCompet 폴백 (LOCALDATA 없으면 KOSIS 외식업체경영실태조사 전국 카페 평균 8.5년)
@@ -5035,14 +5156,14 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   // (11) 결제단가(객단가) - _bizmapPay (원 단위) 폴백
   // 1차: 비즈맵 avgPayment (이미 적용됨)
   // 2차: 소상공인 simpleAnls avgAmt.totAmt
-  // 3차: KOSIS 외식업체경영실태조사 전국 카페 평균 객단가 5,856원
+  // 3차: [2026-06-29 §1-12] 단일 상수 CAFE_UNIT_PRICE_FALLBACK(5,500원, 추정)
   let _bizmapPaySafe = _bizmapPay;
   if (!(typeof _bizmapPaySafe === 'number' && _bizmapPaySafe > 0)) {
     const _saUnit = parseInt(apis.simpleAnls?.data?.avgAmt?.totAmt ?? aiData?.apis?.simpleAnls?.data?.avgAmt?.totAmt ?? 0, 10);
     if (_saUnit > 0) {
       _bizmapPaySafe = _saUnit;
     } else {
-      _bizmapPaySafe = 5500; // [2026-06-27 ROI 업계기준] 일반 카페 객단가 폴백 5,500원(추정)
+      _bizmapPaySafe = CAFE_UNIT_PRICE_FALLBACK; // [2026-06-29 §1-12] 일반 카페 객단가 단일 폴백(추정)
     }
   }
 
@@ -5051,7 +5172,7 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   // 2차: KOSIS 전국 카페 평균 일 방문객 추정 (전국 평균 카페수 100k, 외식업 일 이용객 평균)
   let _potCustPerCafeSafe = _potCustPerCafe;
   if (!(typeof _potCustPerCafeSafe === 'number' && _potCustPerCafeSafe > 0)) {
-    // KOSIS 외식업체경영실태조사 카페 일평균 방문객 약 80명 (월매출 1903만원 / 객단가 5856 / 30일 ≈ 108명, 보수 80명)
+    // KOSIS 외식업체경영실태조사 카페 일평균 방문객 약 80명 (월매출 1903만원 / 객단가 5,500(§1-12 단일) / 30일 ≈ 115명, 보수 80명)
     _potCustPerCafeSafe = 80;
   }
 
@@ -5112,6 +5233,12 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       scoreChange: _scoreChangeFinal,
       scoreSurvival: _scoreSurvivalFinal,
       scoreCost: _scoreCostFinal,
+      // [2026-06-29 패스3 §1-14] 5축 만점 단일 배열 — 여기서 1회 생성해 카드13/14·릴스·레이더가 이것만 읽는다.
+      //   {label, max, raw, pct}. 옛 30/25/20/15/10 경로(UnifiedLayout 4732·카드14 _NEWMAX) 전부 제거됨.
+      axes5: bcBuildAxes5({
+        scoreMarket: _scoreMarketFinal, scoreCompete: _scoreCompeteFinal,
+        scoreChange: _scoreChangeFinal, scoreSurvival: _scoreSurvivalFinal, scoreCost: _scoreCostFinal,
+      }),
       // [2026-06-25] 수익성 축(점수) 근거 지표 — 카드13 수익성 headline이 손익분기 병기 대신 이 값을 표기(표시↔점수↔실데이터 한 방향).
       roiOpProfitPct: _roiOpProfitPct,            // 진짜수익률(%) — 사장월급 차감 후, 수익성 축 점수 근거(음수 가능)
       roiMonthlyProfit: Math.round(_roiActualMonthlyProfit),  // 진짜 월수익(만원) — 점수 근거(= realProfitMonthly)
@@ -5130,6 +5257,9 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       // 'resident'(거주인구 기준) | 'flow'(유동 기준 폴백) | null — 참고표시 단위 라벨용.
       perStorePopBasis: (_roiPopPerCafe > 0) ? _roiPopBasis : null,
       roiTotalStartup: _roiTotalStartup,          // 총 창업비(만원) = 인테리어 + 권리금 + 시설장비(보증금 제외)
+      // [2026-06-29 정보분산 패스6 §1-11] 월 고정비 단일 출처 — 비즈맵 실측 원가구조((인건+기타)%×월매출+임대료).
+      //   AI종합 배너 BEP가 예전 'rentMonthly×2.2' 단순상수로 따로 계산하던 걸 폐기하고 이 값을 그대로 읽게 한다.
+      roiFixedMonthly: _roiFixedMonthly,          // 월 고정비(만원, 실측 원가구조 유도; 폴백 시 임대×2.2·추정배지)
       roiInteriorCost: _roiInterior15,            // 인테리어비(만원, 규모별 평당×면적)
       roiPremiumCost: _roiPremiumManwon,          // 권리금(만원, 시도 실측표)
       roiFacilityCost: _roiFacilityManwon,        // 시설·장비비(만원, 2,500 추정)
@@ -5238,7 +5368,7 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   const stcarData = Array.isArray(stcarRaw2) ? stcarRaw2 : (Array.isArray(stcarRaw2?.data) ? stcarRaw2.data : null);
   let survivalRate1y = 0;
   let _stcarSurvival1y = 0;  // [2026-05-31] stcar 실데이터 계산값만 별도 보존 (survivalIsRegional 판정용 — AI 베낀값 오염 방지). 선언 누락 버그 수정.
-  let openCnt = newOpenCount || 0;
+  let openCnt = 0;
   let closeCnt = 0;
   let netChg = 0;
   let trendLabel = '-';
@@ -5261,43 +5391,18 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   }
   if (aiData?.marketSurvival) {
     survivalRate1y = survivalRate1y || parseFloat(String(aiData.marketSurvival.year1 || '0').replace(/[^0-9.]/g, ''));
-    openCnt = openCnt || aiData.marketSurvival.openCount || 0;
   }
 
-  // ── [2026-06-26 MED-D] 신규/폐업 단일 진실값 통일 ──
-  //   카드01(상권분석)의 신규=newOpenCount(L421)·폐업=card1Closed(L442)와 카드13(상권변화)의
-  //   openCnt/closeCnt가 다른 출처(과거: 폐업을 aiData.marketSurvival.closeCount 우선 → LOCALDATA → card1Closed)를
-  //   타서 지역에 따라 두 카드의 숫자가 어긋날 수 있었음(연신내는 우연히 일치).
-  //   → 폐업의 1순위를 card1Closed(카드01·02·14가 공유하는 단일 진실값)로 고정.
-  //   card1Closed 자체가 이미 aiData.marketSurvival.closeCount → aiData.overview.closed 순으로 해소된 값이므로
-  //   카드01과 카드13이 항상 같은 값을 보장한다. LOCALDATA·전국평균은 card1Closed가 0일 때만 쓰는 폴백.
-  // ── 우선순위 1-0: 카드 1 폐업 매장 수 사용 (card1Closed = 단일 진실값) ──
-  if (typeof card1Closed === 'number' && card1Closed > 0) {
-    closeCnt = card1Closed;
-    _closeCountSource = 'card1Closed';
-  }
-  // ── 우선순위 1-1: 폐업 LOCALDATA fallback ──
-  // card1Closed가 0이면 dongRows에서 closeDate 최근 1년 이내 카페 개수로 대체
-  // 변수 정의: _ldRows는 line 1643에서 정의됨 (apis.firebaseLocaldata.data.dongRows)
-  // _parseDate, _oneYearAgo, _closedRows, _recent1yClosed 모두 line 1645~1674에서 정의됨
-  if (!closeCnt || closeCnt === 0) {
-    const _ldClosedRecent1y = (typeof _recent1yClosed === 'number' ? _recent1yClosed : 0);
-    if (_ldClosedRecent1y > 0) {
-      closeCnt = _ldClosedRecent1y;
-      _closeCountSource = 'localdata';
-    }
-  }
-  // ── 우선순위 1-3: 전국 평균 추정 (totalCafes × 2%) ──
-  // [2026-06-26 가짜상수] 비즈맵·인허가·집계(card1Closed) 3단이 모두 비었을 때만 전국 평균(×2%)으로 떨어진다.
-  //   이 경우는 실집계가 아니므로 _card13Estimated 에 등록 → 카드가 "추정" 배지를 붙인다.
-  if (!closeCnt || closeCnt === 0) {
-    if (totalCafes > 0) {
-      closeCnt = Math.max(1, Math.round(totalCafes * 0.02));
-      _closeCountSource = 'estimate';
-      // [2026-06-26 HIGH-1 키통일] 폐업 추정 → 렌더 정식 키(closed=신뢰타일/카드03) 함께 등록.
-      _card13Estimated.push('closeCount', 'closed');
-    }
-  }
+  // ── [신폐 단일 해소계층] 카드13(상권변화) 신규/폐업 = 단일 해소계층 값 그대로 ──
+  //   (2026-06-29 정보분산 패스2) 과거엔 openCnt=newOpenCount·closeCnt=card1Closed→LOCALDATA→전국평균을
+  //   여기서 다시 골랐으나, 위 __resolveNewClose 가 이미 LOCALDATA→비즈맵→AI→전국평균 단일 우선순위로
+  //   해소했으므로 그 값을 그대로 읽는다. 카드01·09·11·13·14·릴스가 항상 같은 숫자를 보장한다.
+  openCnt = __resolvedOpen;
+  closeCnt = __resolvedClose;
+  _closeCountSource = __resolvedCloseSrc;   // 'localdata'|'bizmap'|'ai'|'estimate'
+  // 추정 배지: 단일 해소계층 판정 그대로 (실집계면 무표시)
+  if (__resolvedOpenEstimated)  _card13Estimated.push('openCount', 'newOpen');
+  if (__resolvedCloseEstimated) _card13Estimated.push('closeCount', 'closed');
 
   netChg = openCnt - closeCnt;
   if (netChg > 2) trendLabel = '성장';
@@ -5772,9 +5877,9 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   const c14IndepRatio = c14Total > 0 ? Math.round((c14Indep / c14Total) * 100) : 0;
   const c14FranchRatio = c14Total > 0 ? Math.round((c14Franch / c14Total) * 100) : 0;
 
-  // 매출 추출 — [2026-06-25] ★ '월평균 매출' 단일 진실값(card5.monthlyAvgSales = 비즈맵 분위 평균=901) 사용.
-  //   예전엔 소상공인 단일월(mmavgSlsAmt=1086)을 1순위로 읽어 AI 종합이 매출카드(901·보통)와 값·단어가 달랐음.
-  //   판정/% 분자도 이 901 기준으로 통일. dongAvg/guAvg 도 매출카드(card5)와 동일 출처에서 가져온다.
+  // 매출 추출 — [2026-06-25 → 2026-06-28] ★ '월평균 매출' 단일 진실값(card5.monthlyAvgSales = 소상공인 카페 평균 1086 1순위, 비즈맵 분위 평균 폴백) 사용.
+  //   화면 헤드라인=AI 종합=점수가 모두 같은 값(1086)·같은 판정 단어를 쓰도록 한 출처(monthlyAvgSales)에서 읽는다.
+  //   판정/% 분자도 이 단일값 기준으로 통일. dongAvg/guAvg 도 매출카드(card5)와 동일 출처에서 가져온다.
   let c14CafeSales = (card5?.bodyData?.monthlyAvgSales || card5?.bodyData?.dongCafeAvgStable || card5?.bodyData?.monthly) || 0;
   let c14DongAvg = card5?.bodyData?.dongAvg || 0;
   const c14GuAvgForLevel = card5?.bodyData?.guAvg || 0;
@@ -5847,11 +5952,21 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
 
   // === 5개 지표 점수 계산 (0~100) ===
   // 밀집도: 카페수 기준 (낮을수록 점수 높음 = 진입 여유)
-  let c14Density = 50;
-  if (c14Total > 80) c14Density = 25;
-  else if (c14Total > 40) c14Density = 45;
-  else if (c14Total > 15) c14Density = 70;
-  else if (c14Total > 0) c14Density = 90;
+  // [2026-06-29 정보분산 패스5 §1-7] 점수 구간을 밀집도 단일 출처(bcDensityGrade)의 6단계 경계에 맞춤.
+  //   ★기존 점수값(25/45/70/90)은 유지 — 등급어→점수 매핑으로 같은 카페수가 같은 등급(여유/보통/…/매우과밀)에서
+  //     같은 점수를 받게 한다. 저밀(여유)일수록 진입 여유가 커 점수 높음.
+  const _c14DensGrade = bcDensityGrade(c14Total);
+  const _c14DensScoreByGrade = {
+    '여유': 90,        // ~15개: 진입 여유 큼
+    '보통': 70,        // ~40개
+    '다소 밀집': 45,   // ~80개
+    '밀집': 30,        // ~150개
+    '과밀': 25,        // ~250개
+    '매우 과밀': 20,   // 250개 초과
+  };
+  let c14Density = (_c14DensGrade && _c14DensScoreByGrade[_c14DensGrade] != null)
+    ? _c14DensScoreByGrade[_c14DensGrade]
+    : 50; // 카페수 0/미수집 → 중립 50
 
   // 경쟁: 프랜차이즈 비율 (낮을수록 점수 높음 = 차별화 기회)
   let c14Compet = 50;
@@ -6054,12 +6169,15 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     franchise: card1?.bodyData?.franchise ?? 0,
     individual: card1?.bodyData?.individual ?? 0,
     bakery: card1?.bodyData?.bakery ?? 0,
-    newOpen: card1?.bodyData?.newOpen ?? 0,
-    closedCount: card1?.bodyData?.['폐업 매장'] ?? 0,
-    // [Card 1 ↔ Card 3 출처 차이 명시] Card 1은 AI 추정, Card 3는 행정 인허가 기준이라 다른 숫자 표시 가능
-    closedCountAdmin: card12?.bodyData?.closeCount ?? 0,
-    openCountAdmin: card12?.bodyData?.openCount ?? 0,
-    closedCountSource: card12?.bodyData?.closeCountSource || 'unknown',
+    // [신폐 단일 해소계층] (2026-06-29) 카드01·13(card12) 신규/폐업은 이제 같은 __resolveNewClose 단일값.
+    //   과거 dual(card1=AI추정 vs card12=행정 실집계)을 별도 노출하던 것을 제거하고
+    //   단일값 + 출처신뢰 배지(실집계/추정)로만 구분한다. (이중 숫자 제거)
+    newOpen: __resolvedOpen,
+    closedCount: __resolvedClose,
+    newOpenSource: __resolvedOpenSrc,       // 'localdata'|'collected'|'bizmap'|'ai'|'estimate'
+    closedCountSource: __resolvedCloseSrc,   // 동일 — 실집계(localdata/collected/bizmap) vs 추정(ai/estimate)
+    newOpenEstimated: __resolvedOpenEstimated,
+    closedCountEstimated: __resolvedCloseEstimated,
     // 상권 유형: card7 비즈맵 → AI overview → null (UI에서 자동 분류 폴백)
     blockType: card7?.bodyData?.bizmapBlockType ?? aiData?.overview?.regionType ?? null,
     storeNetChange: card12?.bodyData?.bizmapStoreNetChange ?? null,
@@ -6149,7 +6267,7 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   const _kosisStats = buildKosisCafeStats(apis.kosisFoodSurvey?.data || null);
 
   const c14ProfitStructure = {
-    // [2026-06-24] AI 종합 '카페 월평균 매출'도 매출카드와 같은 단일 진실값(monthlyAvgSales=비즈맵 분위 평균). 없으면 안정 동평균→단일월 폴백.
+    // [2026-06-24 → 2026-06-28] AI 종합 '카페 월평균 매출'도 매출카드와 같은 단일 진실값(monthlyAvgSales=소상공인 카페 평균 1086 1순위, 비즈맵 분위 평균 폴백). 없으면 안정 동평균→단일월 폴백.
     monthlySales: (card5?.bodyData?.monthlyAvgSales || card5?.bodyData?.dongCafeAvgStable || card5?.bodyData?.monthly) ?? 0,
     dongAvg: card5?.bodyData?.dongAvg ?? 0,
     guAvg: card5?.bodyData?.guAvg ?? 0,
@@ -6254,11 +6372,12 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       const indieRatio = Math.round(_mkt.individual / (_mkt.individual + _mkt.franchise) * 100);
       mktObs.push(`개인카페 ${_mkt.individual}개·프랜차이즈 ${_mkt.franchise}개로 개인카페 비중이 ${indieRatio}%입니다`);
     }
-    // 신규/폐업: 두 출처 차이가 크면 모두 안내, 같으면 한 줄
-    if (_mkt.openCountAdmin || _mkt.closedCountAdmin) {
-      mktObs.push(`행정 인허가 기준 최근 1년 신규 ${_mkt.openCountAdmin || 0}개·폐업 ${_mkt.closedCountAdmin || 0}개입니다`);
-    } else if (_mkt.newOpen || _mkt.closedCount) {
-      mktObs.push(`최근 신규 오픈 ${_mkt.newOpen || 0}개·폐업 ${_mkt.closedCount || 0}개로 변동이 있습니다`);
+    // [신폐 단일 해소계층] (2026-06-29) 신규/폐업은 단일값 + 출처신뢰(실집계/추정)로만 안내. 이중 숫자 제거.
+    if (_mkt.newOpen || _mkt.closedCount) {
+      const _bothEst = _mkt.newOpenEstimated && _mkt.closedCountEstimated;
+      const _src = (s) => (s === 'localdata' || s === 'collected' || s === 'bizmap') ? '실집계 기준' : '추정';
+      const _badge = _bothEst ? '추정' : _src(_mkt.closedCountSource || _mkt.newOpenSource);
+      mktObs.push(`최근 1년 신규 ${_mkt.newOpen || 0}개·폐업 ${_mkt.closedCount || 0}개입니다(${_badge})`);
     }
     if (_mkt.cafes5yChangeRate) mktObs.push(`5년 전 대비 점포 수가 ${_mkt.cafes5yChangeRate > 0 ? '+' : ''}${Math.round(_mkt.cafes5yChangeRate)}% 변했습니다`);
     if (_mkt.storeTrendLabel) mktObs.push(`최근 점포 추이는 ${_mkt.storeTrendLabel} 방향입니다`);
@@ -6540,21 +6659,13 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     };
   })();
 
-  // === 5축 점수: Card 12와 동일한 시장/경쟁/변화/생존/비용 축 사용 (각 만점 다름 → % 정규화) ===
-  // Card 12 만점: 시장20·경쟁20·변화15·생존30·비용15
+  // === 5축 점수: 단일 출처(card11.bodyData.axes5)에서만 읽는다. ===
+  // [2026-06-29 패스3 §1-14] 옛 30/25 경로·로컬 _pct 재계산 폐기. axes5 가 {label,max,raw,pct} 정본.
   const _c12 = card11?.bodyData;
-  const _pct = (raw, max) => {
-    if (typeof raw !== 'number' || !isFinite(raw) || max <= 0) return null;
-    return Math.max(0, Math.min(100, Math.round((raw / max) * 100)));
-  };
-  // [2026-06-28 ROI 가중치 정합] 레이더 5축 = 수익성25·투자회수15·경쟁여건20·생존안정20·성장성20 (합=100)
-  const _ax5 = (typeof _c12?.score === 'number' && _c12.score > 0) ? [
-    { axis: '수익성', label: '수익성', value: _pct(_c12.scoreMarket, 25) ?? 0, raw: _c12.scoreMarket, max: 25, fullMark: 100 },
-    { axis: '투자회수', label: '투자회수', value: _pct(_c12.scoreCompete, 15) ?? 0, raw: _c12.scoreCompete, max: 15, fullMark: 100 },
-    { axis: '경쟁여건', label: '경쟁여건', value: _pct(_c12.scoreChange, 20) ?? 0, raw: _c12.scoreChange, max: 20, fullMark: 100 },
-    { axis: '생존안정', label: '생존안정', value: _pct(_c12.scoreSurvival, 20) ?? 0, raw: _c12.scoreSurvival, max: 20, fullMark: 100 },
-    { axis: '성장성', label: '성장성', value: _pct(_c12.scoreCost, 20) ?? 0, raw: _c12.scoreCost, max: 20, fullMark: 100 },
-  ] : [
+  const _axes5src = Array.isArray(_c12?.axes5) ? _c12.axes5 : [];
+  const _ax5 = (typeof _c12?.score === 'number' && _c12.score > 0 && _axes5src.length === 5) ? _axes5src.map(a => ({
+    axis: a.label, label: a.label, value: (a.pct != null ? a.pct : 0), raw: a.raw, max: a.max, fullMark: 100,
+  })) : [
     { axis: '밀집도', label: '밀집도', value: c14Density, fullMark: 100 },
     { axis: '경쟁', label: '경쟁', value: c14Compet, fullMark: 100 },
     { axis: '잠재력', label: '잠재력', value: c14Potential, fullMark: 100 },
@@ -6602,25 +6713,41 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     chartType: 'scoreCard',
     metaInfo: 'AI종합',
     chartData: c14ChartData,
-    bodyData: {
-      overallScore: c14OverallScore,
-      opportunities: c14Opps.length,
-      risks: c14Risks.length,
-      recommendation: c14Recommendation,
-      beancraftPriority: aiData?.beancraftFeedback?.priority || null,
-      interior: aiData?.beancraftFeedback?.interior || null,
-      equipment: aiData?.beancraftFeedback?.equipment || null,
-      menu: aiData?.beancraftFeedback?.menu || null,
-      beans: aiData?.beancraftFeedback?.beans || null,
-      education: aiData?.beancraftFeedback?.education || null,
-      design: aiData?.beancraftFeedback?.design || null,
-      // [2026-06-26 HIGH-1] AI 종합(신뢰 타일)이 읽는 _estimated 가 비어 영구 숨김이던 것 → 전 카드 추정 플래그를 합쳐 전달.
+    bodyData: (() => {
+      // [2026-06-26 HIGH-1] AI 종합(신뢰 타일)이 읽는 _estimated — 전 카드 추정 플래그를 합쳐 전달.
       //   신뢰 타일 TRUST_METRICS(monthlyAvgSales·avgRent·survival3y·newOpen·closed·avgPrice·opProfitPct·costRate)와 같은 키 공간.
-      _estimated: Array.from(new Set([
+      const _c14Estimated = Array.from(new Set([
         ..._card1Estimated, ..._card5Estimated, ..._card6Estimated, ..._card7Estimated,
         ..._card11Estimated, ..._roiEstimated, ..._card13Estimated,
-      ])),
-    },
+      ]));
+      // [2026-06-29 패스3 §2-2] 신뢰 점수 = 화면(cards-c trustInfo)과 같은 '실집계 비율' 단일 출처.
+      //   여기서 1회 산출해 화면·릴스 둘 다 이 trustInfo 만 미러한다(릴스 자기참조 50+보너스 폐기).
+      //   _estimated 가 비면(추정 정보 자체 없음) null → 화면도 표시 끔, 릴스도 그 키 생략.
+      const TRUST_METRICS = ['monthlyAvgSales', 'avgRent', 'survival3y', 'newOpen', 'closed', 'avgPrice', 'opProfitPct', 'costRate'];
+      const _estSet = new Set(_c14Estimated.map(k => String(k)));
+      const trustInfo = (_estSet.size === 0) ? null : (() => {
+        const totalN = TRUST_METRICS.length;
+        const estN = TRUST_METRICS.filter(k => _estSet.has(String(k))).length;
+        const realN = totalN - estN;
+        return { realN, totalN, pct: Math.round((realN / totalN) * 100) };
+      })();
+      return {
+        overallScore: c14OverallScore,
+        opportunities: c14Opps.length,
+        risks: c14Risks.length,
+        recommendation: c14Recommendation,
+        beancraftPriority: aiData?.beancraftFeedback?.priority || null,
+        interior: aiData?.beancraftFeedback?.interior || null,
+        equipment: aiData?.beancraftFeedback?.equipment || null,
+        menu: aiData?.beancraftFeedback?.menu || null,
+        beans: aiData?.beancraftFeedback?.beans || null,
+        education: aiData?.beancraftFeedback?.education || null,
+        design: aiData?.beancraftFeedback?.design || null,
+        _estimated: _c14Estimated,
+        // 화면·릴스 공용 단일 신뢰지표(실집계 비율). null이면 양쪽 모두 표시 생략.
+        trustInfo,
+      };
+    })(),
   };
 
   // ── 한글 금액 표기 일괄 적용 (AI 생성 텍스트 내 "X만원" → "X억 X만원") ──
@@ -6686,6 +6813,44 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   return allCards;
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// [2026-06-29 정보분산 패스4] 고객(연령대·성비) 단일 출처 해소 계층.
+//   카드/릴스/AI가 쓰는 카드2 bodyData(topAge·age50PlusPct·maleRatio·femaleRatio)를
+//   그대로 돌려준다. 검색 직후 중간 AI 화면(App.jsx)도 이 함수만 읽어,
+//   같은 지역의 연령/성비가 화면마다 갈리지 않게 한다.
+//   (새 계산을 만들지 않는다 — mapCollectedDataToCards 결과 card2를 재사용.)
+//   동일 collectedData/aiData 호출은 1회만 매핑하고 캐시한다(렌더당 중복 매핑 방지).
+// ═══════════════════════════════════════════════════════════════════════
+let _card2DemoCache = { key: null, value: null };
+export function resolveCard2Demographics(collectedData, aiData, radius = 500) {
+  const empty = { topAge: '', age50PlusPct: 0, maleRatio: 0, femaleRatio: 0, ageGroups: [] };
+  if (!collectedData) return empty;
+  // 캐시 키: collectedData/aiData 객체 참조 동일하면 같은 결과(검색 1회 동안 불변).
+  const key = collectedData;
+  if (_card2DemoCache.key === key && _card2DemoCache.value) return _card2DemoCache.value;
+  let card2 = null;
+  try {
+    const cards = mapCollectedDataToCards(collectedData, aiData || {}, radius);
+    card2 = Array.isArray(cards) && cards[1] ? cards[1] : null;
+  } catch (e) {
+    console.warn('[resolveCard2Demographics] 매핑 실패:', e?.message);
+    return empty;
+  }
+  if (!card2) return empty;
+  const bd = card2.bodyData || {};
+  // 막대(연령대 분포)와 동일한 합100 버킷 = chartData.ageGroups (_card2AgeGroups).
+  const ageGroups = Array.isArray(card2.chartData?.ageGroups) ? card2.chartData.ageGroups : [];
+  const value = {
+    topAge: bd.topAge || '',
+    age50PlusPct: Number(bd.age50PlusPct) || 0,
+    maleRatio: Number(bd.maleRatio ?? bd.male) || 0,
+    femaleRatio: Number(bd.femaleRatio ?? bd.female) || 0,
+    ageGroups,
+  };
+  _card2DemoCache = { key, value };
+  return value;
+}
+
 /**
  * Extract summary metrics for the top dashboard bar
  */
@@ -6695,16 +6860,19 @@ export function extractSummaryMetrics(collectedData, aiData, radius = 500) {
   const apis = cd.apis || {};
 
   // 반경 필터링된 카페 수
+  // [2026-06-29 정보분산 패스5 §1-5] 배너 총 카페수 = 카드(card1.totalCafes)와 '완전히 동일한' 산식.
+  //   ★폐기: radius>=500 일 때 cd.nearbyTotalCafes(수집 원본) 직접참조 → 카드(프랜+개인 반경필터 합)와
+  //     숫자가 어긋나던 결함. 항상 프랜차이즈+개인 리스트를 카드와 같은 반경 기준으로 합산한다.
   const cafeCount = (() => {
-    if (radius >= 500) return cd.nearbyTotalCafes || 0;
-    const allCafes = [
-      ...(cd.nearbyFranchiseList || []),
-      ...(cd.nearbyIndependentList || []),
-    ];
-    return allCafes.filter(c => {
-      const d = typeof c.dist === 'number' ? c.dist : parseFloat(c.dist) || 999;
-      return d <= radius;
-    }).length;
+    const inRadius = (list) => {
+      if (!list) return [];
+      if (radius >= 500) return list; // 카드1 filterByRadius 와 동일: 500 이상이면 무필터
+      return list.filter(c => {
+        const d = typeof c.dist === 'number' ? c.dist : parseFloat(c.dist) || 999;
+        return d <= radius;
+      });
+    };
+    return inRadius(cd.nearbyFranchiseList).length + inRadius(cd.nearbyIndependentList).length;
   })();
 
   let monthlySales = 0;

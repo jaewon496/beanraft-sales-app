@@ -33,6 +33,8 @@ function Card01({ body = {} }) {
   const vacancyRate = body.vacancyRate;
   const vacancyDisplay = vacancyRate != null && vacancyRate > 0 ? (window.bcFmtPct ? window.bcFmtPct(Number(vacancyRate)) : Number(vacancyRate).toFixed(1)) : '-';
   const totalStores = cafeCount + bakery;
+  // [2026-06-29 §3-C] 반경 라벨 = 검색 반경 변수 기반(하드코딩 500 제거). body.radius 없으면 500 폴백(카드07과 동일 패턴).
+  const _radiusM = (typeof body.radius === 'number' && body.radius > 0) ? body.radius : 500;
   // [2026-06-14] 분모 통일: 카페(개인+프랜) 기준으로 % 산출 → 카드08/09와 일치(개인 59 / 프랜 41).
   // 베이커리는 비율 파이에서 제외(개수만 유지). 도넛 중앙 라벨(cafeCount=353)과도 분모 정합.
   const donutTotal = individual + franchise;
@@ -80,7 +82,7 @@ function Card01({ body = {} }) {
     <CardShell n="01" id="01"
       bruSummary={body.bruSummary}
       title="상권 분석 리포트"
-      sub="반경 500m 매장 구성과 임대 시세"
+      sub={`반경 ${_radiusM}m 매장 구성과 임대 시세`}
       headerRight={window.MapTriggerButton ? <window.MapTriggerButton/> : null}>
       {/* Top: hero + donut */}
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
@@ -119,7 +121,7 @@ function Card01({ body = {} }) {
               <Donut id="c1.donut" size={200} segments={[
                 ...(indiePct > 0 ? [{value:indiePct, color:"#4C7BE4", label:"개인 카페"}] : []),
                 ...(franPct > 0 ? [{value:franPct, color:"#FFFFFF", label:"프랜차이즈"}] : []),
-              ]} centerLabel={String(cafeCount)} centerSub="카페 매장"/>
+              ]} centerLabel={String(cafeCount)} centerSub="카페 매장(베이커리 제외)"/>
               <DonutLegend segments={[
                 ...(indiePct > 0 ? [{value:indiePct, color:"#4C7BE4", label:"개인", text:`${indiePct}%`}] : []),
                 ...(franPct > 0 ? [{value:franPct, color:"#FFFFFF", label:"프랜차이즈", text:`${franPct}%`}] : []),
@@ -193,17 +195,17 @@ function Card02({ body = {} }) {
     ageGroups.forEach((g, idx) => { if (g.v > _maxV) { _maxV = g.v; _maxI = idx; } });
     topAgeIdx = _maxI;
   }
-  // [2026-05-20] 주요 연령대 표시값 자기교정:
-  // topAge 원본이 "7대" 같은 잘못된 코드 라벨이면 ageGroups의 실제 라벨로 교체.
-  // [2026-06-14] 히어로 %가 아래 분포 막대와 항상 같도록, 매칭/폴백된 ageGroups 구간이 있으면
-  //   그 구간(분포 막대와 동일 소스)의 라벨+비율을 우선 사용. (원본 topAge 괄호 %는 막대와 다른 소스라
-  //   "30대 (31%)" 히어로 vs "30대 32%" 막대 불일치를 만들었음.)
-  let topAgeDisplay = '';
-  if (topAgeIdx >= 0 && ageGroups[topAgeIdx]) {
+  // [2026-06-29 정보분산 패스4 §3-C] 렌더 자기교정 폐지.
+  //   주요 연령대 표시값은 데이터층(dataMapper)이 이미 막대 버킷(_card2AgeGroups)과
+  //   같은 %로 맞춰 내려준 bd.topAge("30대 (31%)")를 '그대로' 쓴다.
+  //   (기존: 렌더에서 ageGroups를 다시 매칭/재포맷 → 데이터층과 갈리는 두번째 출처가 됐음.)
+  //   topAgeIdx 는 어느 막대를 강조할지 '위치'만 정하는 용도라 그대로 유지.
+  let topAgeDisplay = topAge || '';
+  // 데이터층 값이 통째로 비었을 때만(폴백) 막대 버킷 라벨로 최소 표시.
+  if (!topAgeDisplay && topAgeIdx >= 0 && ageGroups[topAgeIdx]) {
     const _g = ageGroups[topAgeIdx];
     topAgeDisplay = _g.v > 0 ? `${_g.l} (${_g.v}%)` : _g.l;
   }
-  if (!topAgeDisplay) topAgeDisplay = topAge || '';
   if (!topAgeDisplay) topAgeDisplay = '-';
   const earn = bd.customerYrEarn || null;
   const maleIncome = Number(earn?.male) || 0;
@@ -721,13 +723,13 @@ function Card05({ body = {} }) {
   priceItems.push(['저가 브랜드', 2500, false]);
   const regionClose = Number(kosis?.regionClosure?.value) || 0;
   const sidoClose = Number(kosis?.cafeClosure?.value) || 0;
-  // [2026-06-14] 폐업 동향 → 신규 개업 흐름(긍정 프레이밍)으로 교체
-  const areaNewOpen = Number(bd.areaNewOpen) || 0;
-  // [2026-06-26] '최근 신규 개업'을 합성 상수(개인수×1.5%) 대신 실제 신규 진입 매장 수로 표시.
-  //   1순위: areaNewOpen(있으면). 2순위: 데이터층이 채운 newIndieList(반경 내 isNewOpen 개인 카페 실집계).
+  // [신폐 단일 해소계층 §3] (2026-06-29) 이 칸은 '개인 카페 신규 진입'(개념이 카드01·11·13의
+  //   '전체 카페 신규'와 다름)이므로 단일값을 쓰지 않고 라벨을 '개인 카페 신규'로 분리한다.
+  //   1순위: newIndieList(반경 내 isNewOpen 개인 카페 실집계). 2순위: areaNewOpen(개인 한정으로 주입된 값).
   //   둘 다 없을 때만 전국 평균(개인수×1.5%, 최소 1)으로 떨어지며 그 경우 '추정' 배지를 붙인다.
   const _newIndieRealCount = Array.isArray(bd.newIndieList) ? bd.newIndieList.length : 0;
-  const _newOpenReal = areaNewOpen > 0 ? areaNewOpen : _newIndieRealCount;
+  const areaNewOpen = Number(bd.areaNewOpen) || 0;
+  const _newOpenReal = _newIndieRealCount > 0 ? _newIndieRealCount : areaNewOpen;
   const newOpenEstimated = _newOpenReal <= 0; // 실집계 없음 → 전국 평균 추정
   const newOpenDisplay = _newOpenReal > 0
     ? _newOpenReal
@@ -799,11 +801,11 @@ function Card05({ body = {} }) {
             <div className="bc-grid-2" style={{gap:12}}>
               <div style={{padding:"18px 20px", background:"rgba(76, 123, 228,0.08)", borderRadius:10, border:"1px solid rgba(76, 123, 228,0.45)"}}>
                 <div style={{display:"flex", alignItems:"center", gap:6, marginBottom:8}}>
-                  <div style={{fontSize:13, color:"var(--matte-fg-3)", fontWeight:500}}>최근 신규 개업</div>
+                  <div style={{fontSize:13, color:"var(--matte-fg-3)", fontWeight:500}}>개인 카페 신규</div>
                   {newOpenEstimated && window.EstBadge ? <window.EstBadge/> : null}
                 </div>
                 <div style={{fontSize:24, fontWeight:700, color:"#4C7BE4", fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{newOpenDisplay.toLocaleString()}<span style={{fontSize:13, color:"var(--matte-fg-3)", marginLeft:3, fontWeight:500}}>곳</span></div>
-                <div style={{fontSize:12, color:"var(--matte-fg-4)", marginTop:6}}>반경 500m 신규 진입 매장</div>
+                <div style={{fontSize:12, color:"var(--matte-fg-4)", marginTop:6}}>반경 500m 개인 카페 신규 진입</div>
               </div>
               <div style={{padding:"18px 20px", background:"rgba(255,255,255,0.03)", borderRadius:10, border:"1px solid var(--matte-line)"}}>
                 <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:8, fontWeight:500}}>개인 카페 비중</div>
@@ -950,7 +952,7 @@ function Card06({ body = {} }) {
       sub="월평균 예상 매출"
       date={null}>
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
-        {/* [2026-06-24] 헤드라인 = '월평균 매출' 단일 진실값(bd.monthlyAvgSales = 비즈맵 분위 평균, 만원). 화면 분위 '평균'과 같은 값. 없으면 안정 동평균→단일월 폴백. 라벨은 '동 평균' 유지. */}
+        {/* [2026-06-24 → 2026-06-28] 헤드라인 = '월평균 매출' 단일 진실값(bd.monthlyAvgSales = 소상공인 카페 평균 1086 1순위, 비즈맵 분위 평균 폴백, 만원). 매출추이 '동 평균'과 같은 값. 없으면 안정 동평균→단일월 폴백. 라벨은 '동 평균' 유지. */}
         {(() => {
           const _headSales = (Number(bd.monthlyAvgSales) > 0 ? Number(bd.monthlyAvgSales)
             : (Number(bd.dongCafeAvgStable) > 0 ? Number(bd.dongCafeAvgStable) : monthly));
@@ -995,9 +997,10 @@ function Card06({ body = {} }) {
             </div>
           </div>
 
-          {/* 2. 무채색 타일 (균등) — 점포 평균 / 중앙값(있을 때만) / 하위 20%. 중앙값 없는 지역(DOM 경로)은 2타일로 자연 축소(가짜값 금지). */}
+          {/* 2. 무채색 타일 (균등) — 점포 평균(비즈맵 분포) / 중앙값(있을 때만) / 하위 20%. 중앙값 없는 지역(DOM 경로)은 2타일로 자연 축소(가짜값 금지).
+                [2026-06-28 매출 단일화] 이 '점포 평균'은 비즈맵 분위 분포의 평균(901)으로, 헤드라인·매출추이의 '동 평균'(소상공인 1086)과 출처가 다름 → 라벨을 분리해 같은라벨≠다른값 충돌 방지. */}
           {(() => {
-            const tiles = [["점포 평균", qAvg]];
+            const tiles = [["점포 평균 (비즈맵 분포)", qAvg]];
             if (qMid) tiles.push(["중앙값 매출", qMid]);
             tiles.push(["하위 20%", qBtm]);
             return (
@@ -1105,8 +1108,9 @@ function Card06({ body = {} }) {
             <div style={{height:240, display:"flex", alignItems:"center", justifyContent:"center", color:"var(--matte-fg-4)"}}>매출 추이 데이터 수집 중</div>
           )}
 
-          {/* [2026-06-26 빈값 금지 — 비즈맵 분위로 채움] 동 최고/평균/최저는 전부 '카페 기준' 비즈맵 분위(이미 정렬됨)를 1순위로 쓴다.
-              · 동 최고 = bizmapTopSalesNum(상위20%) · 동 평균 = bizmapAvgSalesNum 또는 monthlyAvgSales · 동 최저 = bizmapBottomSalesNum(하위20%)
+          {/* [2026-06-26 → 2026-06-28 매출 단일화] 동 최고/최저는 '카페 기준' 비즈맵 분위(상위/하위20%, 이미 정렬됨)를 1순위로 쓰고,
+              '동 평균'은 헤드라인과 같은 단일 진실값(monthlyAvgSales=소상공인 1086 1순위)을 써서 같은라벨≠다른값 충돌을 없앤다.
+              · 동 최고 = bizmapTopSalesNum(상위20%) · 동 평균 = monthlyAvgSales(소상공인 1086) · 동 최저 = bizmapBottomSalesNum(하위20%)
               분위가 다 있으면 셋 다 양수 → '-' 안 나옴. 정렬 보장(최저≤평균≤최고)으로 clamp.
               분위가 전부 없을 때만(비수도권 등) 소상공인 동최고/최저로 폴백, 그것도 0이면 그 항목은 '추정' 배지+가능한 값, 정 안 되면 라벨 자체를 숨긴다(단독 '-' 금지). */}
           {(() => {
@@ -1120,9 +1124,12 @@ function Card06({ body = {} }) {
             // 값 + 추정여부 결정. estTrue = 1순위 소스(분위/통일평균)가 없어 폴백으로 채운 경우.
             let _maxN, _avgN, _minN, _maxEst = false, _avgEst = false, _minEst = false;
             if (_hasQuantile) {
-              // 1순위: 비즈맵 분위(전부 카페 기준, 이미 정렬). 평균은 분위 평균→통일 카페 평균 순.
+              // [2026-06-28 매출 단일화] 최고/최저는 비즈맵 분위(상위/하위20%, 이미 정렬) 그대로.
+              //   ★ '동 평균'은 헤드라인 '동 평균'(monthlyAvgSales=소상공인 1086)과 같은 라벨이므로
+              //     같은 값(_cafeAvgRaw)을 써서 한 카드 안 같은라벨≠다른값(901 vs 1086) 충돌을 제거한다.
+              //     (비즈맵 분위 평균 901은 위쪽 '점포 평균(분위)' 섹션에 그대로 노출 — 라벨이 달라 충돌 없음.)
               _maxN = _qTopN;
-              _avgN = (_qAvgN > 0 ? _qAvgN : _cafeAvgRaw);
+              _avgN = (_cafeAvgRaw > 0 ? _cafeAvgRaw : _qAvgN);
               _minN = _qBtmN;
             } else {
               // 폴백: 소상공인 동최고/최저(0이면 추정 배지로 표시). 평균은 통일 카페 평균.
