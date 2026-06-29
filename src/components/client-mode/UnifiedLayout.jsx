@@ -6352,7 +6352,10 @@ export default function UnifiedLayout({
           put(values, '총창업비', fmtMan(totalStartup));
         } else if (screen === 5) {     // 고객 분석 (컴포넌트 n=02)
           title = '고객 분석';
+          // [2026-06-29 연령충돌] '주요연령대' = 화면 KPI와 동일한 단일 최다 구간(topAge, 예 "60대+ (37%)").
+          //   50대 이상 누적(59%)은 다른 지표이므로 '50대이상' 별도 키로 분리해 이미지=values 일치 유지.
           put(values, '주요연령대', _str(body.topAge) || _str(bd.topAge));
+          { const a50 = _num(bd.age50PlusPct); put(values, '50대이상', a50 > 0 ? `${a50}%` : null); }
           { const m = _num(body.maleRatio) != null ? _num(body.maleRatio) : _num(bd.male);
             const f = _num(body.femaleRatio) != null ? _num(body.femaleRatio) : _num(bd.female);
             put(values, '성비', (m != null && f != null && (m + f) > 0) ? `${m} : ${f}` : null); }

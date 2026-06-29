@@ -865,23 +865,27 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   if (openubSales) card2Sources.push('오픈업');
   if (bmGenderAge && !card2Sources.includes('비즈맵')) card2Sources.push('비즈맵');
 
-  // [2026-06-14 카드05] 연령대 분포를 4버킷·합100 으로 1회만 정규화해서
-  //   히어로(주요 연령대 %)와 막대(연령대 분포)가 같은 30대 값을 쓰도록 단일 소스화.
+  // [2026-06-14 카드05] 연령대 분포를 버킷·합100 으로 1회만 정규화해서
+  //   히어로(주요 연령대 %)와 막대(연령대 분포)가 같은 구간 값을 쓰도록 단일 소스화.
   //   (기존: 히어로는 원천 per-segment %(31), 막대는 합100 정규화(32) → 불일치)
+  // [2026-06-29 연령충돌] 50대·60대+를 하나의 '50대+' 버킷으로 합쳐 막대 최다(59)가
+  //   단일 최다 구간 topAge('60대+' 37)와 충돌하던 버그 수정 → 50대/60대+를 분리 버킷으로.
+  //   '50대 이상 누적'(59)은 막대가 아닌 별도 보조값(_card2Age50PlusPct)으로만 노출.
   const _card2AgeGroups = (() => {
     if (!Array.isArray(ageSegments) || ageSegments.length < 2) return [];
-    const buckets = { '20대': 0, '30대': 0, '40대': 0, '50대+': 0 };
+    const buckets = { '20대': 0, '30대': 0, '40대': 0, '50대': 0, '60대+': 0 };
     ageSegments.forEach(s => {
       const name = s.name || '';
       if (name.includes('20') || name.includes('이십')) buckets['20대'] += s.pct;
       else if (name.includes('30') || name.includes('삼십')) buckets['30대'] += s.pct;
       else if (name.includes('40') || name.includes('사십')) buckets['40대'] += s.pct;
-      else buckets['50대+'] += s.pct;
+      else if (name.includes('50') || name.includes('오십')) buckets['50대'] += s.pct;
+      else buckets['60대+'] += s.pct;
     });
     const arr = Object.entries(buckets)
       .filter(([, v]) => v > 0)
       .map(([k, v]) => ({ name: k, pct: Math.round(v) }));
-    // 4버킷 합이 99/101 처럼 100이 아니면 잔차를 최대 버킷에 흡수시켜 정확히 100 보장.
+    // 버킷 합이 99/101 처럼 100이 아니면 잔차를 최대 버킷에 흡수시켜 정확히 100 보장.
     const sum = arr.reduce((s, x) => s + x.pct, 0);
     if (arr.length > 0 && sum > 0 && sum !== 100) {
       let mi = 0;
@@ -889,6 +893,16 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       arr[mi].pct += (100 - sum);
     }
     return arr;
+  })();
+  // [2026-06-29] 50대 이상 누적 비중(50대+60대+). '주요 연령대'(단일 최다)와 다른 별도 지표라
+  //   막대/히어로가 아닌 보조 텍스트(KPI 각주)로만 쓴다. 50대 이상 구간이 실제 있을 때만 산출.
+  const _card2Age50PlusPct = (() => {
+    if (!Array.isArray(_card2AgeGroups) || _card2AgeGroups.length === 0) return 0;
+    const sum = _card2AgeGroups.reduce((acc, g) => {
+      const num = Number((String(g.name).match(/\d+/) || [])[0]) || 0;
+      return num >= 50 ? acc + (Number(g.pct) || 0) : acc;
+    }, 0);
+    return Math.round(sum);
   })();
 
   const card2 = {
@@ -924,6 +938,8 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       }
       // 주요 연령대
       if (topAge) bd.topAge = topAge;
+      // [2026-06-29] 50대 이상 누적 비중(50대+60대+) — '주요 연령대'와 다른 별도 지표(KPI 각주용).
+      if (_card2Age50PlusPct > 0) bd.age50PlusPct = _card2Age50PlusPct;
       // 신규/단골 (배달핫플레이스)
       if (newCustomerPct > 0) bd.newCustomer = newCustomerPct;
       if (regularPct > 0) bd.regular = regularPct;

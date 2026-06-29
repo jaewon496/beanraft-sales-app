@@ -239,6 +239,12 @@ function Card02({ body = {} }) {
   })();
   // 재방문/신규 추정값 여부 (배달핫플레이스 직접 데이터가 아닌 거주안정성 추정)
   const revisitEstimated = !!bd.revisitEstimated;
+  // [2026-06-29 연령충돌] '주요 연령대'(=단일 최다 구간 topAgeDisplay)와 '50대 이상 누적'(50대+60대+)은
+  //   서로 다른 지표. 같은 '주요 연령대' 이름으로 두 값이 안 나오게, 누적은 별도 보조 텍스트로만 표시.
+  //   단일 최다 구간이 이미 50대 이상이면(예: 50대가 최다) 누적과 거의 같으므로 보조 표기를 생략.
+  const age50PlusPct = Number(bd.age50PlusPct) || 0;
+  const _topAgeNumForNote = Number((String(topAgeDisplay).match(/\d+/) || [])[0]) || 0;
+  const showAge50PlusNote = age50PlusPct > 0 && _topAgeNumForNote > 0 && _topAgeNumForNote < 50;
   return (
     <CardShell n="02" id="02"
       bruSummary={body.bruSummary}
@@ -253,6 +259,13 @@ function Card02({ body = {} }) {
       </div>
       {revisitEstimated && (regularPct > 0 || newCustomerPct > 0) && (
         <div style={{fontSize:12, color:"var(--matte-fg-4)", marginTop:-6, marginBottom:14}}>재방문율 · 신규 비율은 거주 안정성 기반 추정치입니다.</div>
+      )}
+      {/* [2026-06-29] '주요 연령대'(단일 최다 구간)와 구분되는 '50대 이상 누적' 보조 표기 */}
+      {showAge50PlusNote && (
+        <div style={{display:"flex", alignItems:"center", gap:8, marginTop:-6, marginBottom:14}}>
+          <span style={{fontSize:13, color:"var(--matte-fg-3)", fontWeight:500}}>50대 이상 비중</span>
+          <span style={{padding:"2px 10px", background:"rgba(255,255,255,0.06)", border:"1px solid var(--matte-line)", borderRadius:6, fontSize:13, fontWeight:700, color:"var(--matte-fg-2)", fontVariantNumeric:"tabular-nums"}}>{age50PlusPct}%</span>
+        </div>
       )}
 
       <div style={{display:"grid", gridTemplateColumns:"1.2fr 1fr", gap:16}}>
