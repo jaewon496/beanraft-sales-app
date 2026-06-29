@@ -572,7 +572,10 @@ export function buildDiagnosisBundle({ cards, kosisBoxData, collectedData, dataA
 //   새 경로가 실패/예외면 getUnifiedDiagnosis 가 자동으로 v9 결과를 반환한다.
 // ═════════════════════════════════════════════════════════════════════════
 
-const AI_DIAG_V10_PREFIX = 'bc_ai_diag_v10pro5_';  // 종합(배너/진단/설계방향) pro 단일콜 추론 전용 캐시
+const AI_DIAG_V10_PREFIX = 'bc_ai_diag_v10pro6_';  // 종합(배너/진단/설계방향) pro 단일콜 추론 전용 캐시
+//   ★[2026-06-29 정보분산 패스11] v10pro5_→v10pro6_ : 평당월세/공실 단일값을 buildIntegratedRent().value 그냥
+//     round(=31 누수) 대신 'resolveCard1Rent/Vacancy(카드1 화면 표시 체인 단일 함수)'로 교체 → 입력·출력 모두
+//     카드1 표시값(41/6.9)에 결정적으로 수렴. 옛 캐시(31/619/17/9% 텍스트) 무효화해 다음 검색 때 41/6.9로 재생성.
 //   ★[2026-06-29 정보분산 패스10] v10pro4_→v10pro5_ : '사후 치환' 대신 'AI 입력 자체'를 교정.
 //     디렉터 AI 프롬프트(App.jsx)에 먹이던 평당월세를 한국부동산원 원본 17/평 대신 통합 단일값 41로 바꾸고,
 //     공실률·외부지표 출처명(한국부동산원) 제거 + "출처 명확히 발화" 지시 삭제 → AI가 17/9.05/한국부동산원을

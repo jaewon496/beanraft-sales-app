@@ -31,6 +31,8 @@ import {
   extractMarketRent,
   extractVacancy,
   buildIntegratedRent,
+  resolveCard1Rent,
+  resolveCard1Vacancy,
   extractPriceChange,
   extractConversionRate,
   extractYieldRate,
@@ -16514,20 +16516,18 @@ JSON으로만 응답: {"cafes":[{"name":"","type":"","americano":0,"avgMenu":0,"
      const _isFallbackCode = !!_sangkwonCode && /^A\d{2}$/.test(_sangkwonCode);
      const _fallbackNote = _isFallbackCode ? ' (우리 상권 자료 없어 시도 평균으로)' : '';
 
-     // [2026-06-29 정보분산 패스10 §입력교정] ★디렉터 AI가 보는 '평당 월세'를 카드 KPI 단일값(=통합 평당월세 41)으로
-     //   먹인다. 예전엔 extractMarketRent(한국부동산원 원본 17/평)를 그대로 줘서 AI가 "평당 17만원, 한국부동산원
-     //   자료에 따르면"이라 썼다(사후 치환으론 어순이 매번 달라 계속 샜음). 입력 자체를 41로 끊고 출처명도 제거.
-     //   통합 평당월세 = buildIntegratedRent(네이버매물+부동산원 가중, 카드1/카드8 KPI·_c14RentPy와 동일).
-     const _integRent = buildIntegratedRent(collectedData.apis, _sangkwonCode);
-     const _integRentPy = (_integRent && Number(_integRent.value) > 0) ? Math.round(Number(_integRent.value)) : null;
+     // [2026-06-29 정보분산 패스11 §입력고정] ★디렉터 AI가 보는 '평당 월세/공실률'을 '화면 카드1 표시값'과
+     //   100% 동일하게 먹인다. 예전(패스10)엔 buildIntegratedRent().value 를 그냥 round 해서 31이 들어가
+     //   AI가 31만원으로 발화했다(카드1은 41). resolveCard1Rent/Vacancy(카드1 표시 체인 단일 함수)로 끊는다.
+     //   → 디렉터 입력 = 카드1 화면값(평당월세 41, 공실 6.9). 출처명은 입력에 안 넣어 AI가 출처 댈 근거 자체를 없앤다.
+     const _integRentPy = resolveCard1Rent(collectedData.apis, _sangkwonCode) || null;
      const _marketRentStr = _integRentPy ?
        `[이 상권 평당 월세] ${_integRentPy.toLocaleString()}만원/평${_fallbackNote}` : '';
 
-     // ★공실률도 카드1(cards-a) vacancyRate와 동일 출처(extractVacancy) 단일값으로 먹이되 출처명(한국부동산원)은 제거.
-     //   값(6.9)은 그대로, '한국부동산원' 문구만 없앤다 → AI가 출처를 댈 데이터가 입력에 없게 한다.
-     const _vacancyVal = extractVacancy(collectedData.apis, _sangkwonCode);
-     const _vacancyStr = _vacancyVal && _vacancyVal.value !== null && _vacancyVal.value !== undefined ?
-       `[공실률] ${_vacancyVal.value}%${_fallbackNote}` : '';
+     // ★공실률도 카드1 vacancyRate와 동일 출처/값(resolveCard1Vacancy = extractVacancy 단일값) 으로 먹인다.
+     const _vacancyPct = resolveCard1Vacancy(collectedData.apis, _sangkwonCode);
+     const _vacancyStr = _vacancyPct > 0 ?
+       `[공실률] ${_vacancyPct}%${_fallbackNote}` : '';
 
      // [패스10] 아래 외부 지표들도 화면 출처표기 금지(사장님 결정)에 맞춰 출처명(한국부동산원) 제거 — 값은 보존.
      const _priceChgVal = extractPriceChange(collectedData.apis, _sangkwonCode);

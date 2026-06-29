@@ -5929,27 +5929,22 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   //       그래서 _c14RentPy=619가 되어 치환이 41이 아니라 619로 나가 '619만원' 오기·미수정이 그대로 노출됐다.
   //     공실률 = extractVacancy(상권코드)(=화면 6.9, 카드1 vacancyRate와 동일 출처).
   //   AI가 17만원/9.05%/619 또는 "한국부동산원 자료에 따르면" 같은 출처명을 써 보내도 화면 전 단계에서 41/6.9로 치환하고 출처명은 제거.
+  // ★[2026-06-29 패스11 §입력고정+출력강제] 평당월세/공실 단일값을 '카드1 화면 표시값'과 100% 동일하게.
+  //   기존 패스10은 buildIntegratedRent().value 를 그냥 round(=31 누수) 했으나, 카드1 표시는 unit-aware·폴백을
+  //   거쳐 41이다 → resolveCard1Rent/Vacancy(카드1 표시 체인 단일 함수)로 통일해 31/619/17 회귀를 끊는다.
+  const _sk_c14 = mapToCommercialDistrict(
+    String(cd?.addressInfo?.address || cd?.address || cd?.region || dong?.address || '').trim()
+  );
   const _c14RentPy = (() => {
-    try {
-      const _addr = String(cd?.addressInfo?.address || cd?.address || cd?.region || dong?.address || '').trim();
-      const _sk = mapToCommercialDistrict(_addr);
-      const _ir = buildIntegratedRent(apis, _sk);                          // 만원/평 (KPI/카드1/카드8과 동일)
-      if (_ir && Number(_ir.value) > 0) return Math.round(Number(_ir.value));
-    } catch (e) { /* 폴백으로 */ }
-    // 폴백: 카드8 통합 평당월세(만원) → 카드7 firebaseRent 평당단가(만원/평). 가게 전체 월세(rentPerPyeong)는 쓰지 않음.
+    const v = resolveCard1Rent(apis, _sk_c14);                            // 만원/평 (카드1 표시값=41과 동일)
+    if (v > 0) return v;
+    // 폴백: 카드8 통합 평당월세(만원) → 카드7 firebaseRent 평당단가(만원/평).
     return Number(card8?.bodyData?.rentPerPyeongManwon)
       || Number(card7?.bodyData?.perPyeong)
       || Number(apis.firebaseRent?.data?.summary?.avgRentPerPyeong)
       || 0;
   })();
-  const _c14Vacancy = (() => {
-    try {
-      const _addr = String(cd?.addressInfo?.address || cd?.address || cd?.region || dong?.address || '').trim();
-      const _sk = mapToCommercialDistrict(_addr);
-      const v = extractVacancy(apis, _sk);
-      return (v && Number(v.value) > 0) ? Math.round(Number(v.value) * 10) / 10 : 0;
-    } catch (e) { return 0; }
-  })();
+  const _c14Vacancy = resolveCard1Vacancy(apis, _sk_c14);                 // % (카드1 표시값=6.9와 동일)
   // 화면 출처표기 금지(사장님 결정): "한국부동산원/부동산원/KOSIS/공식 통계/통계청 (자료/통계) (에 따르면/기준으로)" 인용구 제거. 값은 남김.
   const _stripSourceNames = (s) => {
     if (!s || typeof s !== 'string') return s;
@@ -5990,12 +5985,20 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     }
     // 공실률 숫자 → 카드 표시 단일값(6.9)으로 치환.
     //   ["공실률은 9.05%로" "공실률 9%" "공실률이 9.05 %" "공실률: 9%"] 등 어순·구두점 변형까지.
+    //   ★[패스11] '36.4% 올랐/상승/하락/증감/변동' 같은 '변동률'은 공실 수치가 아니라 추이라 절대 안 건드린다
+    //     (뒤따르는 변동 동사면 치환 제외 — 음수 룩어헤드). '공실/평당' 문맥의 정적 수치(%)만 교정.
     if (_c14Vacancy > 0) {
-      out = out.replace(/(공실률[^\d]{0,8})([\d.]+)\s*%/g,
+      const _VAR_VERB = '(?:\\s*(?:상승|하락|올랐|올라|내렸|내려|증가|감소|늘었|줄었|변동|오름세|내림세|p|포인트))';
+      out = out.replace(new RegExp(`(공실률[^\\d]{0,8})([\\d.]+)\\s*%(?!${_VAR_VERB})`, 'g'),
         (m, pre) => `${pre}${_c14Vacancy}%`);
       // [패스10] '공실(률) … 9.05(%)' 처럼 '률'이 빠지거나 % 앞 어구가 길어 위 패턴을 벗어난 변형도 마감.
-      out = out.replace(/(공실[^\d%]{0,10})([\d.]+)\s*%/g,
+      out = out.replace(new RegExp(`(공실[^\\d%]{0,10})([\\d.]+)\\s*%(?!${_VAR_VERB})`, 'g'),
         (m, pre) => `${pre}${_c14Vacancy}%`);
+      // [패스11] 숫자-선행 어순 'N% 공실(률)'(예: "…평당 월세 41만원과 9% 공실률을 감안") — 숫자가 공실 '앞'에
+      //   오는 closing 문장형. 위 두 패턴은 공실어가 숫자 앞이라 못 잡아 9% 가 closing에 그대로 샜다.
+      //   숫자 바로 뒤(변동 동사 아님) + 6자 이내에 '공실'이 와야만 치환(변동률 오치환 방지).
+      out = out.replace(new RegExp(`([\\d.]+)\\s*%(?!${_VAR_VERB})([^\\d%]{0,6}공실)`, 'g'),
+        (m, num, tail) => `${_c14Vacancy}%${tail}`);
     }
     // 출처명·출처 인용구 제거(화면 출처표기 0건).
     out = _stripSourceNames(out);
@@ -8325,6 +8328,52 @@ export function buildIntegratedRent(apis, sangkwonCode) {
     integrated: true,
     breakdown: sources,
   };
+}
+
+/**
+ * ★[2026-06-29 정보분산 패스11 §입력고정] 카드1 화면 '평당 월세'(만원/평) 단일 진실값.
+ *   디렉터 입력(App.jsx)·디렉터 출력 강제주입(dataMapper _c14RentPy)이 '화면 카드1과 100% 같은 값'을
+ *   쓰도록, 카드1 표시 체인(UnifiedLayout i===0)을 '한 함수'로 모은다.
+ *   체인: integratedRent(unit-aware: '만원'이면 그대로, 아니면 /10000) → marketRent(/10000)
+ *         → 카드7 평당단가(firebaseRent.summary.avgRentPerPyeong, 만원/평) 폴백.
+ *   ★buildIntegratedRent().value 를 그냥 round 하던 옛 입력(=31 누수)과 달리, 카드1과 동일한
+ *     unit-aware·폴백을 거쳐 41로 수렴한다. 난수/Date 없음 → 같은 지역 항상 동일.
+ * @returns {number} 만원/평 (없으면 0)
+ */
+export function resolveCard1Rent(apis, sangkwonCode) {
+  try {
+    const _ir = buildIntegratedRent(apis, sangkwonCode);
+    if (_ir && Number(_ir.value) > 0) {
+      const v = (typeof _ir.unit === 'string' && _ir.unit.indexOf('만원') >= 0)
+        ? Math.round(Number(_ir.value))          // 이미 만원/평
+        : Math.round(Number(_ir.value) / 10000); // 원/평 → 만원/평
+      if (v > 0) return v;
+    }
+  } catch (e) { /* 폴백으로 */ }
+  // marketRent(원/평) → 만원/평
+  try {
+    const _mr = extractMarketRent(apis, sangkwonCode);
+    if (_mr && Number(_mr.value) > 0) {
+      const v = Math.round(Number(_mr.value) / 10000);
+      if (v > 0) return v;
+    }
+  } catch (e) { /* 폴백으로 */ }
+  // 카드7 평당단가(firebaseRent summary, 이미 만원/평)
+  const _perPy = Number(apis?.firebaseRent?.data?.summary?.avgRentPerPyeong) || 0;
+  return _perPy > 0 ? Math.round(_perPy) : 0;
+}
+
+/**
+ * ★[2026-06-29 패스11] 카드1 화면 '공실률'(%) 단일 진실값 = extractVacancy(상권코드).value (소수1자리).
+ *   카드1 vacancyRate(UnifiedLayout i===0, kosisBoxData.vacancy.value)와 동일 출처.
+ * @returns {number} % (없으면 0)
+ */
+export function resolveCard1Vacancy(apis, sangkwonCode) {
+  try {
+    const v = extractVacancy(apis, sangkwonCode);
+    if (v && Number(v.value) > 0) return Math.round(Number(v.value) * 10) / 10;
+  } catch (e) { /* */ }
+  return 0;
 }
 
 /**
