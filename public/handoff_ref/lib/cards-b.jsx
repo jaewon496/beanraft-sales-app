@@ -60,18 +60,29 @@ function Card08({ body = {} }) {
   const rentMonthly15 = rentPerPyeong > 0 ? Math.round(rentPerPyeong * REF_PY) : 0;
   const depositGuide = rentMonthly15 > 0 ? rentMonthly15 * 10 : 0; // 월세의 약 10배(안내)
   // [2026-06-29 사장님 확정] 총 창업비 '합계'는 동네별로 안 변해(권리금=광역평균·인테리어=전국단가·시설장비=컨셉) 무의미 → 합계 표기 폐기.
-  //   대신 KPI 자리는 '평균 대비 위/아래' 정성 가이드로 채운다. 비교 기준 = 전국 카페 평균 평당월세(kc.rentPerPyeong).
-  //   평당월세는 동네별 실데이터라 평균 대비 위/아래가 자리마다 실제로 달라진다.
-  const _avgRentPerPy = Number(kc?.rentPerPyeong) || 0;       // 전국 카페 평균 평당월세(만원/평)
+  //   대신 KPI 자리는 '평균 대비 위/아래' 정성 가이드로 채운다.
+  //   [2026-06-29] 비교 기준 = 그 지역 시도(서울/부산 등) 평당월세 평균(kosis.sidoRentAvg, 한국부동산원).
+  //     시도 기준 없으면 전국 평균, 그것도 없으면 전국 카페 평균(kc.rentPerPyeong), 다 없으면 '-' (가짜 금지).
+  //     비교값 = 통합 평당월세(rentPerPyeong, 옆 타일과 동일) ÷ 기준 평균. 임계 ±15%.
+  //     출처(기관명)는 화면에 절대 표기하지 않음(라벨은 "서울 평균 대비"/"전국 평균 대비"처럼 지역명만).
+  const _sidoRent = kosis?.sidoRentAvg || null;
+  let _avgRentPerPy = 0, _avgBaseLabel = '';
+  if (_sidoRent && Number(_sidoRent.value) > 0) {
+    _avgRentPerPy = Number(_sidoRent.value);
+    _avgBaseLabel = (_sidoRent.scope === '시도평균' && _sidoRent.region) ? `${_sidoRent.region} 평균` : '전국 평균';
+  } else if (Number(kc?.rentPerPyeong) > 0) {
+    _avgRentPerPy = Number(kc.rentPerPyeong);   // 폴백: 전국 카페 평균 평당월세
+    _avgBaseLabel = '전국 평균';
+  }
   const _rentVsAvgPct = (_avgRentPerPy > 0 && rentPerPyeong > 0)
     ? Math.round(((rentPerPyeong - _avgRentPerPy) / _avgRentPerPy) * 100)
     : null;
   const _rentVsAvgText = (_rentVsAvgPct == null)
     ? '-'
-    : (_rentVsAvgPct >= 8 ? '평균보다 높음' : _rentVsAvgPct <= -8 ? '평균보다 낮음' : '평균 수준');
+    : (_rentVsAvgPct >= 15 ? '비쌈' : _rentVsAvgPct <= -15 ? '저렴' : '평균');
   const _rentVsAvgSub = (_rentVsAvgPct == null)
-    ? '전국 카페 평균 대비'
-    : `전국 평균 ${_rentVsAvgPct >= 0 ? '+' : ''}${_rentVsAvgPct}%`;
+    ? '비교 기준 없음'
+    : `${_avgBaseLabel} ${_rentVsAvgPct >= 0 ? '+' : ''}${_rentVsAvgPct}%`;
   return (
     <CardShell n="08" id="08"
       bruSummary={body.bruSummary}

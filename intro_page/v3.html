@@ -61,7 +61,7 @@
   /* 카드 덱 (14장 폴더 스택) — 은은 톤 */
   .show{position:relative;z-index:10;height:100vh;min-height:640px;overflow:hidden;background:#000}
   .show-bgnum{position:absolute;right:clamp(10px,4vw,70px);top:50%;transform:translateY(-50%);z-index:0;font-family:var(--mono);font-weight:600;font-size:clamp(180px,34vw,440px);line-height:.8;color:rgba(255,255,255,.025);letter-spacing:-10px;pointer-events:none;user-select:none}
-  .show-inner{position:relative;z-index:2;height:100%;max-width:1640px;margin:0 auto;padding:84px clamp(28px,5vw,90px) 40px;display:grid;grid-template-columns:1.25fr .75fr;align-items:center;gap:clamp(36px,5vw,96px)}
+  .show-inner{position:relative;z-index:2;height:100%;max-width:1640px;margin:0 auto;padding:84px clamp(28px,5vw,90px) 40px;display:grid;grid-template-columns:1fr 1fr;align-items:center;gap:clamp(48px,7vw,130px)}
   .show-deck{position:relative;width:100%;aspect-ratio:5/4;perspective:1800px;transform-style:preserve-3d}
   .deck-card{position:absolute;inset:0;border:1px solid rgba(255,255,255,.12);border-radius:16px;overflow:hidden;background:var(--panel);box-shadow:0 38px 90px rgba(0,0,0,.62);will-change:transform,opacity;transform-origin:center 80%;backface-visibility:hidden}
   .deck-card .dc-bar{position:absolute;top:0;left:0;right:0;height:34px;z-index:3;background:rgba(8,9,14,.96);border-bottom:1px solid rgba(255,255,255,.06);display:flex;align-items:center;gap:7px;padding:0 14px}

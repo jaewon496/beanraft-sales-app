@@ -7523,6 +7523,65 @@ export function extractMarketRent(apis, sangkwonCode) {
   };
 }
 
+/**
+ * 시도(서울 등) 평당월세 평균 (만원/평) — 카드08 '평당 월세 (평균 대비)' 비교 기준.
+ *  - 1순위: 입력 시도의 시도코드(A02=서울 등) 행 (한국부동산원 상업용 임대, 천원/㎡)
+ *  - 2순위: 전국 코드(A01) 행
+ *  - 3순위: 전체 시도(A\d{2}) 행 평균
+ *  - 없으면 null  (가짜값 금지)
+ * 단위 변환: 천원/㎡ × 0.33058 → 만원/평 (extractMarketRentSeries와 동일 계수)
+ * ★새 외부호출 없음 — 이미 수집된 marketRent 행만 사용.
+ */
+export function extractSidoRentAvg(apis, sido) {
+  const rows = _getExternalRows(apis, 'marketRent');
+  if (!rows.length) return null;
+  const toManwonPerPy = (thousandPerSqm) => Math.round(thousandPerSqm * 0.33058 * 10) / 10;
+  // 코드별 최신 행 1개 선택
+  const latestOf = (filterFn) => {
+    const pool = rows.filter(filterFn);
+    if (!pool.length) return null;
+    const sorted = [...pool].sort((a, b) => (b.PRD_DE || '').localeCompare(a.PRD_DE || ''));
+    return sorted[0] || null;
+  };
+  const sidoKey = String(sido || '').replace(/(특별시|광역시|특별자치시|특별자치도|도)$/g, '').trim();
+  const sidoCode = SIDO_FALLBACK_CODE[sidoKey] || null;
+
+  // 1순위: 시도 코드 행 (예 A02=서울)
+  if (sidoCode) {
+    const r = latestOf(x => (x.C1 || '') === sidoCode);
+    const v = r ? parseFloat(r.DT) : 0;
+    if (r && v > 0) {
+      return { value: toManwonPerPy(v), unit: '만원/평', region: sidoKey, scope: '시도평균', period: r.PRD_DE || '' };
+    }
+  }
+  // 2순위: 전국 코드(A01)
+  {
+    const r = latestOf(x => (x.C1 || '') === 'A01');
+    const v = r ? parseFloat(r.DT) : 0;
+    if (r && v > 0) {
+      return { value: toManwonPerPy(v), unit: '만원/평', region: '전국', scope: '전국평균', period: r.PRD_DE || '' };
+    }
+  }
+  // 3순위: 모든 시도(A\d{2}) 최신 행 평균 → 전국 근사
+  {
+    const sidoRows = rows.filter(x => /^A\d{2}$/.test(x.C1 || '') && (x.C1 || '') !== 'A01');
+    if (sidoRows.length) {
+      // 시도코드별 최신값만
+      const latestByCode = {};
+      sidoRows.forEach(r => {
+        const c = r.C1;
+        if (!latestByCode[c] || (r.PRD_DE || '') > (latestByCode[c].PRD_DE || '')) latestByCode[c] = r;
+      });
+      const vals = Object.values(latestByCode).map(r => parseFloat(r.DT)).filter(v => Number.isFinite(v) && v > 0);
+      if (vals.length) {
+        const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+        return { value: toManwonPerPy(avg), unit: '만원/평', region: '전국', scope: '전국평균', period: '' };
+      }
+    }
+  }
+  return null;
+}
+
 /** 공실률 (%) */
 export function extractVacancy(apis, sangkwonCode) {
   const rows = _getExternalRows(apis, 'vacancy');

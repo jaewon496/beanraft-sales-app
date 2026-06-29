@@ -44,6 +44,7 @@ import {
   extractConversionRate,
   extractYieldRate,
   extractNetIncome,
+  extractSidoRentAvg,
   extractCafeClosure,
   extractRegionClosure,
   extractConsumerSentiment,
@@ -4766,6 +4767,8 @@ export default function UnifiedLayout({
         conversionRate: extractConversionRate(apis, sangkwonCode),
         yieldRate: extractYieldRate(apis, sangkwonCode),
         netIncome: extractNetIncome(apis, sangkwonCode),
+        // [2026-06-29] 카드08 '평당 월세 (평균 대비)' 비교 기준 = 그 지역 시도 평당월세 평균(없으면 전국). 만원/평.
+        sidoRentAvg: extractSidoRentAvg(apis, sidoForExt),
         cafeClosure: extractCafeClosure(apis, sidoForExt),
         cafeClosureNation: extractCafeClosure(apis, ''),
         regionClosure: extractRegionClosure(apis, sigungu),
