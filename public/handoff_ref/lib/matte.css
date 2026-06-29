@@ -553,8 +553,11 @@ html, body { background: var(--matte-bg) !important; }
 .bc-app.single-card .bc-card {
   margin: 0;
   width: 1280px;          /* 카드의 디자인 기준 폭 — 여기서부터 비례 zoom */
-  max-width: none;
-  flex: 0 0 auto;
+  /* [fix] 사이드바 열림 시 캔버스 폭(≈1018px)이 1280보다 좁아 카드가 넘쳐
+     justify-content:center 때문에 왼쪽이 사이드바 밑으로 밀려 들어감.
+     max-width:100% 로 캔버스보다 넓어지지 못하게 막아 겹침 차단(닫힘=풀폭은 무변). */
+  max-width: 100%;
+  flex: 0 1 auto;
   zoom: var(--sc-zoom, 1);
 }
 /* single-card 일 때는 filter-1 의 풀폭 확대 룰을 무력화 — 원래 디자인 비율 그대로 */
