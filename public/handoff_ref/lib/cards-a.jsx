@@ -990,6 +990,15 @@ function Card06({ body = {} }) {
   const coffeeQuant = bd.coffeeQuant || null;
   const cafeBakeryQuant = bd.cafeBakeryQuant || null;
   const hasQuantile = !!(coffeeQuant && coffeeQuant.topStr) || !!(cafeBakeryQuant && cafeBakeryQuant.topStr);
+  // [2026-06-30] 전국 제과점 평균(정직 표시 전용) — 평균 한 값만. 구간(상위20%/중위) 절대 만들지 않음.
+  //   값 없으면(null) 블록 자체 미노출(빈칸/가짜 금지). 단위는 커피 분위와 같은 만원/월.
+  const bakeryNationalAvg = (typeof bd.bakeryNationalAvgManwon === 'number' && bd.bakeryNationalAvgManwon > 0) ? bd.bakeryNationalAvgManwon : null;
+  const bakeryNationalStores = (typeof bd.bakeryNationalStores === 'number' && bd.bakeryNationalStores > 0) ? bd.bakeryNationalStores : null;
+  const bakeryNationalPeriodRaw = (typeof bd.bakeryNationalPeriod === 'string' && bd.bakeryNationalPeriod.trim()) ? bd.bakeryNationalPeriod.trim() : null;
+  // 기준월 YYYYMM → YYYY.MM 표기 (그 외 형식은 원문 유지)
+  const bakeryNationalPeriodFmt = bakeryNationalPeriodRaw
+    ? (/^\d{6}$/.test(bakeryNationalPeriodRaw) ? `${bakeryNationalPeriodRaw.slice(0,4)}.${bakeryNationalPeriodRaw.slice(4,6)}` : bakeryNationalPeriodRaw)
+    : null;
 
   // 6개월 추이 인라인 SVG 좌표 계산 (3선 — 상위/평균/하위). 커피 구간 trend만 사용(데이터량 고려).
   const buildQChart = (trend) => {
@@ -1082,6 +1091,24 @@ function Card06({ body = {} }) {
             accent={ACC} accentVal={ACC_VAL} grayAvg={GRAY_AVG} grayBtm={GRAY_BTM}
             qChart={null}
           />
+
+          {/* [2026-06-30] 제과점 전국 평균 (정직 블록) — 평균 한 값만. 분위·상위20%·중위 라벨 절대 금지(데이터 없음).
+              bakeryNationalAvg(null이면) 미노출. 커피 구간과 같은 만원/월 단위. */}
+          {bakeryNationalAvg && (
+            <div className="bc-box" style={{padding:"18px 20px"}}>
+              <div style={{display:"flex", alignItems:"baseline", justifyContent:"space-between", flexWrap:"wrap", gap:8}}>
+                <div style={{fontSize:14, color:"#A3A3A3", fontWeight:600}}>제과점 · 전국 평균</div>
+                <div style={{fontSize:12.5, color:"#777"}}>점포당 월평균</div>
+              </div>
+              <div style={{marginTop:8, fontSize:26, fontWeight:700, color:ACC_VAL, fontVariantNumeric:"tabular-nums"}}>
+                월 {fmtWon(bakeryNationalAvg)}
+              </div>
+              <div style={{marginTop:6, fontSize:12.5, color:"var(--matte-fg-3)", lineHeight:1.5}}>
+                {bakeryNationalStores ? `전국 ${bakeryNationalStores.toLocaleString()}개 점포` : '전국 제과점'}
+                {bakeryNationalPeriodFmt ? ` · 기준월 ${bakeryNationalPeriodFmt}` : ''}
+              </div>
+            </div>
+          )}
 
           {/* 3. 커피 6개월 표 (상위20% 행 강조) — 커피 구간 trend 기준 */}
           {coffeeTrend && (

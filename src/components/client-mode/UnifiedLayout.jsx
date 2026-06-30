@@ -6593,7 +6593,10 @@ export default function UnifiedLayout({
         cards[String(screen)] = { title, values };
       }
 
-      database.ref('reels/' + dongCd).set({
+      // ★[수정] .set() → .update(): set 은 reels/{dongCd} 노드를 통째로 교체해
+      //   캡처로 올려둔 images 하위가 매 분석마다 삭제됨(강남 이미지 소실 원인).
+      //   update 는 지정한 키(region/dongCd/updatedAt/cards)만 갱신하고 images 는 보존한다.
+      database.ref('reels/' + dongCd).update({
         region: bcSearchAddress || '',
         dongCd: dongCd,
         updatedAt: Date.now(),

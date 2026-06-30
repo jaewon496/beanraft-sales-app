@@ -2232,6 +2232,36 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     ? Math.round(bmAvgSalesNum)
     : (Math.round(saDongCafeAvgStable) || Math.round(cafeSales) || 0);
 
+  // [2026-06-30] 전국 제과점 평균 매출(정직 표시 전용) — 커피 전국 평균(bmNationalChart)과 '같은 만원 단위'.
+  //   App.jsx 가 markets/chart/national Q11002 응답을 만원으로 환산해 _perStoreAvgManwonResolved 에 넣어둠.
+  //   분위(상위20%/중위) 같은 구간은 데이터에 없으므로 만들지 않는다(평균 한 값만). 값 없으면 null.
+  let bakeryNationalAvgManwon = null;
+  let bakeryNationalStores = null;
+  let bakeryNationalPeriod = null;
+  try {
+    const _natBak = apis.bizMapNationalBakery?.data ?? aiData?.apis?.bizMapNationalBakery?.data;
+    if (_natBak && typeof _natBak === 'object') {
+      // 1순위: App.jsx 가 이미 만원으로 해소한 값(커피와 동일 단위).
+      let _bakAvg = parseFloat(_natBak._perStoreAvgManwonResolved ?? 0) || 0;
+      // 폴백: 커피 전국 평균과 똑같은 식(latestPerStoreManwon ?? perStoreAvgManwon, 만원).
+      if (_bakAvg <= 0) _bakAvg = parseFloat(_natBak.latestPerStoreManwon ?? _natBak.perStoreAvgManwon ?? 0) || 0;
+      if (_bakAvg > 0) {
+        bakeryNationalAvgManwon = Math.round(_bakAvg);
+        // 전국 점포수 = 최근 1개월(series 최신 행) — totalStoreCnt 는 6개월 합이라 과대(114,716). 최신 월값(≈19,414)만.
+        let _bakStores = 0;
+        try {
+          const _ser = Array.isArray(_natBak.series) ? _natBak.series : [];
+          const _lp = _natBak.latestPeriod ? String(_natBak.latestPeriod) : null;
+          let _row = _lp ? (_ser.find(r => String(r.yyyymm) === _lp) || null) : null;
+          if (!_row && _ser.length) _row = _ser[_ser.length - 1];
+          _bakStores = _row ? (parseFloat(_row.storeCnt ?? 0) || 0) : 0;
+        } catch (_) { _bakStores = 0; }
+        bakeryNationalStores = _bakStores > 0 ? Math.round(_bakStores) : null;
+        bakeryNationalPeriod = _natBak.latestPeriod ? String(_natBak.latestPeriod) : null;
+      }
+    }
+  } catch (e) { /* null 유지 (가짜값 금지) */ }
+
   const card5 = {
     title: '매출 분석',
     subtitle: '월평균 예상 매출',
@@ -2303,6 +2333,10 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       //   각 { topNum,topStr, avgNum,avgStr, midNum,midStr, btmNum,btmStr, trend }. 데이터 없으면 null.
       coffeeQuant: coffeeQuant,
       cafeBakeryQuant: cafeBakeryQuant,
+      // [2026-06-30] 전국 제과점 평균(정직 표시 전용, 분위 아님 = 평균 한 값). 위 2238~2255 계산. 값 없으면 null → 블록 숨김.
+      bakeryNationalAvgManwon: bakeryNationalAvgManwon,
+      bakeryNationalStores: bakeryNationalStores,
+      bakeryNationalPeriod: bakeryNationalPeriod,
       bizmapAvgUsageCnt: bmAvgUsageStr,
       bizmapAvgUnitPrice: card5UnitPriceStr,
       bizmapUsageTrend: bmUsageTrend,
