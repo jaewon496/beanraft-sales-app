@@ -1355,7 +1355,8 @@ function Card07({ body = {} }) {
                   <span><span style={{color:"var(--fg-4)", marginRight:8, fontSize:14}}>{role}</span>{nm}</span>
                   <span style={{fontVariantNumeric:"tabular-nums", color:"var(--fg-2)"}}>{(() => {
                     const _p = Number(d.pop) || 0;
-                    return _p >= 10000 ? `${(_p/10000).toFixed(1)}만/일` : `${_p.toLocaleString()}명/일`;
+                    // [2026-06-30] '10.1만/일' 축약 폐기 → 우리 동(2,823명/일)과 같은 전체 콤마 표기로 통일(보기 좋게).
+                    return _p > 0 ? `${_p.toLocaleString()}명/일` : '-';
                   })()}</span>
                 </div>
                 );
