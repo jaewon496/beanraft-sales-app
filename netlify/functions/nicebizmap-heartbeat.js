@@ -150,6 +150,13 @@ function isExpiredResponse(j) {
   return false;
 }
 
+// ★★★ 카카오 keeper(자동 로그인) 하드 비활성 스위치 (2026-07-01) ★★★
+//   목적: 카카오 로그인 알림을 완전히 0으로. 세션이 만료로 판정돼도 callKakaoKeeper 를
+//   절대 호출하지 않는다 → 카카오 OAuth 로그인이 코드상 아예 안 탄다 → 카카오 알림 0.
+//   나중에 되살리려면 이 값을 false 로만 바꾸면 keeper 블록이 원복된다(아래 호출 지점 가드 참조).
+//   ※ '기존 쿠키로 세션 살아있게 유지'(check-analyzability TTL 연장·Set-Cookie 회전)는 무관·유지.
+const KAKAO_KEEPER_DISABLED = true;
+
 // ── Vercel 카카오 직원 호출 (2026-06-26) ──
 // 카카오 계정은 자체 비번 relogin() 이 안 먹힘 → Vercel 에 있는 카카오 로그인 직원
 // (브라우저 자동화)에게 "다시 로그인해줘"라고 GET 으로 부른다. 직원이 새 세션을 잡으면
@@ -157,6 +164,7 @@ function isExpiredResponse(j) {
 //   - URL 은 env KAKAO_KEEPER_URL (예: https://bc-vercel-mu.vercel.app/api/kakao-login).
 //   - 응답 { ok, reason } 만 본다. ok:false reason captcha → '사람 개입 필요' 로그(알림 훅 자리).
 //   - heartbeat 가 죽으면 안 되므로 절대 throw 하지 않음.
+//   ※ 현재 KAKAO_KEEPER_DISABLED=true 라 이 함수는 호출되지 않는다(정의만 남겨둠).
 function callKakaoKeeper(keeperUrl) {
   return new Promise((resolve) => {
     let urlObj;
@@ -239,7 +247,12 @@ exports.handler = async (event) => {
   if (expired) {
     await blobSetJSON(store, 'expired', { value: true, at: new Date().toISOString() });
     const keeperUrl = process.env.KAKAO_KEEPER_URL;
-    if (keeperUrl) {
+    if (KAKAO_KEEPER_DISABLED) {
+      // ★ 카카오 keeper 하드 비활성: 만료로 판정돼도 카카오 자동 로그인(OAuth) 절대 안 탄다 → 알림 0.
+      //   callKakaoKeeper / relogin 어느 쪽도 부르지 않고, 로그만 남긴다.
+      keeperResult = { ok: false, reason: 'keeper_disabled' };
+      console.log('[nicebizmap-heartbeat] 만료 감지됐지만 KAKAO_KEEPER_DISABLED=true → 카카오 자동 로그인 건너뜀(알림 0)');
+    } else if (keeperUrl) {
       // ── keeper 재로그인 쿨다운 (2026-07-01) ──
       // 진짜 만료(1002)라도 6시간 안에 이미 keeper 를 불렀으면 또 부르지 않는다.
       //   만약 9999 오판 같은 잔여 오탐이 남아 있어도 최대 6시간에 1회로 묶어 카카오 알림 폭탄 방지.
