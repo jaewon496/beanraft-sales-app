@@ -2262,6 +2262,71 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     }
   } catch (e) { /* null 유지 (가짜값 금지) */ }
 
+  // ── [2026-07-01 커피+제과 합산 매출] 빈크래프트는 커피+베이커리를 함께 판다 ──
+  //   두 매출 모두 비즈맵 분위(=같은 저울)라 단순 더하기가 성립한다.
+  //   합산 규칙: 커피·제과 둘 다 있으면 더함, 한쪽만 있으면 그 값, 둘 다 없으면 null. (가짜 0채움 금지)
+  const _sumOrOne = (a, b) => {
+    const av = (typeof a === 'number' && a > 0) ? a : null;
+    const bv = (typeof b === 'number' && b > 0) ? b : null;
+    if (av != null && bv != null) return av + bv;
+    if (av != null) return av;
+    if (bv != null) return bv;
+    return null;
+  };
+  const combinedAvgManwon = _sumOrOne(coffeeQuant?.avgNum, cafeBakeryQuant?.avgNum);
+  const combinedTop20Manwon = _sumOrOne(coffeeQuant?.topNum, cafeBakeryQuant?.topNum);
+  const combinedAvgStr = (combinedAvgManwon != null) ? fmtWon(combinedAvgManwon) : null;
+  const combinedTop20Str = (combinedTop20Manwon != null) ? fmtWon(combinedTop20Manwon) : null;
+
+  // 각 업종 6개월 평균(trend.avg) + 월 라벨 — 그래프 흰선용 (표는 각 quant.trend 6개월 그대로, 여긴 그래프 전용)
+  let coffeeTrendAvg = (coffeeQuant?.trend && Array.isArray(coffeeQuant.trend.labels))
+    ? { labels: coffeeQuant.trend.labels.slice(), values: (coffeeQuant.trend.avg || []).slice() }
+    : null;
+  let bakeryTrendAvg = (cafeBakeryQuant?.trend && Array.isArray(cafeBakeryQuant.trend.labels))
+    ? { labels: cafeBakeryQuant.trend.labels.slice(), values: (cafeBakeryQuant.trend.avg || []).slice() }
+    : null;
+
+  // [2026-07-01 매출 추이 3선 월 정렬] 커피·베이커리 분위 월이 한 칸씩 어긋나
+  //   합산선이 양 끝에서 한쪽 값만으로 튀고, 흰 선 시작점이 파란선과 안 맞던 문제.
+  //   해법: 둘 다 있을 때 세 그래프 시계열(커피/베이커리/합산)을 '두 업종 월의 교집합'으로만 맞춘다.
+  //   ※ 그래프 전용. 아래 커피표·베이커리표(각 quant.trend 직접 사용)는 각자 6개월 전체 유지.
+  let combinedTrend = null;
+  if (coffeeTrendAvg && bakeryTrendAvg) {
+    // 라벨→avg 값 매핑
+    const coffMap = new Map();
+    coffeeTrendAvg.labels.forEach((lb, i) => { coffMap.set(lb, coffeeTrendAvg.values[i]); });
+    const bakMap = new Map();
+    bakeryTrendAvg.labels.forEach((lb, i) => { bakMap.set(lb, bakeryTrendAvg.values[i]); });
+    // 교집합(둘 다 존재하는 달) — 커피 라벨 순서 유지
+    const interLabels = coffeeTrendAvg.labels.filter(lb => bakMap.has(lb));
+    if (interLabels.length >= 2) {
+      const cVals = interLabels.map(lb => { const v = coffMap.get(lb); return (v != null && isFinite(v)) ? v : null; });
+      const bVals = interLabels.map(lb => { const v = bakMap.get(lb); return (v != null && isFinite(v)) ? v : null; });
+      const combVals = interLabels.map((lb, i) => {
+        const cv = cVals[i], bv = bVals[i];
+        if (cv != null && bv != null) return cv + bv; // 교집합 달의 진짜 합
+        if (cv != null) return cv;
+        if (bv != null) return bv;
+        return null;
+      });
+      coffeeTrendAvg = { labels: interLabels.slice(), values: cVals };
+      bakeryTrendAvg = { labels: interLabels.slice(), values: bVals };
+      combinedTrend = combVals.some(v => v != null) ? { labels: interLabels.slice(), values: combVals } : null;
+    } else {
+      // 교집합 2개월 미만 → 합산선 없이 커피 단독 그래프. 베이커리 그래프선은 제거(엇갈림 방지).
+      combinedTrend = null;
+      bakeryTrendAvg = null;
+    }
+  }
+  // 베이커리 없을 때(커피만): coffeeTrendAvg 커피 전체 범위 그대로, combinedTrend null (건드리지 않음).
+
+  // [2026-07-01] 베이커리 블록 라벨 = 사용자가 검색한 그대로(예: "연신내역"). 행정동(dongNm, "불광2동") 아님.
+  //   __BC_DATA__.address(=UnifiedLayout bcSearchAddress)와 동일 소스 우선순위로 검색 주소를 그대로 사용.
+  const regionLabel = (() => {
+    const raw = String(cd?.addressInfo?.address || cd?.address || cd?.region || dong?.address || '').trim();
+    return raw || null;
+  })();
+
   const card5 = {
     title: '매출 분석',
     subtitle: '월평균 예상 매출',
@@ -2333,6 +2398,17 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       //   각 { topNum,topStr, avgNum,avgStr, midNum,midStr, btmNum,btmStr, trend }. 데이터 없으면 null.
       coffeeQuant: coffeeQuant,
       cafeBakeryQuant: cafeBakeryQuant,
+      // [2026-07-01 커피+제과 합산] 잠재 매출 = 커피 + 제과(같은 비즈맵 저울). 둘 다 있을 때만 더함, 하나면 그 값, 없으면 null.
+      combinedAvgManwon: combinedAvgManwon,
+      combinedTop20Manwon: combinedTop20Manwon,
+      combinedAvgStr: combinedAvgStr,
+      combinedTop20Str: combinedTop20Str,
+      // 합산 매출 추이(월 라벨 정렬, 커피 avg + 제과 avg) + 각 업종 흰선용 평균 시계열
+      combinedTrend: combinedTrend,
+      coffeeTrendAvg: coffeeTrendAvg,
+      bakeryTrendAvg: bakeryTrendAvg,
+      // 검색 동 이름(베이커리 블록 라벨용). 없으면 null.
+      regionLabel: regionLabel,
       // [2026-06-30] 전국 제과점 평균(정직 표시 전용, 분위 아님 = 평균 한 값). 위 2238~2255 계산. 값 없으면 null → 블록 숨김.
       bakeryNationalAvgManwon: bakeryNationalAvgManwon,
       bakeryNationalStores: bakeryNationalStores,

@@ -135,12 +135,18 @@ function extractRotatedSessionId(setCookieArrays) {
   return null;
 }
 
-// 응답이 만료를 의미하는지 판정
+// 응답이 "진짜 로그인 풀림(만료)"을 의미하는지 판정
+// ★ 2026-07-01: 9999 는 만료가 아니라 throttle(과호출) 신호 → 만료에서 제외.
+//   같은 admiCd 를 5분마다 두드리면 세션이 살아있어도 9999/빈응답을 준다(프로젝트 확립 사실).
+//   그래서 9999 를 만료로 잡아 keeper 재로그인을 태우면 → 멀쩡한 세션인데 카카오 알림 폭탄.
+//   진짜 로그인 풀림 신호만 만료로: code 1002(auth/session 로그인 풀림)만.
+//   빈응답/네트워크 실패(!j)도 만료 아님(살아있음으로 간주 = throttle 로 봄).
 function isExpiredResponse(j) {
-  if (!j) return false; // 네트워크 실패는 만료로 보지 않음 (오탐 방지)
-  if (j.success === false) return true;
+  if (!j) return false; // 네트워크 실패/빈응답은 만료로 보지 않음 (throttle 이니 살아있음으로 간주)
   const code = String(j.code ?? j.errorCode ?? j.resultCode ?? '');
-  if (code === '1002' || code === '9999') return true;
+  if (code === '9999') return false; // 9999 = throttle(과호출) ≠ 세션만료. 절대 만료로 잡지 않음.
+  if (code === '1002') return true;  // 1002 = 로그인 풀림 = 진짜 만료
+  if (j.success === false) return true; // auth/session 등의 명백한 로그인 풀림
   return false;
 }
 
@@ -234,8 +240,23 @@ exports.handler = async (event) => {
     await blobSetJSON(store, 'expired', { value: true, at: new Date().toISOString() });
     const keeperUrl = process.env.KAKAO_KEEPER_URL;
     if (keeperUrl) {
-      try {
-        keeperResult = await callKakaoKeeper(keeperUrl); // 만료당 1회만
+      // ── keeper 재로그인 쿨다운 (2026-07-01) ──
+      // 진짜 만료(1002)라도 6시간 안에 이미 keeper 를 불렀으면 또 부르지 않는다.
+      //   만약 9999 오판 같은 잔여 오탐이 남아 있어도 최대 6시간에 1회로 묶어 카카오 알림 폭탄 방지.
+      //   저장소·방식은 이 함수가 이미 쓰는 Blobs(getBlobStore/blobGetJSON/blobSetJSON) 그대로 재사용.
+      const KEEPER_COOLDOWN_MS = 21600000; // 6시간
+      const KEEPER_LAST_KEY = 'lastKeeperAt';
+      const now = Date.now();
+      const lastRec = await blobGetJSON(store, KEEPER_LAST_KEY);
+      const lastAt = lastRec && typeof lastRec.at === 'number' ? lastRec.at : 0;
+      if (lastAt && (now - lastAt) < KEEPER_COOLDOWN_MS) {
+        const remainMin = Math.round((KEEPER_COOLDOWN_MS - (now - lastAt)) / 60000);
+        keeperResult = { ok: false, reason: 'cooldown_skip', cooldownRemainMin: remainMin };
+        console.log('[nicebizmap-heartbeat] keeper 쿨다운 중 → 재로그인 건너뜀 (남은 ' + remainMin + '분)');
+      } else try {
+        // 실제 호출 직전에 시각 기록 (동시 실행/재시도에도 중복 호출 방지)
+        await blobSetJSON(store, KEEPER_LAST_KEY, { at: now, atISO: new Date(now).toISOString() });
+        keeperResult = await callKakaoKeeper(keeperUrl); // 쿨다운 내 1회만
         if (keeperResult.ok) {
           console.log('[nicebizmap-heartbeat] 카카오 직원 호출 OK → 다음 틱에 세션 정상 예상');
         } else if (keeperResult.reason && /captcha/i.test(keeperResult.reason)) {

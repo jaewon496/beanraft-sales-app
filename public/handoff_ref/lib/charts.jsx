@@ -175,6 +175,9 @@ function LineChart({ data, comparison, width = 580, height = 180, yLabels, color
         background: color,
         transform: "translate(-50%, -50%)",
         pointerEvents: "none",
+        // 선(bc-spin-in 1.2s)이 다 그려진 뒤 fade-in → 애니 중 선보다 앞서 뜨는 구간 제거
+        opacity: 0,
+        animation: "bc-dot-appear 0.25s ease 1.15s both",
       }}></span>
       {id && has("sweep") && trig > 0 && <span className="bc-line__sweep" key={`sw-${trig}`}></span>}
     </div>

@@ -482,6 +482,8 @@
 @keyframes bc-fade-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes bc-grow-w { from { width: 0; } }
 @keyframes bc-spin-in { from { stroke-dashoffset: var(--c); } to { stroke-dashoffset: var(--target); } }
+/* LineChart 끝 점(dot): 선(bc-spin-in 1.2s)이 다 그려진 뒤 부드럽게 나타나게 → 선보다 앞서 뜨는 구간 제거 */
+@keyframes bc-dot-appear { from { opacity: 0; } to { opacity: 1; } }
 
 .bc-fadein { animation: bc-fade-in 0.5s var(--ease) both; }
 

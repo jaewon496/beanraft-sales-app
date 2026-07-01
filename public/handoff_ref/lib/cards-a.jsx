@@ -1041,11 +1041,84 @@ function Card06({ body = {} }) {
   const coffeeQChart = buildQChart(coffeeQuant?.trend);
   // 6개월 표 행 (상위20%/평균/하위20%) — 커피 trend 기준, 만원→억/만원 표기
   const coffeeTrend = coffeeQuant?.trend || null;
+  const bakeryTrend = cafeBakeryQuant?.trend || null;
   const qTableRows = coffeeTrend ? [
     { label: '상위 20%', arr: coffeeTrend.top, accent: true },
     { label: '평균', arr: coffeeTrend.avg, accent: false },
     { label: '하위 20%', arr: coffeeTrend.bottom, accent: false },
   ] : [];
+  // 제과(베이커리) 6개월 표 행 — cafeBakeryQuant.trend 기준. 데이터 없으면 빈 배열.
+  const bTableRows = bakeryTrend ? [
+    { label: '상위 20%', arr: bakeryTrend.top, accent: true },
+    { label: '평균', arr: bakeryTrend.avg, accent: false },
+    { label: '하위 20%', arr: bakeryTrend.bottom, accent: false },
+  ] : [];
+
+  // ── [2026-07-01 커피+제과 합산] 잠재 매출(전체) 대표 숫자 + 합산 추이 3계열 차트 ──
+  const combinedAvgStr = (typeof bd.combinedAvgStr === 'string' && bd.combinedAvgStr) ? bd.combinedAvgStr : null;
+  const combinedTop20Str = (typeof bd.combinedTop20Str === 'string' && bd.combinedTop20Str) ? bd.combinedTop20Str : null;
+  const regionLabel = (typeof bd.regionLabel === 'string' && bd.regionLabel.trim()) ? bd.regionLabel.trim() : null;
+  const hasCoffee = !!(coffeeQuant && (coffeeQuant.avgStr || coffeeQuant.topStr));
+  const hasBakery = !!(cafeBakeryQuant && (cafeBakeryQuant.avgStr || cafeBakeryQuant.topStr));
+  const isCombined = hasCoffee && hasBakery; // 둘 다 있을 때만 '합산'이라고 명시
+
+  // 합산 매출 추이 차트 (파란선=합산, 흰선2=커피/제과 각 평균). metric=trend.avg.
+  //   3계열 모두 '월별 평균(avg)'을 그린다. buildQChart 와 같은 좌표계·톤을 재사용.
+  const CWHITE = "#e8e8e8", CWHITE2 = "#9a9a9a"; // 흰 선(커피/제과)
+  const buildCombinedChart = () => {
+    const cAvg = bd.coffeeTrendAvg || null;   // {labels, values}
+    const bAvg = bd.bakeryTrendAvg || null;   // {labels, values}
+    const comb = bd.combinedTrend || null;    // {labels, values}
+    // 우선 합산(comb) 라벨을 x축 기준으로. comb 없으면 커피만.
+    const base = comb || cAvg || bAvg || null;
+    if (!base || !Array.isArray(base.labels) || base.labels.length < 2) return null;
+    const labels = base.labels;
+    // 라벨→값 매핑 헬퍼(월 라벨 기준 정렬 대응)
+    const mapOf = (obj) => {
+      const m = new Map();
+      if (obj && Array.isArray(obj.labels)) obj.labels.forEach((lb, i) => { m.set(lb, obj.values ? obj.values[i] : null); });
+      return m;
+    };
+    const combM = mapOf(comb), coffM = mapOf(cAvg), bakM = mapOf(bAvg);
+    const pick = (m) => labels.map(lb => { const v = m.get(lb); return (v != null && isFinite(v)) ? v : null; });
+    const series = [];
+    // 합산(파랑) — 둘 다 있을 때만 별도 선. 하나뿐이면 그 업종 선이 곧 전체라 합산선 생략.
+    if (isCombined && comb) series.push({ key: 'combined', arr: pick(combM), color: ACC, w: 2.8, dot: true });
+    if (hasCoffee && cAvg) series.push({ key: 'coffee', arr: pick(coffM), color: CWHITE, w: 1.8, dot: false });
+    if (hasBakery && bAvg) series.push({ key: 'bakery', arr: pick(bakM), color: CWHITE2, w: 1.8, dot: false });
+    const allVals = series.flatMap(s => (s.arr || []).filter(v => v != null && isFinite(v)));
+    if (allVals.length < 2) return null;
+    const rawMax = Math.max(...allVals), rawMin = Math.min(...allVals);
+    const span = (rawMax - rawMin) || 1;
+    const max = rawMax + span * 0.1;
+    const min = Math.max(0, rawMin - span * 0.1);
+    const range = (max - min) || 1;
+    // [2026-07-01] 오른쪽 끝 월 라벨/마지막 dot 잘림 방지 → padR 여유 확보(dot r=5 + 라벨 반쪽).
+    const W = 700, H = 220, padL = 82, padR = 34, padB = 30, padT = 16;
+    const innerW = W - padL - padR, innerH = H - padT - padB;
+    const n = labels.length;
+    const xPos = (i) => padL + (n <= 1 ? 0 : (i / (n - 1)) * innerW);
+    const yPos = (v) => padT + innerH - ((v - min) / range) * innerH;
+    const ptsOf = (arr) => (arr || []).map((v, i) => (v != null && isFinite(v)) ? [xPos(i), yPos(v), v, i] : null).filter(Boolean);
+    const pathSmooth = (pts) => {
+      if (pts.length < 2) return '';
+      let d = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
+      for (let i = 0; i < pts.length - 1; i++) {
+        const [x1, y1] = pts[i], [x2, y2] = pts[i + 1];
+        const mx = (x1 + x2) / 2;
+        d += ` C${mx.toFixed(1)},${y1.toFixed(1)} ${mx.toFixed(1)},${y2.toFixed(1)} ${x2.toFixed(1)},${y2.toFixed(1)}`;
+      }
+      return d;
+    };
+    const ticks = Array.from({ length: 4 }, (_, i) => min + (range / 3) * i).map(v => ({ y: yPos(v), label: fmtWon(v) }));
+    // 범례: 합산(파랑) + 있는 업종만 흰 선
+    const legend = [];
+    if (isCombined) legend.push(['합산', ACC]);
+    if (hasCoffee) legend.push(['커피', CWHITE]);
+    if (hasBakery) legend.push(['제과', CWHITE2]);
+    return { W, H, padL, padR, padB, labels, series: series.map(s => ({ ...s, pts: ptsOf(s.arr) })), pathSmooth, ticks, xPos, legend };
+  };
+  const combinedChart = buildCombinedChart();
 
   return (
     <CardShell n="05" id="05"
@@ -1071,33 +1144,73 @@ function Card06({ body = {} }) {
         <StatTile id="c6.tile4" tone="cream" label="매출 순위"       value={cafeSalesRank ? String(cafeSalesRank).split(' /')[0] : '-'}/>
       </div>
 
-      {/* ── [2026-06-30 매출 한 저울] 매출 분위 두 구간 (커피만 / 커피+베이커리) ── */}
+      {/* ── [2026-07-01 커피+제과 합산 매출] 빈크래프트는 커피+베이커리를 함께 판다 ──
+          전체매출 = 커피 평균 + 제과 평균(같은 비즈맵 저울). 둘 다 있을 때만 '합산' 명시. */}
       {hasQuantile && (
         <div style={{marginBottom:16, display:"flex", flexDirection:"column", gap:24}}>
-          {/* 1. 커피 전문점 구간 — 6개월 추이 포함 */}
+
+          {/* 0. 전체매출 대표 숫자 (커피+베이커리 합산) — 카드 상단 헤드라인 */}
+          {(combinedAvgStr || combinedTop20Str) && (
+            <div style={{
+              padding:"26px 28px", borderRadius:16,
+              border:"1px solid rgba(76,123,228,0.55)",
+              background:"linear-gradient(135deg, rgba(76,123,228,0.14), rgba(76,123,228,0.04))",
+              display:"flex", flexWrap:"wrap", alignItems:"flex-end", justifyContent:"space-between", gap:20,
+            }}>
+              <div>
+                <div style={{display:"flex", alignItems:"center", gap:10, marginBottom:12, flexWrap:"wrap"}}>
+                  <span style={{fontSize:15, color:"var(--matte-fg-2)", fontWeight:700}}>전체 매출 (잠재)</span>
+                  <span style={{fontSize:12, fontWeight:700, color:ACC, padding:"4px 10px", borderRadius:999, border:"1px solid rgba(76,123,228,0.45)", background:"rgba(76,123,228,0.08)", whiteSpace:"nowrap"}}>
+                    {isCombined ? '커피 + 베이커리 합산' : (hasBakery ? '베이커리' : '커피 전문점')}
+                  </span>
+                </div>
+                <div style={{display:"flex", alignItems:"baseline", gap:8}}>
+                  <span style={{fontSize:54, fontWeight:800, color:ACC_VAL, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.02em", lineHeight:1}}>{combinedAvgStr || '-'}</span>
+                  <span style={{fontSize:17, color:"var(--matte-fg-3)", fontWeight:600}}>/월</span>
+                </div>
+                <div style={{marginTop:8, fontSize:13, color:"var(--matte-fg-3)"}}>
+                  {isCombined ? '커피 평균 + 제과 평균' : (hasBakery ? '제과 평균' : '커피 평균')}
+                </div>
+              </div>
+              {combinedTop20Str && (
+                <div style={{textAlign:"right"}}>
+                  <div style={{fontSize:13.5, color:"var(--matte-fg-3)", fontWeight:500, marginBottom:8}}>
+                    상위 20% {isCombined ? '합산' : ''}
+                  </div>
+                  <div style={{display:"flex", alignItems:"baseline", gap:6, justifyContent:"flex-end"}}>
+                    <span style={{fontSize:26, fontWeight:700, color:"#fff", fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{combinedTop20Str}</span>
+                    <span style={{fontSize:13, color:"var(--matte-fg-4)", fontWeight:600}}>/월</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 1. 커피 전문점 구간 — 상위20/중위/평균/하위(각자). 추이는 아래 합산 차트로 통합해 여기선 생략. */}
           <SalesSegment
             title="커피 전문점"
             q={coffeeQuant}
             fmtWon={fmtWon}
             accent={ACC} accentVal={ACC_VAL} grayAvg={GRAY_AVG} grayBtm={GRAY_BTM}
-            qChart={coffeeQChart}
+            qChart={null}
           />
 
-          {/* 2. 커피 + 베이커리 구간 — 분위 3숫자만(추이 생략). cafeBakeryQuant 없으면 SalesSegment가 null 반환 → 블록 자체 미노출. */}
+          {/* 2. {검색 동} · 베이커리 구간 — 검색 동의 제과 분위(cafeBakeryQuant). 상위20/중위/평균/하위(각자).
+               cafeBakeryQuant 없으면 SalesSegment가 null → 아래 전국평균 폴백 블록만 노출. */}
           <SalesSegment
-            title="커피 + 베이커리"
+            title={`${regionLabel ? regionLabel + ' · ' : ''}베이커리`}
             q={cafeBakeryQuant}
             fmtWon={fmtWon}
             accent={ACC} accentVal={ACC_VAL} grayAvg={GRAY_AVG} grayBtm={GRAY_BTM}
             qChart={null}
           />
 
-          {/* [2026-06-30] 제과점 전국 평균 (정직 블록) — 평균 한 값만. 분위·상위20%·중위 라벨 절대 금지(데이터 없음).
-              bakeryNationalAvg(null이면) 미노출. 커피 구간과 같은 만원/월 단위. */}
-          {bakeryNationalAvg && (
+          {/* [2026-07-01] 베이커리 전국 평균 폴백 (정직 블록) — 검색 동 제과 분위가 null일 때만.
+              라벨에 '전국 평균' 정직 표기. 값 없으면(null) 미노출(가짜값 금지). */}
+          {!(cafeBakeryQuant && cafeBakeryQuant.topStr) && bakeryNationalAvg && (
             <div className="bc-box" style={{padding:"18px 20px"}}>
               <div style={{display:"flex", alignItems:"baseline", justifyContent:"space-between", flexWrap:"wrap", gap:8}}>
-                <div style={{fontSize:14, color:"#A3A3A3", fontWeight:600}}>제과점 · 전국 평균</div>
+                <div style={{fontSize:14, color:"#A3A3A3", fontWeight:600}}>베이커리 · 전국 평균</div>
                 <div style={{fontSize:12.5, color:"#777"}}>점포당 월평균</div>
               </div>
               <div style={{marginTop:8, fontSize:26, fontWeight:700, color:ACC_VAL, fontVariantNumeric:"tabular-nums"}}>
@@ -1110,33 +1223,80 @@ function Card06({ body = {} }) {
             </div>
           )}
 
-          {/* 3. 커피 6개월 표 (상위20% 행 강조) — 커피 구간 trend 기준 */}
-          {coffeeTrend && (
-            <div className="bc-box" style={{padding:"18px 20px", overflowX:"auto"}}>
-              <table style={{width:"100%", borderCollapse:"collapse", fontVariantNumeric:"tabular-nums"}}>
-                <thead>
-                  <tr>
-                    <th style={{textAlign:"left", fontSize:13, color:"#A3A3A3", fontWeight:600, padding:"8px 10px", whiteSpace:"nowrap"}}>커피 전문점</th>
-                    {coffeeTrend.labels.map((m, i) => (
-                      <th key={i} style={{textAlign:"right", fontSize:13, color:"#A3A3A3", fontWeight:600, padding:"8px 10px", whiteSpace:"nowrap"}}>{m}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {qTableRows.map((row, ri) => (
-                    <tr key={ri} style={row.accent ? {background:"rgba(76,123,228,0.06)"} : undefined}>
-                      <td style={{textAlign:"left", fontSize:13.5, fontWeight:row.accent?700:500, color:row.accent?ACC:"var(--matte-fg-2)", padding:"10px 10px", whiteSpace:"nowrap", borderTop:"1px solid var(--matte-line)"}}>{row.label}</td>
-                      {(row.arr || []).map((v, ci) => {
-                        const isLast = ci === (row.arr.length - 1);
-                        const txt = (v != null && isFinite(v)) ? fmtWon(v) : '-';
-                        return (
-                          <td key={ci} style={{textAlign:"right", fontSize:13.5, fontWeight:(row.accent && isLast)?700:500, color:(row.accent && isLast)?ACC:(row.accent?"var(--matte-fg)":"var(--matte-fg-3)"), padding:"10px 10px", whiteSpace:"nowrap", borderTop:"1px solid var(--matte-line)"}}>{txt}</td>
-                        );
-                      })}
-                    </tr>
+          {/* 3. 매출 추이 (파란선=합산 · 흰선=커피/제과 각 평균). metric=trend.avg. 월 라벨 정렬. */}
+          {combinedChart && (
+            <div className="bc-box" style={{padding:"20px 22px"}}>
+              <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16, flexWrap:"wrap", gap:8}}>
+                <div style={{fontSize:15, fontWeight:600}}>매출 추이 (월별 평균)</div>
+                <div style={{display:"flex", gap:16}}>
+                  {combinedChart.legend.map(([lg, c]) => (
+                    <span key={lg} style={{display:"inline-flex", alignItems:"center", gap:6, fontSize:13, color:"var(--matte-fg-3)"}}>
+                      <span style={{width:14, height:3, borderRadius:2, background:c, display:"inline-block"}}></span>{lg}
+                    </span>
                   ))}
-                </tbody>
-              </table>
+                </div>
+              </div>
+              <svg width="100%" height={combinedChart.H} viewBox={`0 0 ${combinedChart.W} ${combinedChart.H}`} preserveAspectRatio="none" style={{display:"block"}}>
+                {combinedChart.ticks.map((t, i) => (
+                  <g key={i}>
+                    <line x1={combinedChart.padL} y1={t.y} x2={combinedChart.W - combinedChart.padR} y2={t.y} stroke="rgba(255,255,255,0.05)"/>
+                    <text x={combinedChart.padL - 10} y={t.y + 4} fontSize="13" fill="#A3A3A3" textAnchor="end" style={{fontVariantNumeric:"tabular-nums"}}>{t.label}</text>
+                  </g>
+                ))}
+                {[...combinedChart.series].reverse().map(s => (
+                  s.pts.length >= 2 ? (
+                    <path key={s.key} d={combinedChart.pathSmooth(s.pts)} fill="none" stroke={s.color} strokeWidth={s.w} strokeLinecap="round" vectorEffect="non-scaling-stroke" opacity={s.key === 'combined' ? 1 : 0.85}/>
+                  ) : null
+                ))}
+                {(() => {
+                  const lead = combinedChart.series.find(s => s.key === 'combined') || combinedChart.series[0];
+                  if (!lead || lead.pts.length === 0) return null;
+                  const last = lead.pts[lead.pts.length - 1];
+                  return <circle cx={last[0]} cy={last[1]} r="5" fill={lead.color}/>;
+                })()}
+                {combinedChart.labels.map((m, i) => {
+                  // [2026-07-01] 첫/끝 라벨은 start/end 로 붙여 좌우 넘침 방지, 중간은 가운데.
+                  const _anchor = i === 0 ? "start" : (i === combinedChart.labels.length - 1 ? "end" : "middle");
+                  return (
+                    <text key={i} x={combinedChart.xPos(i)} y={combinedChart.H - 8} fontSize="13" fill="#A3A3A3" textAnchor={_anchor}>{m}</text>
+                  );
+                })}
+              </svg>
+            </div>
+          )}
+
+          {/* 4. 분위 표 — 커피 + 제과 둘 다 행으로(각 업종 상위20/중위/평균/하위 + 기준월) */}
+          {(coffeeTrend || bakeryTrend) && (
+            <div className="bc-box" style={{padding:"18px 20px", overflowX:"auto"}}>
+              {[
+                { seg: '커피 전문점', trend: coffeeTrend, rows: qTableRows },
+                { seg: `${regionLabel ? regionLabel + ' · ' : ''}베이커리`, trend: bakeryTrend, rows: bTableRows },
+              ].filter(t => t.trend).map((tbl, ti) => (
+                <table key={ti} style={{width:"100%", borderCollapse:"collapse", fontVariantNumeric:"tabular-nums", marginTop: ti > 0 ? 20 : 0}}>
+                  <thead>
+                    <tr>
+                      <th style={{textAlign:"left", fontSize:13, color:"#A3A3A3", fontWeight:600, padding:"8px 10px", whiteSpace:"nowrap"}}>{tbl.seg}</th>
+                      {tbl.trend.labels.map((m, i) => (
+                        <th key={i} style={{textAlign:"right", fontSize:13, color:"#A3A3A3", fontWeight:600, padding:"8px 10px", whiteSpace:"nowrap"}}>{m}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tbl.rows.map((row, ri) => (
+                      <tr key={ri} style={row.accent ? {background:"rgba(76,123,228,0.06)"} : undefined}>
+                        <td style={{textAlign:"left", fontSize:13.5, fontWeight:row.accent?700:500, color:row.accent?ACC:"var(--matte-fg-2)", padding:"10px 10px", whiteSpace:"nowrap", borderTop:"1px solid var(--matte-line)"}}>{row.label}</td>
+                        {(row.arr || []).map((v, ci) => {
+                          const isLast = ci === (row.arr.length - 1);
+                          const txt = (v != null && isFinite(v)) ? fmtWon(v) : '-';
+                          return (
+                            <td key={ci} style={{textAlign:"right", fontSize:13.5, fontWeight:(row.accent && isLast)?700:500, color:(row.accent && isLast)?ACC:(row.accent?"var(--matte-fg)":"var(--matte-fg-3)"), padding:"10px 10px", whiteSpace:"nowrap", borderTop:"1px solid var(--matte-line)"}}>{txt}</td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ))}
             </div>
           )}
         </div>
@@ -1146,7 +1306,7 @@ function Card06({ body = {} }) {
         <div className="bc-box" style={{padding:24, display:"flex", flexDirection:"column"}}>
           <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:18}}>
             <div style={{fontSize:16, fontWeight:600}}>매출 추이</div>
-            <div style={{fontSize:13, color:"var(--matte-fg-3)"}}>{lineLabels.length > 0 ? `최근 ${lineLabels.length}개월` : ''}</div>
+            <div style={{fontSize:13, color:"var(--matte-fg-3)"}}>{lineLabels.length > 0 ? '최근 1년' : ''}</div>
           </div>
           {lineData.length >= 2 ? (
             <>
