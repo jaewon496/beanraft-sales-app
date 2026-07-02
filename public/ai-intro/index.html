@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 상권분석 | BEAN CRAFT</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jeju+Myeongjo&family=Playfair+Display:wght@700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { background: #000; }
+  body {
+    background: #000;
+    color: #fff;
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a { color: inherit; text-decoration: none; }
+
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+  /* ---------- 헤더 ---------- */
+  .site-header {
+    height: 66px;
+    background: #000;
+    border-bottom: 1px solid #111;
+    display: flex;
+    align-items: center;
+    position: relative;
+  }
+  .site-header .hd-inner {
+    width: 100%;
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 0 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+  }
+  .hd-brand {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 20px;
+    color: #fff;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+  .hd-nav {
+    display: flex;
+    align-items: center;
+    gap: 26px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .hd-nav a {
+    font-size: 15px;
+    color: #fff;
+    white-space: nowrap;
+    transition: color .2s;
+  }
+  .hd-nav a:hover { color: #3668dc; }
+  .hd-nav a.current { color: #3668dc; }
+  .hd-util {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    color: #a1a1a6;
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+  }
+  .hd-util span.sep { color: #444; }
+  .hd-util a:hover { color: #fff; }
+
+  /* ---------- 히어로 ---------- */
+  .hero {
+    position: relative;
+    height: 340px;
+    background: url('assets/cafe-int.jpg') center / cover no-repeat;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .hero::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+  }
+  .hero-inner {
+    position: relative;
+    text-align: center;
+    padding: 0 24px;
+  }
+  .hero-title {
+    font-family: 'Jeju Myeongjo', serif;
+    font-weight: 400;
+    font-size: 48px;
+    color: #fff;
+    letter-spacing: 0.02em;
+  }
+  .hero-sub {
+    margin-top: 14px;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.72);
+    letter-spacing: 0.06em;
+  }
+
+  /* ---------- 탭 ---------- */
+  .tabs-section { padding-top: 90px; }
+  .tabs {
+    max-width: 700px;
+    margin: 0 auto;
+    display: flex;
+    border-bottom: 1px solid #333;
+  }
+  .tab-btn {
+    flex: 0 0 50%;
+    width: 50%;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 18px;
+    font-weight: 500;
+    color: #a1a1a6;
+    padding: 18px 0 16px;
+    position: relative;
+    transition: color .2s;
+  }
+  .tab-btn.active { color: #3668dc; }
+  .tab-btn.active::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 4px;
+    background: #3668dc;
+  }
+
+  .tab-panel { display: none; text-align: center; padding: 72px 24px 0; }
+  .tab-panel.active { display: block; }
+  .tab-lead {
+    font-size: 20px;
+    font-weight: 700;
+    color: #fff;
+  }
+  .tab-desc {
+    margin-top: 22px;
+    font-size: 15px;
+    color: #a1a1a6;
+  }
+  .tab-desc p + p { margin-top: 6px; }
+  .link-consult {
+    display: inline-block;
+    margin-top: 34px;
+    font-size: 15px;
+    color: #fff;
+    text-decoration: underline;
+    text-underline-offset: 4px;
+    transition: color .2s;
+  }
+  .link-consult:hover { color: #3668dc; }
+
+  /* ---------- 공통 섹션 헤더 ---------- */
+  section.block { padding-top: 130px; }
+  .sec-head { text-align: center; }
+  .sec-title {
+    font-size: 28px;
+    font-weight: 700;
+    color: #fff;
+  }
+  .sec-title::after {
+    content: "";
+    display: block;
+    width: 40px;
+    height: 1px;
+    background: #fff;
+    margin: 22px auto 0;
+  }
+
+  /* ---------- 리포트 미리보기 ---------- */
+  .preview { background: #0a0a0a; padding-bottom: 130px; margin-top: 130px; padding-top: 110px; }
+  .preview section-inner { display: block; }
+  .card-item {
+    max-width: 900px;
+    margin: 90px auto 0;
+    text-align: center;
+  }
+  .card-item:first-of-type { margin-top: 80px; }
+  .card-label {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+  .card-label .no {
+    font-size: 12px;
+    color: #a1a1a6;
+    letter-spacing: 0.12em;
+  }
+  .card-label .name {
+    font-size: 16px;
+    font-weight: 700;
+    color: #fff;
+  }
+  .card-item img {
+    display: block;
+    width: 100%;
+    max-width: 900px;
+    border-radius: 14px;
+    border: 1px solid #222;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+  }
+  .card-caption {
+    margin-top: 16px;
+    font-size: 15px;
+    color: #a1a1a6;
+  }
+
+  /* ---------- 14장 구성 ---------- */
+  .grid14 {
+    margin-top: 64px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+  }
+  .grid14 .cell {
+    border: 1px solid #1c1c1e;
+    border-radius: 10px;
+    padding: 26px 28px;
+    text-align: left;
+  }
+  .grid14 .cell .no {
+    display: block;
+    font-size: 12px;
+    color: #a1a1a6;
+    letter-spacing: 0.12em;
+    margin-bottom: 8px;
+  }
+  .grid14 .cell .name {
+    font-size: 16px;
+    color: #fff;
+    font-weight: 500;
+  }
+
+  /* ---------- 마무리 ---------- */
+  .closing {
+    padding: 150px 24px 0;
+    text-align: center;
+  }
+  .closing .msg {
+    font-size: 20px;
+    font-weight: 700;
+    color: #fff;
+  }
+
+  /* ---------- 푸터 ---------- */
+  .site-footer {
+    margin-top: 140px;
+    padding: 70px 24px 60px;
+    border-top: 1px solid #111;
+    text-align: center;
+  }
+  .ft-brand {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 18px;
+    color: #fff;
+    letter-spacing: 0.05em;
+  }
+  .ft-info {
+    margin-top: 20px;
+    font-size: 11px;
+    color: #a1a1a6;
+    line-height: 1.9;
+  }
+
+  /* ---------- 반응형 ---------- */
+  @media (max-width: 860px) {
+    .site-header { height: auto; }
+    .site-header .hd-inner {
+      flex-direction: column;
+      gap: 12px;
+      padding: 16px 20px;
+    }
+    .hd-nav { gap: 14px 18px; }
+    .hero-title { font-size: 34px; }
+    .grid14 { grid-template-columns: 1fr; }
+    .tab-btn { font-size: 16px; }
+  }
+</style>
+</head>
+<body>
+
+  <!-- 헤더 -->
+  <header class="site-header">
+    <div class="hd-inner">
+      <a class="hd-brand" href="https://beancraft.co.kr">BEAN CRAFT</a>
+      <nav class="hd-nav">
+        <a href="https://beancraft.co.kr/창업안내">창업안내</a>
+        <a href="https://beancraft.co.kr/인테리어">인테리어</a>
+        <a href="https://beancraft.co.kr/기기설치">기기설치</a>
+        <a href="https://beancraft.co.kr/메뉴개발">메뉴개발</a>
+        <a href="https://beancraft.co.kr/운영교육">운영교육</a>
+        <a href="https://beancraft.co.kr/디자인">디자인</a>
+        <a href="https://beancraft.co.kr/원두">원두</a>
+        <a href="https://beancraft.co.kr/상담">상담</a>
+        <a href="#" class="current">AI 상권분석</a>
+      </nav>
+      <div class="hd-util">
+        <a href="https://beancraft.co.kr">SEARCH</a>
+        <span class="sep">|</span>
+        <a href="https://beancraft.co.kr">LOGIN</a>
+        <span class="sep">|</span>
+        <a href="https://beancraft.co.kr">CART</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- 히어로 -->
+  <div class="hero">
+    <div class="hero-inner">
+      <h1 class="hero-title">AI 상권분석</h1>
+      <p class="hero-sub">주소 하나로, 14장의 상권 분석 리포트</p>
+    </div>
+  </div>
+
+  <!-- 2탭 -->
+  <section class="tabs-section">
+    <div class="tabs" role="tablist">
+      <button class="tab-btn active" data-tab="t1" role="tab">제공하는 서비스</button>
+      <button class="tab-btn" data-tab="t2" role="tab">우리가 하는 일</button>
+    </div>
+
+    <div class="tab-panel active" id="t1" role="tabpanel">
+      <p class="tab-lead">창업할 자리를 정하기 전에, 데이터로 먼저 확인합니다.</p>
+      <div class="tab-desc">
+        <p>주소 하나만 입력하면 상권&middot;유동인구&middot;고객&middot;매출&middot;경쟁까지 14장의 분석 리포트가 만들어집니다.</p>
+        <p>공공&middot;민간 데이터와 AI 진단을 함께 담았습니다.</p>
+      </div>
+      <a class="link-consult" href="https://beancraft.co.kr/상담">상담문의</a>
+    </div>
+
+    <div class="tab-panel" id="t2" role="tabpanel">
+      <p class="tab-lead">숫자를 읽어주는 것까지가 우리의 일입니다.</p>
+      <div class="tab-desc">
+        <p>AI가 55개 지표를 관찰자 시점으로 훑어 이 동네만의 이야기를 찾아냅니다.</p>
+        <p>과장 없이, 근거 있는 숫자로만 말합니다.</p>
+      </div>
+      <a class="link-consult" href="https://beancraft.co.kr/상담">상담문의</a>
+    </div>
+  </section>
+
+  <!-- 리포트 미리보기 -->
+  <section class="preview">
+    <div class="wrap">
+      <div class="sec-head">
+        <h2 class="sec-title">리포트 미리보기</h2>
+      </div>
+
+      <div class="card-item">
+        <div class="card-label"><span class="no">01</span><span class="name">상권 분석</span></div>
+        <img src="assets/cards/shop.jpg" alt="상권 분석 카드">
+        <p class="card-caption">반경 500m 카페 전수 수집</p>
+      </div>
+
+      <div class="card-item">
+        <div class="card-label"><span class="no">03</span><span class="name">유동인구</span></div>
+        <img src="assets/cards/traffic.jpg" alt="유동인구 카드">
+        <p class="card-caption">시간대&middot;요일 통행량</p>
+      </div>
+
+      <div class="card-item">
+        <div class="card-label"><span class="no">05</span><span class="name">고객 분석</span></div>
+        <img src="assets/cards/customer.jpg" alt="고객 분석 카드">
+        <p class="card-caption">연령&middot;성별&middot;라이프스타일</p>
+      </div>
+
+      <div class="card-item">
+        <div class="card-label"><span class="no">11</span><span class="name">매출 분석</span></div>
+        <img src="assets/cards/sales.jpg" alt="매출 분석 카드">
+        <p class="card-caption">커피&middot;베이커리 분위와 추이</p>
+      </div>
+
+      <div class="card-item">
+        <div class="card-label"><span class="no">14</span><span class="name">AI 종합</span></div>
+        <img src="assets/cards/ai.jpg" alt="AI 종합 카드">
+        <p class="card-caption">데이터 근거 설계 방향</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 14장 구성 -->
+  <section class="block">
+    <div class="wrap">
+      <div class="sec-head">
+        <h2 class="sec-title">14장 구성</h2>
+      </div>
+      <div class="grid14">
+        <div class="cell"><span class="no">01</span><span class="name">상권 분석</span></div>
+        <div class="cell"><span class="no">02</span><span class="name">상권 변화 추이</span></div>
+        <div class="cell"><span class="no">03</span><span class="name">유동인구</span></div>
+        <div class="cell"><span class="no">04</span><span class="name">임대&middot;창업</span></div>
+        <div class="cell"><span class="no">05</span><span class="name">고객 분석</span></div>
+        <div class="cell"><span class="no">06</span><span class="name">SNS 트렌드</span></div>
+        <div class="cell"><span class="no">07</span><span class="name">날씨 영향</span></div>
+        <div class="cell"><span class="no">08</span><span class="name">프랜차이즈 현황</span></div>
+        <div class="cell"><span class="no">09</span><span class="name">개인 카페</span></div>
+        <div class="cell"><span class="no">10</span><span class="name">상권 경쟁</span></div>
+        <div class="cell"><span class="no">11</span><span class="name">매출 분석</span></div>
+        <div class="cell"><span class="no">12</span><span class="name">카페 기회</span></div>
+        <div class="cell"><span class="no">13</span><span class="name">배달 객단가</span></div>
+        <div class="cell"><span class="no">14</span><span class="name">AI 종합 분석</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 마무리 -->
+  <section class="closing">
+    <p class="msg">궁금한 동네가 있다면, 먼저 데이터로 보여드립니다.</p>
+    <a class="link-consult" href="https://beancraft.co.kr/상담">상담문의</a>
+  </section>
+
+  <!-- 푸터 -->
+  <footer class="site-footer">
+    <div class="ft-brand">BEAN CRAFT</div>
+    <div class="ft-info">
+      대표 이재원 &middot; 빈크래프트 &middot; 0507-1488-9050<br>
+      서울 용산구 청파로47길 14-6 1층 &middot; &copy; 2025 Beancraft
+    </div>
+  </footer>
+
+<script>
+  var btns = document.querySelectorAll('.tab-btn');
+  var panels = document.querySelectorAll('.tab-panel');
+  btns.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      btns.forEach(function (b) { b.classList.remove('active'); });
+      panels.forEach(function (p) { p.classList.remove('active'); });
+      btn.classList.add('active');
+      document.getElementById(btn.dataset.tab).classList.add('active');
+    });
+  });
+</script>
+</body>
+</html>
