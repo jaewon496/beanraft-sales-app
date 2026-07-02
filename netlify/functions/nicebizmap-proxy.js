@@ -118,19 +118,22 @@ async function maybeRotateNbmSession(store, setCookie) {
 
 // summary-report 응답이 "세션 만료/로그인 필요"를 의미하는지 판정 (heartbeat 와 동일 규칙)
 //   봉투가 { success, code, message } 또는 { data:{...} } 양쪽으로 올 수 있어 둘 다 본다.
-//   code 1002/9999 또는 message 에 "로그인" 포함 시 만료로 본다.
+// ★ 2026-07-02: 9999 는 만료가 아니라 throttle(과호출) 신호 → 만료에서 제외 (heartbeat isExpiredResponse 와 동일).
+//   9999 를 만료로 잡아 재로그인+재호출을 태우면 막힌 서버를 또 두드려 차단만 키운다 → 그대로 실패 반환.
+//   진짜 로그인 풀림만 만료로: code 1002 또는 message 에 "로그인" 포함.
 function isLoginExpired(result) {
   if (!result || result.parseError) return false;
   const env = result.data && typeof result.data === 'object' ? result.data : result;
   const j = env || result;
+  const innerCode = j ? String(j.code ?? j.errorCode ?? j.resultCode ?? '') : '';
+  const topCode = String(result.code ?? result.errorCode ?? result.resultCode ?? '');
+  if (innerCode === '9999' || topCode === '9999') return false; // throttle(과호출) ≠ 세션만료. 절대 만료로 잡지 않음.
   if (j && j.success === false) {
-    const code = String(j.code ?? j.errorCode ?? j.resultCode ?? '');
-    if (code === '1002' || code === '9999') return true;
+    if (innerCode === '1002') return true;
     if (typeof j.message === 'string' && /로그인/.test(j.message)) return true;
   }
   // 최상위에도 code/message 가 올 수 있음
-  const topCode = String(result.code ?? result.errorCode ?? result.resultCode ?? '');
-  if (topCode === '1002' || topCode === '9999') return true;
+  if (topCode === '1002') return true;
   if (typeof result.message === 'string' && /로그인/.test(result.message)) return true;
   return false;
 }
@@ -615,7 +618,8 @@ exports.handler = async (event) => {
 
     // ═══════════════════════════════════════════════════════════════
     // [자동 재로그인 1회 + summary-report 1회 재시도] (2026-06-26)
-    //   응답이 9999/"로그인 해주세요"(세션 만료)면 → 재로그인 직원 1회 호출 →
+    //   응답이 "로그인 해주세요"(세션 만료, 1002)면 → 재로그인 직원 1회 호출 →
+    //   ★9999 = 과호출(throttle), 세션만료 아님(만료는 1002) → isLoginExpired 가 9999 는 제외.
     //   새 sessionId 를 쿠키 변수에 즉시 반영 → summary-report 1회만 재시도.
     //   ★무한루프 방지: 단 1회만. (같은 admiCd 연타 throttle 과는 별개 — 만료 복구 전용.)
     //   재로그인 실패하면 원래 만료 응답 그대로 진행(가짜 폴백 안 함).

@@ -6552,7 +6552,7 @@ export default function UnifiedLayout({
           put(values, '등급', total > 0 ? grade : null);
         } else if (screen === 11) {    // 매출 분석 (컴포넌트 n=05)
           title = '매출 분석';
-          // [2026-06-30 매출 한 저울] 월평균매출 = 단일 진실값(monthlyAvgSales=비즈맵 커피 분위 평균 1순위, 안정 동평균→소상공인 최후 폴백). 없으면 안정 동평균→단일월.
+          // [2026-07-02 릴스=화면 일치] 합산 헤드라인 삭제로 원복 — 월평균매출 = 화면 '커피 전문점' 열의 평균과 같은 단일 진실값(monthlyAvgSales=비즈맵 커피 분위 평균) → 안정 동평균 → 단일월 폴백. (combinedAvgManwon 우선 로직 제거)
           const monthly = _num(bd.monthlyAvgSales) || _num(bd.dongCafeAvgStable) || _num(bd.monthly) || 0;
           put(values, '월평균매출', monthly > 0 ? (monthly >= 10000 ? `${(monthly / 10000).toFixed(1)}억` : `${monthly.toLocaleString('ko-KR')}만원`) : null);
           // 객단가 = 화면 unitPriceDisplay 우선순위(비즈맵 → 가중평균)

@@ -1734,7 +1734,8 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   const bmAvgSales = aiData?.apis?.bizMapAverageSales?.data ?? apis.bizMapAverageSales?.data;
   // [2026-06-30] 커피 분위(=기존 bizMapAverageSales). 매출분석 카드 '커피만' 구간.
   const coffeeQuant = extractQuantile(bmAvgSales);
-  // [2026-06-30] 제과(베이커리) 분위(=bizMapAverageSalesBakery). 매출분석 카드 '커피+베이커리' 구간.
+  // [2026-06-30 → 2026-07-02 주석 정정] 제과(베이커리) 단독 분위(Q11002, bizMapAverageSalesBakery).
+  //   커피와 합산은 combined* 필드에서 별도로 계산한다(이 변수 자체는 제과 단독 값).
   const bmAvgSalesBakery = aiData?.apis?.bizMapAverageSalesBakery?.data ?? apis.bizMapAverageSalesBakery?.data;
   const cafeBakeryQuant = extractQuantile(bmAvgSalesBakery);
 
@@ -1859,7 +1860,7 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     var _bmNatMkt = apis.bmNationalChart?.data ?? aiData?.apis?.bmNationalChart?.data;
     if (_bmNatMkt && typeof _bmNatMkt === 'object') {
       // 시장 규모 값: 전국 점포당 평균 매출(만원, 이미 단위 보정됨)을 대표값으로
-      var _bmNatPerStore = parseFloat(_bmNatMkt.latestPerStoreManwon ?? _bmNatMkt.perStoreAvgManwon ?? 0) || 0;
+      var _bmNatPerStore = parseFloat(_bmNatMkt._perStoreAvgManwonResolved ?? _bmNatMkt.latestPerStoreManwon ?? _bmNatMkt.perStoreAvgManwon ?? 0) || 0;
       if (!bmMarketLatestStr && _bmNatPerStore > 0) {
         bmMarketLatestStr = fmtWon(_bmNatPerStore) + ' (전국 기준)';
       }
@@ -2265,16 +2266,45 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   // ── [2026-07-01 커피+제과 합산 매출] 빈크래프트는 커피+베이커리를 함께 판다 ──
   //   두 매출 모두 비즈맵 분위(=같은 저울)라 단순 더하기가 성립한다.
   //   합산 규칙: 커피·제과 둘 다 있으면 더함, 한쪽만 있으면 그 값, 둘 다 없으면 null. (가짜 0채움 금지)
-  const _sumOrOne = (a, b) => {
-    const av = (typeof a === 'number' && a > 0) ? a : null;
-    const bv = (typeof b === 'number' && b > 0) ? b : null;
-    if (av != null && bv != null) return av + bv;
-    if (av != null) return av;
-    if (bv != null) return bv;
-    return null;
-  };
-  const combinedAvgManwon = _sumOrOne(coffeeQuant?.avgNum, cafeBakeryQuant?.avgNum);
-  const combinedTop20Manwon = _sumOrOne(coffeeQuant?.topNum, cafeBakeryQuant?.topNum);
+  //   [2026-07-02 감리 2-1] 둘 다 있을 때 '각자 자기 최신월'(예: 커피 202604 + 제과 202605)을 더해
+  //   서로 다른 달이 섞이고 합산 추이 마지막 점과도 어긋나던 문제 수정 →
+  //   두 분위 추이(trend.labels)에 모두 존재하고 '둘 다 양수'인 마지막 공통월의 값끼리 더한다
+  //   (combinedTrend 계산과 같은 기준). 그런 달이 없으면 null(헤드라인 숨김, 가짜값 금지).
+  let combinedAvgManwon = null;
+  let combinedTop20Manwon = null;
+  let combinedBasisMonth = null; // 합산(또는 단독) 기준월 라벨('26.05' 형식) — 렌더 기준월 표기용. 없으면 null.
+  {
+    const _posAt = (arr, i) => { const v = Array.isArray(arr) ? arr[i] : null; return (typeof v === 'number' && isFinite(v) && v > 0) ? v : null; };
+    const _hasCoffee = (typeof coffeeQuant?.avgNum === 'number' && coffeeQuant.avgNum > 0);
+    const _hasBakery = (typeof cafeBakeryQuant?.avgNum === 'number' && cafeBakeryQuant.avgNum > 0);
+    if (_hasCoffee && _hasBakery) {
+      const _cT = coffeeQuant.trend, _bT = cafeBakeryQuant.trend;
+      if (_cT && _bT && Array.isArray(_cT.labels) && Array.isArray(_bT.labels)) {
+        // 뒤(최신)부터 훑어 '두 추이에 다 있고 평균이 둘 다 양수'인 마지막 달을 찾는다.
+        for (let i = _cT.labels.length - 1; i >= 0; i--) {
+          const lb = _cT.labels[i];
+          const j = _bT.labels.indexOf(lb);
+          if (j < 0) continue;
+          const ca = _posAt(_cT.avg, i), ba = _posAt(_bT.avg, j);
+          if (ca == null || ba == null) continue; // 한쪽 평균 0/결손인 달은 건너뛰고 더 이전 달로
+          combinedAvgManwon = ca + ba;
+          combinedBasisMonth = lb;
+          // 상위20% 합산도 같은 기준월에서만(둘 다 양수일 때만). 다른 달끼리 섞지 않는다.
+          const ct = _posAt(_cT.top, i), bt = _posAt(_bT.top, j);
+          if (ct != null && bt != null) combinedTop20Manwon = ct + bt;
+          break;
+        }
+      }
+      // 공통월이 없으면 null 유지 — 다른 달끼리 더하지 않는다.
+    } else if (_hasCoffee || _hasBakery) {
+      // 한 업종만 있으면 기존처럼 그 업종 최신월 값 그대로.
+      const q = _hasCoffee ? coffeeQuant : cafeBakeryQuant;
+      combinedAvgManwon = q.avgNum;
+      combinedTop20Manwon = (typeof q.topNum === 'number' && q.topNum > 0) ? q.topNum : null;
+      const t = q.trend;
+      combinedBasisMonth = (t && Array.isArray(t.labels) && t.labels.length > 0) ? t.labels[t.labels.length - 1] : null;
+    }
+  }
   const combinedAvgStr = (combinedAvgManwon != null) ? fmtWon(combinedAvgManwon) : null;
   const combinedTop20Str = (combinedTop20Manwon != null) ? fmtWon(combinedTop20Manwon) : null;
 
@@ -2304,10 +2334,10 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       const bVals = interLabels.map(lb => { const v = bakMap.get(lb); return (v != null && isFinite(v)) ? v : null; });
       const combVals = interLabels.map((lb, i) => {
         const cv = cVals[i], bv = bVals[i];
-        if (cv != null && bv != null) return cv + bv; // 교집합 달의 진짜 합
-        if (cv != null) return cv;
-        if (bv != null) return bv;
-        return null;
+        // [2026-07-02 감리 2-2] 교집합 안쪽 달에 한쪽이 null/0이면 그 달 합산점은 null.
+        //   (예전엔 다른 쪽 단독값으로 폴백해 합산선이 그 달만 뚝 떨어지는 가짜 급락이 생겼다.
+        //    null이면 렌더가 그 점만 건너뛰어 선이 끊길 뿐, 가짜 값은 없다. 2-1 헤드라인과 같은 기준.)
+        return (cv != null && bv != null) ? cv + bv : null;
       });
       coffeeTrendAvg = { labels: interLabels.slice(), values: cVals };
       bakeryTrendAvg = { labels: interLabels.slice(), values: bVals };
@@ -2393,16 +2423,21 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
       bizmapMidSales: bmMidSalesStr,
       bizmapMidSalesNum: bmMidSalesNum,
       bizmapQuantileTrend: bmQuantileTrend,
-      // [2026-06-30 매출 한 저울] 매출분석 카드 두 구간 분위(비즈맵 같은 저울):
-      //   coffeeQuant = 커피만(bizMapAverageSales), cafeBakeryQuant = 커피+베이커리(bizMapAverageSalesBakery).
+      // [2026-06-30 매출 한 저울 → 2026-07-02 주석 정정] 매출분석 카드 두 구간 분위(비즈맵 같은 저울):
+      //   coffeeQuant = 커피만(bizMapAverageSales), cafeBakeryQuant = 제과(베이커리) 단독 분위(Q11002, bizMapAverageSalesBakery).
+      //   커피와 합산은 combined* 필드에서 별도.
       //   각 { topNum,topStr, avgNum,avgStr, midNum,midStr, btmNum,btmStr, trend }. 데이터 없으면 null.
       coffeeQuant: coffeeQuant,
       cafeBakeryQuant: cafeBakeryQuant,
-      // [2026-07-01 커피+제과 합산] 잠재 매출 = 커피 + 제과(같은 비즈맵 저울). 둘 다 있을 때만 더함, 하나면 그 값, 없으면 null.
+      // [2026-07-01 커피+제과 합산] 잠재 매출 = 커피 + 제과(같은 비즈맵 저울).
+      //   [2026-07-02 감리 2-1] 둘 다 있으면 '둘 다 양수인 마지막 공통월' 값끼리 더함(다른 달 섞지 않음),
+      //   하나면 그 업종 최신월 값, 공통월/값 없으면 null(숨김).
       combinedAvgManwon: combinedAvgManwon,
       combinedTop20Manwon: combinedTop20Manwon,
       combinedAvgStr: combinedAvgStr,
       combinedTop20Str: combinedTop20Str,
+      // 합산 기준월 라벨('26.05' 형식, 단독이면 그 업종 최신월) — 렌더 기준월 표기용. 없으면 null.
+      combinedBasisMonth: combinedBasisMonth,
       // 합산 매출 추이(월 라벨 정렬, 커피 avg + 제과 avg) + 각 업종 흰선용 평균 시계열
       combinedTrend: combinedTrend,
       coffeeTrendAvg: coffeeTrendAvg,
@@ -3848,8 +3883,10 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   }
 
   // [2026-06-29 정보분산 패스5 §1-7] 등급어 = 밀집도 단일 출처(bcDensityGrade). 옛 자체 임계(80/40/15·양호/과밀/매우과밀) 폐기.
-  //   카드13 한줄평·카드14 종합·릴스와 같은 단어가 나오게 통일. 카페수 0이면 '양호'(데이터 없음 폴백).
-  let competLevel = bcDensityGrade(totalCafes) || '양호';
+  //   카드13 한줄평·카드14 종합·릴스와 같은 단어가 나오게 통일.
+  //   [2026-07-02 감리 2-3] 카페수 0(수집 실패)일 때 '양호' 가짜 폴백 제거 → null(값 없으면 숨김).
+  //   하류 확인: aiDiagnosis _str/_clean 이 null 제거, UnifiedLayout 릴스는 String(level || '') + 정규식이라 절 생략. 안전.
+  let competLevel = bcDensityGrade(totalCafes) || null;
 
   const competBarItems = [];
   if (totalCafes > 0) competBarItems.push({ label: '카페수', value: totalCafes });
@@ -4928,7 +4965,7 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     //     =같은 동 비즈맵 커피 평균)와 자기참조가 되어 비율 항상 ~1.0 → 백분위 ~52 고정 → 무의미했음.
     const _natRaw = apis.bmNationalChart?.data ?? aiData?.apis?.bmNationalChart?.data;
     if (_natRaw && typeof _natRaw === 'object') {
-      const _natPerStore = parseFloat(_natRaw.latestPerStoreManwon ?? _natRaw.perStoreAvgManwon ?? 0) || 0;
+      const _natPerStore = parseFloat(_natRaw._perStoreAvgManwonResolved ?? _natRaw.latestPerStoreManwon ?? _natRaw.perStoreAvgManwon ?? 0) || 0;
       if (_natPerStore > 0) {
         _natCafeAvgManwon = Math.round(_natPerStore);
         _natCafeSrc = 'bmNational';

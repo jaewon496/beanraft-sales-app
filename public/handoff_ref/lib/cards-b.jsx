@@ -94,31 +94,35 @@ function Card08({ body = {} }) {
       </div>
 
       <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16}}>
+        {/* [2026-07-02] 4종 값이 전부 없으면 제목만 남은 빈 박스 → 박스 자체를 렌더하지 않음 */}
+        {(marketRent > 0 || conversionRate > 0 || yieldRate > 0 || (netIncomeUnit === '%' && netIncomePct > 0) || netIncome > 0) && (
         <div className="bc-box" style={{padding:18}}>
           <div style={{fontSize:15, fontWeight:600, marginBottom:12}}>임대 시세 4종</div>
           <div className="bc-grid-2" style={{gap:10}}>
-            <Box label="평당 월세" value={marketRent > 0 ? String(marketRent) : '-'} unit={marketRent > 0 ? '만원' : ''} sub={kosisRegion || ''} src={kosisPeriod}/>
-            <Box label="전환율"   value={conversionRate > 0 ? (window.bcFmtPct ? window.bcFmtPct(conversionRate) : Number(conversionRate).toFixed(1)) : '-'} unit={conversionRate > 0 ? '%' : ''} src={kosisPeriod}/>
-            <Box label="수익률"   value={yieldRate > 0 ? (window.bcFmtPct ? window.bcFmtPct(yieldRate) : Number(yieldRate).toFixed(1)) : '-'} unit={yieldRate > 0 ? '%' : ''} sub="순영업소득 기준" src={kosisPeriod}/>
-            <Box label="순영업소득"
-                 value={
-                   netIncomeUnit === '%' && netIncomePct > 0
-                     ? (window.bcFmtPct ? window.bcFmtPct(netIncomePct) : netIncomePct.toFixed(1))
-                     : (netIncome > 0
-                         ? (netIncome >= 10000
-                             ? Math.round(netIncome / 10000).toLocaleString()
-                             : Math.round(netIncome).toLocaleString())
-                         : '-')
-                 }
-                 unit={
-                   netIncomeUnit === '%' && netIncomePct > 0
-                     ? '%'
-                     : (netIncome > 0 ? (netIncome >= 10000 ? '만/평/년' : '원/평/년') : '')
-                 }
-                 sub={netIncomeUnit === '%' ? '임대수입 대비' : ''}
-                 src={kosisPeriod}/>
+            {/* [2026-07-02] "-" 금지 → 값 없는 박스는 자체 숨김 (전국 카페 평균 박스와 동일 패턴) */}
+            {marketRent > 0 && <Box label="평당 월세" value={String(marketRent)} unit="만원" sub={kosisRegion || ''} src={kosisPeriod}/>}
+            {conversionRate > 0 && <Box label="전환율" value={window.bcFmtPct ? window.bcFmtPct(conversionRate) : Number(conversionRate).toFixed(1)} unit="%" src={kosisPeriod}/>}
+            {yieldRate > 0 && <Box label="수익률" value={window.bcFmtPct ? window.bcFmtPct(yieldRate) : Number(yieldRate).toFixed(1)} unit="%" sub="순영업소득 기준" src={kosisPeriod}/>}
+            {((netIncomeUnit === '%' && netIncomePct > 0) || netIncome > 0) && (
+              <Box label="순영업소득"
+                   value={
+                     netIncomeUnit === '%' && netIncomePct > 0
+                       ? (window.bcFmtPct ? window.bcFmtPct(netIncomePct) : netIncomePct.toFixed(1))
+                       : (netIncome >= 10000
+                           ? Math.round(netIncome / 10000).toLocaleString()
+                           : Math.round(netIncome).toLocaleString())
+                   }
+                   unit={
+                     netIncomeUnit === '%' && netIncomePct > 0
+                       ? '%'
+                       : (netIncome >= 10000 ? '만/평/년' : '원/평/년')
+                   }
+                   sub={netIncomeUnit === '%' ? '임대수입 대비' : ''}
+                   src={kosisPeriod}/>
+            )}
           </div>
         </div>
+        )}
 
         <div className="bc-box" style={{padding:18, display:"flex", flexDirection:"column"}}>
           <div style={{fontSize:15, fontWeight:600, marginBottom:12}}>전국 카페 평균</div>
@@ -299,18 +303,22 @@ function Card09({ body = {} }) {
               <div style={{width:"100%", textAlign:"center", color:"var(--matte-fg-4)", fontSize:13}}>공실률 추이 데이터 수집 중</div>
             )}
           </div>
+          {/* [2026-07-02] "-" 금지 → 공실률 시계열 2점 미만이면 최저/최고/변동폭 줄 전체 숨김
+              (1점뿐이면 변동폭 0.0% 같은 무의미 통계라 그래프의 '수집 중' 안내와 맞춤) */}
+          {vacPositive.length >= 2 && (
           <div style={{marginTop:20, paddingTop:18, borderTop:"1px solid var(--matte-line)", display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:14}}>
             {[
-              ["최저", vacMin > 0 ? (window.bcFmtPct ? window.bcFmtPct(vacMin) : Number(vacMin).toFixed(1)) : '-', "%"],
-              ["최고", vacMax > 0 ? (window.bcFmtPct ? window.bcFmtPct(vacMax) : Number(vacMax).toFixed(1)) : '-', "%"],
-              ["변동폭", vacRange > 0 ? (window.bcFmtPct ? window.bcFmtPct(vacRange) : Number(vacRange).toFixed(1)) : '-', "%"],
+              ["최저", window.bcFmtPct ? window.bcFmtPct(vacMin) : Number(vacMin).toFixed(1), "%"],
+              ["최고", window.bcFmtPct ? window.bcFmtPct(vacMax) : Number(vacMax).toFixed(1), "%"],
+              ["변동폭", window.bcFmtPct ? window.bcFmtPct(vacRange) : Number(vacRange).toFixed(1), "%"],
             ].map(([l, v, u]) => (
               <div key={l}>
                 <div style={{fontSize:13, color:"var(--matte-fg-3)", marginBottom:6, fontWeight:500}}>{l}</div>
-                <div style={{fontSize:22, fontWeight:700, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{v}{v !== '-' && <span style={{fontSize:13, color:"var(--matte-fg-3)", marginLeft:2, fontWeight:500}}>{u}</span>}</div>
+                <div style={{fontSize:22, fontWeight:700, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{v}<span style={{fontSize:13, color:"var(--matte-fg-3)", marginLeft:2, fontWeight:500}}>{u}</span></div>
               </div>
             ))}
           </div>
+          )}
         </div>
 
         <div className="bc-box" style={{padding:24}}>
@@ -387,6 +395,8 @@ function Card10({ body = {} }) {
     }
     return { value: '카페', unit: '', sub: '배달 운영 업종' };
   })();
+  // 순위 타일 '실데이터' 여부: 마지막 폴백 문구('카페')만 남는 경우는 데이터 없음으로 취급
+  const rankTileHasData = cafeRank > 0 || !!(topDelivCats[0] && topDelivCats[0].name) || totalBiz > 0;
   const cafeDelivery = Number(bd.cafeDeliveryAmount) || 0;
   const monthlyTrendArr = Array.isArray(bd.monthlyTrend) ? bd.monthlyTrend.slice(-12) : [];
   const monthlyValues = monthlyTrendArr.map(m => Number(m.value) || 0).filter(v => v > 0);
@@ -439,12 +449,16 @@ function Card10({ body = {} }) {
       bruSummary={body.bruSummary}
       title="배달 객단가"
       sub="이 동네 배달 객단가">
+      {/* [2026-07-02] "-" 금지 → 넷(객단가/매출/건수/순위) 중 하나라도 있으면 줄 표시,
+          각 타일은 자기 값 있을 때만 렌더 (격자 자동배치라 홀수여도 안 깨짐) */}
+      {(searchAvgPrice > 0 || searchSales > 0 || searchOrders > 0 || rankTileHasData) && (
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
-        <StatTile id="c10.tile1" tone="blue"  label="동 객단가 (배달)" value={searchAvgPrice > 0 ? searchAvgPrice.toLocaleString() : '-'} unit={searchAvgPrice > 0 ? '원' : ''} hero est={searchAvgPrice > 0 && _isEst10('searchAvgPrice', 'avgPrice', '객단가')}/>
-        <StatTile id="c10.tile2" tone="mint"  label="월 배달 매출"   value={searchSales > 0 ? searchSales.toLocaleString() : '-'} unit={searchSales > 0 ? '만원' : ''}/>
-        <StatTile id="c10.tile3" tone="lilac" label="월 배달 건수"   value={searchOrders > 0 ? searchOrders.toLocaleString() : '-'} unit={searchOrders > 0 ? '건' : ''} delta={yoyPct ? String(Math.abs(yoyPct)) : undefined} deltaPositive={yoyPct >= 0}/>
-        <StatTile id="c10.tile4" tone="cream" label="업종 순위"      value={rankTile.value} unit={rankTile.unit} sub={rankTile.sub}/>
+        {searchAvgPrice > 0 && <StatTile id="c10.tile1" tone="blue"  label="동 객단가 (배달)" value={searchAvgPrice.toLocaleString()} unit="원" hero est={_isEst10('searchAvgPrice', 'avgPrice', '객단가')}/>}
+        {searchSales > 0 && <StatTile id="c10.tile2" tone="mint"  label="월 배달 매출"   value={searchSales.toLocaleString()} unit="만원"/>}
+        {searchOrders > 0 && <StatTile id="c10.tile3" tone="lilac" label="월 배달 건수"   value={searchOrders.toLocaleString()} unit="건" delta={yoyPct ? String(Math.abs(yoyPct)) : undefined} deltaPositive={yoyPct >= 0}/>}
+        {rankTileHasData && <StatTile id="c10.tile4" tone="cream" label="업종 순위"      value={rankTile.value} unit={rankTile.unit} sub={rankTile.sub}/>}
       </div>
+      )}
 
       <div style={{display:"grid", gridTemplateColumns:"1.4fr 1fr", gap:16, alignItems:"stretch"}}>
         <div className="bc-box" style={{padding:18, display:"flex", flexDirection:"column"}}>
@@ -588,12 +602,15 @@ function Card11({ body = {} }) {
       bruSummary={body.bruSummary}
       title="SNS 트렌드"
       sub="소셜미디어 카페 분위기 분석">
+      {/* [2026-07-02] "-" 금지 → SNS 데이터가 통째로 비면(AI 응답 없음) 4타일 전부 '-'/'0'이라 KPI 줄 자체 숨김 */}
+      {(positivePct > 0 || negativePct > 0 || blogMentions > 0 || kwArr.length > 0) && (
       <div className="bc-grid-4" style={{gap:16, marginBottom:16}}>
         <StatTile id="c11.tile1" tone="mint"  label="긍정 비율"      value={positivePct > 0 ? String(positivePct) : '-'} unit={positivePct > 0 ? '%' : ''} hero/>
         <StatTile id="c11.tile2" tone="rose"  label="부정 비율"      value={negativePct > 0 ? String(negativePct) : '-'} unit={negativePct > 0 ? '%' : ''} deltaPositive={false}/>
         <StatTile id="c11.tile3" tone="blue"  label="총 키워드"     value={String(kwArr.length)}/>
         <StatTile id="c11.tile4" tone="cream" label="블로그 언급"   value={blogMentions > 0 ? blogMentions.toLocaleString() : '-'} unit={blogMentions > 0 ? '건' : ''}/>
       </div>
+      )}
 
       <div style={{display:"grid", gridTemplateColumns:"1.3fr 1fr", gap:16, alignItems:"stretch"}}>
         <div className="bc-box" style={{padding:20, display:"flex", flexDirection:"column"}}>
@@ -818,12 +835,15 @@ function Card12({ body = {} }) {
             </div>
           )}
 
+          {/* [2026-07-02] "-" 금지 → 값 없는 박스는 자체 숨김 (카드08 전국 카페 평균 박스와 동일 패턴) */}
+          {(avgTempYr != null || summerMax != null || winterMin != null || rainDays > 0) && (
           <div className="bc-grid-2" style={{gap:10}}>
-            <Box label="연평균 기온" value={avgTempYr != null ? avgTempYr : '-'} unit={avgTempYr != null ? '°C' : ''}/>
-            <Box label="여름 최고"  value={summerMax != null ? summerMax : '-'} unit={summerMax != null ? '°C' : ''}/>
-            <Box label="겨울 최저"  value={winterMin != null ? winterMin : '-'} unit={winterMin != null ? '°C' : ''}/>
-            <Box label="강수일/연"  value={rainDays > 0 ? String(rainDays) : '-'} unit={rainDays > 0 ? '일' : ''} sub={yd?.relativePosition || ''}/>
+            {avgTempYr != null && <Box label="연평균 기온" value={avgTempYr} unit="°C"/>}
+            {summerMax != null && <Box label="여름 최고" value={summerMax} unit="°C"/>}
+            {winterMin != null && <Box label="겨울 최저" value={winterMin} unit="°C"/>}
+            {rainDays > 0 && <Box label="강수일/연" value={String(rainDays)} unit="일" sub={yd?.relativePosition || ''}/>}
           </div>
+          )}
         </div>
       </div>
     </CardShell>

@@ -821,106 +821,6 @@ function Card05({ body = {} }) {
 }
 
 /* ============================================================
-   Card 06 — 매출 분석 : 구간 분위 블록 (커피만 / 커피+베이커리 공통 소부품)
-   [2026-06-30] coffeeQuant·cafeBakeryQuant 두 번 렌더. 큰 글씨=상위20%(accent),
-   작은 글씨=보통(중위), 보조 무채색 타일=평균·하위20%. 평균은 절대 헤드라인에 안 둔다.
-   ============================================================ */
-function SalesSegment({ title, q, fmtWon, accent, accentVal, grayAvg, grayBtm, qChart }) {
-  if (!q || !q.topStr) return null;   // 상위20%가 있어야 구간 노출(가짜값 금지)
-  const ACC = accent, ACC_VAL = accentVal, GRAY_AVG = grayAvg, GRAY_BTM = grayBtm;
-  // 보조 무채색 타일: 평균 / 하위20% (값 있는 것만)
-  const subTiles = [];
-  if (q.avgStr) subTiles.push(["평균", q.avgStr]);
-  if (q.btmStr) subTiles.push(["하위 20%", q.btmStr]);
-  return (
-    <div style={{display:"flex", flexDirection:"column", gap:14}}>
-      {/* 구간 헤더 */}
-      <div style={{fontSize:15, fontWeight:700, color:"var(--matte-fg-2)", letterSpacing:"-0.005em"}}>{title}</div>
-
-      {/* 큰 글씨 = 잘되는 카페(상위20%) + 작은 글씨 = 보통 카페(중위) */}
-      <div style={{
-        padding:"24px 26px", borderRadius:14,
-        border:"1px solid rgba(76,123,228,0.5)",
-        background:"linear-gradient(135deg, rgba(76,123,228,0.10), rgba(76,123,228,0.03))",
-        display:"flex", flexWrap:"wrap", alignItems:"flex-end", justifyContent:"space-between", gap:20,
-      }}>
-        {/* 상위20% — HERO */}
-        <div>
-          <div style={{display:"flex", justifyContent:"flex-start", alignItems:"center", gap:10, marginBottom:12, flexWrap:"wrap"}}>
-            <span style={{fontSize:14.5, color:"var(--matte-fg-2)", fontWeight:600}}>잘되는 카페 (상위 20%)</span>
-            <span style={{fontSize:12, fontWeight:700, color:ACC, padding:"4px 10px", borderRadius:999, border:"1px solid rgba(76,123,228,0.45)", background:"rgba(76,123,228,0.08)", whiteSpace:"nowrap"}}>상위 기준</span>
-          </div>
-          <div style={{display:"flex", alignItems:"baseline", gap:8}}>
-            <span style={{fontSize:52, fontWeight:800, color:ACC_VAL, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.02em", lineHeight:1}}>{q.topStr}</span>
-            <span style={{fontSize:17, color:"var(--matte-fg-3)", fontWeight:600}}>/월</span>
-          </div>
-        </div>
-        {/* 중위 — 보통 카페(작은 글씨) */}
-        {q.midStr && (
-          <div style={{textAlign:"right"}}>
-            <div style={{fontSize:13.5, color:"var(--matte-fg-3)", fontWeight:500, marginBottom:8}}>보통 카페 (중위)</div>
-            <div style={{display:"flex", alignItems:"baseline", gap:6, justifyContent:"flex-end"}}>
-              <span style={{fontSize:24, fontWeight:700, color:"#fff", fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{q.midStr}</span>
-              <span style={{fontSize:13, color:"var(--matte-fg-4)", fontWeight:600}}>/월</span>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* 보조 무채색 타일 — 평균 / 하위20% */}
-      {subTiles.length > 0 && (
-        <div style={{display:"grid", gridTemplateColumns:`repeat(${subTiles.length}, 1fr)`, gap:14}}>
-          {subTiles.map(([l, v]) => (
-            <div key={l} style={{padding:"16px 18px", background:"var(--matte-bg-2, #1d1d1d)", border:"1px solid var(--matte-line)", borderRadius:14}}>
-              <div style={{fontSize:13, color:"#A3A3A3", fontWeight:500, marginBottom:9}}>{l}</div>
-              <div style={{fontSize:20, fontWeight:700, color:"#fff", fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{v}</div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* 6개월 분위 추이(3선) — 커피 구간만 전달(qChart 있을 때). 베이커리는 분위 3숫자만. */}
-      {qChart && (
-        <div className="bc-box" style={{padding:"20px 22px"}}>
-          <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16, flexWrap:"wrap", gap:8}}>
-            <div style={{fontSize:15, fontWeight:600}}>최근 6개월 매출 분위 추이</div>
-            <div style={{display:"flex", gap:16}}>
-              {[["상위 20%", ACC],["평균", GRAY_AVG],["하위 20%", GRAY_BTM]].map(([lg, c]) => (
-                <span key={lg} style={{display:"inline-flex", alignItems:"center", gap:6, fontSize:13, color:"var(--matte-fg-3)"}}>
-                  <span style={{width:14, height:3, borderRadius:2, background:c, display:"inline-block"}}></span>{lg}
-                </span>
-              ))}
-            </div>
-          </div>
-          <svg width="100%" height={qChart.H} viewBox={`0 0 ${qChart.W} ${qChart.H}`} preserveAspectRatio="none" style={{display:"block"}}>
-            {qChart.ticks.map((t, i) => (
-              <g key={i}>
-                <line x1={qChart.padL} y1={t.y} x2={qChart.W - qChart.padR} y2={t.y} stroke="rgba(255,255,255,0.05)"/>
-                <text x={qChart.padL - 10} y={t.y + 4} fontSize="13" fill="#A3A3A3" textAnchor="end" style={{fontVariantNumeric:"tabular-nums"}}>{t.label}</text>
-              </g>
-            ))}
-            {[...qChart.series].reverse().map(s => (
-              s.pts.length >= 2 ? (
-                <path key={s.key} d={qChart.pathSmooth(s.pts)} fill="none" stroke={s.color} strokeWidth={s.w} strokeLinecap="round" vectorEffect="non-scaling-stroke" opacity={s.key === 'top' ? 1 : 0.85}/>
-              ) : null
-            ))}
-            {(() => {
-              const top = qChart.series.find(s => s.key === 'top');
-              if (!top || top.pts.length === 0) return null;
-              const last = top.pts[top.pts.length - 1];
-              return <circle cx={last[0]} cy={last[1]} r="5" fill={ACC}/>;
-            })()}
-            {qChart.labels.map((m, i) => (
-              <text key={i} x={qChart.xPos(i)} y={qChart.H - 8} fontSize="13" fill="#A3A3A3" textAnchor="middle">{m}</text>
-            ))}
-          </svg>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ============================================================
    Card 06 — 매출 분석
    ============================================================ */
 function Card06({ body = {} }) {
@@ -935,10 +835,11 @@ function Card06({ body = {} }) {
   const guAvg = Number(bd.guAvg) || 0;
   const dongMax = Number(bd.dongMaxSales) || 0;
   const dongMin = Number(bd.dongMinSales) || 0;
-  const prevYearRate = Number(bd.prevYearRate) || 0;
+  // [2026-07-02 감리 2-4a] null 보존 — 예전 `Number(...) || 0`은 null(값 없음)을 0%로 뭉갰다.
+  //   null/비유한수면 null(아래 1382행 조건이 '-' 처리), 0%는 정당한 값으로 그대로 살아남는다.
+  const prevYearRate = (bd.prevYearRate == null || !isFinite(Number(bd.prevYearRate))) ? null : Number(bd.prevYearRate);
   const prevMonRate = Number(bd.prevMonRate) || 0;
   const dongSaleCnt = Number(bd.dongSaleCnt) || 0;
-  const cafeSalesRank = bd.cafeSalesRank || null;
   const bizmapAvgPrice = bd.bizmapAvgUnitPrice || null;
   const bizmapAvgPayment = Number(bd.bizmapAvgPayment) || 0;
   // [2026-06-24] 시장 규모(상권 카페 전체 매출 규모) — dataMapper bizmapMarketSize(이미 '1억 4,424만원' 형태 문자열). 변동률은 bizmapMarketTrend.
@@ -984,9 +885,7 @@ function Card06({ body = {} }) {
   //   각 { topNum,topStr, avgNum,avgStr, midNum,midStr, btmNum,btmStr, trend:{labels,top,avg,bottom} }.
   //   상위20%(topStr)가 있어야 그 구간 노출. cafeBakeryQuant 없으면 베이커리 블록 자체 숨김(가짜값 금지).
   const ACC = "#4C7BE4";          // 강조(accent) — 상위20% 전용
-  const ACC_VAL = "#5e93ec";      // HERO 큰 숫자용 밝은 accent
-  const GRAY_AVG = "#8a8a8a";     // 평균선
-  const GRAY_BTM = "#5a5a5a";     // 하위선
+  const ACC_VAL = "#5e93ec";      // 상위20% 강조 숫자용 밝은 accent
   const coffeeQuant = bd.coffeeQuant || null;
   const cafeBakeryQuant = bd.cafeBakeryQuant || null;
   const hasQuantile = !!(coffeeQuant && coffeeQuant.topStr) || !!(cafeBakeryQuant && cafeBakeryQuant.topStr);
@@ -1000,70 +899,27 @@ function Card06({ body = {} }) {
     ? (/^\d{6}$/.test(bakeryNationalPeriodRaw) ? `${bakeryNationalPeriodRaw.slice(0,4)}.${bakeryNationalPeriodRaw.slice(4,6)}` : bakeryNationalPeriodRaw)
     : null;
 
-  // 6개월 추이 인라인 SVG 좌표 계산 (3선 — 상위/평균/하위). 커피 구간 trend만 사용(데이터량 고려).
-  const buildQChart = (trend) => {
-    if (!trend || !Array.isArray(trend.labels) || trend.labels.length < 2) return null;
-    const labels = trend.labels;
-    const series = [
-      { key: 'top', arr: trend.top, color: ACC, w: 2.8, dot: true },
-      { key: 'avg', arr: trend.avg, color: GRAY_AVG, w: 1.6, dot: false },
-      { key: 'bottom', arr: trend.bottom, color: GRAY_BTM, w: 1.6, dot: false },
-    ];
-    // 만원 → 표시 단위(억/만원 자동). y 도메인은 모든 유효값 기준.
-    const allVals = series.flatMap(s => (s.arr || []).filter(v => v != null && isFinite(v)));
-    if (allVals.length < 2) return null;
-    const rawMax = Math.max(...allVals), rawMin = Math.min(...allVals);
-    const span = (rawMax - rawMin) || 1;
-    const max = rawMax + span * 0.1;
-    const min = Math.max(0, rawMin - span * 0.1);
-    const range = (max - min) || 1;
-    // [2026-06-25] 좌측 거터 확대(52→82): "2,448만원" 등 긴 Y라벨 앞자리 잘림 방지.
-    const W = 700, H = 220, padL = 82, padR = 16, padT = 16, padB = 30;
-    const innerW = W - padL - padR, innerH = H - padT - padB;
-    const n = labels.length;
-    const xPos = (i) => padL + (n <= 1 ? 0 : (i / (n - 1)) * innerW);
-    const yPos = (v) => padT + innerH - ((v - min) / range) * innerH;
-    const ptsOf = (arr) => (arr || []).map((v, i) => (v != null && isFinite(v)) ? [xPos(i), yPos(v), v, i] : null).filter(Boolean);
-    const pathSmooth = (pts) => {
-      if (pts.length < 2) return '';
-      let d = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
-      for (let i = 0; i < pts.length - 1; i++) {
-        const [x1, y1] = pts[i], [x2, y2] = pts[i + 1];
-        const mx = (x1 + x2) / 2;
-        d += ` C${mx.toFixed(1)},${y1.toFixed(1)} ${mx.toFixed(1)},${y2.toFixed(1)} ${x2.toFixed(1)},${y2.toFixed(1)}`;
-      }
-      return d;
-    };
-    // y축 눈금 4개 (만원 → 억/만원 라벨)
-    const ticks = Array.from({ length: 4 }, (_, i) => min + (range / 3) * i).map(v => ({ y: yPos(v), label: fmtWon(v) }));
-    return { W, H, padL, padR, padB, labels, series: series.map(s => ({ ...s, pts: ptsOf(s.arr) })), pathSmooth, ticks, xPos };
+  // ── [2026-07-02 단순화] 카테고리별 매출 = 한 상자 좌우 2열(좌 커피 전문점 / 우 베이커리) ──
+  //   강조는 딱 하나: 양쪽 '상위 20%' 값만 파랑+굵게. 나머지 줄은 무채색 균일.
+  //   값 없는 줄은 숨김('-' 금지). 열 하단에 작은 회색 기준월(각 업종 분위 추이의 마지막 월).
+  const _qRows = (q) => q ? [
+    { label: '상위 20%', str: q.topStr, accent: true },
+    { label: '중위', str: q.midStr, accent: false },
+    { label: '평균', str: q.avgStr, accent: false },
+    { label: '하위 20%', str: q.btmStr, accent: false },
+  ].filter(r => r.str) : [];
+  const _qBasis = (q) => {
+    const ls = q?.trend?.labels;
+    return (Array.isArray(ls) && ls.length > 0 && String(ls[ls.length - 1]).trim()) ? String(ls[ls.length - 1]).trim() : null;
   };
-  const coffeeQChart = buildQChart(coffeeQuant?.trend);
-  // 6개월 표 행 (상위20%/평균/하위20%) — 커피 trend 기준, 만원→억/만원 표기
-  const coffeeTrend = coffeeQuant?.trend || null;
-  const bakeryTrend = cafeBakeryQuant?.trend || null;
-  const qTableRows = coffeeTrend ? [
-    { label: '상위 20%', arr: coffeeTrend.top, accent: true },
-    { label: '평균', arr: coffeeTrend.avg, accent: false },
-    { label: '하위 20%', arr: coffeeTrend.bottom, accent: false },
-  ] : [];
-  // 제과(베이커리) 6개월 표 행 — cafeBakeryQuant.trend 기준. 데이터 없으면 빈 배열.
-  const bTableRows = bakeryTrend ? [
-    { label: '상위 20%', arr: bakeryTrend.top, accent: true },
-    { label: '평균', arr: bakeryTrend.avg, accent: false },
-    { label: '하위 20%', arr: bakeryTrend.bottom, accent: false },
-  ] : [];
-
-  // ── [2026-07-01 커피+제과 합산] 잠재 매출(전체) 대표 숫자 + 합산 추이 3계열 차트 ──
-  const combinedAvgStr = (typeof bd.combinedAvgStr === 'string' && bd.combinedAvgStr) ? bd.combinedAvgStr : null;
-  const combinedTop20Str = (typeof bd.combinedTop20Str === 'string' && bd.combinedTop20Str) ? bd.combinedTop20Str : null;
-  const regionLabel = (typeof bd.regionLabel === 'string' && bd.regionLabel.trim()) ? bd.regionLabel.trim() : null;
+  const coffeeRows = _qRows(coffeeQuant);
+  const bakeryRows = _qRows(cafeBakeryQuant);
   const hasCoffee = !!(coffeeQuant && (coffeeQuant.avgStr || coffeeQuant.topStr));
   const hasBakery = !!(cafeBakeryQuant && (cafeBakeryQuant.avgStr || cafeBakeryQuant.topStr));
-  const isCombined = hasCoffee && hasBakery; // 둘 다 있을 때만 '합산'이라고 명시
+  const isCombined = hasCoffee && hasBakery; // 둘 다 있을 때만 추이 차트에 '합산'선 표시
 
   // 합산 매출 추이 차트 (파란선=합산, 흰선2=커피/제과 각 평균). metric=trend.avg.
-  //   3계열 모두 '월별 평균(avg)'을 그린다. buildQChart 와 같은 좌표계·톤을 재사용.
+  //   3계열 모두 '월별 평균(avg)'을 그린다.
   const CWHITE = "#e8e8e8", CWHITE2 = "#9a9a9a"; // 흰 선(커피/제과)
   const buildCombinedChart = () => {
     const cAvg = bd.coffeeTrendAvg || null;   // {labels, values}
@@ -1111,12 +967,11 @@ function Card06({ body = {} }) {
       return d;
     };
     const ticks = Array.from({ length: 4 }, (_, i) => min + (range / 3) * i).map(v => ({ y: yPos(v), label: fmtWon(v) }));
-    // 범례: 합산(파랑) + 있는 업종만 흰 선
-    const legend = [];
-    if (isCombined) legend.push(['합산', ACC]);
-    if (hasCoffee) legend.push(['커피', CWHITE]);
-    if (hasBakery) legend.push(['제과', CWHITE2]);
-    return { W, H, padL, padR, padB, labels, series: series.map(s => ({ ...s, pts: ptsOf(s.arr) })), pathSmooth, ticks, xPos, legend };
+    // [2026-07-02] 범례는 실제 그려지는 선(series에 들어가고 좌표 2점 이상)에서 파생 — 플래그와 어긋남 방지.
+    const seriesOut = series.map(s => ({ ...s, pts: ptsOf(s.arr) }));
+    const legendName = { combined: '합산', coffee: '커피', bakery: '제과' };
+    const legend = seriesOut.filter(s => s.pts.length >= 2).map(s => [legendName[s.key], s.color]);
+    return { W, H, padL, padR, padB, labels, series: seriesOut, pathSmooth, ticks, xPos, legend };
   };
   const combinedChart = buildCombinedChart();
 
@@ -1126,8 +981,9 @@ function Card06({ body = {} }) {
       title="매출 분석"
       sub="동네 월평균 매출"
       date={null}>
-      {/* [2026-06-30] 헤드라인 '월평균 매출'(소상공인 1억) hero 타일 제거 — 매출 큰숫자 스토리는 아래 두 구간(커피/베이커리) 분위가 대신함. KPI는 보조 3칸만. */}
-      <div style={{display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:16, marginBottom:16}}>
+      {/* [2026-06-30] 헤드라인 '월평균 매출'(소상공인 1억) hero 타일 제거 — 매출 큰숫자 스토리는 아래 두 구간(커피/베이커리) 분위가 대신함.
+          [2026-07-02] '매출 순위'(먹거리 5업종 중 순위) 타일 삭제 — 카페는 업종 특성상 어느 동네든 하위권이라 지역 변별력 없이 의욕만 깎음(사장님 결정). KPI는 보조 2칸(반반). */}
+      <div style={{display:"grid", gridTemplateColumns:"repeat(2, 1fr)", gap:16, marginBottom:16}}>
         {/* [2026-06-24] 월 매출 건수 = 진짜 월 이용건수(bd.bizmapAvgUsageCnt, 이미 "23,605건" 형태 문자열). 없으면 dongSaleCnt 폴백. */}
         {(() => {
           const _usageStr = (typeof bd.bizmapAvgUsageCnt === 'string' && bd.bizmapAvgUsageCnt.trim()) ? bd.bizmapAvgUsageCnt.trim() : '';
@@ -1141,89 +997,62 @@ function Card06({ body = {} }) {
           return <StatTile id="c6.tile2" tone="mint"  label="월 매출 건수"    value={dongSaleCnt > 0 ? dongSaleCnt.toLocaleString() : '-'} unit={dongSaleCnt > 0 ? '건' : ''}/>;
         })()}
         <StatTile id="c6.tile3" tone="lilac" label="객단가"          value={unitPriceDisplay} est={unitPriceDisplay !== '-' && _isEst('unitPrice', 'avgPrice', 'avgUnitPrice')}/>
-        <StatTile id="c6.tile4" tone="cream" label="매출 순위"       value={cafeSalesRank ? String(cafeSalesRank).split(' /')[0] : '-'}/>
       </div>
 
-      {/* ── [2026-07-01 커피+제과 합산 매출] 빈크래프트는 커피+베이커리를 함께 판다 ──
-          전체매출 = 커피 평균 + 제과 평균(같은 비즈맵 저울). 둘 다 있을 때만 '합산' 명시. */}
-      {hasQuantile && (
+      {/* ── [2026-07-02 단순화] 카테고리별 매출 확인 → 그래프. 이 두 블록이 전부. ──
+          한 상자 좌우 2열: 좌=커피 전문점 분위, 우=베이커리 분위(없으면 전국 평균 정직 폴백,
+          그것도 없으면 커피 단독 1열 전체 폭). 강조는 양쪽 '상위 20%' 값 하나뿐. */}
+      {(hasQuantile || bakeryNationalAvg) && (
         <div style={{marginBottom:16, display:"flex", flexDirection:"column", gap:24}}>
 
-          {/* 0. 전체매출 대표 숫자 (커피+베이커리 합산) — 카드 상단 헤드라인 */}
-          {(combinedAvgStr || combinedTop20Str) && (
-            <div style={{
-              padding:"26px 28px", borderRadius:16,
-              border:"1px solid rgba(76,123,228,0.55)",
-              background:"linear-gradient(135deg, rgba(76,123,228,0.14), rgba(76,123,228,0.04))",
-              display:"flex", flexWrap:"wrap", alignItems:"flex-end", justifyContent:"space-between", gap:20,
-            }}>
-              <div>
-                <div style={{display:"flex", alignItems:"center", gap:10, marginBottom:12, flexWrap:"wrap"}}>
-                  <span style={{fontSize:15, color:"var(--matte-fg-2)", fontWeight:700}}>전체 매출 (잠재)</span>
-                  <span style={{fontSize:12, fontWeight:700, color:ACC, padding:"4px 10px", borderRadius:999, border:"1px solid rgba(76,123,228,0.45)", background:"rgba(76,123,228,0.08)", whiteSpace:"nowrap"}}>
-                    {isCombined ? '커피 + 베이커리 합산' : (hasBakery ? '베이커리' : '커피 전문점')}
-                  </span>
-                </div>
-                <div style={{display:"flex", alignItems:"baseline", gap:8}}>
-                  <span style={{fontSize:54, fontWeight:800, color:ACC_VAL, fontVariantNumeric:"tabular-nums", letterSpacing:"-0.02em", lineHeight:1}}>{combinedAvgStr || '-'}</span>
-                  <span style={{fontSize:17, color:"var(--matte-fg-3)", fontWeight:600}}>/월</span>
-                </div>
-                <div style={{marginTop:8, fontSize:13, color:"var(--matte-fg-3)"}}>
-                  {isCombined ? '커피 평균 + 제과 평균' : (hasBakery ? '제과 평균' : '커피 평균')}
-                </div>
-              </div>
-              {combinedTop20Str && (
-                <div style={{textAlign:"right"}}>
-                  <div style={{fontSize:13.5, color:"var(--matte-fg-3)", fontWeight:500, marginBottom:8}}>
-                    상위 20% {isCombined ? '합산' : ''}
+          {/* 1. 카테고리별 매출 — 커피 전문점(좌) · 베이커리(우) */}
+          {(() => {
+            // 열 렌더 헬퍼: 제목 + 라벨/값 4줄(값 있는 것만) + 하단 작은 회색 기준월/비고
+            const renderQuantCol = (title, rows, basis, note) => (
+              <div style={{display:"flex", flexDirection:"column", minWidth:0, flex:1}}>
+                <div style={{fontSize:15, fontWeight:700, color:"var(--matte-fg-2)", letterSpacing:"-0.005em", marginBottom:4}}>{title}</div>
+                {rows.map((r, i) => (
+                  <div key={r.label} style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", gap:12, padding:"11px 0", borderTop: i > 0 ? "1px solid var(--matte-line)" : "none"}}>
+                    <span style={{fontSize:14, color:"#A3A3A3", fontWeight:500, whiteSpace:"nowrap"}}>{r.label}</span>
+                    <span style={{
+                      fontSize: r.accent ? 28 : 17,
+                      fontWeight: r.accent ? 800 : 600,
+                      color: r.accent ? ACC_VAL : "var(--matte-fg-2)",
+                      fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em", lineHeight:1.15, textAlign:"right",
+                    }}>{r.str}</span>
                   </div>
-                  <div style={{display:"flex", alignItems:"baseline", gap:6, justifyContent:"flex-end"}}>
-                    <span style={{fontSize:26, fontWeight:700, color:"#fff", fontVariantNumeric:"tabular-nums", letterSpacing:"-0.01em"}}>{combinedTop20Str}</span>
-                    <span style={{fontSize:13, color:"var(--matte-fg-4)", fontWeight:600}}>/월</span>
+                ))}
+                {(basis || note) && (
+                  <div style={{marginTop:"auto", paddingTop:10, fontSize:11.5, color:"var(--matte-fg-4)"}}>
+                    {basis ? `기준 ${basis}` : ''}{(basis && note) ? ' · ' : ''}{note || ''}
                   </div>
+                )}
+              </div>
+            );
+            // 우측 열: 동 베이커리 분위 → 없으면 전국 평균(정직 표기) → 그것도 없으면 열 자체 생략
+            const bakeryCol = bakeryRows.length > 0
+              ? renderQuantCol('베이커리', bakeryRows, _qBasis(cafeBakeryQuant), null)
+              : (bakeryNationalAvg
+                ? renderQuantCol('베이커리', [{ label: '전국 평균', str: fmtWon(bakeryNationalAvg), accent: false }],
+                    bakeryNationalPeriodFmt,
+                    bakeryNationalStores ? `전국 ${bakeryNationalStores.toLocaleString()}개 점포` : '전국 제과점')
+                : null);
+            const coffeeCol = coffeeRows.length > 0
+              ? renderQuantCol('커피 전문점', coffeeRows, _qBasis(coffeeQuant), null)
+              : null;
+            if (!coffeeCol && !bakeryCol) return null;
+            const twoCols = !!(coffeeCol && bakeryCol);
+            return (
+              <div className="bc-box" style={{padding:"20px 24px"}}>
+                <div style={{display:"grid", gridTemplateColumns: twoCols ? "1fr 1fr" : "1fr", alignItems:"stretch"}}>
+                  {coffeeCol && <div style={{paddingRight: twoCols ? 24 : 0, display:"flex", flexDirection:"column"}}>{coffeeCol}</div>}
+                  {bakeryCol && <div style={{borderLeft: twoCols ? "1px solid var(--matte-line)" : "none", paddingLeft: twoCols ? 24 : 0, display:"flex", flexDirection:"column"}}>{bakeryCol}</div>}
                 </div>
-              )}
-            </div>
-          )}
-
-          {/* 1. 커피 전문점 구간 — 상위20/중위/평균/하위(각자). 추이는 아래 합산 차트로 통합해 여기선 생략. */}
-          <SalesSegment
-            title="커피 전문점"
-            q={coffeeQuant}
-            fmtWon={fmtWon}
-            accent={ACC} accentVal={ACC_VAL} grayAvg={GRAY_AVG} grayBtm={GRAY_BTM}
-            qChart={null}
-          />
-
-          {/* 2. {검색 동} · 베이커리 구간 — 검색 동의 제과 분위(cafeBakeryQuant). 상위20/중위/평균/하위(각자).
-               cafeBakeryQuant 없으면 SalesSegment가 null → 아래 전국평균 폴백 블록만 노출. */}
-          <SalesSegment
-            title={`${regionLabel ? regionLabel + ' · ' : ''}베이커리`}
-            q={cafeBakeryQuant}
-            fmtWon={fmtWon}
-            accent={ACC} accentVal={ACC_VAL} grayAvg={GRAY_AVG} grayBtm={GRAY_BTM}
-            qChart={null}
-          />
-
-          {/* [2026-07-01] 베이커리 전국 평균 폴백 (정직 블록) — 검색 동 제과 분위가 null일 때만.
-              라벨에 '전국 평균' 정직 표기. 값 없으면(null) 미노출(가짜값 금지). */}
-          {!(cafeBakeryQuant && cafeBakeryQuant.topStr) && bakeryNationalAvg && (
-            <div className="bc-box" style={{padding:"18px 20px"}}>
-              <div style={{display:"flex", alignItems:"baseline", justifyContent:"space-between", flexWrap:"wrap", gap:8}}>
-                <div style={{fontSize:14, color:"#A3A3A3", fontWeight:600}}>베이커리 · 전국 평균</div>
-                <div style={{fontSize:12.5, color:"#777"}}>점포당 월평균</div>
               </div>
-              <div style={{marginTop:8, fontSize:26, fontWeight:700, color:ACC_VAL, fontVariantNumeric:"tabular-nums"}}>
-                월 {fmtWon(bakeryNationalAvg)}
-              </div>
-              <div style={{marginTop:6, fontSize:12.5, color:"var(--matte-fg-3)", lineHeight:1.5}}>
-                {bakeryNationalStores ? `전국 ${bakeryNationalStores.toLocaleString()}개 점포` : '전국 제과점'}
-                {bakeryNationalPeriodFmt ? ` · 기준월 ${bakeryNationalPeriodFmt}` : ''}
-              </div>
-            </div>
-          )}
+            );
+          })()}
 
-          {/* 3. 매출 추이 (파란선=합산 · 흰선=커피/제과 각 평균). metric=trend.avg. 월 라벨 정렬. */}
+          {/* 2. 매출 추이 그래프 (파란선=합산 · 흰선=커피/제과 각 평균). metric=trend.avg. 월 라벨 정렬. */}
           {combinedChart && (
             <div className="bc-box" style={{padding:"20px 22px"}}>
               <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16, flexWrap:"wrap", gap:8}}>
@@ -1265,40 +1094,6 @@ function Card06({ body = {} }) {
             </div>
           )}
 
-          {/* 4. 분위 표 — 커피 + 제과 둘 다 행으로(각 업종 상위20/중위/평균/하위 + 기준월) */}
-          {(coffeeTrend || bakeryTrend) && (
-            <div className="bc-box" style={{padding:"18px 20px", overflowX:"auto"}}>
-              {[
-                { seg: '커피 전문점', trend: coffeeTrend, rows: qTableRows },
-                { seg: `${regionLabel ? regionLabel + ' · ' : ''}베이커리`, trend: bakeryTrend, rows: bTableRows },
-              ].filter(t => t.trend).map((tbl, ti) => (
-                <table key={ti} style={{width:"100%", borderCollapse:"collapse", fontVariantNumeric:"tabular-nums", marginTop: ti > 0 ? 20 : 0}}>
-                  <thead>
-                    <tr>
-                      <th style={{textAlign:"left", fontSize:13, color:"#A3A3A3", fontWeight:600, padding:"8px 10px", whiteSpace:"nowrap"}}>{tbl.seg}</th>
-                      {tbl.trend.labels.map((m, i) => (
-                        <th key={i} style={{textAlign:"right", fontSize:13, color:"#A3A3A3", fontWeight:600, padding:"8px 10px", whiteSpace:"nowrap"}}>{m}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tbl.rows.map((row, ri) => (
-                      <tr key={ri} style={row.accent ? {background:"rgba(76,123,228,0.06)"} : undefined}>
-                        <td style={{textAlign:"left", fontSize:13.5, fontWeight:row.accent?700:500, color:row.accent?ACC:"var(--matte-fg-2)", padding:"10px 10px", whiteSpace:"nowrap", borderTop:"1px solid var(--matte-line)"}}>{row.label}</td>
-                        {(row.arr || []).map((v, ci) => {
-                          const isLast = ci === (row.arr.length - 1);
-                          const txt = (v != null && isFinite(v)) ? fmtWon(v) : '-';
-                          return (
-                            <td key={ci} style={{textAlign:"right", fontSize:13.5, fontWeight:(row.accent && isLast)?700:500, color:(row.accent && isLast)?ACC:(row.accent?"var(--matte-fg)":"var(--matte-fg-3)"), padding:"10px 10px", whiteSpace:"nowrap", borderTop:"1px solid var(--matte-line)"}}>{txt}</td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ))}
-            </div>
-          )}
         </div>
       )}
 
@@ -1329,6 +1124,7 @@ function Card06({ body = {} }) {
           {(() => {
             const _qTopN = Number(coffeeQuant?.topNum) || 0;     // 상위20%(만원)
             const _qAvgN = Number(coffeeQuant?.avgNum) || 0;     // 분위 평균(만원)
+            const _qMidN = Number(coffeeQuant?.midNum) || 0;     // 중위(만원)
             const _qBtmN = Number(coffeeQuant?.btmNum) || 0;     // 하위20%(만원)
             const _hasQuantile = _qTopN > 0 && _qBtmN > 0;        // 분위 최고·최저 둘 다 있으면 분위 모드
 
@@ -1336,8 +1132,16 @@ function Card06({ body = {} }) {
             let _maxN, _avgN, _minN, _maxEst = false, _avgEst = false, _minEst = false;
             if (_hasQuantile) {
               // [2026-06-30] 최고/평균/최저 셋 다 비즈맵 커피 분위(이미 정렬) 그대로 — 위 커피 구간과 동일 저울.
+              // [2026-07-02] 평균 없으면 중위(midNum) 우선, 그것도 없을 때만 (상위+하위)/2 합성 + '추정' 표기.
               _maxN = _qTopN;
-              _avgN = (_qAvgN > 0 ? _qAvgN : Math.round((_qTopN + _qBtmN) / 2));
+              if (_qAvgN > 0) {
+                _avgN = _qAvgN;
+              } else if (_qMidN > 0) {
+                _avgN = _qMidN;
+              } else {
+                _avgN = Math.round((_qTopN + _qBtmN) / 2);
+                _avgEst = true;
+              }
               _minN = _qBtmN;
             } else {
               // 폴백: 소상공인 동최고/최저(0이면 추정 배지로 표시). 평균은 동 카페 평균.
@@ -1360,7 +1164,7 @@ function Card06({ body = {} }) {
             if (_maxN > 0) _cells.push(["동 최고", fmtWon(_maxN), false, _maxEst]);
             if (_avgN > 0) _cells.push(["동 평균", fmtWon(_avgN), true, _avgEst]);
             if (_minN > 0) _cells.push(["동 최저", fmtWon(_minN), false, _minEst]);
-            _cells.push(["전년 대비", yoyRate ? `${yoyRate > 0 ? '+' : ''}${window.bcFmtPct ? window.bcFmtPct(Number(yoyRate)) : Number(yoyRate).toFixed(1)}%` : '-', false, false]);
+            _cells.push(["전년 대비", (yoyRate != null && isFinite(Number(yoyRate))) ? `${Number(yoyRate) > 0 ? '+' : ''}${window.bcFmtPct ? window.bcFmtPct(Number(yoyRate)) : Number(yoyRate).toFixed(1)}%` : '-', false, false]);
             const _cols = _cells.length;
             return (
           <div style={{marginTop:"auto", paddingTop:20, borderTop:"1px solid var(--matte-line)", display:"grid", gridTemplateColumns:`repeat(${_cols}, 1fr)`, gap:14}}>
