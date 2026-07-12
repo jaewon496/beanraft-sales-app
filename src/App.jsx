@@ -10981,7 +10981,10 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
              // dynPplCmpr 시간대 필드 디버깅
              if (r.value.name === 'dynPplCmpr' && Array.isArray(r.value.data) && r.value.data.length > 0) {
                const d0 = r.value.data[0];
-               console.log(`[dynPplCmpr] 시간대 필드: tmzn1FpCnt=${d0.tmzn1FpCnt}, tmzn1=${d0.tmzn1}, cnt=${d0.cnt}, fpCnt=${d0.fpCnt}`);
+               // 카페 드문 지역(예: 영종도)은 첫 원소가 null로 올 수 있음 → null 방어(빈값이면 로그만 건너뜀)
+               if (d0) {
+                 console.log(`[dynPplCmpr] 시간대 필드: tmzn1FpCnt=${d0.tmzn1FpCnt}, tmzn1=${d0.tmzn1}, cnt=${d0.cnt}, fpCnt=${d0.fpCnt}`);
+               }
              }
            }
          });
@@ -15802,7 +15805,8 @@ B. 방문 동기 키워드 (사람들이 왜 오는가)
        }
 
        // dynPplCmpr 시간대별 유동인구 (tmzn1~tmzn6)
-       if (apis.dynPplCmpr?.data && Array.isArray(apis.dynPplCmpr.data) && apis.dynPplCmpr.data.length > 0) {
+       // 카페 드문 지역은 배열 첫 원소가 null일 수 있어 data[0]까지 확인(위 15638 블록과 동일 방어)
+       if (apis.dynPplCmpr?.data && Array.isArray(apis.dynPplCmpr.data) && apis.dynPplCmpr.data.length > 0 && apis.dynPplCmpr.data[0]) {
          const d0 = apis.dynPplCmpr.data[0];
          const timeSlots = ['tmzn1FpCnt','tmzn2FpCnt','tmzn3FpCnt','tmzn4FpCnt','tmzn5FpCnt','tmzn6FpCnt'];
          const timeLabels = ['6~9시','9~12시','12~15시','15~18시','18~21시','21~24시'];
@@ -17481,7 +17485,8 @@ ${query} (${addressInfo?.sido||''} ${addressInfo?.sigungu||''} ${addressInfo?.do
            { label: '저녁 18~21시', key: 'tmzn5' }, { label: '야간 21~24시', key: 'tmzn6' }
          ];
          const _tv = _ts.map(ts => ({
-           label: ts.label, value: _fbDynData.reduce((s, d) => s + (d[ts.key + 'FpCnt'] || d[ts.key] || 0), 0)
+           // 배열 원소가 null일 수 있는 지역 방어(d 없으면 건너뜀)
+           label: ts.label, value: _fbDynData.reduce((s, d) => d ? s + (d[ts.key + 'FpCnt'] || d[ts.key] || 0) : s, 0)
          })).filter(t => t.value > 0).sort((a, b) => b.value - a.value);
          if (_tv.length > 0) _fbPeakTime = _tv[0].label + '(' + _tv[0].value.toLocaleString() + '명)';
        }
@@ -18049,7 +18054,8 @@ ${query} (${addressInfo?.sido||''} ${addressInfo?.sigungu||''} ${addressInfo?.do
            ];
            const timeValues = timeSlots.map(ts => ({
              label: ts.label,
-             value: dynData.reduce((s, d) => s + (d[ts.key + 'FpCnt'] || d[ts.key] || 0), 0)
+             // 배열 원소가 null일 수 있는 지역 방어(d 없으면 건너뜀)
+             value: dynData.reduce((s, d) => d ? s + (d[ts.key + 'FpCnt'] || d[ts.key] || 0) : s, 0)
            })).filter(t => t.value > 0);
            if (timeValues.length > 0) {
              timeValues.sort((a, b) => b.value - a.value);
@@ -18243,7 +18249,8 @@ ${query} (${addressInfo?.sido||''} ${addressInfo?.sigungu||''} ${addressInfo?.do
            ];
            const _fpTimeValues = _fpTimeSlots.map(ts => ({
              label: ts.label,
-             value: fpData.reduce((s, d) => s + (d[ts.key + 'FpCnt'] || d[ts.key] || 0), 0)
+             // 배열 원소가 null일 수 있는 지역 방어(d 없으면 건너뜀)
+             value: fpData.reduce((s, d) => d ? s + (d[ts.key + 'FpCnt'] || d[ts.key] || 0) : s, 0)
            })).filter(t => t.value > 0);
            let peakInfo = '';
            if (_fpTimeValues.length > 0) {

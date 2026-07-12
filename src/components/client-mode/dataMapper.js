@@ -2527,7 +2527,8 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
 
   if (Array.isArray(dynPplData) && dynPplData.length > 0) {
     const d0 = dynPplData[0];
-    const hasTimeData = timeSlotKeys.some(k => (d0[k] || 0) > 0);
+    // 카페 드문 지역은 첫 원소(대상 행정동 행)가 null일 수 있음 → null이면 시간대 차트만 건너뜀(칸 빔, 크래시 X)
+    const hasTimeData = !!d0 && timeSlotKeys.some(k => (d0[k] || 0) > 0);
     if (hasTimeData) {
       floatChartLabels = timeSlotLabels;
       floatChartValues = timeSlotKeys.map(k => Math.round((d0[k] || 0) / 30));
@@ -7120,6 +7121,56 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
   } catch (e) { /* silent */ }
 
   return allCards;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// [2026-07-13] 지역별 '원천 데이터 미제공' 항목 감지 — 검색 완료 후 안내 미니 팝업용.
+//   배경: 어떤 항목은 공공 원천 데이터 제공처가 그 지역을 아직 안 담고 있어서 빈다
+//         (우리 프로그램/호출/한도 문제 아님). 방침상 빈칸은 가짜값으로 안 채우고
+//         '수집 중' 그대로 둔다. 대신 사용자가 당황하지 않게 무엇이 없는지 알려준다.
+//   ★ 포함 조건(전부 만족해야만 목록에 넣는다):
+//        ① 단일 공공 제공처   ② 폴백/추정값 없음
+//        ③ 그 값이 null/빈배열이라 화면에 '수집 중' 빈칸이 실제로 나가는 항목.
+//   ★ 추정치·폴백·전국커버(비즈맵·카카오·네이버) 항목은 제외 — 지역이 비어도 대체값이 채워지므로.
+//   ★ 화면 렌더의 빈칸 분기와 100% 동일 조건으로 검사한다 → '있는 값을 부족이라 오탐' 금지.
+//     강남처럼 다 차는 지역은 목록이 비어(0건) 팝업이 안 뜬다.
+//   입력: iframe 리포트로 넘기는 카드 배열(원소 { n, body }, body.bodyData 보유) = __BC_DATA__.cards 와 동일.
+//   반환: [{ label }]  (0건이면 팝업 안 뜸)
+export function collectMissingSourceData(reportCards) {
+  if (!Array.isArray(reportCards)) return [];
+  // 카드 자리번호(n: '01'~'14')로 body.bodyData 조회
+  const bodyDataByN = (n) => {
+    const card = reportCards.find((c) => c && String(c.n) === n);
+    return (card && card.body && card.body.bodyData) ? card.body.bodyData : null;
+  };
+
+  // 명시적 규칙 목록 — { label, isMissing() }. 각 규칙은 해당 화면의 '수집 중' 빈칸 분기와 동일 조건.
+  const RULES = [
+    {
+      // 유동인구 카드(자리 07) — '우리 동 vs 자치구 유동인구 비교'.
+      //   출처: 소상공인 유동인구비교(dynPplCmpr) 단일. 폴백·추정 전혀 없음.
+      //   지역 미커버 시 dynPplCmpr 가 200 OK 라도 원소가 전부 null → top3Dongs=[] & topArea=null
+      //   → 화면 "인근 동 데이터 수집 중".  (예: 운서역 1번 출구 / 인천 영종도)
+      //   렌더 동일 위치: public/handoff_ref/lib/cards-a.jsx Card07 1266~1271, 1375~1376.
+      //   데이터 출처: dataMapper.js 2562~2567(topArea) · 2816 · 7098~7108(top3Dongs).
+      label: '우리 동과 자치구의 유동인구 비교',
+      isMissing() {
+        const bd = bodyDataByN('07');
+        if (!bd) return false;
+        const top3 = Array.isArray(bd.top3Dongs) ? bd.top3Dongs : [];
+        // 화면 topAreaList 가 빈 경우와 동일: top3Dongs 없음 && topArea 없음
+        return top3.length === 0 && !bd.topArea;
+      },
+    },
+  ];
+
+  const out = [];
+  for (const rule of RULES) {
+    try {
+      if (rule.isMissing()) out.push({ label: rule.label });
+    } catch (_) { /* 규칙 오류는 무시 — 팝업이 검색 흐름을 막지 않도록 */ }
+  }
+  return out;
 }
 
 // ═══════════════════════════════════════════════════════════════════════

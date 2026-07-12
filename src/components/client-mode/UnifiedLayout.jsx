@@ -56,6 +56,7 @@ import {
   buildIntegratedRent,
   bcScoreGrade,
   bcDensityGrade,
+  collectMissingSourceData,
 } from './dataMapper';
 // [2026-06-25] 통합 AI 진단(배너 한 줄·AI종합 진단·14카드 한 줄). 캐시+폴백 내장.
 import { getUnifiedDiagnosis } from './aiDiagnosis';
@@ -6812,6 +6813,35 @@ export default function UnifiedLayout({
   const [activeHighlight, setActiveHighlight] = useState(null);
   const audioRef = useRef(null);
 
+  // ── [2026-07-13] 지역 데이터 부족 안내 미니 팝업 상태 ──
+  //   검색 완료 후, 이 지역이 '원천 데이터 미제공'으로 비는 항목이 있으면 딱 1회 안내.
+  const [missingDataOpen, setMissingDataOpen] = useState(false);
+  const [missingDataList, setMissingDataList] = useState([]);
+  const missingDataShownKeyRef = useRef(null);  // 이미 안내(평가)한 지역 키 — 재열람 시 재발동 방지
+
+  // [2026-07-13] 검색 완료 → 리포트가 뜰 때, 이 지역이 원천 데이터 미제공으로 비는 항목이 있으면 1회 안내.
+  //   ★가짜값 금지 정책: 빈칸은 '수집 중' 그대로 두되 무엇이 없는지 사용자에게 알려 당황 방지.
+  //   ★같은 검색 세션에선 1회만(닫으면 재열람해도 안 뜸). 새 지역 검색 → 키가 바뀌어 다시 평가.
+  //   ★리포트 렌더의 빈칸 분기와 동일 조건(collectMissingSourceData) → 오탐/과잉나열 없음.
+  useEffect(() => {
+    if (!resultsReady) return;
+    if (!Array.isArray(bcCardsBodiesSwapped) || bcCardsBodiesSwapped.length === 0) return;
+    const regionKey = `${bcSearchAddress || ''}|${radius}`;
+    if (missingDataShownKeyRef.current === regionKey) return;   // 이번 지역은 이미 평가/안내함
+    let list = [];
+    try { list = collectMissingSourceData(bcCardsBodiesSwapped) || []; } catch (_) { list = []; }
+    missingDataShownKeyRef.current = regionKey;                 // 0건이어도 평가 완료로 기록(재검색 전까진 재평가 안 함)
+    if (list.length === 0) return;                              // 부족 항목 0건 → 팝업 안 뜸(강남 등)
+    const t = setTimeout(() => {                                // 리포트가 먼저 뜬 뒤 오버레이
+      setMissingDataList(list);
+      setMissingDataOpen(true);
+    }, 900);
+    return () => clearTimeout(t);
+  }, [resultsReady, bcCardsBodiesSwapped, bcSearchAddress, radius]);
+
+  // 결과 화면을 벗어나면(새 검색 등) 팝업 닫음 — 다음 지역에서 깨끗하게 다시 뜨도록.
+  useEffect(() => { if (!resultsReady) setMissingDataOpen(false); }, [resultsReady]);
+
   // ── Cafe Map Modal State ──
   const [showCafeMap, setShowCafeMap] = useState(false);
   const [cafeMapRadius, setCafeMapRadius] = useState(500);
@@ -7725,6 +7755,79 @@ export default function UnifiedLayout({
           </motion.div>
         );
       })()}
+      </AnimatePresence>
+
+      {/* ── [2026-07-13] 지역 데이터 부족 안내 미니 팝업 ──
+           검색 완료 후, 공공 원천 데이터가 이 지역을 아직 안 담아 비는 항목이 있을 때만 1회 뜬다.
+           빈크래프트 브랜드 톤: 어두운 오버레이 + 검정 패널 + 흰 글씨 + 파랑(#3668dc) 포인트, 미니멀. */}
+      <AnimatePresence>
+      {missingDataOpen && missingDataList.length > 0 && (
+        <motion.div
+          key="missing-data-backdrop"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.25, ease: 'easeOut' }}
+          onClick={() => setMissingDataOpen(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 10050,
+            background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(8px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 20, willChange: 'opacity',
+          }}
+        >
+          <motion.div
+            key="missing-data-panel"
+            initial={{ opacity: 0, transform: 'translateY(24px) translateZ(0)' }}
+            animate={{ opacity: 1, transform: 'translateY(0px) translateZ(0)' }}
+            exit={{ opacity: 0, transform: 'translateY(24px) translateZ(0)' }}
+            transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="이 지역은 일부 데이터가 부족해요"
+            style={{
+              width: 'min(420px, 92vw)', maxWidth: 'min(420px, 92vw)',
+              background: '#0e0e0e', borderRadius: 18,
+              border: '1px solid rgba(255,255,255,0.08)',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.55)',
+              padding: '28px 26px 22px',
+              fontFamily: "'Pretendard', -apple-system, sans-serif",
+              color: '#ffffff', boxSizing: 'border-box',
+            }}
+          >
+            <h3 style={{ margin: 0, fontSize: 19, fontWeight: 700, letterSpacing: '-0.02em', color: '#ffffff' }}>
+              이 지역은 일부 데이터가 부족해요
+            </h3>
+            <p style={{ margin: '12px 0 18px', fontSize: 14, lineHeight: 1.65, color: 'rgba(255,255,255,0.72)' }}>
+              아래 항목은 공공 원천 데이터가 아직 이 지역을 담고 있지 않아 표시되지 않아요.
+            </p>
+            <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {missingDataList.map((it, i) => (
+                <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 14.5, lineHeight: 1.5, color: 'rgba(255,255,255,0.92)' }}>
+                  <span style={{ flexShrink: 0, width: 6, height: 6, borderRadius: '50%', background: '#3668dc', marginTop: 7 }} />
+                  <span>{it.label}</span>
+                </li>
+              ))}
+            </ul>
+            <p style={{ margin: '20px 0 22px', fontSize: 12, lineHeight: 1.6, color: 'rgba(255,255,255,0.4)' }}>
+              프로그램 오류가 아니라, 이 지역의 원천 데이터 자체가 없는 상태예요. 나머지 분석은 정상입니다.
+            </p>
+            <button
+              type="button"
+              onClick={() => setMissingDataOpen(false)}
+              style={{
+                width: '100%', padding: '13px 0', border: 'none', borderRadius: 12,
+                background: '#3668dc', color: '#ffffff', fontSize: 15, fontWeight: 700,
+                cursor: 'pointer', letterSpacing: '-0.01em',
+                fontFamily: "'Pretendard', -apple-system, sans-serif",
+              }}
+            >
+              확인
+            </button>
+          </motion.div>
+        </motion.div>
+      )}
       </AnimatePresence>
 
       {/* ── Startup Program Popup Modal ── */}
