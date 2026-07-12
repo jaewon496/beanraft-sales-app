@@ -7377,6 +7377,47 @@ export default function UnifiedLayout({
           { color: '#F59E0B', label: '베이커리', key: 'bakery' },
           { color: '#A855F7', label: '신규 오픈', key: 'newOpen' },
         ];
+        // ── 지도 화면 이미지 저장 (html2canvas + useCORS) ──
+        // 캡처 대상 = 모달 패널 전체(반경 슬라이더 + 범례 + 네이버 지도 + 마커).
+        // 닫기/뒤로가기/저장 버튼은 data-cap-exclude="1" 로 캡처 이미지에서 제외.
+        const captureMapPanel = async (e) => {
+          const btn = e.currentTarget;
+          if (btn.dataset.saving === '1') return;   // 중복 클릭 방지
+          const labelEl = btn.querySelector('[data-cap-label]');
+          const prevLabel = labelEl ? labelEl.textContent : '';
+          btn.dataset.saving = '1';
+          btn.style.opacity = '0.6';
+          btn.style.pointerEvents = 'none';
+          if (labelEl) labelEl.textContent = '저장 중...';
+          try {
+            const panel = document.getElementById('cafe-map-panel-capture');
+            if (!panel) throw new Error('map panel not found');
+            const html2canvas = (await import('html2canvas')).default;
+            const canvas = await html2canvas(panel, {
+              useCORS: true,
+              backgroundColor: '#000000',
+              scale: 2,
+              logging: false,
+              ignoreElements: (el) => !!(el && el.getAttribute && el.getAttribute('data-cap-exclude') === '1'),
+            });
+            const dataUrl = canvas.toDataURL('image/png');
+            const d = new Date();
+            const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+            const a = document.createElement('a');
+            a.href = dataUrl;
+            a.download = `빈크래프트_카페위치지도_${ymd}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+          } catch (err) {
+            console.warn('[cafe-map-capture] 이미지 저장 실패', err);
+          } finally {
+            if (labelEl) labelEl.textContent = prevLabel || '이미지 저장';
+            btn.style.opacity = '';
+            btn.style.pointerEvents = '';
+            btn.dataset.saving = '';
+          }
+        };
         return (
           <motion.div
             key="cafe-map-backdrop"
@@ -7394,6 +7435,7 @@ export default function UnifiedLayout({
           >
             <motion.div
               key="cafe-map-panel"
+              id="cafe-map-panel-capture"
               initial={{ opacity: 0, transform: 'translateY(40px) translateZ(0)' }}
               animate={{ opacity: 1, transform: 'translateY(0px) translateZ(0)' }}
               exit={{ opacity: 0, transform: 'translateY(40px) translateZ(0)' }}
@@ -7482,6 +7524,7 @@ export default function UnifiedLayout({
                     <button
                       onClick={() => setShowCafeMap(false)}
                       aria-label="뒤로가기"
+                      data-cap-exclude="1"
                       style={{
                         width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center',
                         background: 'transparent', border: 'none', padding: 0, cursor: 'pointer',
@@ -7499,22 +7542,48 @@ export default function UnifiedLayout({
                       카페 위치 지도
                     </h3>
                   </div>
-                  <button
-                    onClick={() => setShowCafeMap(false)}
-                    aria-label="닫기"
-                    style={{
-                      width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      background: 'transparent', border: 'none', borderRadius: 9999,
-                      cursor: 'pointer', padding: 0, transition: 'background 0.2s ease',
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.background = '#1B1B1B'; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-                  >
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#B8B8B8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <button
+                      type="button"
+                      data-cap-exclude="1"
+                      onClick={captureMapPanel}
+                      aria-label="이미지 저장"
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        height: 36, padding: '0 14px', borderRadius: 9999,
+                        background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.35)',
+                        color: '#3B82F6', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                        whiteSpace: 'nowrap', transition: 'background 0.2s ease',
+                        fontFamily: 'inherit',
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(59,130,246,0.2)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'rgba(59,130,246,0.12)'; }}
+                    >
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                      </svg>
+                      <span data-cap-label="1">이미지 저장</span>
+                    </button>
+                    <button
+                      onClick={() => setShowCafeMap(false)}
+                      aria-label="닫기"
+                      data-cap-exclude="1"
+                      style={{
+                        width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        background: 'transparent', border: 'none', borderRadius: 9999,
+                        cursor: 'pointer', padding: 0, transition: 'background 0.2s ease',
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = '#1B1B1B'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                    >
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#B8B8B8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
               )}
               {/* Slider + Filter bar: hidden in error/empty state */}
