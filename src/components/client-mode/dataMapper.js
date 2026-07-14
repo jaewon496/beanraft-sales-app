@@ -1,5 +1,6 @@
 // 카드 2 (고객 분석) 전용 파이프라인 - 호출 경로/파라미터/fallback 순서를 명시적으로 박은 보강 함수
 import { collectCard2DataSync, normalizeBizmapAgeLabel } from './card2Pipeline';
+import { standardSigunguName } from '../../lib/salesEstimation';
 
 // 라이프스타일 항목명 변환 맵 (소상공인365 원본 → UI 표시용)
 const LIFESTYLE_LABEL_MAP = { '식도락': '외식 활동', '여행': '타지 방문', '쇼핑': '생활 구매', '영화': '문화 여가' };
@@ -2031,13 +2032,26 @@ export function mapCollectedDataToCards(collectedData, aiData, radius = 500) {
     }
 
     // 검색 위치 시군구명 추출 (TOP 5 라벨용)
+    // 소상공인 좌표변환/매출이 비표준 시군구명('서해구' 등)을 줄 수 있어, 정확한 역지오코딩(카카오) 시군구를 최우선으로 사용.
+    // '구/군/시'로 끝날 때만 채택(세종·제주 등 단층 주소에서 동명을 시군구로 오인하지 않도록 가드).
     var targetGu = '';
-    if (sa.avgAmt && sa.avgAmt.guNm) {
+    if (cd.accurateSigungu && /[구군시]$/.test(String(cd.accurateSigungu).trim())) {
+      targetGu = String(cd.accurateSigungu).trim();
+    }
+    if (!targetGu && dong.fullAddress) {
+      var faTokens = String(dong.fullAddress).trim().split(/\s+/);
+      if (faTokens.length >= 2 && /[구군시]$/.test(faTokens[1])) targetGu = faTokens[1];
+    }
+    if (!targetGu && sa.avgAmt && sa.avgAmt.guNm) {
       targetGu = String(sa.avgAmt.guNm).trim();
-    } else if (dong.dongNm) {
+    }
+    if (!targetGu && dong.dongNm) {
       var dnTokens = String(dong.dongNm).trim().split(/\s+/);
       if (dnTokens.length >= 2) targetGu = dnTokens[1];
     }
+    // 소상공인 비표준 시군구명('서해구' 등) → 표준명('서구') 교정 (카카오 accurateSigungu가 없을 때 대비).
+    // 교정표에 없는 정상 지역(강남구 등)은 그대로 통과 → 무변경.
+    targetGu = standardSigunguName(targetGu);
 
     // 매출 TOP 5 동 (Firebase 시군구 전체 동 데이터 우선 사용)
     // collectedData.sigunguDongsSales = [{admiCd, admiNm, perStoreAvg, recentSale, recentStoreCnt}]

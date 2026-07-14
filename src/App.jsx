@@ -19,7 +19,7 @@ import {
 import JSZip from 'jszip';
 import ExcelJS from 'exceljs';
 import { latLngToS2Tokens } from './lib/s2geometry';
-import { estimateAllCafeSales, calculateRadiusAvgSales, separateBufferZoneCafes, fetchNicebizmapMultiple, extractNicebizmapStats, fetchNicebizmapTimeSlots, fetchNicebizmapSaleType, fetchSigunguDongsSales } from './lib/salesEstimation';
+import { estimateAllCafeSales, calculateRadiusAvgSales, separateBufferZoneCafes, fetchNicebizmapMultiple, extractNicebizmapStats, fetchNicebizmapTimeSlots, fetchNicebizmapSaleType, fetchSigunguDongsSales, resolveStandardSigunguCd } from './lib/salesEstimation';
 import { normalizeDongCode, enrichDongInfo, assertDongCodeLength } from './lib/dongCodeNormalizer';
 import ClientMode from './components/client-mode/ClientMode';
 import { FRANCHISE_BRANDS, FRANCHISE_ALIASES } from './franchiseKeywords.js';
@@ -10721,7 +10721,7 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
     if (FAST_TEST_MODE) {
       console.log('[FAST_TEST] 스킵: 모든 GIS API (매장수 카드/지도 테스트 모드)');
       if (dongInfo) {
-        collectedData.dongInfo = enrichDongInfo({ dongCd: dongInfo.dongCd, dongNm: dongInfo.dongNm, admdstCdNm: dongInfo.admdstCdNm, nearbyDongs: dongInfo.nearbyDongs || [] });
+        collectedData.dongInfo = enrichDongInfo({ dongCd: dongInfo.dongCd, dongNm: dongInfo.dongNm, admdstCdNm: dongInfo.admdstCdNm, fullAddress: dongInfo.fullAddress, nearbyDongs: dongInfo.nearbyDongs || [] });
       }
       animateProgressTo(30);
     }
@@ -10743,7 +10743,7 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
          collectedData.apis.salesAvg = { description: '매출 평균', data: salesResult };
          console.log('[DEBUG_CAFE_SALES] salesAvg 수집 성공');
        }
-       collectedData.dongInfo = enrichDongInfo({ dongCd: dongInfo.dongCd, dongNm: dongInfo.dongNm, admdstCdNm: dongInfo.admdstCdNm, nearbyDongs: dongInfo.nearbyDongs || [] });
+       collectedData.dongInfo = enrichDongInfo({ dongCd: dongInfo.dongCd, dongNm: dongInfo.dongNm, admdstCdNm: dongInfo.admdstCdNm, fullAddress: dongInfo.fullAddress, nearbyDongs: dongInfo.nearbyDongs || [] });
        animateProgressTo(30);
        console.log('[DEBUG_CAFE_SALES] 스킵: 나머지 GIS API 7개, Open API, R-ONE, 인접동 합산');
      }
@@ -11028,7 +11028,9 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
          // ─── 시군구 전체 동 카페 매출 (Card 5 동네별 TOP 5용) ───
          try {
            const adm8 = dongInfo?.dongCode8 || normalizeDongCode(dongCd).code8 || dongCd;
-           const sigunguCd5 = String(adm8 || '').slice(0, 5);
+           // 소상공인 좌표변환이 비표준 시군구 코드를 주는 지역(예: 인천 서구 28275='서해구')은
+           // 표준 시군구 코드(28260)로 교정해야 창고(admiCdNameMap/nicebizmap)와 매칭됨. 동명은 정상이라 이름으로 복원.
+           const sigunguCd5 = resolveStandardSigunguCd(adm8, dongInfo?.admdstCdNm || '');
            if (sigunguCd5.length === 5) {
              const sigunguDongs = await fetchSigunguDongsSales(sigunguCd5);
              if (sigunguDongs && sigunguDongs.length > 0) {
@@ -11696,6 +11698,7 @@ ${customerData ? `[고객층 데이터 - ${customerData.isActualData ? '실제 �
            dongCd: dongInfo.dongCd,
            dongNm: dongInfo.dongNm,
            admdstCdNm: dongInfo.admdstCdNm,
+           fullAddress: dongInfo.fullAddress,
            nearbyDongs: dongInfo.nearbyDongs || []
          });
        };
@@ -19698,6 +19701,8 @@ ${crossData.tourStr && crossData.tourStr !== '미수집' ? `관광축제: ${cros
          });
        }
        console.log('[RESULT] 정상 분석 완료 - 결과 설정');
+       // 매출 카드 제목의 시군구명은 정확한 역지오코딩(카카오) 결과 사용 (소상공인 유령명 '서해구' 교정)
+       collectedData.accurateSigungu = (addressInfo && addressInfo.sigungu) ? String(addressInfo.sigungu).trim() : '';
        setSalesModeSearchResult({ success: true, data, query, hasApiData, collectedData });
        
        // 검색 완료 후 지도 자동 펼침
@@ -19820,6 +19825,7 @@ ${crossData.tourStr && crossData.tourStr !== '미수집' ? `관광축제: ${cros
        if (collectedData._dataSources) {
          collectedData._dataSources._partial = true;
        }
+       collectedData.accurateSigungu = (addressInfo && addressInfo.sigungu) ? String(addressInfo.sigungu).trim() : '';
        setSalesModeSearchResult({ success: true, data: fallbackData, query, hasApiData, partial: true, collectedData });
      }
      } // end of !DEBUG_STEP_E_ONLY (SNS~AI 분석)

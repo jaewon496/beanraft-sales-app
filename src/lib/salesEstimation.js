@@ -1750,6 +1750,9 @@ const FIREBASE_DB_URL = import.meta.env.VITE_FIREBASE_DATABASE_URL;
 
 // 행정동 코드 → 동 이름 매핑 (3,412개 전국, nicebizmap-data.json에서 추출)
 import ADMI_CD_NAME_MAP from './admiCdNameMap.json';
+// 창고(nicebizmap) 노드는 인증이 필요 → 앱 파이어베이스 SDK(로그인 세션)로 읽어야 200.
+// REST 무인증 fetch는 401이라 전 지역이 빈 배열이 됨. bizmapCache 읽기와 동일한 패턴 재사용.
+import { database } from '../firebase';
 
 /**
  * 시군구 안의 모든 행정동 코드 목록 반환
@@ -1773,22 +1776,87 @@ export function getAdmiName(admiCd) {
 }
 
 /**
+ * 소상공인 좌표변환이 표준과 다른(존재하지 않는) 시군구 코드를 주는 지역 교정표
+ * 창고(nicebizmap)·admiCdNameMap 은 통계청 표준 코드로만 저장되므로 표준 시군구 코드로 맞춰야 조회됨.
+ * 예) 인천 서구: 소상공인 28275('서해구') ↔ 통계청 표준 28260('서구')
+ */
+const SBIZ_SIGUNGU_FIX = {
+  '28275': '28260', // 인천 서구 (소상공인 비표준명 '서해구')
+};
+
+/**
+ * 소상공인 비표준 시군구명 → 통계청 표준 시군구명 교정표
+ * 좌표변환 유령코드(28275='서해구')와 짝. 카카오 역지오코딩이 비어 제목용 이름을 못 얻을 때 사용.
+ * 나중에 다른 유령명이 나오면 한 줄 추가로 확장.
+ */
+const SBIZ_SIGUNGU_NAME_FIX = {
+  '서해구': '서구', // 인천 서구 (소상공인 비표준명)
+};
+
+/**
+ * 소상공인이 준 시군구명이 비표준이면 표준명으로 교정, 아니면 그대로 반환
+ * @param {string} name - 시군구명(예: '서해구')
+ * @returns {string} 표준 시군구명(교정표에 없으면 입력 그대로 → 정상 지역 무변경)
+ */
+export function standardSigunguName(name) {
+  const nm = String(name || '').trim();
+  if (!nm) return nm;
+  return SBIZ_SIGUNGU_NAME_FIX[nm] || nm;
+}
+
+/**
+ * 창고 조회용 '표준 시군구 5자리 코드' 해소
+ * - 이미 표준(해당 시군구에 동이 존재)이면 그대로 반환 → 잘 되는 지역은 동작 무변경
+ * - 비표준(존재하지 않는 시군구 코드)이면 ①고정 교정표 ②동명 매칭(시도+동명, 필요 시 접미 3자리)으로
+ *   admiCdNameMap 상의 표준 코드를 복원. 애매하면(동명 중복) 추측하지 않고 원본 유지.
+ * @param {string} adm8 - 8/10자리 행정동 코드(소상공인 유래로 시군구가 비표준일 수 있음)
+ * @param {string} dongName - 정확한 동명(예: '연희동'). 소상공인 admdstCdNm 은 동명만은 정상.
+ * @returns {string} 표준 5자리 시군구 코드(해소 실패 시 원본 slice 반환)
+ */
+export function resolveStandardSigunguCd(adm8, dongName) {
+  const code = String(adm8 || '');
+  if (code.length < 5) return '';
+  const sliced = code.slice(0, 5);
+  // 1) 이미 표준: 해당 시군구에 동이 하나라도 있으면 그대로 사용
+  if (listSigunguAdmiCds(sliced).length > 0) return sliced;
+  // 2) 고정 교정표(확정 케이스 빠른 경로)
+  const fixed = SBIZ_SIGUNGU_FIX[sliced];
+  if (fixed && listSigunguAdmiCds(fixed).length > 0) return fixed;
+  // 3) 동명 매칭으로 표준 코드 복원(시도 + 동명, 동명 중복 시 접미 3자리로 특정)
+  const nm = String(dongName || '').trim();
+  if (nm) {
+    const sido = code.slice(0, 2);
+    const suffix = code.slice(5, 8);
+    const byName = Object.keys(ADMI_CD_NAME_MAP).filter(function (k) {
+      return k.slice(0, 2) === sido && ADMI_CD_NAME_MAP[k] === nm;
+    });
+    const bySuffix = byName.filter(function (k) { return k.slice(5, 8) === suffix; });
+    let pick = '';
+    if (bySuffix.length === 1) pick = bySuffix[0];
+    else if (byName.length === 1) pick = byName[0];
+    if (pick) return pick.slice(0, 5);
+  }
+  return sliced; // 실패 시 원본 유지(빈 배열 → 기존과 동일 동작)
+}
+
+/**
  * 시군구 안 모든 동의 카페 매출 데이터를 Firebase에서 병렬 조회
  * @param {string} sigunguCd5 - 5자리 시군구 코드 (예: "11680")
  * @returns {Promise<Array<{admiCd, admiNm, perStoreAvg, recentSale, recentStoreCnt}>>}
  *   각 동의 점포당 월평균 매출(만원) + 최근월 동 총매출(억원) + 점포수
  */
 export async function fetchSigunguDongsSales(sigunguCd5) {
-  if (!sigunguCd5 || !FIREBASE_DB_URL) return [];
+  if (!sigunguCd5 || !database) return [];
   const codes = listSigunguAdmiCds(sigunguCd5);
   if (codes.length === 0) return [];
 
   const sidoCode = String(sigunguCd5).slice(0, 2);
   const results = await Promise.all(codes.map(async (cd) => {
     try {
-      const res = await fetch(`${FIREBASE_DB_URL}/nicebizmap/${sidoCode}/${cd}.json`);
-      if (!res.ok) return null;
-      const j = await res.json();
+      // 창고 노드는 인증 필요 → 무인증 REST(fetch .json)는 401이라 빈 배열이 됨.
+      // 로그인 세션이 붙는 파이어베이스 SDK(database.ref().once)로 읽어야 실데이터가 온다. (bizmapCache 읽기와 동일)
+      const snap = await database.ref(`nicebizmap/${sidoCode}/${cd}`).once('value');
+      const j = snap.val();
       if (!j || !Array.isArray(j.c) || j.c.length === 0) return null;
 
       // 최근 6개월 점포당 월평균 매출 (만원)
@@ -1824,16 +1892,14 @@ export async function fetchSigunguDongsSales(sigunguCd5) {
  * @returns {Promise<{name: string, chart: Array<{yyyymm: string, saleAmt: number, storeCnt: number, avgPrice: number}>}|null>}
  */
 export async function fetchNicebizmapData(admiCd) {
-  if (!admiCd || admiCd.length < 8 || !FIREBASE_DB_URL) return null;
+  if (!admiCd || admiCd.length < 8 || !database) return null;
 
   const sidoCode = admiCd.substring(0, 2);
-  const url = `${FIREBASE_DB_URL}/nicebizmap/${sidoCode}/${admiCd}.json`;
 
   try {
-    const res = await fetch(url);
-    if (!res.ok) return null;
-
-    const data = await res.json();
+    // 창고 노드는 인증 필요 → 무인증 REST(fetch .json)는 401. 로그인 세션이 붙는 SDK로 읽는다.
+    const snap = await database.ref(`nicebizmap/${sidoCode}/${admiCd}`).once('value');
+    const data = snap.val();
     if (!data || !data.c) return null;
 
     return {
