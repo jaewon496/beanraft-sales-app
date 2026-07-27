@@ -414,7 +414,6 @@ body{background:#000;color:#fff;font-family:'Pretendard','Apple SD Gothic Neo',s
       </div>
     </div>
   </div>
-  <div class="hint"><span class="btn" id="replay">↻ 처음부터</span></div>
 </div>
 <script>
 var stage=document.getElementById('stage'), app=document.getElementById('app');
@@ -527,7 +526,7 @@ maphot.addEventListener('click', function(){ mapmodal.classList.add('on'); });
 document.getElementById('mapClose').addEventListener('click', function(){ mapmodal.classList.remove('on'); });
 mapmodal.addEventListener('click', function(e){ if(e.target===mapmodal) mapmodal.classList.remove('on'); });
 window.addEventListener('resize', function(){ fit(); if(app.classList.contains('ldone')) placeLDoneRing(); });
-document.getElementById('replay').addEventListener('click', play);
+var _rp=document.getElementById('replay'); if(_rp) _rp.addEventListener('click', play);
 window.addEventListener('load', function(){ fit(); play(); });
 fit();
 // 이미지 저장 방지: 우클릭 메뉴·드래그 차단
