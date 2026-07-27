@@ -533,6 +533,8 @@ maphot.addEventListener('click', function(){ mapmodal.classList.add('on'); });
 document.getElementById('mapClose').addEventListener('click', function(){ mapmodal.classList.remove('on'); });
 mapmodal.addEventListener('click', function(e){ if(e.target===mapmodal) mapmodal.classList.remove('on'); });
 window.addEventListener('resize', function(){ fit(); if(app.classList.contains('ldone')) placeLDoneRing(); });
+// 안전장치: 틀(iframe) 크기가 로드 후 바뀌어도 항상 다시 꽉 차게 (임베드 중첩 프레임 대응)
+if(window.ResizeObserver){ try{ new ResizeObserver(function(){ fit(); if(app.classList.contains('ldone')) placeLDoneRing(); }).observe(document.body); }catch(e){} }
 var _rp=document.getElementById('replay'); if(_rp) _rp.addEventListener('click', play);
 window.addEventListener('load', function(){ fit(); play(); });
 fit();
