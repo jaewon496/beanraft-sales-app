@@ -12,6 +12,7 @@ body{background:#000;color:#fff;font-family:'Pretendard','Apple SD Gothic Neo',s
 .cap{font-size:12px;letter-spacing:.14em;color:rgba(255,255,255,.34);text-align:center;padding:8px 0;flex-shrink:0}
 /* 무대: 뷰포트 가로를 꽉 채움 (와이드), 남는 위아래는 최소 레터박스 */
 .stage{position:relative;flex:1 1 auto;width:100vw;background:#000;overflow:hidden}
+.samplenote{position:absolute;left:50%;bottom:13px;transform:translateX(-50%);font-size:12.5px;color:rgba(255,255,255,.6);background:rgba(0,0,0,.4);padding:5px 15px;border-radius:14px;letter-spacing:.02em;pointer-events:none;z-index:200;white-space:nowrap}
 /* 설계 캔버스: 1920×940 (와이드 비율 ~2.04). --s = 무대폭/1920 로 가로에 맞춰 스케일 */
 .app{position:absolute;left:50%;top:50%;width:1920px;height:940px;transform-origin:center;transform:translate(-50%,-50%) scale(var(--s,1));background:#0A0A0A;overflow:hidden}
 
@@ -238,10 +239,9 @@ body{background:#000;color:#fff;font-family:'Pretendard','Apple SD Gothic Neo',s
 .dspot{position:absolute;left:0;top:0;width:19%;height:100%;pointer-events:none;z-index:32;animation:dglow 1.8s ease-in-out infinite}
 @keyframes dglow{0%,100%{box-shadow:inset 0 0 0 1px rgba(43,127,255,0)}50%{box-shadow:inset 0 0 26px rgba(43,127,255,.22),inset 0 0 0 1px rgba(43,127,255,.3)}}
 /* 콘텐츠 위 베일 (선택 전 안내) */
-.dveil{position:absolute;top:0;left:19%;right:0;bottom:0;background:rgba(4,6,10,.82);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;transition:opacity .4s;backdrop-filter:blur(1px);z-index:33}
-.dveil h2{font-size:26px;font-weight:600;letter-spacing:-.01em}
-.dveil p{margin-top:12px;font-size:15px;color:rgba(255,255,255,.6)}
-.dveil .darrow{position:absolute;left:20px;top:42%;color:#8bb8ff;font-size:15px;font-weight:600;white-space:nowrap;text-shadow:0 2px 10px rgba(0,0,0,.6);animation:nudge 1.4s ease-in-out infinite}
+.dveil{position:absolute;top:0;left:19%;right:0;bottom:0;pointer-events:none;transition:opacity .4s;z-index:33}
+.dveil h2,.dveil p{display:none}
+.dveil .darrow{position:absolute;left:22px;top:40px;color:#9cc3ff;font-size:15px;font-weight:600;white-space:nowrap;text-shadow:0 2px 12px rgba(0,0,0,.8);background:rgba(8,10,16,.62);padding:7px 14px;border-radius:20px;animation:nudge 1.4s ease-in-out infinite}
 @keyframes nudge{0%,100%{transform:translateX(0)}50%{transform:translateX(-8px)}}
 .dhidden{opacity:0!important;pointer-events:none}
 
@@ -413,6 +413,7 @@ body{background:#000;color:#fff;font-family:'Pretendard','Apple SD Gothic Neo',s
         </div>
       </div>
     </div>
+    <div class="samplenote">실제 상권분석 프로그램을 바탕으로 제작한 예시 화면입니다</div>
   </div>
 </div>
 <script>
@@ -477,18 +478,24 @@ function startLoading(){
 }
 function clearSel(){ document.querySelectorAll('.dcat-all.sel,.ditem.sel').forEach(function(x){x.classList.remove('sel');}); }
 function resetDash(){
-  dcardImg.src=''; dcardImg.style.display='none'; dcontent.scrollTop=0;
-  dveil.classList.remove('dhidden'); dspot.classList.remove('dhidden'); clearSel();
-  maphot.style.display='none'; mapmodal.classList.remove('on');
+  dcardImg.src='shots/full_report.jpg'; dcardImg.style.display='block'; dcontent.scrollTop=0;
+  clearSel(); dveil.classList.remove('dhidden'); dspot.classList.remove('dhidden');
+  maphot.style.display='block'; mapmodal.classList.remove('on');
 }
-function showReport(src, el){
-  dcardImg.src=src; dcardImg.style.display='block';
-  dcontent.scrollTop=0;
+// 이어지는 전체 리포트 + 카테고리 클릭 시 해당 섹션으로 스크롤 (짧은 카드 빈공간 제거, 실제 앱처럼 항상 꽉 참)
+var SECTION_TOP={c01:0,c02:873,c03:1686,c04:2481,c05:3638,c06:4531,c07:5348,c08:6207,c09:6975,c10:7691,c11:9380,c12:11528,c13:12486,c14:13647};
+function scrollToSection(cardKey){
+  var scale=dcontent.clientWidth/2285, target=(SECTION_TOP[cardKey]||0)*scale;
+  var go=function(){ dcontent.scrollTop=target; };
+  if(dcardImg.complete && dcardImg.naturalHeight){ go(); } else { dcardImg.addEventListener('load', go, {once:true}); }
+}
+function showReportAt(cardKey, el){
+  if(!/full_report/.test(dcardImg.getAttribute('src')||'')) dcardImg.src='shots/full_report.jpg';
+  dcardImg.style.display='block';
   dveil.classList.add('dhidden'); dspot.classList.add('dhidden');
   clearSel(); if(el) el.classList.add('sel');
-  // 지도로 보기 버튼: 01 상권 분석·전체 보고서(맨위 01 카드)에만 노출
-  maphot.style.display = (/c01\./.test(src) || /full_report/.test(src)) ? 'block' : 'none';
-  mapmodal.classList.remove('on');
+  maphot.style.display='block'; mapmodal.classList.remove('on');
+  scrollToSection(cardKey);
 }
 function play(){
   clearAll();
@@ -516,9 +523,9 @@ lpctbtn.addEventListener('click', function(){
   T(function(){ app.classList.add('dash'); }, 1800);       // 대시보드 등장
 });
 // 대시보드 사이드바 클릭 → 해당 리포트 화면
-dcatAll.addEventListener('click', function(){ showReport('shots/full_report.jpg', dcatAll); });
+dcatAll.addEventListener('click', function(){ showReportAt('c01', dcatAll); });
 document.querySelectorAll('.ditem').forEach(function(it){
-  it.addEventListener('click', function(){ showReport('appcards/'+it.getAttribute('data-card')+'.jpg', it); });
+  it.addEventListener('click', function(){ showReportAt(it.getAttribute('data-card'), it); });
 });
 document.getElementById('dresearch').addEventListener('click', play);
 // 지도로 보기 → 카페 위치 지도 모달
