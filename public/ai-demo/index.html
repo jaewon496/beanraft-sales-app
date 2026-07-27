@@ -46,11 +46,11 @@ body{background:#000;color:#fff;font-family:'Pretendard','Apple SD Gothic Neo',s
 @keyframes tFade{from{opacity:0}to{opacity:.4}}
 
 /* 검색 클릭 유도 — 검색 버튼(로고 아래 가운데)에 링을 맞춤 (1920×940 좌표) */
-.spot{position:absolute;left:958px;top:521px;width:140px;height:64px;border-radius:10px;box-shadow:0 0 0 9999px rgba(10,10,10,0);z-index:6;opacity:0;pointer-events:none;transition:box-shadow .6s ease}
+.spot{position:absolute;left:958px;top:calc(50% + 51px);width:140px;height:64px;border-radius:10px;box-shadow:0 0 0 9999px rgba(10,10,10,0);z-index:6;opacity:0;pointer-events:none;transition:box-shadow .6s ease}
 .app.sguide .spot{opacity:1;box-shadow:0 0 0 9999px rgba(10,10,10,.72)}
-.ring{position:absolute;left:958px;top:521px;width:140px;height:64px;border-radius:10px;border:1.5px solid rgba(43,127,255,.9);box-shadow:0 0 18px rgba(43,127,255,.5);z-index:7;opacity:0;pointer-events:none}
+.ring{position:absolute;left:958px;top:calc(50% + 51px);width:140px;height:64px;border-radius:10px;border:1.5px solid rgba(43,127,255,.9);box-shadow:0 0 18px rgba(43,127,255,.5);z-index:7;opacity:0;pointer-events:none}
 .app.sguide .ring{animation:ringIn .5s .2s ease both, ringPulse 1.6s .7s ease-in-out infinite}
-.shint{position:absolute;left:1112px;top:553px;transform:translateY(-50%);z-index:8;color:#8bb8ff;font-size:16px;font-weight:600;white-space:nowrap;opacity:0;text-shadow:0 2px 10px rgba(0,0,0,.6);pointer-events:none}
+.shint{position:absolute;left:1112px;top:calc(50% + 83px);transform:translateY(-50%);z-index:8;color:#8bb8ff;font-size:16px;font-weight:600;white-space:nowrap;opacity:0;text-shadow:0 2px 10px rgba(0,0,0,.6);pointer-events:none}
 .app.sguide .shint{animation:gIn .5s .3s ease both, sBob 1.6s .8s ease-in-out infinite}
 @keyframes sBob{0%,100%{transform:translateY(-50%) translateX(0)}50%{transform:translateY(-50%) translateX(-6px)}}
 
@@ -117,7 +117,7 @@ body{background:#000;color:#fff;font-family:'Pretendard','Apple SD Gothic Neo',s
 .app.szgrow .szdim{background:rgba(0,0,0,.9)}
 .szbar{position:absolute;left:460px;top:20px;width:1000px;height:46px;z-index:9;opacity:0;pointer-events:none;box-sizing:border-box;display:flex;align-items:center;gap:8px;border:1.5px solid rgba(255,255,255,.3);border-radius:8px;padding:0 14px;background:#0A0A0A;transition:left 1.2s cubic-bezier(.16,1,.3,1),top 1.2s cubic-bezier(.16,1,.3,1),width 1.2s cubic-bezier(.16,1,.3,1),height 1.2s cubic-bezier(.16,1,.3,1),opacity .5s ease}
 .app.szoom .szbar{opacity:1}
-.app.szgrow .szbar{left:410px;top:434px;width:1100px;height:72px}
+.app.szgrow .szbar{left:410px;top:calc(50% - 36px);width:1100px;height:72px}
 .szbar .zph{flex:1;color:rgba(255,255,255,.72);font-size:14px;font-weight:500;letter-spacing:.02em;white-space:nowrap;overflow:hidden;transition:font-size 1.2s cubic-bezier(.16,1,.3,1)}
 .szbar .zph.typed{color:#fff}
 .app.szgrow .szbar .zph{font-size:21px}
@@ -425,7 +425,7 @@ var maphot=document.getElementById('maphot'), mapmodal=document.getElementById('
 var timers=[], liv=null;
 function T(fn,ms){timers.push(setTimeout(fn,ms));}
 function clearAll(){timers.forEach(clearTimeout);timers=[];if(liv){clearInterval(liv);liv=null;}}
-function fit(){ var s=Math.min(stage.clientWidth/1920, stage.clientHeight/940); app.style.setProperty('--s', s.toFixed(4)); }
+function fit(){ var s=stage.clientWidth/1920; if(!s) return; app.style.setProperty('--s', s.toFixed(4)); app.style.height=(stage.clientHeight/s)+'px'; }
 
 function startZoom(){
   szph.classList.remove('typed'); szph.textContent='주소를 입력하세요';
@@ -454,7 +454,7 @@ function triggerSearch(){
   T(startZoom, 2900); // 지도 충분히 보여준 뒤 검색 줌
 }
 function placeLDoneRing(){
-  var pr=lpctbtn.getBoundingClientRect(), ar=app.getBoundingClientRect(), s=Math.min(stage.clientWidth/1920, stage.clientHeight/940);
+  var pr=lpctbtn.getBoundingClientRect(), ar=app.getBoundingClientRect(), s=stage.clientWidth/1920;
   ldonering.style.width=((pr.width/s)+22)+'px'; ldonering.style.height=((pr.height/s)+16)+'px';
   ldonering.style.left=((pr.left+pr.width/2-ar.left)/s)+'px'; ldonering.style.top=((pr.top+pr.height/2-ar.top)/s)+'px';
 }
