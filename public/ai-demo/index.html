@@ -181,13 +181,6 @@ body{background:#000;color:#fff;font-family:'Pretendard','Apple SD Gothic Neo',s
 .dashwrap{position:absolute;inset:0;display:flex}
 
 /* 왼쪽 사이드바 (~19%) — 실제 앱 사이드바 그대로 이식 */
-/* 카테고리 클릭(집중 모드): 사이드바 접고 카드를 폭 가득 크게 */
-.dside{transition:flex-basis .4s cubic-bezier(.16,1,.3,1),width .4s cubic-bezier(.16,1,.3,1),opacity .3s ease}
-.app.dfocus .dside{flex-basis:0;width:0;opacity:0;overflow:hidden;pointer-events:none;border:0}
-.dback{position:absolute;left:18px;top:14px;z-index:36;display:none;align-items:center;gap:6px;background:rgba(18,22,30,.86);border:1px solid rgba(255,255,255,.16);color:#cfe0ff;font-size:13.5px;font-weight:600;padding:8px 15px;border-radius:20px;cursor:pointer;transition:background .15s}
-.dback:hover{background:rgba(40,46,58,.94)}
-.app.dfocus .dback{display:inline-flex}
-.dback svg{width:14px;height:14px}
 .dside{position:relative;flex:0 0 16%;width:16%;height:100%;background:#0A0A0A;border-right:1px solid rgba(255,255,255,.07);padding:20px 16px;display:flex;flex-direction:column;overflow-y:auto;overflow-x:hidden;z-index:31;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.2) transparent}
 .dside::-webkit-scrollbar{width:6px}
 .dside::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18);border-radius:3px}
@@ -205,23 +198,23 @@ body{background:#000;color:#fff;font-family:'Pretendard','Apple SD Gothic Neo',s
 .dcat-all.sel{background:rgba(43,127,255,.1);border-color:rgba(43,127,255,.35)}
 .dcat-all.sel::before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:3px;border-radius:2px;background:#2b7fff}
 .dcat-all .dc-ico{width:16px;height:16px;color:#9db4d8;flex-shrink:0;display:flex}
-.dcat-all .dc-name{flex:1;font-size:14px;font-weight:600;color:#fff}
+.dcat-all .dc-name{flex:1;font-size:16px;font-weight:600;color:#fff}
 .dbadge{font-size:11px;font-weight:600;color:rgba(255,255,255,.8);background:rgba(255,255,255,.08);border-radius:5px;padding:2px 7px;min-width:22px;text-align:center;flex-shrink:0}
 .dc-check{width:15px;height:15px;color:#2b7fff;flex-shrink:0;opacity:.85}
 .dcat-hint{font-size:11px;color:rgba(255,255,255,.35);margin:0 0 8px 2px;flex-shrink:0}
 .dgroup{flex-shrink:0}
 .dgroup-head{display:flex;align-items:center;gap:8px;height:32px;padding:0 8px;border-radius:6px;position:relative}
 .dgroup-head .dg-ico{width:15px;height:15px;color:#9db4d8;display:flex;flex-shrink:0}
-.dgroup-head .dg-name{flex:1;font-size:13px;font-weight:600;color:#fff}
+.dgroup-head .dg-name{flex:1;font-size:15.5px;font-weight:600;color:#fff}
 .dgroup-head .dg-chev{width:14px;height:14px;color:rgba(255,255,255,.35);flex-shrink:0}
 .dgroup.active .dgroup-head::before{content:"";position:absolute;left:0;top:7px;bottom:7px;width:3px;border-radius:2px;background:#fff}
 .dgroup-items{padding:2px 0 6px}
-.ditem{display:flex;align-items:center;gap:12px;height:28px;padding:0 8px 0 30px;border-radius:6px;cursor:pointer;transition:background .12s}
+.ditem{display:flex;align-items:center;gap:12px;height:33px;padding:0 8px 0 30px;border-radius:6px;cursor:pointer;transition:background .12s}
 .ditem:hover{background:rgba(255,255,255,.05)}
 .ditem.sel{background:rgba(43,127,255,.12)}
 .ditem.sel .dlabel{color:#8bb8ff}
-.ditem .dnum{font-size:11px;color:rgba(255,255,255,.35);font-variant-numeric:tabular-nums;width:16px;flex-shrink:0}
-.ditem .dlabel{font-size:13px;color:rgba(255,255,255,.75)}
+.ditem .dnum{font-size:12.5px;color:rgba(255,255,255,.35);font-variant-numeric:tabular-nums;width:18px;flex-shrink:0}
+.ditem .dlabel{font-size:15.5px;color:rgba(255,255,255,.75)}
 .ddirector{margin-top:auto;flex-shrink:0;width:100%;height:44px;border:1px solid rgba(43,127,255,.4);background:rgba(43,127,255,.08);border-radius:10px;color:#cfe0ff;font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;transition:background .15s}
 .ddirector:hover{background:rgba(43,127,255,.16)}
 .ddirector svg{width:15px;height:15px;color:#8bb8ff}
@@ -412,7 +405,6 @@ body{background:#000;color:#fff;font-family:'Pretendard','Apple SD Gothic Neo',s
             </div>
           </div>
         </div>
-        <button class="dback" id="dback" type="button"><svg viewBox="0 0 20 20" fill="none"><path d="M4 6h12M4 10h12M4 14h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>카테고리</button>
         <div class="dspot" id="dspot"></div>
         <div class="dveil" id="dveil">
           <h2>어떤 정보가 궁금하세요?</h2>
@@ -492,7 +484,7 @@ function clearSel(){ document.querySelectorAll('.dcat-all.sel,.ditem.sel').forEa
 function resetDash(){
   dcardImg.src='shots/full_report.jpg'; dcardImg.style.display='block'; dcontent.scrollTop=0;
   clearSel(); dveil.classList.remove('dhidden'); dspot.classList.remove('dhidden');
-  app.classList.add('dguide'); app.classList.remove('dfocus');   // 카테고리 클릭 전: 어둡게 + 사이드바(강조)
+  app.classList.add('dguide');   // 카테고리 클릭 전: 어둡게 + 사이드바(강조)
   maphot.style.display='block'; mapmodal.classList.remove('on');
 }
 // 이어지는 전체 리포트 + 카테고리 클릭 시 해당 섹션으로 스크롤 (짧은 카드 빈공간 제거, 실제 앱처럼 항상 꽉 참)
@@ -506,11 +498,10 @@ function showReportAt(cardKey, el){
   if(!/full_report/.test(dcardImg.getAttribute('src')||'')) dcardImg.src='shots/full_report.jpg';
   dcardImg.style.display='block';
   dveil.classList.add('dhidden'); dspot.classList.add('dhidden');
-  app.classList.remove('dguide'); app.classList.add('dfocus');   // 어둠 걷고 사이드바 접어 폭 가득 크게
+  app.classList.remove('dguide');   // 어둠 걷고 선명하게 (사이드바 유지)
   clearSel(); if(el) el.classList.add('sel');
   maphot.style.display='block'; mapmodal.classList.remove('on');
   scrollToSection(cardKey);
-  T(function(){ scrollToSection(cardKey); }, 430);   // 사이드바 접힘 완료 후 정확 위치
 }
 function play(){
   clearAll();
@@ -543,7 +534,6 @@ document.querySelectorAll('.ditem').forEach(function(it){
   it.addEventListener('click', function(){ showReportAt(it.getAttribute('data-card'), it); });
 });
 document.getElementById('dresearch').addEventListener('click', play);
-document.getElementById('dback').addEventListener('click', function(){ resetDash(); });
 // 지도로 보기 → 카페 위치 지도 모달
 maphot.addEventListener('click', function(){ mapmodal.classList.add('on'); });
 document.getElementById('mapClose').addEventListener('click', function(){ mapmodal.classList.remove('on'); });
