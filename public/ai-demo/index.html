@@ -11,7 +11,7 @@ body{background:#000;color:#fff;font-family:'Pretendard','Apple SD Gothic Neo',s
 .wrap{width:100vw;margin:0;display:flex;flex-direction:column;height:100vh}
 .cap{font-size:12px;letter-spacing:.14em;color:rgba(255,255,255,.34);text-align:center;padding:8px 0;flex-shrink:0}
 /* 무대: 뷰포트 가로를 꽉 채움 (와이드), 남는 위아래는 최소 레터박스 */
-.stage{position:relative;flex:1 1 auto;width:100vw;background:#000;overflow:hidden}
+.stage{position:relative;flex:1 1 auto;width:100vw;background:#0A0A0A;overflow:hidden;display:flex;align-items:center;justify-content:center}
 .samplenote{position:absolute;left:50%;bottom:13px;transform:translateX(-50%);font-size:12.5px;color:rgba(255,255,255,.6);background:rgba(0,0,0,.4);padding:5px 15px;border-radius:14px;letter-spacing:.02em;pointer-events:none;z-index:200;white-space:nowrap}
 /* 설계 캔버스: 1920×940 (와이드 비율 ~2.04). --s = 무대폭/1920 로 가로에 맞춰 스케일 */
 .app{position:absolute;left:50%;top:50%;width:1920px;height:940px;transform-origin:center;transform:translate(-50%,-50%) scale(var(--s,1));background:#0A0A0A;overflow:hidden}
@@ -430,7 +430,10 @@ var maphot=document.getElementById('maphot'), mapmodal=document.getElementById('
 var timers=[], liv=null;
 function T(fn,ms){timers.push(setTimeout(fn,ms));}
 function clearAll(){timers.forEach(clearTimeout);timers=[];if(liv){clearInterval(liv);liv=null;}}
-function fit(){ var s=stage.clientWidth/1920; if(!s) return; app.style.setProperty('--s', s.toFixed(4)); app.style.height=(stage.clientHeight/s)+'px'; }
+// 고정 화면 비율 = 실제 앱 상권분석 화면(가로1278×세로1304, 살짝 세로로 김). 넓은 화면에서도 늘어나지 않고 이 모양 유지.
+var ARW=1278, ARH=1304;
+function boxW(){ var sw=stage.clientWidth, sh=stage.clientHeight; if(!sw||!sh) return sw; return Math.min(sw, sh*ARW/ARH); }
+function fit(){ var bw=boxW(); var s=bw/1920; if(!s) return; app.style.setProperty('--s', s.toFixed(4)); app.style.height=(1920*ARH/ARW).toFixed(1)+'px'; }
 
 function startZoom(){
   szph.classList.remove('typed'); szph.textContent='주소를 입력하세요';
@@ -459,7 +462,7 @@ function triggerSearch(){
   T(startZoom, 2900); // 지도 충분히 보여준 뒤 검색 줌
 }
 function placeLDoneRing(){
-  var pr=lpctbtn.getBoundingClientRect(), ar=app.getBoundingClientRect(), s=stage.clientWidth/1920;
+  var pr=lpctbtn.getBoundingClientRect(), ar=app.getBoundingClientRect(), s=boxW()/1920;
   ldonering.style.width=((pr.width/s)+22)+'px'; ldonering.style.height=((pr.height/s)+16)+'px';
   ldonering.style.left=((pr.left+pr.width/2-ar.left)/s)+'px'; ldonering.style.top=((pr.top+pr.height/2-ar.top)/s)+'px';
 }
