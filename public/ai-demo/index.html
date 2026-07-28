@@ -430,10 +430,8 @@ var maphot=document.getElementById('maphot'), mapmodal=document.getElementById('
 var timers=[], liv=null;
 function T(fn,ms){timers.push(setTimeout(fn,ms));}
 function clearAll(){timers.forEach(clearTimeout);timers=[];if(liv){clearInterval(liv);liv=null;}}
-// 고정 화면 비율 = 실제 앱 상권분석 화면(가로1278×세로1304, 살짝 세로로 김). 넓은 화면에서도 늘어나지 않고 이 모양 유지.
-var ARW=1278, ARH=1304;
-function boxW(){ var sw=stage.clientWidth, sh=stage.clientHeight; if(!sw||!sh) return sw; return Math.min(sw, sh*ARW/ARH); }
-function fit(){ var bw=boxW(); var s=bw/1920; if(!s) return; app.style.setProperty('--s', s.toFixed(4)); app.style.height=(1920*ARH/ARW).toFixed(1)+'px'; }
+// 폭에 맞춰 꽉 채움(늘어남). 리포트 자체가 좁은판(글씨 큰)이라 어느 화면에서도 크게 나옴.
+function fit(){ var s=stage.clientWidth/1920; if(!s) return; app.style.setProperty('--s', s.toFixed(4)); app.style.height=(stage.clientHeight/s)+'px'; }
 
 function startZoom(){
   szph.classList.remove('typed'); szph.textContent='주소를 입력하세요';
@@ -462,7 +460,7 @@ function triggerSearch(){
   T(startZoom, 2900); // 지도 충분히 보여준 뒤 검색 줌
 }
 function placeLDoneRing(){
-  var pr=lpctbtn.getBoundingClientRect(), ar=app.getBoundingClientRect(), s=boxW()/1920;
+  var pr=lpctbtn.getBoundingClientRect(), ar=app.getBoundingClientRect(), s=stage.clientWidth/1920;
   ldonering.style.width=((pr.width/s)+22)+'px'; ldonering.style.height=((pr.height/s)+16)+'px';
   ldonering.style.left=((pr.left+pr.width/2-ar.left)/s)+'px'; ldonering.style.top=((pr.top+pr.height/2-ar.top)/s)+'px';
 }
@@ -485,20 +483,20 @@ function startLoading(){
 }
 function clearSel(){ document.querySelectorAll('.dcat-all.sel,.ditem.sel').forEach(function(x){x.classList.remove('sel');}); }
 function resetDash(){
-  dcardImg.src='shots/full_report.jpg'; dcardImg.style.display='block'; dcontent.scrollTop=0;
+  dcardImg.src='shots/full_report.jpg?v=2'; dcardImg.style.display='block'; dcontent.scrollTop=0;
   clearSel(); dveil.classList.remove('dhidden'); dspot.classList.remove('dhidden');
   app.classList.add('dguide');   // 카테고리 클릭 전: 어둡게 + 사이드바(강조)
   maphot.style.display='block'; mapmodal.classList.remove('on');
 }
 // 이어지는 전체 리포트 + 카테고리 클릭 시 해당 섹션으로 스크롤 (짧은 카드 빈공간 제거, 실제 앱처럼 항상 꽉 참)
-var SECTION_TOP={c01:0,c02:873,c03:1686,c04:2481,c05:3638,c06:4531,c07:5348,c08:6207,c09:6975,c10:7691,c11:9380,c12:11528,c13:12486,c14:13647};
+var SECTION_TOP={c01:0,c02:1496,c03:3098,c04:4672,c05:7006,c06:8990,c07:10764,c08:12516,c09:14036,c10:15486,c11:19572,c12:22802,c13:24744,c14:26934};
 function scrollToSection(cardKey){
-  var scale=dcontent.clientWidth/2285, target=(SECTION_TOP[cardKey]||0)*scale;
+  var scale=dcontent.clientWidth/1802, target=(SECTION_TOP[cardKey]||0)*scale;
   var go=function(){ dcontent.scrollTop=target; };
   if(dcardImg.complete && dcardImg.naturalHeight){ go(); } else { dcardImg.addEventListener('load', go, {once:true}); }
 }
 function showReportAt(cardKey, el){
-  if(!/full_report/.test(dcardImg.getAttribute('src')||'')) dcardImg.src='shots/full_report.jpg';
+  if(!/full_report/.test(dcardImg.getAttribute('src')||'')) dcardImg.src='shots/full_report.jpg?v=2';
   dcardImg.style.display='block';
   dveil.classList.add('dhidden'); dspot.classList.add('dhidden');
   app.classList.remove('dguide');   // 어둠 걷고 선명하게 (사이드바 유지)
