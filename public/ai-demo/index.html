@@ -484,20 +484,20 @@ function startLoading(){
 }
 function clearSel(){ document.querySelectorAll('.dcat-all.sel,.ditem.sel').forEach(function(x){x.classList.remove('sel');}); }
 function resetDash(){
-  dcardImg.src='shots/full_report.jpg?v=2'; dcardImg.style.display='block'; dcontent.scrollTop=0;
+  dcardImg.src='shots/full_report.jpg?v=3'; dcardImg.style.display='block'; dcontent.scrollTop=0;
   clearSel(); dveil.classList.remove('dhidden'); dspot.classList.remove('dhidden');
   app.classList.add('dguide');   // 카테고리 클릭 전: 어둡게 + 사이드바(강조)
   maphot.style.display='block'; mapmodal.classList.remove('on');
 }
 // 이어지는 전체 리포트 + 카테고리 클릭 시 해당 섹션으로 스크롤 (짧은 카드 빈공간 제거, 실제 앱처럼 항상 꽉 참)
-var SECTION_TOP={c01:0,c02:1496,c03:3098,c04:4672,c05:7006,c06:8990,c07:10764,c08:12516,c09:14036,c10:15486,c11:19572,c12:22802,c13:24744,c14:26934};
+var SECTION_TOP={c01:0,c02:1122,c03:2324,c04:3504,c05:5254,c06:6742,c07:8073,c08:9387,c09:10527,c10:11614,c11:14679,c12:17102,c13:18558,c14:20200};
 function scrollToSection(cardKey){
-  var scale=dcontent.clientWidth/1802, target=(SECTION_TOP[cardKey]||0)*scale;
+  var scale=dcontent.clientWidth/1352, target=(SECTION_TOP[cardKey]||0)*scale;
   var go=function(){ dcontent.scrollTop=target; };
   if(dcardImg.complete && dcardImg.naturalHeight){ go(); } else { dcardImg.addEventListener('load', go, {once:true}); }
 }
 function showReportAt(cardKey, el){
-  if(!/full_report/.test(dcardImg.getAttribute('src')||'')) dcardImg.src='shots/full_report.jpg?v=2';
+  if(!/full_report/.test(dcardImg.getAttribute('src')||'')) dcardImg.src='shots/full_report.jpg?v=3';
   dcardImg.style.display='block';
   dveil.classList.add('dhidden'); dspot.classList.add('dhidden');
   app.classList.remove('dguide');   // 어둠 걷고 선명하게 (사이드바 유지)
