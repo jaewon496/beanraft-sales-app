@@ -181,6 +181,13 @@ body{background:#000;color:#fff;font-family:'Pretendard','Apple SD Gothic Neo',s
 .dashwrap{position:absolute;inset:0;display:flex}
 
 /* 왼쪽 사이드바 (~19%) — 실제 앱 사이드바 그대로 이식 */
+/* 카테고리 클릭(집중 모드): 사이드바 접고 카드를 폭 가득 크게 */
+.dside{transition:flex-basis .4s cubic-bezier(.16,1,.3,1),width .4s cubic-bezier(.16,1,.3,1),opacity .3s ease}
+.app.dfocus .dside{flex-basis:0;width:0;opacity:0;overflow:hidden;pointer-events:none;border:0}
+.dback{position:absolute;left:18px;top:14px;z-index:36;display:none;align-items:center;gap:6px;background:rgba(18,22,30,.86);border:1px solid rgba(255,255,255,.16);color:#cfe0ff;font-size:13.5px;font-weight:600;padding:8px 15px;border-radius:20px;cursor:pointer;transition:background .15s}
+.dback:hover{background:rgba(40,46,58,.94)}
+.app.dfocus .dback{display:inline-flex}
+.dback svg{width:14px;height:14px}
 .dside{position:relative;flex:0 0 16%;width:16%;height:100%;background:#0A0A0A;border-right:1px solid rgba(255,255,255,.07);padding:20px 16px;display:flex;flex-direction:column;overflow-y:auto;overflow-x:hidden;z-index:31;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.2) transparent}
 .dside::-webkit-scrollbar{width:6px}
 .dside::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18);border-radius:3px}
@@ -405,6 +412,7 @@ body{background:#000;color:#fff;font-family:'Pretendard','Apple SD Gothic Neo',s
             </div>
           </div>
         </div>
+        <button class="dback" id="dback" type="button"><svg viewBox="0 0 20 20" fill="none"><path d="M4 6h12M4 10h12M4 14h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>카테고리</button>
         <div class="dspot" id="dspot"></div>
         <div class="dveil" id="dveil">
           <h2>어떤 정보가 궁금하세요?</h2>
@@ -484,7 +492,7 @@ function clearSel(){ document.querySelectorAll('.dcat-all.sel,.ditem.sel').forEa
 function resetDash(){
   dcardImg.src='shots/full_report.jpg'; dcardImg.style.display='block'; dcontent.scrollTop=0;
   clearSel(); dveil.classList.remove('dhidden'); dspot.classList.remove('dhidden');
-  app.classList.add('dguide');                       // 카테고리 클릭 전: 어둡게 + 카테고리 강조
+  app.classList.add('dguide'); app.classList.remove('dfocus');   // 카테고리 클릭 전: 어둡게 + 사이드바(강조)
   maphot.style.display='block'; mapmodal.classList.remove('on');
 }
 // 이어지는 전체 리포트 + 카테고리 클릭 시 해당 섹션으로 스크롤 (짧은 카드 빈공간 제거, 실제 앱처럼 항상 꽉 참)
@@ -498,10 +506,11 @@ function showReportAt(cardKey, el){
   if(!/full_report/.test(dcardImg.getAttribute('src')||'')) dcardImg.src='shots/full_report.jpg';
   dcardImg.style.display='block';
   dveil.classList.add('dhidden'); dspot.classList.add('dhidden');
-  app.classList.remove('dguide');                    // 클릭하면 어둠 걷고 선명하게
+  app.classList.remove('dguide'); app.classList.add('dfocus');   // 어둠 걷고 사이드바 접어 폭 가득 크게
   clearSel(); if(el) el.classList.add('sel');
   maphot.style.display='block'; mapmodal.classList.remove('on');
   scrollToSection(cardKey);
+  T(function(){ scrollToSection(cardKey); }, 430);   // 사이드바 접힘 완료 후 정확 위치
 }
 function play(){
   clearAll();
@@ -534,6 +543,7 @@ document.querySelectorAll('.ditem').forEach(function(it){
   it.addEventListener('click', function(){ showReportAt(it.getAttribute('data-card'), it); });
 });
 document.getElementById('dresearch').addEventListener('click', play);
+document.getElementById('dback').addEventListener('click', function(){ resetDash(); });
 // 지도로 보기 → 카페 위치 지도 모달
 maphot.addEventListener('click', function(){ mapmodal.classList.add('on'); });
 document.getElementById('mapClose').addEventListener('click', function(){ mapmodal.classList.remove('on'); });
