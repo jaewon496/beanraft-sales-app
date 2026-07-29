@@ -39,11 +39,15 @@ body{background:var(--ink);color:#fff;font-family:'NanumSquare','Pretendard',san
 .step .ico{margin:18px 0 16px;color:rgba(255,255,255,.85)}
 .step .ico svg{width:24px;height:24px;display:block}
 .step .lb{font-size:16px;font-weight:700;color:#fff;line-height:1.4}
-.step .tk{position:absolute;top:7px;right:20px;left:38px;height:1px;background:rgba(255,255,255,.14)}
-.step .tk::after{content:"";position:absolute;inset:0;background:#33549e;transform:scaleX(0);transform-origin:left center;transition:transform .55s cubic-bezier(.77,0,.175,1)}
+.step .tk{position:absolute;top:7px;right:20px;left:38px;height:1px;background:rgba(255,255,255,.12)}
+/* 흰 잔상: 네이비가 지나간 뒤 남는 선 */
+.step .tk::before{content:"";position:absolute;inset:0;background:rgba(255,255,255,.5);opacity:0;transition:opacity .5s ease}
+/* 네이비 머리: 왼→오로 그려지며 지나감 */
+.step .tk::after{content:"";position:absolute;inset:0;background:#33549e;transform:scaleX(0);transform-origin:left center;transition:transform .6s cubic-bezier(.4,0,.2,1),opacity .4s ease}
 .step .tk.on::after{transform:scaleX(1)}
-.step .tk.off::after{transform-origin:right center;transform:scaleX(0)}
-@media(prefers-reduced-motion:reduce){.step .tk::after{transition:none}}
+.step .tk.fade::after{opacity:0}
+.step .tk.trail::before{opacity:1}
+@media(prefers-reduced-motion:reduce){.step .tk::before,.step .tk::after{transition:none}}
 .step:last-child .tk{display:none}
 .step .dot{position:absolute;top:4px;left:0;width:7px;height:7px;border-radius:50%;background:var(--blue);opacity:.9}
 .step:not(:first-child) .dot{background:rgba(255,255,255,.28)}
@@ -125,10 +129,11 @@ btns.forEach(function(b){ b.addEventListener('mouseenter',function(){move(b,fals
 seg.addEventListener('mouseleave',function(){move(active,false);});
 document.querySelectorAll('[data-cta]').forEach(function(a){a.addEventListener('click',function(e){e.preventDefault();alert('상담신청 페이지로 이동 (실제 사이트에서는 홈페이지 상담 페이지로 연결)');});});
 
-/* 선 순차 진행: 1칸→2칸→3칸… 한 칸씩 그려지고 도착하면 뜸(dwell) 후 다음 칸 */
-var DRAW=560, DWELL=820, RESET=950;
+/* 선 순차 진행: 네이비 머리가 1칸→2칸→… 그려지고, 지나간 자리엔 흰선이 남음.
+   도착하면 잠깐 뜸 후 다음 칸. 끝까지 흰선이 차면 잠깐 쉬었다가 흰선 사라지고 반복. */
+var DRAW=600, DWELL=520, HOLD=750, RESET=560;
 var relayTimers=[];
-function clearRelay(){ relayTimers.forEach(clearTimeout); relayTimers=[]; document.querySelectorAll('.step .tk').forEach(function(c){c.classList.remove('on','off');}); }
+function clearRelay(){ relayTimers.forEach(clearTimeout); relayTimers=[]; document.querySelectorAll('.step .tk').forEach(function(c){c.classList.remove('on','fade','trail');}); }
 function startRelay(){
   clearRelay();
   if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -136,19 +141,24 @@ function startRelay(){
   var conns=[].slice.call(panel.querySelectorAll('.step:not(:last-child) .tk'));
   if(!conns.length) return;
   var i=0;
-  (function next(){
-    if(i>0){ conns[i-1].classList.remove('on'); conns[i-1].classList.add('off'); }
-    if(i<conns.length){
-      var c=conns[i]; c.classList.remove('off'); void c.offsetWidth; c.classList.add('on');
+  function draw(){
+    if(i>=conns.length){ relayTimers.push(setTimeout(reset, HOLD)); return; }
+    var c=conns[i]; void c.offsetWidth; c.classList.add('on');            // 네이비 왼→오로 그려짐
+    relayTimers.push(setTimeout(function(){
+      c.classList.add('trail');                                          // 흰선 남기고
+      c.classList.add('fade');                                           // 네이비 부드럽게 사라짐
       i++;
-      relayTimers.push(setTimeout(next, DRAW+DWELL));
-    } else {
-      relayTimers.push(setTimeout(function(){
-        conns.forEach(function(c){c.classList.remove('on','off');});
-        relayTimers.push(setTimeout(startRelay, RESET));
-      }, DWELL));
-    }
-  })();
+      relayTimers.push(setTimeout(draw, DWELL));                         // 도착 후 뜸 → 다음 칸
+    }, DRAW));
+  }
+  function reset(){
+    conns.forEach(function(c){ c.classList.remove('trail','on'); });     // 흰선 사라짐(네이비는 이미 투명)
+    relayTimers.push(setTimeout(function(){
+      conns.forEach(function(c){ c.classList.remove('fade'); });
+      relayTimers.push(setTimeout(startRelay, RESET));
+    }, 650));
+  }
+  draw();
 }
 function init(){ move(active,false); startRelay(); }
 if(document.fonts&&document.fonts.ready){document.fonts.ready.then(init);}
