@@ -41,11 +41,11 @@ body{background:var(--ink);color:#fff;font-family:'NanumSquare','Pretendard',san
 .step .lb{font-size:16px;font-weight:700;color:#fff;line-height:1.4}
 .step .tk{position:absolute;top:7px;right:20px;left:38px;height:1px;background:rgba(255,255,255,.12)}
 /* 흰 잔상: 네이비가 지나간 뒤 남는 선 */
-.step .tk::before{content:"";position:absolute;inset:0;background:rgba(255,255,255,.5);opacity:0;transition:opacity .7s ease}
-/* 네이비 머리: 왼→오로 스르륵 미끄러져 부드럽게 멈춤 */
-.step .tk::after{content:"";position:absolute;inset:0;background:#33549e;transform:scaleX(0);transform-origin:left center;transition:transform .85s cubic-bezier(.16,1,.3,1),opacity .6s ease}
+.step .tk::before{content:"";position:absolute;inset:0;background:rgba(255,255,255,.5);opacity:0;transition:opacity .4s ease}
+/* 네이비: 왼→오로 뻗었다가, 꽁지(왼쪽)가 오른쪽으로 접히며 흰선을 드러냄 */
+.step .tk::after{content:"";position:absolute;inset:0;background:#33549e;transform:scaleX(0);transform-origin:left center;transition:transform .8s cubic-bezier(.16,1,.3,1)}
 .step .tk.on::after{transform:scaleX(1)}
-.step .tk.fade::after{opacity:0}
+.step .tk.fold::after{transform-origin:right center;transform:scaleX(0)}
 .step .tk.trail::before{opacity:1}
 @media(prefers-reduced-motion:reduce){.step .tk::before,.step .tk::after{transition:none}}
 .step:last-child .tk{display:none}
@@ -131,9 +131,9 @@ document.querySelectorAll('[data-cta]').forEach(function(a){a.addEventListener('
 
 /* 선 순차 진행: 네이비 머리가 1칸→2칸→… 그려지고, 지나간 자리엔 흰선이 남음.
    도착하면 잠깐 뜸 후 다음 칸. 끝까지 흰선이 차면 잠깐 쉬었다가 흰선 사라지고 반복. */
-var SLIDE=850, WAIT=850, HOLD=900, RESET=650;
+var SLIDE=780, WAIT=520, FOLD=720, HOLD=850, RESET=600;
 var relayTimers=[];
-function clearRelay(){ relayTimers.forEach(clearTimeout); relayTimers=[]; document.querySelectorAll('.step .tk').forEach(function(c){c.classList.remove('on','fade','trail');}); }
+function clearRelay(){ relayTimers.forEach(clearTimeout); relayTimers=[]; document.querySelectorAll('.step .tk').forEach(function(c){c.classList.remove('on','fold','trail');}); }
 function startRelay(){
   clearRelay();
   if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -143,18 +143,19 @@ function startRelay(){
   var i=0;
   function draw(){
     if(i>=conns.length){ relayTimers.push(setTimeout(reset, HOLD)); return; }
-    var c=conns[i]; void c.offsetWidth; c.classList.add('on');            // 스르륵: 미끄러져 그려짐
-    relayTimers.push(setTimeout(function(){                               // 슬라이드 뒤 조용히 대기
-      c.classList.add('trail','fade');                                   // 다음 칸 넘어갈 때 흰선으로 부드럽게 넘김
-      i++; draw();                                                       // 동시에 다음 칸 스르륵 시작(겹쳐서 끊김 없음)
+    var c=conns[i]; void c.offsetWidth; c.classList.add('on');            // 스르륵: 다음 번호로 뻗음
+    relayTimers.push(setTimeout(function(){                               // 도착 후 조용히 대기
+      c.classList.add('trail');                                          // 흰선 뒤에 깔기(네이비가 가림)
+      c.classList.remove('on'); c.classList.add('fold');                 // 꽁지 접히며 흰선 드러남
+      relayTimers.push(setTimeout(function(){ i++; draw(); }, FOLD));    // 접힘 끝 → 다음 칸
     }, SLIDE+WAIT));
   }
   function reset(){
-    conns.forEach(function(c){ c.classList.remove('trail','on'); });     // 흰선 사라짐(네이비는 이미 투명)
+    conns.forEach(function(c){ c.classList.remove('trail'); });          // 흰선 스르륵 사라짐
     relayTimers.push(setTimeout(function(){
-      conns.forEach(function(c){ c.classList.remove('fade'); });
+      conns.forEach(function(c){ c.classList.remove('on','fold'); });    // 네이비 원위치(안 보임)
       relayTimers.push(setTimeout(startRelay, RESET));
-    }, 650));
+    }, 550));
   }
   draw();
 }
