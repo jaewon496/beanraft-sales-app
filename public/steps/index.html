@@ -40,13 +40,10 @@ body{background:var(--ink);color:#fff;font-family:'NanumSquare','Pretendard',san
 .step .ico svg{width:24px;height:24px;display:block}
 .step .lb{font-size:16px;font-weight:700;color:#fff;line-height:1.4}
 .step .tk{position:absolute;top:7px;right:20px;left:38px;height:1px;background:rgba(255,255,255,.14)}
-.step .tk::after{content:"";position:absolute;inset:0;background:#33549e;transform-origin:100% 50%;animation:tkline 2.8s cubic-bezier(.77,0,.175,1) infinite}
-.step:nth-child(2) .tk::after{animation-delay:.22s}
-.step:nth-child(3) .tk::after{animation-delay:.44s}
-.step:nth-child(4) .tk::after{animation-delay:.66s}
-.step:nth-child(5) .tk::after{animation-delay:.88s}
-@keyframes tkline{0%{transform-origin:100% 50%;transform:scaleX(1)}50%{transform-origin:100% 50%;transform:scaleX(0)}50.0001%{transform-origin:0 50%;transform:scaleX(0)}100%{transform-origin:0 50%;transform:scaleX(1)}}
-@media(prefers-reduced-motion:reduce){.step .tk::after{animation:none}}
+.step .tk::after{content:"";position:absolute;inset:0;background:#33549e;transform:scaleX(0);transform-origin:left center;transition:transform .55s cubic-bezier(.77,0,.175,1)}
+.step .tk.on::after{transform:scaleX(1)}
+.step .tk.off::after{transform-origin:right center;transform:scaleX(0)}
+@media(prefers-reduced-motion:reduce){.step .tk::after{transition:none}}
 .step:last-child .tk{display:none}
 .step .dot{position:absolute;top:4px;left:0;width:7px;height:7px;border-radius:50%;background:var(--blue);opacity:.9}
 .step:not(:first-child) .dot{background:rgba(255,255,255,.28)}
@@ -123,11 +120,37 @@ var btns=[].slice.call(seg.querySelectorAll('.seg-btn'));
 var panels=[].slice.call(document.querySelectorAll('.panel'));
 var active=seg.querySelector('.seg-btn.active');
 function move(b,squish){ ind.style.left=b.offsetLeft+'px'; ind.style.width=b.offsetWidth+'px'; if(squish){ind.style.transform='scaleX(.7)';setTimeout(function(){ind.style.transform='';},180);} }
-function setActive(b){ active=b; btns.forEach(function(x){x.classList.toggle('active',x===b);}); var k=b.getAttribute('data-panel'); panels.forEach(function(p){p.classList.toggle('open',p.getAttribute('data-panel')===k);}); move(b,true); }
+function setActive(b){ active=b; btns.forEach(function(x){x.classList.toggle('active',x===b);}); var k=b.getAttribute('data-panel'); panels.forEach(function(p){p.classList.toggle('open',p.getAttribute('data-panel')===k);}); move(b,true); startRelay(); }
 btns.forEach(function(b){ b.addEventListener('mouseenter',function(){move(b,false);}); b.addEventListener('click',function(){setActive(b);}); });
 seg.addEventListener('mouseleave',function(){move(active,false);});
 document.querySelectorAll('[data-cta]').forEach(function(a){a.addEventListener('click',function(e){e.preventDefault();alert('상담신청 페이지로 이동 (실제 사이트에서는 홈페이지 상담 페이지로 연결)');});});
-function init(){ move(active,false); }
+
+/* 선 순차 진행: 1칸→2칸→3칸… 한 칸씩 그려지고 도착하면 뜸(dwell) 후 다음 칸 */
+var DRAW=560, DWELL=820, RESET=950;
+var relayTimers=[];
+function clearRelay(){ relayTimers.forEach(clearTimeout); relayTimers=[]; document.querySelectorAll('.step .tk').forEach(function(c){c.classList.remove('on','off');}); }
+function startRelay(){
+  clearRelay();
+  if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  var panel=document.querySelector('.panel.open'); if(!panel) return;
+  var conns=[].slice.call(panel.querySelectorAll('.step:not(:last-child) .tk'));
+  if(!conns.length) return;
+  var i=0;
+  (function next(){
+    if(i>0){ conns[i-1].classList.remove('on'); conns[i-1].classList.add('off'); }
+    if(i<conns.length){
+      var c=conns[i]; c.classList.remove('off'); void c.offsetWidth; c.classList.add('on');
+      i++;
+      relayTimers.push(setTimeout(next, DRAW+DWELL));
+    } else {
+      relayTimers.push(setTimeout(function(){
+        conns.forEach(function(c){c.classList.remove('on','off');});
+        relayTimers.push(setTimeout(startRelay, RESET));
+      }, DWELL));
+    }
+  })();
+}
+function init(){ move(active,false); startRelay(); }
 if(document.fonts&&document.fonts.ready){document.fonts.ready.then(init);}
 window.addEventListener('load',init); init();
 </script>
