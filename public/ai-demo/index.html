@@ -179,6 +179,8 @@ body{background:#000;color:#fff;font-family:'Pretendard','Apple SD Gothic Neo',s
 /* 대시보드는 --s 축소를 역-보정해 실제(앱) 크기로 렌더: 사이드바·글씨 앱과 동일 크기 */
 .dashscreen{position:absolute;top:0;left:0;width:100vw;height:100vh;transform:scale(calc(1/var(--s,1)));transform-origin:0 0;background:#0A0A0A;z-index:30;opacity:0;pointer-events:none;transition:opacity .6s ease}
 .app.dash .dashscreen{opacity:1;pointer-events:auto}
+/* 대시보드 최대폭 = 앱 기준(1300). 넓은 화면에선 더 커지지 않고 가운데 정렬(양옆 어둡게) */
+.dashinner{position:relative;width:100%;max-width:1300px;height:100%;margin:0 auto}
 .dashwrap{position:absolute;inset:0;display:flex}
 
 /* 왼쪽 사이드바 (~19%) — 실제 앱 사이드바 그대로 이식 */
@@ -311,6 +313,7 @@ body{background:#000;color:#fff;font-family:'Pretendard','Apple SD Gothic Neo',s
       </div>
       <!-- 대시보드(인터랙티브) 화면 -->
       <div class="dashscreen">
+        <div class="dashinner">
         <div class="dashwrap">
           <aside class="dside">
             <div class="dlogo"><img src="shots/logo.png" alt="BEAN CRAFT"></div>
@@ -411,6 +414,7 @@ body{background:#000;color:#fff;font-family:'Pretendard','Apple SD Gothic Neo',s
           <h2>어떤 정보가 궁금하세요?</h2>
           <p>왼쪽 항목을 눌러 강남역 분석을 확인하세요</p>
           <div class="darrow">&larr; 여기, 카테고리를 눌러보세요</div>
+        </div>
         </div>
         <div class="mapmodal" id="mapmodal">
           <img class="mapmodal-img" src="shots/mapview.png" alt="카페 위치 지도">
