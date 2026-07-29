@@ -53,7 +53,7 @@ body.relay .step.lit .no,body.relay .step.lit .ico,body.relay .step.lit .lb{opac
 /* 네이비: 왼→오로 뻗었다가, 꽁지(왼쪽)가 오른쪽으로 접히며 흰선을 드러냄. 뻗음·접힘 같은 속도 */
 .step .tk::after{content:"";position:absolute;inset:0;background:#33549e;transform:scaleX(0);transform-origin:left center;transition:transform 1.2s cubic-bezier(.45,0,.55,1)}
 .step .tk.on::after{transform:scaleX(1)}
-.step .tk.fold::after{transform-origin:right center;transform:scaleX(0)}
+.step .tk.fold::after{transform-origin:right center;transform:scaleX(0);transition:transform .6s cubic-bezier(.45,0,.55,1)}
 .step .tk.trail::before{opacity:1}
 @media(prefers-reduced-motion:reduce){.step .tk::before,.step .tk::after{transition:none}}
 .step:last-child .tk{display:none}
@@ -139,7 +139,7 @@ document.querySelectorAll('[data-cta]').forEach(function(a){a.addEventListener('
 
 /* 선 순차 진행: 네이비 머리가 1칸→2칸→… 그려지고, 지나간 자리엔 흰선이 남음.
    도착하면 잠깐 뜸 후 다음 칸. 끝까지 흰선이 차면 잠깐 쉬었다가 흰선 사라지고 반복. */
-var SLIDE=1220, WAIT=620, FOLD=1320, HOLD=950, RESET=650;
+var SLIDE=1220, WAIT=620, FOLD=760, HOLD=950, RESET=650;
 var relayTimers=[];
 function clearRelay(){ relayTimers.forEach(clearTimeout); relayTimers=[]; document.querySelectorAll('.step .tk').forEach(function(c){c.classList.remove('on','fold','trail');}); document.querySelectorAll('.step').forEach(function(s){s.classList.remove('lit');}); }
 function startRelay(){
