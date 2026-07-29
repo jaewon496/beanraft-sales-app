@@ -156,10 +156,10 @@ function startRelay(){
   function draw(){
     if(i>=conns.length){ relayTimers.push(setTimeout(reset, HOLD)); return; }
     var c=conns[i]; void c.offsetWidth; c.classList.add('on');            // 스르륵: 다음 번호로 뻗음
-    relayTimers.push(setTimeout(function(){ lightStep(i+1); }, SLIDE));   // 도착하면 그 숫자 은은히 빛남
-    relayTimers.push(setTimeout(function(){                               // 도착 후 조용히 대기
+    relayTimers.push(setTimeout(function(){                               // 뻗은 뒤 조용히 대기
       c.classList.add('trail');                                          // 흰선 뒤에 깔기(네이비가 가림)
-      c.classList.remove('on'); c.classList.add('fold');                 // 꽁지 접히며 흰선 드러남
+      c.classList.remove('on'); c.classList.add('fold');                 // 꽁지 접힘(오른쪽=그 숫자로 들어감)
+      lightStep(i+1);                                                    // 선이 들어가는 순간 그 숫자 불 켜짐
       relayTimers.push(setTimeout(function(){ i++; draw(); }, FOLD));    // 접힘 끝 → 다음 칸
     }, SLIDE+WAIT));
   }
