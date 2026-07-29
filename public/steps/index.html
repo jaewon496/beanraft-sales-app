@@ -35,7 +35,8 @@ body{background:var(--ink);color:#fff;font-family:'NanumSquare','Pretendard',san
 .steps{display:flex;gap:0}
 .step{position:relative;flex:1 1 0;min-width:0;padding-right:20px}
 .step:last-child{padding-right:0}
-.step .no{font-family:'Questrial',sans-serif;font-size:15px;font-weight:400;color:var(--blue);letter-spacing:.04em}
+.step .no{font-family:'Questrial',sans-serif;font-size:15px;font-weight:400;color:var(--blue);letter-spacing:.04em;transition:color .7s ease,text-shadow .7s ease}
+.step.lit .no{color:#7ea8ff;text-shadow:0 0 8px rgba(90,150,255,.5),0 0 18px rgba(63,134,255,.28)}
 .step .ico{margin:18px 0 16px;color:rgba(255,255,255,.85)}
 .step .ico svg{width:24px;height:24px;display:block}
 .step .lb{font-size:16px;font-weight:700;color:#fff;line-height:1.4}
@@ -133,17 +134,21 @@ document.querySelectorAll('[data-cta]').forEach(function(a){a.addEventListener('
    도착하면 잠깐 뜸 후 다음 칸. 끝까지 흰선이 차면 잠깐 쉬었다가 흰선 사라지고 반복. */
 var SLIDE=1220, WAIT=620, FOLD=1320, HOLD=950, RESET=650;
 var relayTimers=[];
-function clearRelay(){ relayTimers.forEach(clearTimeout); relayTimers=[]; document.querySelectorAll('.step .tk').forEach(function(c){c.classList.remove('on','fold','trail');}); }
+function clearRelay(){ relayTimers.forEach(clearTimeout); relayTimers=[]; document.querySelectorAll('.step .tk').forEach(function(c){c.classList.remove('on','fold','trail');}); document.querySelectorAll('.step').forEach(function(s){s.classList.remove('lit');}); }
 function startRelay(){
   clearRelay();
   if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   var panel=document.querySelector('.panel.open'); if(!panel) return;
   var conns=[].slice.call(panel.querySelectorAll('.step:not(:last-child) .tk'));
+  var stepEls=[].slice.call(panel.querySelectorAll('.step'));
   if(!conns.length) return;
+  function lightStep(k){ if(stepEls[k]) stepEls[k].classList.add('lit'); }
   var i=0;
+  lightStep(0);                                                          // 시작 숫자 은은히 빛남
   function draw(){
     if(i>=conns.length){ relayTimers.push(setTimeout(reset, HOLD)); return; }
     var c=conns[i]; void c.offsetWidth; c.classList.add('on');            // 스르륵: 다음 번호로 뻗음
+    relayTimers.push(setTimeout(function(){ lightStep(i+1); }, SLIDE));   // 도착하면 그 숫자 은은히 빛남
     relayTimers.push(setTimeout(function(){                               // 도착 후 조용히 대기
       c.classList.add('trail');                                          // 흰선 뒤에 깔기(네이비가 가림)
       c.classList.remove('on'); c.classList.add('fold');                 // 꽁지 접히며 흰선 드러남
@@ -152,6 +157,7 @@ function startRelay(){
   }
   function reset(){
     conns.forEach(function(c){ c.classList.remove('trail'); });          // 흰선 스르륵 사라짐
+    stepEls.forEach(function(s){ s.classList.remove('lit'); });          // 숫자 빛 은은히 꺼짐
     relayTimers.push(setTimeout(function(){
       conns.forEach(function(c){ c.classList.remove('on','fold'); });    // 네이비 원위치(안 보임)
       relayTimers.push(setTimeout(startRelay, RESET));
