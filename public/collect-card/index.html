@@ -24,10 +24,26 @@ body{background:var(--ink);color:#fff;font-family:'NanumSquare','Pretendard',san
 .panel{min-width:0;opacity:0;transform:translateX(30px);overflow:hidden;transition:opacity 1.1s ease .55s,transform 1.2s cubic-bezier(.16,1,.3,1) .55s}
 .stage.split .panel{opacity:1;transform:none}
 .panel .ptitle{font-size:clamp(21px,1.8vw,27px);font-weight:800;line-height:1.32;letter-spacing:-.02em;color:#fff;word-break:keep-all}
-.panel .bar{width:34px;height:2px;background:var(--blue);margin:18px 0 22px;border-radius:2px}
-.panel p{font-size:clamp(15px,1.15vw,17px);line-height:1.9;color:rgba(255,255,255,.72);font-weight:400;word-break:keep-all}
-.panel p+p{margin-top:15px}
-.panel p b{color:#fff;font-weight:700}
+.panel .bar{width:34px;height:2px;background:var(--blue);margin:18px 0 26px;border-radius:2px}
+/* 번호 목록 + 밑줄 스윕(파란→흰) */
+.steps{list-style:none;margin:0;padding:0}
+.item{position:relative;display:grid;grid-template-columns:auto 1fr;gap:15px;align-items:start;opacity:1;transition:opacity .6s ease}
+.item+.item{margin-top:22px}
+.panel.relay .item{opacity:.38}
+.panel.relay .item.lit{opacity:1}
+.num{position:relative;z-index:0;font-family:'Questrial',sans-serif;font-size:15px;line-height:1.7;color:var(--blue2);letter-spacing:.03em;transition:color .6s ease,text-shadow .6s ease}
+.num::before{content:"";position:absolute;left:50%;top:46%;transform:translate(-50%,-50%) scale(.4);width:42px;height:42px;border-radius:50%;background:radial-gradient(circle,rgba(80,135,240,.5) 0%,rgba(63,134,255,.18) 45%,rgba(63,134,255,0) 72%);opacity:0;transition:opacity .55s ease,transform .7s cubic-bezier(.16,1,.3,1);pointer-events:none;z-index:-1}
+.item.lit .num{color:#9dc0ff;text-shadow:0 0 10px rgba(120,165,255,.5)}
+.item.lit .num::before{opacity:1;transform:translate(-50%,-50%) scale(1)}
+.txwrap{position:relative;min-width:0;padding-bottom:11px}
+.tx{display:block;font-size:clamp(14.5px,1.1vw,16.5px);line-height:1.7;color:rgba(255,255,255,.72);word-break:keep-all}
+.tx b{color:#fff;font-weight:700}
+.ul{position:absolute;left:0;right:0;bottom:0;height:1px;background:rgba(255,255,255,.12)}
+.ul::before{content:"";position:absolute;inset:0;background:rgba(255,255,255,.5);opacity:0;transition:opacity .5s ease}
+.ul::after{content:"";position:absolute;inset:0;background:#33549e;transform:scaleX(0);transform-origin:left center;transition:transform 1s cubic-bezier(.45,0,.55,1)}
+.ul.on::after{transform:scaleX(1)}
+.ul.fold::after{transform-origin:right center;transform:scaleX(0);transition:transform .55s cubic-bezier(.45,0,.55,1)}
+.ul.trail::before{opacity:1}
 @media(max-width:820px){
   body{padding:54px 24px}
   .stage,.stage.split{grid-template-columns:1fr;gap:0}
@@ -51,20 +67,52 @@ body{background:var(--ink);color:#fff;font-family:'NanumSquare','Pretendard',san
     <div class="panel">
       <h3 class="ptitle">자체 제작 수집 프로그램</h3>
       <div class="bar"></div>
-      <p>프로그램을 통해 1차적으로 <b>상가 전문 중개사</b>분들을 필터합니다.</p>
-      <p>이후 저희가 <b>전국 어디든 직접 방문</b>하여 중개사님들께 제휴 미팅을 통해 인사드리며, 의뢰자분들께서 찾으시는 조건의 <b>매물부터 창업 마무리까지 전체를 기획</b>하고 있습니다.</p>
+      <ol class="steps">
+        <li class="item"><span class="num">01</span><div class="txwrap"><span class="tx">프로그램으로 <b>상가 전문 중개사</b>를 1차 선별합니다.</span><span class="ul"></span></div></li>
+        <li class="item"><span class="num">02</span><div class="txwrap"><span class="tx"><b>전국 어디든 직접 방문</b>해 중개사님들과 제휴 미팅을 진행합니다.</span><span class="ul"></span></div></li>
+        <li class="item"><span class="num">03</span><div class="txwrap"><span class="tx">의뢰 조건에 맞는 <b>매물부터 창업 마무리까지 전체를 기획</b>합니다.</span><span class="ul"></span></div></li>
+      </ol>
     </div>
   </div>
 </div>
 <script>
 (function(){
   var stage=document.getElementById('stage');
+  var panel=document.querySelector('.panel');
   var v=stage.querySelector('video');
   function speed(){ try{ v.playbackRate=2.0; }catch(e){} }
   v.addEventListener('loadedmetadata',speed); v.addEventListener('play',speed); v.addEventListener('canplay',speed); speed();
-  if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches){ stage.classList.add('split'); return; }
+
+  var items=[].slice.call(panel.querySelectorAll('.item'));
+  var uls=items.map(function(it){return it.querySelector('.ul');});
+  var SLIDE=950, WAIT=360, FOLD=580, HOLD=1300, RESTART=750, tmr=[];
+  function relay(){
+    var i=0;
+    (function draw(){
+      if(i>=uls.length){ tmr.push(setTimeout(reset,HOLD)); return; }
+      var u=uls[i]; void u.offsetWidth; u.classList.add('on');                    // 파란 밑줄이 글씨 밑을 지남
+      tmr.push(setTimeout(function(){
+        u.classList.add('trail'); u.classList.remove('on'); u.classList.add('fold'); // 흰 밑줄 남기고 접힘
+        items[i].classList.add('lit');                                             // 그 번호·글씨 켜짐
+        i++; tmr.push(setTimeout(draw, FOLD));
+      }, SLIDE+WAIT));
+    })();
+  }
+  function reset(){
+    uls.forEach(function(u){u.classList.remove('trail');});
+    items.forEach(function(it){it.classList.remove('lit');});
+    tmr.push(setTimeout(function(){ uls.forEach(function(u){u.classList.remove('on','fold');}); tmr.push(setTimeout(relay, RESTART)); }, 600));
+  }
+
+  if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches){ stage.classList.add('split'); items.forEach(function(it){it.classList.add('lit');}); return; }
   var fired=false;
-  function go(){ if(fired) return; fired=true; setTimeout(function(){ stage.classList.add('split'); }, 5000); }
+  function go(){ if(fired) return; fired=true;
+    setTimeout(function(){
+      stage.classList.add('split');
+      panel.classList.add('relay');           // 대기 중 글씨 흐릿하게
+      setTimeout(relay, 1500);                // 패널 뜬 뒤 밑줄 스윕 시작
+    }, 5000);
+  }
   if('IntersectionObserver' in window){
     var io=new IntersectionObserver(function(es){ es.forEach(function(e){ if(e.isIntersecting){ go(); io.disconnect(); } }); },{threshold:.35});
     io.observe(stage);
