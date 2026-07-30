@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>빈크래프트 — 수집 프로그램</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Questrial&display=swap" rel="stylesheet">
+<style>
+@import url('https://cdn.jsdelivr.net/gh/moonspam/NanumSquare@2.0/nanumsquare.css');
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--blue:#33549e;--blue2:#4a78d6;--ink:#0a0a0b;--line:rgba(255,255,255,.1);--dim:rgba(255,255,255,.5)}
+body{background:var(--ink);color:#fff;font-family:'NanumSquare','Pretendard',sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:74px 40px;letter-spacing:-.01em}
+.wrap{width:100%;max-width:1180px}
+.kicker{font-family:'Questrial',sans-serif;font-size:12px;letter-spacing:.32em;color:var(--dim);margin-bottom:26px;display:block}
+/* 무대: 영상(왼) + 설명(오) */
+.stage{display:grid;grid-template-columns:1fr 0fr;gap:0;height:clamp(340px,40vw,500px);transition:grid-template-columns 1.15s cubic-bezier(.16,1,.3,1),gap 1.15s cubic-bezier(.16,1,.3,1)}
+.stage.split{grid-template-columns:1.1fr .9fr;gap:52px}
+/* 영상 화면 */
+.screen{position:relative;min-width:0;height:100%;border-radius:16px;overflow:hidden;border:1px solid var(--line);background:#000}
+.screen video{width:100%;height:100%;object-fit:cover;display:block}
+.screen::after{content:"";position:absolute;inset:0;border-radius:16px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.05);pointer-events:none}
+/* 설명 패널 */
+.panel{min-width:0;align-self:center;opacity:0;transform:translateX(30px);overflow:hidden;transition:opacity .9s ease .2s,transform 1s cubic-bezier(.16,1,.3,1) .2s}
+.stage.split .panel{opacity:1;transform:none}
+.panel .no{font-family:'Questrial',sans-serif;font-size:40px;line-height:1;color:var(--blue2);letter-spacing:.02em}
+.panel .bar{width:34px;height:2px;background:var(--blue);margin:20px 0 24px;border-radius:2px}
+.panel p{font-size:clamp(15px,1.15vw,17px);line-height:1.95;color:rgba(255,255,255,.72);font-weight:400;word-break:keep-all}
+.panel p b{color:#fff;font-weight:700}
+@media(max-width:820px){
+  body{padding:54px 24px}
+  .stage,.stage.split{grid-template-columns:1fr;gap:0;height:auto}
+  .screen{height:56vw;max-height:320px}
+  .panel{margin-top:28px;transform:translateY(20px)}
+  .stage.split .panel{transform:none}
+}
+@media(prefers-reduced-motion:reduce){
+  .stage{grid-template-columns:1.1fr .9fr;gap:52px}
+  .panel{opacity:1;transform:none;transition:none}
+  @media(max-width:820px){.stage{grid-template-columns:1fr}}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <span class="kicker">OUR PROCESS</span>
+  <div class="stage" id="stage">
+    <div class="screen">
+      <video src="https://beancraft-sales.netlify.app/collect-demo.mp4" autoplay muted loop playsinline preload="auto"></video>
+    </div>
+    <div class="panel">
+      <div class="no">01</div>
+      <div class="bar"></div>
+      <p>프로그램을 통해 1차적으로 <b>상가 전문 중개사</b>분들을 필터합니다. 이후 저희가 <b>전국 어디든 직접 방문</b>하여 중개사님들께 제휴 미팅을 통해 인사드리며, 의뢰자분들께서 찾으시는 조건의 <b>매물부터 창업 마무리까지 전체를 기획</b>하고 있습니다.</p>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  var stage=document.getElementById('stage');
+  if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches){ stage.classList.add('split'); return; }
+  var fired=false;
+  function go(){ if(fired) return; fired=true; setTimeout(function(){ stage.classList.add('split'); }, 5000); }
+  if('IntersectionObserver' in window){
+    var io=new IntersectionObserver(function(es){ es.forEach(function(e){ if(e.isIntersecting){ go(); io.disconnect(); } }); },{threshold:.35});
+    io.observe(stage);
+  } else { go(); }
+})();
+</script>
+</body>
+</html>
