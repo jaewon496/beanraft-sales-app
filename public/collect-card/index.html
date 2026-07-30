@@ -82,8 +82,8 @@ body{background:var(--ink);color:#fff;font-family:'NanumSquare','Pretendard',san
   var SLIDE=880, WAIT=200, FOLD=560;
   function relay(){ var i=0;
     (function draw(){ if(i>=uls.length) return;
-      var u=uls[i]; void u.offsetWidth; u.classList.add('on');
-      setTimeout(function(){ u.classList.add('trail'); u.classList.remove('on'); u.classList.add('fold'); items[i].classList.add('lit'); i++; setTimeout(draw, FOLD); }, SLIDE+WAIT);
+      var u=uls[i]; void u.offsetWidth; u.classList.add('on'); items[i].classList.add('lit');
+      setTimeout(function(){ u.classList.add('trail'); u.classList.remove('on'); u.classList.add('fold'); i++; setTimeout(draw, FOLD); }, SLIDE+WAIT);
     })();
   }
   function go(){ speed(); if(v.play) v.play().catch(function(){}); panel.classList.add('relay'); setTimeout(relay, 1400); }
