@@ -15,14 +15,14 @@ body{background:var(--ink);color:#fff;font-family:'NanumSquare','Pretendard',san
 .hero{font-family:'NanumSquare','Pretendard',sans-serif;font-weight:800;font-size:clamp(28px,3.8vw,56px);line-height:1.24;letter-spacing:-.025em;color:#fff;margin-bottom:30px;word-break:keep-all}
 .kicker{font-family:'Questrial',sans-serif;font-size:12px;letter-spacing:.32em;color:rgba(255,255,255,.62);margin-bottom:16px;display:block}
 /* 무대: 영상(전체) → 왼쪽으로 축소(transform, GPU 매끄럽게) + 오른쪽 설명 */
-.stage{position:relative;width:100%;aspect-ratio:1918/946;max-height:640px}
+.stage{position:relative;width:100%;height:calc(100vh - 200px);max-height:680px;min-height:340px}
 /* 영상 화면 — 원본 비율 유지, 전체가 다 보이게(잘림 없음) */
 .screen{position:absolute;top:0;left:0;width:100%;height:100%;border-radius:16px;overflow:hidden;border:1px solid var(--line);background:#000;transform-origin:left center;transition:transform 1.5s cubic-bezier(.16,1,.3,1);will-change:transform;backface-visibility:hidden}
 .screen video{width:100%;height:100%;object-fit:contain;display:block}
 .screen::after{content:"";position:absolute;inset:0;border-radius:16px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.05);pointer-events:none}
-.stage.split .screen{transform:scale(.6)}
+.stage.split .screen{transform:scale(.66)}
 /* 설명 패널 — 오른쪽 상단 정렬, 텍스트가 먼저 등장 */
-.panel{position:absolute;top:0;right:0;height:100%;width:36%;min-width:0;display:flex;flex-direction:column;justify-content:center;opacity:0;transform:translateX(26px);transition:opacity .8s ease 1.6s,transform 1s cubic-bezier(.16,1,.3,1) 1.6s;will-change:opacity,transform}
+.panel{position:absolute;top:0;right:0;height:100%;width:36%;min-width:0;display:flex;flex-direction:column;justify-content:center;opacity:0;transform:translateX(26px);transition:opacity .8s ease 1.6s,transform 1s cubic-bezier(.16,1,.3,1) 1.6s;will-change:opacity,transform;width:32%}
 .stage.split .panel{opacity:1;transform:none}
 .panel .ptitle{font-size:clamp(22px,2vw,31px);font-weight:800;line-height:1.3;letter-spacing:-.02em;color:#fff;word-break:keep-all}
 .panel .bar{width:34px;height:2px;background:var(--blue);margin:18px 0 26px;border-radius:2px}
