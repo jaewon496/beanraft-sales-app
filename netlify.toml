@@ -491,6 +491,19 @@
   to = "/node_modules/:splat"
   status = 200
 
+# App (영업관리 SPA): 루트·자산은 아래 /site/ 캐치올에 먹히지 않고 앱을 서빙해야 한다.
+#   루트("/")는 실제 파일명이 아니라 인덱스 해석 대상이라 캐치올에 먼저 걸렸음 → 명시적으로 index.html 서빙.
+#   반드시 캐치올보다 위(우선순위 높음)에 둔다.
+[[redirects]]
+  from = "/"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/assets/*"
+  to = "/assets/:splat"
+  status = 200
+
 # Catch-all: CreatorLink routes that escape /site/ prefix → redirect back to /site/
 # This MUST be the LAST redirect rule (lowest priority)
 [[redirects]]
