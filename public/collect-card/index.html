@@ -12,6 +12,7 @@
 :root{--blue:#33549e;--blue2:#4a78d6;--ink:#0a0a0b;--line:rgba(255,255,255,.1);--dim:rgba(255,255,255,.5)}
 body{background:var(--ink);color:#fff;font-family:'NanumSquare','Pretendard',sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:74px 40px;letter-spacing:-.01em}
 .wrap{width:100%;max-width:1180px}
+.hero{font-family:'NanumSquare','Pretendard',sans-serif;font-weight:800;font-size:clamp(26px,3.6vw,50px);line-height:1.26;letter-spacing:-.025em;color:#fff;margin-bottom:46px;word-break:keep-all}
 .kicker{font-family:'Questrial',sans-serif;font-size:12px;letter-spacing:.32em;color:var(--dim);margin-bottom:16px;display:block}
 /* 무대: 영상(왼) + 설명(오) */
 .stage{display:grid;grid-template-columns:1fr 0fr;gap:0;align-items:center;transition:grid-template-columns 1.9s cubic-bezier(.45,0,.55,1),gap 1.9s cubic-bezier(.45,0,.55,1)}
@@ -59,6 +60,7 @@ body{background:var(--ink);color:#fff;font-family:'NanumSquare','Pretendard',san
 </head>
 <body>
 <div class="wrap">
+  <h2 class="hero">시작의 번거로움은,<br>이미 시스템이 되어 있습니다.</h2>
   <div class="stage" id="stage">
     <div class="screen">
       <video src="https://beancraft-sales.netlify.app/collect-demo.mp4" muted loop playsinline preload="auto"></video>
