@@ -37,8 +37,9 @@ body{background:var(--ink);color:#fff;font-family:'NanumSquare','Pretendard',san
 .item.lit .num{color:#9dc0ff;text-shadow:0 0 10px rgba(120,165,255,.5)}
 .item.lit .num::before{opacity:1;transform:translate(-50%,-50%) scale(1)}
 .txwrap{position:relative;min-width:0;padding-bottom:11px}
-.tx{display:block;font-size:clamp(14.5px,1.1vw,16.5px);line-height:1.7;color:rgba(255,255,255,.72);word-break:keep-all}
+.tx{display:block;font-size:clamp(13.5px,1vw,15.5px);line-height:1.6;color:rgba(255,255,255,.72);word-break:keep-all;white-space:nowrap}
 .tx b{color:#fff;font-weight:700}
+.note{margin-top:26px;padding-top:16px;border-top:1px solid var(--line);font-size:12.5px;line-height:1.6;color:rgba(255,255,255,.46);word-break:keep-all}
 .ul{position:absolute;left:0;right:0;bottom:0;height:1px;background:rgba(255,255,255,.12)}
 .ul::before{content:"";position:absolute;inset:0;background:rgba(255,255,255,.5);opacity:0;transition:opacity .5s ease}
 .ul::after{content:"";position:absolute;inset:0;background:#33549e;transform:scaleX(0);transform-origin:left center;transition:transform 1s cubic-bezier(.45,0,.55,1)}
@@ -72,10 +73,11 @@ body{background:var(--ink);color:#fff;font-family:'NanumSquare','Pretendard',san
       <h3 class="ptitle">자체 제작 수집 프로그램</h3>
       <div class="bar"></div>
       <ol class="steps">
-        <li class="item"><span class="num">01</span><div class="txwrap"><span class="tx">프로그램으로 <b>상가 전문 중개사</b>를 1차 선별합니다.</span><span class="ul"></span></div></li>
-        <li class="item"><span class="num">02</span><div class="txwrap"><span class="tx"><b>전국 어디든 직접 방문</b>해 중개사님들과 제휴 미팅을 진행합니다.</span><span class="ul"></span></div></li>
-        <li class="item"><span class="num">03</span><div class="txwrap"><span class="tx">의뢰 조건에 맞는 <b>매물부터 창업 마무리까지 전체를 기획</b>합니다.</span><span class="ul"></span></div></li>
+        <li class="item"><span class="num">01</span><div class="txwrap"><span class="tx">프로그램으로 <b>상가 전문 중개사</b> 1차 선별</span><span class="ul"></span></div></li>
+        <li class="item"><span class="num">02</span><div class="txwrap"><span class="tx"><b>전국 어디든 직접 방문</b>해 제휴 미팅</span><span class="ul"></span></div></li>
+        <li class="item"><span class="num">03</span><div class="txwrap"><span class="tx"><b>매물부터 창업 마무리까지</b> 전체 기획</span><span class="ul"></span></div></li>
       </ol>
+      <p class="note">추가 비용은 발생하지 않으며, 의뢰 비용에 포함된 서비스입니다.</p>
     </div>
   </div>
 </div>
