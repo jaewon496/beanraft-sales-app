@@ -12,7 +12,7 @@
 :root{--blue:#33549e;--blue2:#4a78d6;--ink:#0a0a0b;--line:rgba(255,255,255,.1);--dim:rgba(255,255,255,.5)}
 body{background:var(--ink);color:#fff;font-family:'NanumSquare','Pretendard',sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:74px 40px;letter-spacing:-.01em}
 .wrap{width:100%;max-width:1180px}
-.kicker{font-family:'Questrial',sans-serif;font-size:12px;letter-spacing:.32em;color:var(--dim);margin-bottom:26px;display:block}
+.kicker{font-family:'Questrial',sans-serif;font-size:12px;letter-spacing:.32em;color:var(--dim);margin-bottom:16px;display:block}
 /* 무대: 영상(왼) + 설명(오) */
 .stage{display:grid;grid-template-columns:1fr 0fr;gap:0;align-items:center;transition:grid-template-columns 1.9s cubic-bezier(.45,0,.55,1),gap 1.9s cubic-bezier(.45,0,.55,1)}
 .stage.split{grid-template-columns:1.05fr .95fr;gap:54px}
@@ -59,12 +59,12 @@ body{background:var(--ink);color:#fff;font-family:'NanumSquare','Pretendard',san
 </head>
 <body>
 <div class="wrap">
-  <span class="kicker">OUR PROCESS</span>
   <div class="stage" id="stage">
     <div class="screen">
-      <video src="https://beancraft-sales.netlify.app/collect-demo.mp4" autoplay muted loop playsinline preload="auto"></video>
+      <video src="https://beancraft-sales.netlify.app/collect-demo.mp4" muted loop playsinline preload="auto"></video>
     </div>
     <div class="panel">
+      <span class="kicker">OUR PROCESS</span>
       <h3 class="ptitle">자체 제작 수집 프로그램</h3>
       <div class="bar"></div>
       <ol class="steps">
@@ -85,38 +85,41 @@ body{background:var(--ink);color:#fff;font-family:'NanumSquare','Pretendard',san
 
   var items=[].slice.call(panel.querySelectorAll('.item'));
   var uls=items.map(function(it){return it.querySelector('.ul');});
-  var SLIDE=950, WAIT=360, FOLD=580, HOLD=1300, RESTART=750, tmr=[];
-  function relay(){
+  var SLIDE=950, WAIT=360, FOLD=580;
+  function relay(){                                 // 한 번만: 다 켜지면 그대로 유지(반복 없음)
     var i=0;
     (function draw(){
-      if(i>=uls.length){ tmr.push(setTimeout(reset,HOLD)); return; }
-      var u=uls[i]; void u.offsetWidth; u.classList.add('on');                    // 파란 밑줄이 글씨 밑을 지남
-      tmr.push(setTimeout(function(){
+      if(i>=uls.length) return;
+      var u=uls[i]; void u.offsetWidth; u.classList.add('on');                     // 파란 밑줄이 글씨 밑을 지남
+      setTimeout(function(){
         u.classList.add('trail'); u.classList.remove('on'); u.classList.add('fold'); // 흰 밑줄 남기고 접힘
-        items[i].classList.add('lit');                                             // 그 번호·글씨 켜짐
-        i++; tmr.push(setTimeout(draw, FOLD));
-      }, SLIDE+WAIT));
+        items[i].classList.add('lit');                                              // 그 번호·글씨 켜짐(유지)
+        i++; setTimeout(draw, FOLD);
+      }, SLIDE+WAIT);
     })();
   }
-  function reset(){
-    uls.forEach(function(u){u.classList.remove('trail');});
-    items.forEach(function(it){it.classList.remove('lit');});
-    tmr.push(setTimeout(function(){ uls.forEach(function(u){u.classList.remove('on','fold');}); tmr.push(setTimeout(relay, RESTART)); }, 600));
-  }
-
-  if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches){ stage.classList.add('split'); items.forEach(function(it){it.classList.add('lit');}); return; }
-  var fired=false;
-  function go(){ if(fired) return; fired=true;
+  function go(){
+    speed(); if(v.play) v.play().catch(function(){});   // 보일 때 영상 재생 시작
     setTimeout(function(){
       stage.classList.add('split');
-      panel.classList.add('relay');           // 대기 중 글씨 흐릿하게
-      setTimeout(relay, 1500);                // 패널 뜬 뒤 밑줄 스윕 시작
+      panel.classList.add('relay');                     // OUR PROCESS+글씨 등장(글씨는 흐릿 대기)
+      setTimeout(relay, 1500);                          // 패널 뜬 뒤 밑줄 스윕 시작
     }, 5000);
   }
+
+  if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+    stage.classList.add('split'); panel.classList.add('relay'); items.forEach(function(it){it.classList.add('lit');});
+    speed(); if(v.play) v.play().catch(function(){}); return;
+  }
+  // 화면에 보일 때 + 탭이 켜져 있을 때만 작동
+  var inView=false, fired=false, io=null;
+  function maybeStart(){ if(fired||!inView||document.hidden) return; fired=true; if(io) io.disconnect(); go(); }
   if('IntersectionObserver' in window){
-    var io=new IntersectionObserver(function(es){ es.forEach(function(e){ if(e.isIntersecting){ go(); io.disconnect(); } }); },{threshold:.35});
+    io=new IntersectionObserver(function(es){ inView=es.some(function(e){return e.isIntersecting;}); maybeStart(); },{threshold:.3});
     io.observe(stage);
-  } else { go(); }
+  } else { inView=true; }
+  document.addEventListener('visibilitychange', maybeStart);
+  maybeStart();
 })();
 </script>
 </body>
