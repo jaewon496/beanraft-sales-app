@@ -10,23 +10,18 @@
 @import url('https://cdn.jsdelivr.net/gh/moonspam/NanumSquare@2.0/nanumsquare.css');
 *{margin:0;padding:0;box-sizing:border-box}
 :root{--blue:#33549e;--blue2:#4a78d6;--ink:#0a0a0b;--line:rgba(255,255,255,.1);--dim:rgba(255,255,255,.5)}
-body{background:var(--ink);color:#fff;font-family:'NanumSquare','Pretendard',sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:40px 3vw;letter-spacing:-.01em}
-.wrap{width:100%;max-width:min(1720px,94vw)}
-.hero{font-family:'NanumSquare','Pretendard',sans-serif;font-weight:800;font-size:clamp(28px,3.8vw,56px);line-height:1.24;letter-spacing:-.025em;color:#fff;margin-bottom:30px;word-break:keep-all}
-.kicker{font-family:'Questrial',sans-serif;font-size:12px;letter-spacing:.32em;color:rgba(255,255,255,.62);margin-bottom:16px;display:block}
-/* 무대: 영상(전체) → 왼쪽으로 축소(transform, GPU 매끄럽게) + 오른쪽 설명 */
-.stage{position:relative;width:100%;height:calc(100vh - 200px);max-height:680px;min-height:340px}
-/* 영상 화면 — 원본 비율 유지, 전체가 다 보이게(잘림 없음) */
-.screen{position:absolute;top:0;left:0;width:100%;height:100%;border-radius:16px;overflow:hidden;border:1px solid var(--line);background:#000;transform-origin:left center;transition:transform 1.5s cubic-bezier(.16,1,.3,1);will-change:transform;backface-visibility:hidden}
-.screen video{width:100%;height:100%;object-fit:contain;display:block}
+body{background:var(--ink);color:#fff;font-family:'NanumSquare','Pretendard',sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:40px 3vw;letter-spacing:-.01em}
+.wrap{width:100%;max-width:min(1720px,94vw);margin:0 auto}
+.hero{font-family:'NanumSquare','Pretendard',sans-serif;font-weight:800;font-size:clamp(28px,3.6vw,54px);line-height:1.24;letter-spacing:-.025em;color:#fff;margin-bottom:26px;word-break:keep-all}
+/* 영상 왼쪽 꽉 채움 + 텍스트 오른쪽 꽉 채움 */
+.row{display:grid;grid-template-columns:56% 1fr;gap:44px;height:calc(100vh - 196px);max-height:640px;min-height:320px}
+.screen{position:relative;height:100%;min-width:0;border-radius:16px;overflow:hidden;border:1px solid var(--line);background:#000}
+.screen video{width:100%;height:100%;object-fit:cover;object-position:center;display:block}
 .screen::after{content:"";position:absolute;inset:0;border-radius:16px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.05);pointer-events:none}
-.stage.split .screen{transform:scale(.66)}
-/* 설명 패널 — 오른쪽 상단 정렬, 텍스트가 먼저 등장 */
-.panel{position:absolute;top:0;right:0;height:100%;width:36%;min-width:0;display:flex;flex-direction:column;justify-content:center;opacity:0;transform:translateX(26px);transition:opacity .8s ease 1.6s,transform 1s cubic-bezier(.16,1,.3,1) 1.6s;will-change:opacity,transform;width:32%}
-.stage.split .panel{opacity:1;transform:none}
-.panel .ptitle{font-size:clamp(22px,2vw,31px);font-weight:800;line-height:1.3;letter-spacing:-.02em;color:#fff;word-break:keep-all}
-.panel .bar{width:34px;height:2px;background:var(--blue);margin:18px 0 26px;border-radius:2px}
-/* 번호 목록 + 밑줄 스윕(파란→흰) */
+.panel{height:100%;min-width:0;display:flex;flex-direction:column;justify-content:center}
+.kicker{font-family:'Questrial',sans-serif;font-size:12px;letter-spacing:.32em;color:rgba(255,255,255,.62);margin-bottom:16px;display:block}
+.ptitle{font-size:clamp(22px,2vw,31px);font-weight:800;line-height:1.3;letter-spacing:-.02em;color:#fff;word-break:keep-all}
+.bar{width:34px;height:2px;background:var(--blue);margin:18px 0 26px;border-radius:2px}
 .steps{list-style:none;margin:0;padding:0}
 .item{position:relative;display:grid;grid-template-columns:auto 1fr;gap:15px;align-items:start;opacity:1;transition:opacity .6s ease}
 .item+.item{margin-top:22px}
@@ -37,34 +32,28 @@ body{background:var(--ink);color:#fff;font-family:'NanumSquare','Pretendard',san
 .item.lit .num{color:#9dc0ff;text-shadow:0 0 10px rgba(120,165,255,.5)}
 .item.lit .num::before{opacity:1;transform:translate(-50%,-50%) scale(1)}
 .txwrap{position:relative;min-width:0;padding-bottom:11px}
-.tx{display:block;font-size:clamp(12.5px,0.92vw,15px);line-height:1.55;color:rgba(255,255,255,.92);word-break:keep-all;white-space:nowrap}
+.tx{display:block;font-size:clamp(13px,1vw,15.5px);line-height:1.55;color:rgba(255,255,255,.92);word-break:keep-all;white-space:nowrap}
 .tx b{color:#fff;font-weight:700}
-.note{margin-top:26px;padding-top:16px;border-top:1px solid var(--line);font-size:12.5px;line-height:1.6;color:rgba(255,255,255,.66);word-break:keep-all}
 .ul{position:absolute;left:0;right:0;bottom:0;height:1px;background:rgba(255,255,255,.12)}
 .ul::before{content:"";position:absolute;inset:0;background:rgba(255,255,255,.5);opacity:0;transition:opacity .5s ease}
 .ul::after{content:"";position:absolute;inset:0;background:#33549e;transform:scaleX(0);transform-origin:left center;transition:transform 1s cubic-bezier(.45,0,.55,1)}
 .ul.on::after{transform:scaleX(1)}
 .ul.fold::after{transform-origin:right center;transform:scaleX(0);transition:transform .55s cubic-bezier(.45,0,.55,1)}
 .ul.trail::before{opacity:1}
+.note{margin-top:26px;padding-top:16px;border-top:1px solid var(--line);font-size:12.5px;line-height:1.6;color:rgba(255,255,255,.66);word-break:keep-all}
 @media(max-width:820px){
-  body{padding:54px 24px}
-  .hero{margin-bottom:26px}
-  .stage{aspect-ratio:auto}
-  .screen{position:static;width:100%;height:auto;aspect-ratio:1918/946;transform:none!important;transition:none}
-  .panel{position:static;width:auto;height:auto;margin-top:26px;transform:translateY(18px);transition:opacity .9s ease .3s,transform 1s cubic-bezier(.16,1,.3,1) .3s}
-  .stage.split .panel{transform:none}
-}
-@media(prefers-reduced-motion:reduce){
-  .screen{transform:scale(.6)!important;transition:none}
-  .panel{opacity:1!important;transform:none!important;transition:none}
-  @media(max-width:820px){.screen{transform:none!important}}
+  body{padding:44px 20px}
+  .hero{margin-bottom:22px}
+  .row{grid-template-columns:1fr;gap:24px;height:auto;max-height:none}
+  .screen{height:auto;aspect-ratio:1918/946}
+  .panel{height:auto}
 }
 </style>
 </head>
 <body>
 <div class="wrap">
   <h2 class="hero">매물부터 함께합니다.</h2>
-  <div class="stage" id="stage">
+  <div class="row" id="row">
     <div class="screen">
       <video src="https://beancraft-sales.netlify.app/collect-demo.mp4" muted loop playsinline preload="auto"></video>
     </div>
@@ -83,47 +72,25 @@ body{background:var(--ink);color:#fff;font-family:'NanumSquare','Pretendard',san
 </div>
 <script>
 (function(){
-  var stage=document.getElementById('stage');
+  var row=document.getElementById('row');
   var panel=document.querySelector('.panel');
-  var v=stage.querySelector('video');
+  var v=row.querySelector('video');
   function speed(){ try{ v.playbackRate=2.0; }catch(e){} }
-  v.addEventListener('loadedmetadata',speed); v.addEventListener('play',speed); v.addEventListener('canplay',speed); speed();
-
+  v.addEventListener('loadedmetadata',speed); v.addEventListener('play',speed); v.addEventListener('canplay',speed);
   var items=[].slice.call(panel.querySelectorAll('.item'));
   var uls=items.map(function(it){return it.querySelector('.ul');});
   var SLIDE=880, WAIT=200, FOLD=560;
-  function relay(){                                 // 한 번만: 다 켜지면 그대로 유지(반복 없음)
-    var i=0;
-    (function draw(){
-      if(i>=uls.length) return;
-      var u=uls[i]; void u.offsetWidth; u.classList.add('on');                     // 파란 밑줄이 글씨 밑을 지남
-      setTimeout(function(){
-        u.classList.add('trail'); u.classList.remove('on'); u.classList.add('fold'); // 흰 밑줄 남기고 접힘
-        items[i].classList.add('lit');                                              // 그 번호·글씨 켜짐(유지)
-        i++; setTimeout(draw, FOLD);
-      }, SLIDE+WAIT);
+  function relay(){ var i=0;
+    (function draw(){ if(i>=uls.length) return;
+      var u=uls[i]; void u.offsetWidth; u.classList.add('on');
+      setTimeout(function(){ u.classList.add('trail'); u.classList.remove('on'); u.classList.add('fold'); items[i].classList.add('lit'); i++; setTimeout(draw, FOLD); }, SLIDE+WAIT);
     })();
   }
-  function go(){
-    speed(); if(v.play) v.play().catch(function(){});   // 보일 때 영상 재생 시작
-    setTimeout(function(){
-      stage.classList.add('split');
-      panel.classList.add('relay');                     // OUR PROCESS+글씨 등장(글씨는 흐릿 대기)
-      setTimeout(relay, 2900);                          // 영상 축소 → 텍스트 등장 후 밑줄 스윕 시작
-    }, 5000);
-  }
-
-  if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches){
-    stage.classList.add('split'); panel.classList.add('relay'); items.forEach(function(it){it.classList.add('lit');});
-    speed(); if(v.play) v.play().catch(function(){}); return;
-  }
-  // 화면에 보일 때 + 탭이 켜져 있을 때만 작동
+  function go(){ speed(); if(v.play) v.play().catch(function(){}); panel.classList.add('relay'); setTimeout(relay, 1400); }
+  if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches){ panel.classList.add('relay'); items.forEach(function(it){it.classList.add('lit');}); speed(); if(v.play) v.play().catch(function(){}); return; }
   var inView=false, fired=false, io=null;
   function maybeStart(){ if(fired||!inView||document.hidden) return; fired=true; if(io) io.disconnect(); go(); }
-  if('IntersectionObserver' in window){
-    io=new IntersectionObserver(function(es){ inView=es.some(function(e){return e.isIntersecting;}); maybeStart(); },{threshold:.3});
-    io.observe(stage);
-  } else { inView=true; }
+  if('IntersectionObserver' in window){ io=new IntersectionObserver(function(es){ inView=es.some(function(e){return e.isIntersecting;}); maybeStart(); },{threshold:.3}); io.observe(row); } else { inView=true; }
   document.addEventListener('visibilitychange', maybeStart);
   maybeStart();
 })();
