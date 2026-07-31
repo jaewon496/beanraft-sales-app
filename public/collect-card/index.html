@@ -36,9 +36,9 @@ body{background:var(--ink);color:#fff;font-family:'NanumSquare','Pretendard',san
 .item.lit .num{color:#9dc0ff;text-shadow:0 0 10px rgba(120,165,255,.5)}
 .item.lit .num::before{opacity:1;transform:translate(-50%,-50%) scale(1)}
 .txwrap{position:relative;min-width:0;padding-bottom:13px}
-.tx{display:block;font-size:clamp(15px,1.4vw,22px);line-height:1.5;color:rgba(255,255,255,.93);word-break:keep-all;white-space:nowrap}
+.tx{display:block;width:27em;font-size:clamp(15px,1.4vw,22px);line-height:1.5;color:rgba(255,255,255,.93);word-break:keep-all;white-space:nowrap}
 .tx b{color:#fff;font-weight:700}
-.ul{position:absolute;left:0;right:-18px;bottom:0;height:1px;background:rgba(255,255,255,.12)}
+.ul{position:absolute;left:0;right:0;bottom:0;height:1px;background:rgba(255,255,255,.12)}
 .ul::before{content:"";position:absolute;inset:0;background:rgba(255,255,255,.5);opacity:0;transition:opacity .5s ease}
 .ul::after{content:"";position:absolute;inset:0;background:#33549e;transform:scaleX(0);transform-origin:left center;transition:transform 1s cubic-bezier(.45,0,.55,1)}
 .ul.on::after{transform:scaleX(1)}
@@ -53,7 +53,7 @@ body{background:var(--ink);color:#fff;font-family:'NanumSquare','Pretendard',san
   .rightcol{position:relative;top:auto;right:auto;bottom:auto;width:100%;opacity:1;transform:none;padding:26px 20px 30px}
   .steps{padding:20px 0}
   .item{margin:14px 0;grid-template-columns:auto 1fr}
-  .tx{white-space:normal}
+  .tx{white-space:normal;width:auto}
   .ul{right:0}
 }
 </style>
