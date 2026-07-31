@@ -14,8 +14,10 @@ html,body{height:100%}
 body{background:var(--ink);color:#fff;font-family:'NanumSquare','Pretendard',sans-serif;-webkit-font-smoothing:antialiased;display:flex;align-items:center;justify-content:center;overflow:hidden;letter-spacing:-.01em}
 .stage{position:relative;width:100%;height:100vh;max-height:800px;overflow:hidden}
 /* 영상: 처음엔 카드 전체로 꽉, 시청 뒤 왼쪽 패널로 축소 */
-.screen{position:absolute;top:0;left:0;width:100%;height:100%;overflow:hidden;background:transparent;border-radius:0;z-index:2;transition:top 1.2s cubic-bezier(.65,0,.35,1),left 1.2s cubic-bezier(.65,0,.35,1),width 1.2s cubic-bezier(.65,0,.35,1),height 1.2s cubic-bezier(.65,0,.35,1),border-radius 1s ease}
-.screen video{width:100%;height:100%;object-fit:contain;object-position:center;display:block}
+.screen{position:absolute;top:0;left:0;width:100%;height:100%;overflow:hidden;background:#0a0a0b;border-radius:0;z-index:2;transition:top 1.2s cubic-bezier(.65,0,.35,1),left 1.2s cubic-bezier(.65,0,.35,1),width 1.2s cubic-bezier(.65,0,.35,1),height 1.2s cubic-bezier(.65,0,.35,1),border-radius 1s ease}
+/* 빈 여백을 같은 영상의 은은한 흐림 배경으로 채움(잘림 없이 꽉 찬 느낌) */
+.screen::before{content:"";position:absolute;inset:0;background:url('https://beancraft-sales.netlify.app/collect-poster.jpg') center/cover no-repeat;filter:blur(38px) brightness(.4) saturate(1.15);transform:scale(1.18);z-index:0;pointer-events:none}
+.screen video{position:relative;width:100%;height:100%;object-fit:contain;object-position:center;display:block;z-index:1}
 .stage.shrunk .screen{top:40px;left:3vw;width:48%;height:calc(100% - 80px);border-radius:16px}
 /* 오른쪽: 제목(위)~설명(아래)을 영상 높이에 맞춰 채움 */
 .rightcol{position:absolute;top:40px;right:3vw;bottom:40px;width:43%;display:flex;flex-direction:column;opacity:0;transform:translateX(20px);transition:opacity .9s ease .15s,transform .9s cubic-bezier(.2,.7,.2,1) .15s;z-index:1}
