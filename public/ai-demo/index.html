@@ -252,6 +252,39 @@ body{background:#000;color:#fff;font-family:'Pretendard','Apple SD Gothic Neo',s
 @keyframes nudge{0%,100%{transform:translateX(0)}50%{transform:translateX(-8px)}}
 .dhidden{opacity:0!important;pointer-events:none}
 
+/* ─── 모바일 전용(≤640): 대시보드 사이드바 좁히고 글씨 비율 조정 → 리포트 넓게. PC/태블릿 영향 없음 ─── */
+@media(max-width:640px){
+  .dside{flex:0 0 clamp(120px,40%,156px);width:clamp(120px,40%,156px);padding:12px 7px}
+  .dlogo{height:36px;margin-bottom:11px}
+  .dlogo img{height:96px;margin-left:-6px}
+  .dsearch{margin-bottom:10px}
+  .dsearch-lbl{font-size:10px;margin-bottom:3px}
+  .dsearch-q{font-size:14px}
+  .dsearch-sub{font-size:10px;margin-top:3px}
+  .dresearch{height:34px;font-size:11.5px;margin-bottom:10px;gap:5px}
+  .dresearch svg{width:12px;height:12px}
+  .dcat-all{height:37px;padding:0 8px;margin-bottom:9px;gap:7px}
+  .dcat-all .dc-ico{width:14px;height:14px}
+  .dcat-all .dc-name{font-size:12.5px}
+  .dbadge{font-size:10px;padding:1px 5px;min-width:18px}
+  .dc-check{width:13px;height:13px}
+  .dcat-hint{font-size:10px;margin-bottom:6px}
+  .dgroup-head{height:30px;padding:0 6px;gap:6px}
+  .dgroup-head .dg-ico{width:13px;height:13px}
+  .dgroup-head .dg-name{font-size:12.5px}
+  .dgroup-head .dg-chev{width:12px;height:12px}
+  .ditem{height:30px;padding:0 6px 0 24px;gap:9px}
+  .ditem .dnum{font-size:10.5px;width:15px}
+  .ditem .dlabel{font-size:12px}
+  .ddirector{height:38px;font-size:12px;gap:6px}
+  .ddirector svg{width:13px;height:13px}
+  .dspot{width:clamp(120px,40%,156px)}
+  .dveil{left:clamp(120px,40%,156px)}
+  .dveil h2{font-size:18px}
+  .dveil p{font-size:12px;margin-top:8px;padding:0 14px}
+  .dveil .darrow{font-size:11px;left:12px}
+  .mapmodal-img{max-width:92%}
+}
 .hint{text-align:center;font-size:13px;color:rgba(255,255,255,.4);padding:8px 0;flex-shrink:0}
 .btn{display:inline-block;margin-top:4px;font-size:12px;color:#8bb8ff;cursor:pointer;border:1px solid rgba(139,184,255,.4);padding:6px 18px;border-radius:20px}
 </style>
@@ -436,7 +469,10 @@ var timers=[], liv=null;
 function T(fn,ms){timers.push(setTimeout(fn,ms));}
 function clearAll(){timers.forEach(clearTimeout);timers=[];if(liv){clearInterval(liv);liv=null;}}
 // 폭에 맞춰 꽉 채움. 대시보드 리포트는 폭에 따라 넓은판/좁은판 자동선택 → 어느 폭이든 앱 크기·선명 유지하며 꽉 참.
-function fit(){ var s=stage.clientWidth/1920; if(!s) return; app.style.setProperty('--s', s.toFixed(4)); app.style.height=(stage.clientHeight/s)+'px'; }
+function fit(){ var cw=stage.clientWidth, ch=stage.clientHeight; if(!cw) return;
+  // 모바일 세로화면: 인트로·검색·로딩은 높이에 맞춰 확대(가운데 크게, 좌우 살짝 잘림). 대시보드와 PC/태블릿은 기존대로 폭에 맞춤.
+  var s = (cw<640 && !app.classList.contains('dash')) ? (ch/940) : (cw/1920);
+  app.style.setProperty('--s', s.toFixed(4)); app.style.height=(ch/s)+'px'; }
 
 function startZoom(){
   szph.classList.remove('typed'); szph.textContent='주소를 입력하세요';
@@ -537,7 +573,7 @@ lpctbtn.addEventListener('click', function(){
   if(app.classList.contains('lclosing')) return;
   app.classList.add('lclosing');                       // 선 닫힘 + 콘텐츠 사라짐
   T(function(){ app.classList.add('lblackout'); }, 1200);   // 블랙아웃
-  T(function(){ app.classList.add('dash'); }, 1800);       // 대시보드 등장
+  T(function(){ app.classList.add('dash'); fit(); }, 1800);       // 대시보드 등장(폭 맞춤으로 전환)
 });
 // 대시보드 사이드바 클릭 → 해당 리포트 화면
 dcatAll.addEventListener('click', function(){ showReportAt('c01', dcatAll); });
