@@ -3,6 +3,10 @@
   command = "npm run build"
   functions = "netlify/functions"
 
+# 큰 번들(3.7MB+) 빌드가 넷리파이 서버에서 메모리 부족으로 간헐 실패 → 앱이 배포에서 빠지던 것 방지
+[build.environment]
+  NODE_OPTIONS = "--max-old-space-size=4096"
+
 [functions]
   node_bundler = "esbuild"
 
