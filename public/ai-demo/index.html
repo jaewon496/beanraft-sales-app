@@ -245,59 +245,35 @@ body{background:#000;color:#fff;font-family:'Pretendard','Apple SD Gothic Neo',s
 .dveil{position:absolute;top:0;left:clamp(238px,18.5%,300px);right:0;bottom:0;background:rgba(6,8,13,.74);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;transition:opacity .45s;backdrop-filter:blur(3px);z-index:33;pointer-events:none}
 .dveil h2{font-size:26px;font-weight:600;letter-spacing:-.01em;color:#fff}
 .dveil p{margin-top:12px;font-size:15px;color:rgba(255,255,255,.62)}
-.dveil .darrow{position:absolute;left:22px;top:50%;transform:translateY(-50%);color:#9cc3ff;font-size:15px;font-weight:700;white-space:nowrap;text-shadow:0 2px 12px rgba(0,0,0,.75);animation:nudge 1.4s ease-in-out infinite}
+/* 안내 화살표: 예전엔 제목과 같은 높이에 고정이라 폭이 좁아지면 제목과 겹쳤음 → 제목 아래로 흐르게(어느 폭에서도 안 겹침) */
+.dveil .darrow{position:relative;margin-top:18px;color:#9cc3ff;font-size:15px;font-weight:700;white-space:nowrap;text-shadow:0 2px 12px rgba(0,0,0,.75);animation:nudge 1.4s ease-in-out infinite}
 /* 카테고리 강조: 안내막 떠 있는 동안 사이드바 항목이 파랗게 맥동 */
 .app.dguide .ditem .dlabel,.app.dguide .dcat-all .dc-name{animation:catGlow 1.9s ease-in-out infinite}
 @keyframes catGlow{0%,100%{color:rgba(255,255,255,.78)}50%{color:#8fbcff}}
 @keyframes nudge{0%,100%{transform:translateX(0)}50%{transform:translateX(-8px)}}
 .dhidden{opacity:0!important;pointer-events:none}
 
-/* ─── 모바일 전용(≤640): 대시보드 사이드바 좁히고 글씨 비율 조정 → 리포트 넓게. PC/태블릿 영향 없음 ─── */
-@media(max-width:640px){
-  .dside{flex:0 0 clamp(120px,40%,156px);width:clamp(120px,40%,156px);padding:12px 7px}
-  .dlogo{height:36px;margin-bottom:11px}
-  .dlogo img{height:96px;margin-left:-6px}
-  .dsearch{margin-bottom:10px}
-  .dsearch-lbl{font-size:10px;margin-bottom:3px}
-  .dsearch-q{font-size:14px}
-  .dsearch-sub{font-size:10px;margin-top:3px}
-  .dresearch{height:34px;font-size:11.5px;margin-bottom:10px;gap:5px}
-  .dresearch svg{width:12px;height:12px}
-  .dcat-all{height:37px;padding:0 8px;margin-bottom:9px;gap:7px}
-  .dcat-all .dc-ico{width:14px;height:14px}
-  .dcat-all .dc-name{font-size:12.5px}
-  .dbadge{font-size:10px;padding:1px 5px;min-width:18px}
-  .dc-check{width:13px;height:13px}
-  .dcat-hint{font-size:10px;margin-bottom:6px}
-  .dgroup-head{height:30px;padding:0 6px;gap:6px}
-  .dgroup-head .dg-ico{width:13px;height:13px}
-  .dgroup-head .dg-name{font-size:12.5px}
-  .dgroup-head .dg-chev{width:12px;height:12px}
-  .ditem{height:30px;padding:0 6px 0 24px;gap:9px}
-  .ditem .dnum{font-size:10.5px;width:15px}
-  .ditem .dlabel{font-size:12px}
-  .ddirector{height:38px;font-size:12px;gap:6px}
-  .ddirector svg{width:13px;height:13px}
-  .dspot{width:clamp(120px,40%,156px)}
-  .dveil{left:clamp(120px,40%,156px)}
-  .dveil h2{font-size:18px}
-  .dveil p{font-size:12px;margin-top:8px;padding:0 14px}
-  .dveil .darrow{font-size:11px;left:12px}
-  .mapmodal-img{max-width:92%}
-  /* 검색 구간: 넓은 검색바가 모바일에선 좌우 잘리므로, 보이는 가운데 폭에 맞춰 좁힘 */
-  .topbar .inner{max-width:420px}
-  .szbar{left:750px;width:420px}
-  .app.szgrow .szbar{left:745px;width:430px;top:calc(50% - 30px);height:64px}
-  .searchspot{left:750px;width:420px}
-  .focusring{left:750px;width:420px}
-  .app.mguide .focusring{left:1122px;width:40px;top:22px}
-  .maghint{left:50%;right:auto;top:150px;transform:translateX(-50%)}
-  .app.mguide .maghint{animation:none;opacity:1}
-  .shint{left:50%;top:calc(50% + 126px);transform:translateX(-50%)}
-  .app.sguide .shint{animation:none;opacity:1}
-}
 .hint{text-align:center;font-size:13px;color:rgba(255,255,255,.4);padding:8px 0;flex-shrink:0}
 .btn{display:inline-block;margin-top:4px;font-size:12px;color:#8bb8ff;cursor:pointer;border:1px solid rgba(139,184,255,.4);padding:6px 18px;border-radius:20px}
+
+/* 모바일(cw<640, --s=cw/400): 가시 범위 760~1160px 안에 shint 들어오도록 버튼 위쪽으로 이동 */
+@media (max-width: 639px) {
+  .shint {
+    left: 1028px;              /* 검색 버튼 중심(958+70) */
+    top: calc(50% + 30px);    /* 버튼 상단(50%+51px)보다 위 */
+    transform: translate(-50%, -100%);
+  }
+  .app.sguide .shint {
+    animation: gIn .5s .3s ease both, sBobMob 1.6s .8s ease-in-out infinite;
+  }
+  /* 모바일: 텍스트가 버튼 위에 있으므로 화살표를 ↓로 교체 */
+  .sarrow { display: none; }
+  .shint::before { content: '↓ '; }
+}
+@keyframes sBobMob {
+  0%, 100% { transform: translate(-50%, -100%); }
+  50%       { transform: translate(-50%, calc(-100% - 5px)); }
+}
 </style>
 </head>
 <body>
@@ -306,7 +282,7 @@ body{background:#000;color:#fff;font-family:'Pretendard','Apple SD Gothic Neo',s
     <div class="app" id="app">
       <div class="bg"></div>
       <div class="veil"></div>
-      <img class="map" src="shots/mapsearch.png" alt="지도검색">
+      <img class="map" src="shots/mapsearch.jpg" alt="지도검색">
       <div class="topbar">
         <div class="inner">
           <div class="sw"><div class="sbox">
@@ -335,7 +311,7 @@ body{background:#000;color:#fff;font-family:'Pretendard','Apple SD Gothic Neo',s
       <div class="btext">상권 분석 프로그램</div>
       <div class="spot"></div>
       <div class="ring"></div>
-      <div class="shint">&larr; 검색을 눌러보세요</div>
+      <div class="shint"><span class="sarrow">&larr;</span> 검색을 눌러보세요</div>
       <!-- 로딩(분석 중) 화면 -->
       <div class="loadscreen">
         <div class="lresearch">재검색</div>
@@ -461,7 +437,7 @@ body{background:#000;color:#fff;font-family:'Pretendard','Apple SD Gothic Neo',s
         </div>
         </div>
         <div class="mapmodal" id="mapmodal">
-          <img class="mapmodal-img" src="shots/mapview.png" alt="카페 위치 지도">
+          <img class="mapmodal-img" src="shots/mapview.jpg" alt="카페 위치 지도" loading="lazy" decoding="async">
           <button class="mapclose" id="mapClose" type="button" aria-label="닫기"><svg viewBox="0 0 24 24" width="24" height="24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
         </div>
       </div>
@@ -479,11 +455,14 @@ var maphot=document.getElementById('maphot'), mapmodal=document.getElementById('
 var timers=[], liv=null;
 function T(fn,ms){timers.push(setTimeout(fn,ms));}
 function clearAll(){timers.forEach(clearTimeout);timers=[];if(liv){clearInterval(liv);liv=null;}}
-// 폭에 맞춰 꽉 채움. 대시보드 리포트는 폭에 따라 넓은판/좁은판 자동선택 → 어느 폭이든 앱 크기·선명 유지하며 꽉 참.
-function fit(){ var cw=stage.clientWidth, ch=stage.clientHeight; if(!cw) return;
-  // 모바일 세로화면: 인트로·검색·로딩은 높이에 맞춰 확대(가운데 크게, 좌우 살짝 잘림). 대시보드와 PC/태블릿은 기존대로 폭에 맞춤.
-  var s = (cw<640 && !app.classList.contains('dash')) ? (ch/940) : (cw/1920);
-  app.style.setProperty('--s', s.toFixed(4)); app.style.height=(ch/s)+'px'; }
+function fit(){ var cw=stage.clientWidth, ch=stage.clientHeight; if(!cw||!ch) return;
+  var dash=app.classList.contains('dash');
+  var mob = (!dash && cw<640);
+  var s = mob ? (cw/400) : (cw/1920);
+  app.style.setProperty('--s', s.toFixed(4));
+  /* 높이도 무대에 맞춤(=ch/s). 940 고정이면 틀이 940보다 낮을 때 위아래가 잘려
+     상단 검색창·돋보기·안내문구가 화면 밖으로 밀림. 모바일(확대 크롭)만 940 유지. */
+  app.style.height = mob ? '940px' : (ch/s)+'px'; }
 
 function startZoom(){
   szph.classList.remove('typed'); szph.textContent='주소를 입력하세요';
@@ -504,6 +483,8 @@ function endZoom(){
     app.classList.remove('szoom');
     phtext.classList.add('typed'); phtext.innerHTML='강남역 1번 출구';
     app.classList.add('mguide'); magbtn.classList.add('active');   // 돋보기 "검색하세요 →"
+    /* 안 눌러도 3초 뒤 대신 눌러준다(누르면 그 즉시 진행 — 기다리게 두지 않음) */
+    T(function(){ if(app.classList.contains('mguide')) pressMag(); }, 2600);
   }, 1300);
 }
 function triggerSearch(){
@@ -512,7 +493,8 @@ function triggerSearch(){
   T(startZoom, 2900); // 지도 충분히 보여준 뒤 검색 줌
 }
 function placeLDoneRing(){
-  var pr=lpctbtn.getBoundingClientRect(), ar=app.getBoundingClientRect(), s=stage.clientWidth/1920;
+  var cw=stage.clientWidth, s=cw<640 ? (cw/400) : (cw/1920);
+  var pr=lpctbtn.getBoundingClientRect(), ar=app.getBoundingClientRect();
   ldonering.style.width=((pr.width/s)+22)+'px'; ldonering.style.height=((pr.height/s)+16)+'px';
   ldonering.style.left=((pr.left+pr.width/2-ar.left)/s)+'px'; ldonering.style.top=((pr.top+pr.height/2-ar.top)/s)+'px';
 }
@@ -523,6 +505,8 @@ function lclimb(){
     if(p>=100){ clearInterval(liv); liv=null;
       lpctbtn.textContent='분석 완료'; lpctbtn.classList.add('done'); lbtext.textContent='';
       T(function(){ placeLDoneRing(); app.classList.add('ldone'); }, 150);
+      /* 여기도 안 눌러도 3.4초 뒤 대신 눌러준다 */
+      T(function(){ if(app.classList.contains('ldone')) pressDone(); }, 3050);
     }
   },32);
 }
@@ -568,24 +552,27 @@ function play(){
   szph.classList.remove('typed'); szph.textContent='주소를 입력하세요';
   lpctbtn.textContent='0%'; lpctbtn.classList.remove('done'); lbtext.textContent='잠시만 기다려주세요'; llogofill.style.setProperty('--lp','0');
   resetDash();
-  requestAnimationFrame(function(){ app.classList.add('intro'); });
+  setTimeout(function(){ app.classList.add('intro'); }, 20);
   T(function(){ if(!app.classList.contains('closing') && app.classList.contains('intro')) app.classList.add('sguide'); }, 4300);     // 인트로 뒤 검색 유도 (이미 검색 눌렀으면 안 켬)
 }
 searchbtn.addEventListener('click', triggerSearch);
-magbtn.addEventListener('click', function(){
+function pressMag(){
   if(app.classList.contains('loading')) return;
   app.classList.remove('mguide');
   magbtn.style.transform='scale(0.88)'; setTimeout(function(){magbtn.style.transform='';},140);
   T(startLoading, 320);
-});
+}
+magbtn.addEventListener('click', pressMag);
 // 분석 완료 → 선 닫힘(1.2s) → 블랙아웃 → 대시보드
-lpctbtn.addEventListener('click', function(){
+function pressDone(){
   if(!lpctbtn.classList.contains('done')) return;
   if(app.classList.contains('lclosing')) return;
+  lpctbtn.style.transform='scale(0.94)'; setTimeout(function(){lpctbtn.style.transform='';},150);
   app.classList.add('lclosing');                       // 선 닫힘 + 콘텐츠 사라짐
   T(function(){ app.classList.add('lblackout'); }, 1200);   // 블랙아웃
-  T(function(){ app.classList.add('dash'); fit(); }, 1800);       // 대시보드 등장(폭 맞춤으로 전환)
-});
+  T(function(){ app.classList.add('dash'); }, 1800);       // 대시보드 등장
+}
+lpctbtn.addEventListener('click', pressDone);
 // 대시보드 사이드바 클릭 → 해당 리포트 화면
 dcatAll.addEventListener('click', function(){ showReportAt('c01', dcatAll); });
 document.querySelectorAll('.ditem').forEach(function(it){
@@ -600,7 +587,14 @@ window.addEventListener('resize', function(){ fit(); if(app.classList.contains('
 // 안전장치: 틀(iframe) 크기가 로드 후 바뀌어도 항상 다시 꽉 차게 (임베드 중첩 프레임 대응)
 if(window.ResizeObserver){ try{ new ResizeObserver(function(){ fit(); if(app.classList.contains('ldone')) placeLDoneRing(); }).observe(document.body); }catch(e){} }
 var _rp=document.getElementById('replay'); if(_rp) _rp.addEventListener('click', play);
-window.addEventListener('load', function(){ fit(); play(); });
+/* 시작 조건: 예전엔 '모든 이미지 다 받은 뒤'(window load)라 첫 화면이 몇십 초간 새까맸다.
+   첫 장면에 필요한 지도 그림만 준비되면 바로 시작하고, 늦어지면 4초 뒤 강제로 시작한다. */
+function boot(){ if(boot.done) return; boot.done = true; fit(); play(); }
+var _bootImg = document.querySelector('.map');
+if(_bootImg && _bootImg.complete && _bootImg.naturalHeight){ boot(); }
+else if(_bootImg){ _bootImg.addEventListener('load', boot, {once:true}); _bootImg.addEventListener('error', boot, {once:true}); }
+window.addEventListener('load', boot);
+setTimeout(boot, 4000);
 fit();
 // 이미지 저장 방지: 우클릭 메뉴·드래그 차단
 document.addEventListener('contextmenu', function(e){ e.preventDefault(); });

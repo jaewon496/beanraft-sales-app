@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI 상권분석 - 빈크래프트</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0a0a0b; }
+    iframe { display: block; width: 100%; border: 0; }
+
+    /* ★첫 화면(프로그램 실행 데모)은 기기와 무관하게 **화면을 꽉 채운다**.
+       100svh = 주소창이 보이는 상태의 안전 높이 → 모바일에서 잘리거나 튀지 않는다.
+       (100dvh 는 스크롤 중 높이가 변해 화면이 출렁인다 — 일부러 안 씀)
+       고정(fixed)이 아니라 문서 흐름 그대로라, 스크롤하면 자연스럽게 다음 칸으로 넘어간다. */
+    .demo-frame { height: 100vh; height: 100svh; }
+    .collect-frame { height: 800px; }
+    .steps-frame { height: 700px; }
+
+    /* 크리에이터링크 구분선 블럭 (원본 그대로) */
+    .container { width: 100%; max-width: 1170px; margin: 0 auto; padding: 0 15px; }
+    .row { margin-left: -15px; margin-right: -15px; }
+    .col-xs-12, .col-sm-12, .col-md-12 { width: 100%; padding-left: 15px; padding-right: 15px; }
+    .text-center { text-align: center; }
+
+    .userEL21961549 { position: relative; padding: 20px 0; }
+    .userEL21961549 .row .col-md-12 { line-height: 1; }
+    .userEL21961549 .line {
+      width: 1px;
+      height: 87px;
+      content: " ";
+      display: inline-block;
+      margin: 15px auto;
+      border-left: 1px solid rgb(136, 136, 136);
+    }
+
+    @media only screen and (max-width: 767px) {
+      .userEL21961549 .line { height: 40px; margin: 0 auto; }
+      .userEL21961549 { padding-top: 16px !important; padding-bottom: 16px !important; }
+    }
+    @media only screen and (max-width: 480px) {
+      .userEL21961549 { padding-top: 10px !important; padding-bottom: 10px !important; }
+    }
+
+    @media (max-width: 760px) {
+      .collect-frame { height: 700px; }
+      .steps-frame { height: 940px; }
+    }
+  </style>
+</head>
+<body>
+  <iframe
+    class="demo-frame"
+    src="https://beancraft-sales.netlify.app/ai-demo/?v=19"
+    title="빈크래프트 AI 상권분석 데모"
+    allowfullscreen
+    loading="lazy"
+  ></iframe>
+
+  <div class="userEL21961549">
+    <div class="container">
+      <div class="row">
+        <div class="col-xs-12 col-sm-12 col-md-12 text-center">
+          <span class="line" data-border="true" data-selector=".line" data-title="line color"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <iframe
+    class="collect-frame"
+    src="https://beancraft-sales.netlify.app/collect-card/"
+    title="빈크래프트 수집 프로그램"
+    loading="lazy"
+    scrolling="no"
+  ></iframe>
+
+  <div class="userEL21961549">
+    <div class="container">
+      <div class="row">
+        <div class="col-xs-12 col-sm-12 col-md-12 text-center">
+          <span class="line" data-border="true" data-selector=".line" data-title="line color"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <iframe
+    class="steps-frame"
+    src="https://beancraft-sales.netlify.app/steps/"
+    title="빈크래프트 창업 순서"
+    loading="lazy"
+    scrolling="no"
+  ></iframe>
+</body>
+</html>

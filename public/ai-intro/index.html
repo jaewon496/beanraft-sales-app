@@ -190,11 +190,12 @@
   .preview { background: #0a0a0a; padding-bottom: 130px; margin-top: 130px; padding-top: 110px; }
   .preview section-inner { display: block; }
   .card-item {
-    max-width: 900px;
-    margin: 90px auto 0;
+    flex: 0 0 auto;
+    width: min(720px, 80vw);
     text-align: center;
+    scroll-snap-align: center;
+    user-select: none;
   }
-  .card-item:first-of-type { margin-top: 80px; }
   .card-label {
     display: flex;
     align-items: baseline;
@@ -219,6 +220,8 @@
     border-radius: 14px;
     border: 1px solid #222;
     box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+    -webkit-user-drag: none;
+    user-select: none;
   }
   .card-caption {
     margin-top: 16px;
@@ -226,7 +229,7 @@
     color: #a1a1a6;
   }
 
-  /* ---------- 14장 구성 ---------- */
+  /* ---------- 14장 구성 (원래 격자) ---------- */
   .grid14 {
     margin-top: 64px;
     display: grid;
@@ -251,6 +254,51 @@
     color: #fff;
     font-weight: 500;
   }
+
+  /* ---------- 리포트 미리보기: 사진 옆으로 넘기는 슬라이드 ---------- */
+  .swipe-hint {
+    text-align: center;
+    margin-top: 10px;
+    font-size: 12px;
+    color: #a1a1a6;
+    letter-spacing: 0.14em;
+  }
+  .pv-wrap { position: relative; margin-top: 40px; }
+  .pv-slider {
+    display: flex;
+    gap: 26px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
+    padding: 6px 2px 24px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    cursor: grab;
+  }
+  .pv-slider::-webkit-scrollbar { display: none; }
+  .pv-slider.dragging { cursor: grabbing; scroll-behavior: auto; scroll-snap-type: none; }
+  .cbtn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    background: rgba(20, 20, 22, 0.82);
+    border: 1px solid #2a2a2e;
+    color: #fff;
+    font-size: 26px;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background .2s, border-color .2s;
+  }
+  .cbtn:hover { background: #3668dc; border-color: #3668dc; }
+  .cbtn.prev { left: -10px; }
+  .cbtn.next { right: -10px; }
 
   /* ---------- 마무리 ---------- */
   .closing {
@@ -295,6 +343,8 @@
     .hd-nav { gap: 14px 18px; }
     .hero-title { font-size: 34px; }
     .grid14 { grid-template-columns: 1fr; }
+    .card-item { width: 86vw; }
+    .cbtn { display: none; }
     .tab-btn { font-size: 16px; }
   }
 </style>
@@ -366,35 +416,41 @@
       <div class="sec-head">
         <h2 class="sec-title">리포트 미리보기</h2>
       </div>
+      <p class="swipe-hint">← 옆으로 넘겨보세요 →</p>
+      <div class="pv-wrap">
+        <button class="cbtn prev" type="button" aria-label="이전 사진">&lsaquo;</button>
+        <div class="pv-slider" id="pvSlider">
+          <div class="card-item">
+            <div class="card-label"><span class="no">01</span><span class="name">상권 분석</span></div>
+            <img src="assets/cards/shop.jpg" alt="상권 분석 카드" draggable="false">
+            <p class="card-caption">반경 500m 카페 전수 수집</p>
+          </div>
 
-      <div class="card-item">
-        <div class="card-label"><span class="no">01</span><span class="name">상권 분석</span></div>
-        <img src="assets/cards/shop.jpg" alt="상권 분석 카드">
-        <p class="card-caption">반경 500m 카페 전수 수집</p>
-      </div>
+          <div class="card-item">
+            <div class="card-label"><span class="no">03</span><span class="name">유동인구</span></div>
+            <img src="assets/cards/traffic.jpg" alt="유동인구 카드" draggable="false">
+            <p class="card-caption">시간대&middot;요일 통행량</p>
+          </div>
 
-      <div class="card-item">
-        <div class="card-label"><span class="no">03</span><span class="name">유동인구</span></div>
-        <img src="assets/cards/traffic.jpg" alt="유동인구 카드">
-        <p class="card-caption">시간대&middot;요일 통행량</p>
-      </div>
+          <div class="card-item">
+            <div class="card-label"><span class="no">05</span><span class="name">고객 분석</span></div>
+            <img src="assets/cards/customer.jpg" alt="고객 분석 카드" draggable="false">
+            <p class="card-caption">연령&middot;성별&middot;라이프스타일</p>
+          </div>
 
-      <div class="card-item">
-        <div class="card-label"><span class="no">05</span><span class="name">고객 분석</span></div>
-        <img src="assets/cards/customer.jpg" alt="고객 분석 카드">
-        <p class="card-caption">연령&middot;성별&middot;라이프스타일</p>
-      </div>
+          <div class="card-item">
+            <div class="card-label"><span class="no">11</span><span class="name">매출 분석</span></div>
+            <img src="assets/cards/sales.jpg" alt="매출 분석 카드" draggable="false">
+            <p class="card-caption">커피&middot;베이커리 분위와 추이</p>
+          </div>
 
-      <div class="card-item">
-        <div class="card-label"><span class="no">11</span><span class="name">매출 분석</span></div>
-        <img src="assets/cards/sales.jpg" alt="매출 분석 카드">
-        <p class="card-caption">커피&middot;베이커리 분위와 추이</p>
-      </div>
-
-      <div class="card-item">
-        <div class="card-label"><span class="no">14</span><span class="name">AI 종합</span></div>
-        <img src="assets/cards/ai.jpg" alt="AI 종합 카드">
-        <p class="card-caption">데이터 근거 설계 방향</p>
+          <div class="card-item">
+            <div class="card-label"><span class="no">14</span><span class="name">AI 종합</span></div>
+            <img src="assets/cards/ai.jpg" alt="AI 종합 카드" draggable="false">
+            <p class="card-caption">데이터 근거 설계 방향</p>
+          </div>
+        </div>
+        <button class="cbtn next" type="button" aria-label="다음 사진">&rsaquo;</button>
       </div>
     </div>
   </section>
@@ -450,6 +506,41 @@
       document.getElementById(btn.dataset.tab).classList.add('active');
     });
   });
+
+  /* 리포트 미리보기 사진 — 옆으로 넘기기 (드래그 + 스와이프 + 화살표 + 휠) */
+  (function () {
+    var track = document.getElementById('pvSlider');
+    if (!track) return;
+    var down = false, startX = 0, startScroll = 0, moved = 0;
+    track.addEventListener('pointerdown', function (e) {
+      down = true; moved = 0; startX = e.clientX; startScroll = track.scrollLeft;
+      track.classList.add('dragging');
+      try { track.setPointerCapture(e.pointerId); } catch (x) {}
+    });
+    track.addEventListener('pointermove', function (e) {
+      if (!down) return;
+      var dx = e.clientX - startX; moved = Math.abs(dx);
+      track.scrollLeft = startScroll - dx;
+    });
+    function endDrag() { if (!down) return; down = false; track.classList.remove('dragging'); }
+    track.addEventListener('pointerup', endDrag);
+    track.addEventListener('pointercancel', endDrag);
+    track.addEventListener('pointerleave', endDrag);
+    // 드래그 직후 발생하는 클릭은 무시
+    track.addEventListener('click', function (e) { if (moved > 6) { e.preventDefault(); e.stopPropagation(); } }, true);
+    function stepSize() {
+      var c = track.querySelector('.card-item');
+      return c ? c.getBoundingClientRect().width + 26 : 600; // 사진 한 장씩
+    }
+    var prev = document.querySelector('.cbtn.prev');
+    var next = document.querySelector('.cbtn.next');
+    if (prev) prev.addEventListener('click', function () { track.scrollBy({ left: -stepSize(), behavior: 'smooth' }); });
+    if (next) next.addEventListener('click', function () { track.scrollBy({ left: stepSize(), behavior: 'smooth' }); });
+    // 마우스 휠 세로 → 가로 넘김
+    track.addEventListener('wheel', function (e) {
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { track.scrollLeft += e.deltaY; e.preventDefault(); }
+    }, { passive: false });
+  })();
 </script>
 </body>
 </html>

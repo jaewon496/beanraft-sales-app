@@ -135,7 +135,7 @@ function move(b,squish){ ind.style.left=b.offsetLeft+'px'; ind.style.width=b.off
 function setActive(b){ active=b; btns.forEach(function(x){x.classList.toggle('active',x===b);}); var k=b.getAttribute('data-panel'); panels.forEach(function(p){p.classList.toggle('open',p.getAttribute('data-panel')===k);}); move(b,true); startRelay(); }
 btns.forEach(function(b){ b.addEventListener('mouseenter',function(){move(b,false);}); b.addEventListener('click',function(){setActive(b);}); });
 seg.addEventListener('mouseleave',function(){move(active,false);});
-document.querySelectorAll('[data-cta]').forEach(function(a){a.addEventListener('click',function(e){e.preventDefault();alert('상담신청 페이지로 이동 (실제 사이트에서는 홈페이지 상담 페이지로 연결)');});});
+document.querySelectorAll('[data-cta]').forEach(function(a){a.href='https://beancraft.co.kr/%EC%83%81%EB%8B%B4';a.target='_blank';a.rel='noopener noreferrer';});
 
 /* 선 순차 진행: 네이비 머리가 1칸→2칸→… 그려지고, 지나간 자리엔 흰선이 남음.
    도착하면 잠깐 뜸 후 다음 칸. 끝까지 흰선이 차면 잠깐 쉬었다가 흰선 사라지고 반복. */
