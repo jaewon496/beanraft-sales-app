@@ -20,12 +20,21 @@ body{background:var(--ink);color:#fff;font-family:'NanumSquare','Pretendard',san
 .title b{font-weight:800}
 .lead{font-size:15px;color:var(--dim);font-weight:300;max-width:520px;line-height:1.7}
 /* 토글 (은은한 물풍선) */
-.seg{position:relative;display:inline-flex;margin:46px 0 0;gap:0}
-.seg-ind{position:absolute;bottom:0;height:2px;background:#fff;border-radius:2px;transition:left .6s cubic-bezier(.22,1.3,.4,1),width .6s cubic-bezier(.22,1.3,.4,1),transform .35s ease;will-change:left,width}
-.seg-ind::after{content:"";position:absolute;left:50%;top:-2px;transform:translateX(-50%);width:5px;height:5px;border-radius:50%;background:var(--blue)}
-.seg-btn{position:relative;background:none;border:none;color:var(--dim);font-family:inherit;font-size:19px;font-weight:700;padding:0 4px 16px;margin-right:38px;cursor:pointer;transition:color .35s ease;white-space:nowrap}
-.seg-btn:last-child{margin-right:0}
-.seg-btn.active,.seg-btn:hover{color:#fff}
+/* ★'버튼인지 모르겠다'(대표 2026-08-06) → 눌러지는 것으로 보이게 세그먼트 버튼으로.
+   예전엔 밑줄만 있는 맨 글씨라 클릭할 수 있는지 알 수 없었다. */
+.seg{position:relative;display:inline-flex;margin:46px 0 0;gap:0;padding:5px;
+     border:1px solid rgba(255,255,255,.16);border-radius:999px;background:rgba(255,255,255,.04)}
+.seg-ind{position:absolute;top:5px;bottom:5px;height:auto;border-radius:999px;
+     background:rgba(63,134,255,.18);border:1px solid rgba(63,134,255,.55);
+     box-shadow:0 3px 16px rgba(63,134,255,.22);
+     transition:left .45s cubic-bezier(.22,1.1,.4,1),width .45s cubic-bezier(.22,1.1,.4,1),transform .3s ease;will-change:left,width}
+.seg-btn{position:relative;z-index:1;background:none;border:none;color:rgba(255,255,255,.55);font-family:inherit;
+     font-size:17px;font-weight:700;padding:11px 22px;border-radius:999px;cursor:pointer;
+     transition:color .3s ease;white-space:nowrap;-webkit-tap-highlight-color:transparent}
+.seg-btn:hover{color:#fff}
+.seg-btn.active{color:#fff}
+.seg-btn:focus-visible{outline:2px solid var(--blue);outline-offset:3px}
+@media(max-width:520px){.seg-btn{font-size:15px;padding:10px 15px}}
 .hr{height:1px;background:var(--line);margin-top:-1px}
 /* 펼침 */
 .panels{margin-top:56px}
@@ -135,7 +144,44 @@ function move(b,squish){ ind.style.left=b.offsetLeft+'px'; ind.style.width=b.off
 function setActive(b){ active=b; btns.forEach(function(x){x.classList.toggle('active',x===b);}); var k=b.getAttribute('data-panel'); panels.forEach(function(p){p.classList.toggle('open',p.getAttribute('data-panel')===k);}); move(b,true); startRelay(); }
 btns.forEach(function(b){ b.addEventListener('mouseenter',function(){move(b,false);}); b.addEventListener('click',function(){setActive(b);}); });
 seg.addEventListener('mouseleave',function(){move(active,false);});
-document.querySelectorAll('[data-cta]').forEach(function(a){a.href='https://beancraft.co.kr/%EC%83%81%EB%8B%B4';a.target='_blank';a.rel='noopener noreferrer';});
+/* ★상담 신청하기 — **지금 보던 화면 위에** 띄운다(대표 지시 2026-08-06).
+   예전엔 새 탭으로 넘어가 보던 내용이 사라졌다.
+   이 카드는 AI탭 안 iframe 이라, 이 안에서 열면 700px 칸에 갇힌다 →
+   같은 출처인 **최상위 창**에 전체화면 덮개를 만들어 그 위에 띄운다.
+   (자사 도메인이라 iframe 차단 헤더가 없는 것 확인함)
+   최상위에 손댈 수 없는 경우(다른 곳에 임베드 등)엔 같은 탭 이동으로 물러난다. */
+var CONSULT='https://beancraft.co.kr/%EC%83%81%EB%8B%B4';
+function openConsult(){
+  var top;
+  try{ top = window.top.document ? window.top : null; }catch(e){ top = null; }   // 다른 출처면 접근 불가
+  var doc = top ? top.document : null;
+  if(!doc){ try{ window.top.location.href = CONSULT; }catch(e){ location.href = CONSULT; } return; }
+  if(doc.getElementById('bcConsultOv')){ doc.getElementById('bcConsultOv').style.display='block'; return; }
+  var ov=doc.createElement('div'); ov.id='bcConsultOv';
+  ov.setAttribute('style','position:fixed;inset:0;z-index:99999;background:rgba(6,8,13,.92);'+
+    'backdrop-filter:blur(4px);display:flex;flex-direction:column');
+  var bar=doc.createElement('div');
+  bar.setAttribute('style','flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;'+
+    'padding:12px 16px;color:#fff;font:700 15px/1.2 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",sans-serif');
+  bar.innerHTML='<span>상담 신청</span>';
+  var x=doc.createElement('button'); x.textContent='✕ 닫기';
+  x.setAttribute('style','background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.25);'+
+    'color:#fff;border-radius:999px;padding:8px 16px;font:700 14px/1 inherit;cursor:pointer');
+  x.onclick=function(){ ov.remove(); doc.documentElement.style.overflow=''; };
+  bar.appendChild(x);
+  var fr=doc.createElement('iframe');
+  fr.src=CONSULT; fr.title='상담 신청';
+  fr.setAttribute('style','flex:1 1 auto;width:100%;border:0;background:#fff');
+  ov.appendChild(bar); ov.appendChild(fr); doc.body.appendChild(ov);
+  doc.documentElement.style.overflow='hidden';                       // 뒤 화면 스크롤 잠금
+  (top||window).addEventListener('keydown', function esc(e){
+    if(e.key==='Escape'){ ov.remove(); doc.documentElement.style.overflow=''; (top||window).removeEventListener('keydown',esc); }
+  });
+}
+document.querySelectorAll('[data-cta]').forEach(function(a){
+  a.href=CONSULT; a.removeAttribute('target'); a.rel='noopener noreferrer';
+  a.addEventListener('click',function(e){ e.preventDefault(); openConsult(); });
+});
 
 /* 선 순차 진행: 네이비 머리가 1칸→2칸→… 그려지고, 지나간 자리엔 흰선이 남음.
    도착하면 잠깐 뜸 후 다음 칸. 끝까지 흰선이 차면 잠깐 쉬었다가 흰선 사라지고 반복. */
@@ -156,10 +202,12 @@ function startRelay(){
   function draw(){
     if(i>=conns.length){ relayTimers.push(setTimeout(reset, HOLD)); return; }
     var c=conns[i]; void c.offsetWidth; c.classList.add('on');            // 스르륵: 다음 번호로 뻗음
+    // ★파란선 머리가 다음 번호에 **닿는 순간** 불을 켠다(대표 지적 2026-08-06).
+    //   예전엔 흰선이 깔릴 때(SLIDE+WAIT) 켜서, 선은 벌써 도착했는데 번호가 한참 뒤에 켜졌다.
+    relayTimers.push(setTimeout(function(){ lightStep(i+1); }, SLIDE));
     relayTimers.push(setTimeout(function(){                               // 뻗은 뒤 조용히 대기
       c.classList.add('trail');                                          // 흰선 뒤에 깔기(네이비가 가림)
       c.classList.remove('on'); c.classList.add('fold');                 // 꽁지 접힘(오른쪽=그 숫자로 들어감)
-      lightStep(i+1);                                                    // 선이 들어가는 순간 그 숫자 불 켜짐
       relayTimers.push(setTimeout(function(){ i++; draw(); }, FOLD));    // 접힘 끝 → 다음 칸
     }, SLIDE+WAIT));
   }
