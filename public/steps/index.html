@@ -81,10 +81,27 @@ body.relay .step.lit .no,body.relay .step.lit .ico,body.relay .step.lit .lb{opac
 @media(max-width:760px){
   .title{font-size:32px}
   .seg-btn{font-size:16px;margin-right:26px}
-  .steps{flex-wrap:wrap;gap:26px 0}
-  .step{flex:1 1 50%;padding-right:14px}
-  .step .tk{display:none}
-  .cta-row{flex-direction:column-reverse;align-items:stretch}
+  .panels{margin-top:40px}
+  .panel.open{max-height:1400px}   /* 세로로 세우면 훨씬 길다 — 640 이면 아래가 잘린다 */
+
+  /* ★세로 타임라인 — 선 하나가 위에서 아래로 쭉 이어지고 그 옆에 내용.
+     예전엔 2칸 격자라 순서가 ㄹ자로 꺾여 읽기 불편했다(대표 지시 2026-08-06).
+     PC 의 '선이 다음 칸으로 흐르는' 연출은 그대로, 방향만 가로→세로. */
+  .steps{display:block;gap:0}
+  .step{display:grid;grid-template-columns:max-content max-content 1fr;align-items:center;
+        column-gap:13px;width:auto;padding:0 0 30px 36px}
+  .step:last-child{padding-bottom:0}
+  .step .no{font-size:14px}
+  .step .ico{margin:0}
+  .step .ico svg{width:23px;height:23px}
+  .step .lb{font-size:17px}
+  .step .dot{top:9px;left:0}
+  .step .tk{display:block;left:3px;right:auto;top:20px;bottom:-6px;width:1px;height:auto}
+  .step .tk::after{transform:scaleY(0);transform-origin:center top}
+  .step .tk.on::after{transform:scaleY(1)}
+  .step .tk.fold::after{transform-origin:center bottom;transform:scaleY(0)}
+
+  .cta-row{flex-direction:column-reverse;align-items:stretch;margin-top:44px}
   .cta{justify-content:center}
 }
 </style>
