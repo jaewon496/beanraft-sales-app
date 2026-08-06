@@ -13,7 +13,8 @@
        100svh = 주소창이 보이는 상태의 안전 높이 → 모바일에서 잘리거나 튀지 않는다.
        (100dvh 는 스크롤 중 높이가 변해 화면이 출렁인다 — 일부러 안 씀)
        고정(fixed)이 아니라 문서 흐름 그대로라, 스크롤하면 자연스럽게 다음 칸으로 넘어간다. */
-    .demo-frame { height: 100vh; height: 100svh; }
+    /* ★헤더가 위를 덮으므로 그만큼 뺀다 — 안 그러면 데모 윗부분이 메뉴바에 가린다 */
+    .demo-frame { height: calc(100vh - var(--bc-hd)); height: calc(100svh - var(--bc-hd)); }
     .collect-frame { height: 800px; }
     .steps-frame { height: 700px; }
 
@@ -46,10 +47,77 @@
       .collect-frame { height: 700px; }
       .steps-frame { height: 940px; }
     }
+
+    /* ───────── 홈페이지 상단 메뉴바 (2026-08-06 대표 지시)
+       AI탭은 우리가 만든 페이지라 크리에이터링크 껍데기(헤더)가 안 붙는다.
+       그래서 실제 홈페이지 헤더를 **실측해서** 같은 모습으로 만들어 얹었다.
+         실측(beancraft.co.kr): 높이 PC 110 / 태블릿 138 / 모바일 60,
+                                배경 #000, 메뉴 15px·400·흰색 NanumSquare,
+                                브랜드 18px Gmarket Sans, 유틸 11px(y=25)
+       ★메뉴가 바뀌면 이 목록도 같이 고쳐야 한다(홈페이지가 JS로 그려서 자동으로 못 읽음). */
+    :root{ --bc-hd: 110px; }
+    .bc-hd{position:fixed;top:0;left:0;right:0;height:var(--bc-hd);background:#000;z-index:9000;
+           font-family:'NanumSquare','Apple SD Gothic Neo','Malgun Gothic',sans-serif;-webkit-font-smoothing:antialiased}
+    .bc-util{display:flex;justify-content:flex-end;align-items:center;gap:0;padding:19px 150px 0 0;font-size:11px;letter-spacing:.06em}
+    .bc-util a{color:rgba(255,255,255,.72);text-decoration:none;padding:0 12px;position:relative;white-space:nowrap}
+    .bc-util a+a::before{content:"";position:absolute;left:0;top:2px;bottom:2px;width:1px;background:rgba(255,255,255,.28)}
+    .bc-util a:hover{color:#fff}
+    .bc-row{display:flex;align-items:center;padding:14px 150px 0}
+    .bc-brand{color:#fff;text-decoration:none;font-family:'Gmarket Sans','NanumSquare',sans-serif;font-size:18px;
+              font-weight:700;letter-spacing:.02em;white-space:nowrap}
+    .bc-nav{display:flex;flex:1;justify-content:center;gap:0}
+    .bc-nav a{color:#fff;text-decoration:none;font-size:15px;font-weight:400;padding:0 14px;white-space:nowrap;opacity:.92}
+    .bc-nav a:hover{opacity:1;text-decoration:underline;text-underline-offset:6px}
+    .bc-nav a.on{font-weight:700}
+    .bc-tog{display:none;background:none;border:0;cursor:pointer;padding:6px;margin-left:auto}
+    .bc-tog i{display:block;width:22px;height:2px;background:#fff;margin:4px 0;border-radius:2px}
+    /* 헤더가 화면을 가리지 않게 첫 칸을 그만큼 내린다 */
+    body{padding-top:var(--bc-hd)}
+
+    @media (max-width:1100px){
+      .bc-util{padding-right:55px}
+      .bc-row{padding-left:55px;padding-right:55px}
+      .bc-nav a{padding:0 10px;font-size:14px}
+    }
+    @media (max-width:820px){
+      :root{ --bc-hd: 60px; }
+      .bc-util{display:none}
+      .bc-row{padding:0 18px;height:60px}
+      .bc-tog{display:block}
+      .bc-nav{position:fixed;top:60px;left:0;right:0;background:#000;flex-direction:column;
+              justify-content:flex-start;gap:0;max-height:0;overflow:hidden;transition:max-height .35s ease;
+              border-top:1px solid rgba(255,255,255,.12)}
+      .bc-nav.open{max-height:70vh;overflow-y:auto}
+      .bc-nav a{padding:15px 20px;font-size:15px;border-bottom:1px solid rgba(255,255,255,.07)}
+    }
   </style>
+  <link href="https://cdn.jsdelivr.net/gh/moonspam/NanumSquare@2.0/nanumsquare.css" rel="stylesheet">
 </head>
 <body>
-  <iframe
+  <header class="bc-hd">
+    <div class="bc-util">
+      <a href="https://beancraft.co.kr/" aria-label="검색">SEARCH</a>
+      <a href="https://beancraft.co.kr/">LOGIN</a>
+      <a href="https://beancraft.co.kr/">MY PAGE</a>
+      <a href="https://beancraft.co.kr/_cart">CART</a>
+    </div>
+    <div class="bc-row">
+      <a class="bc-brand" href="https://beancraft.co.kr/">BEAN CRAFT</a>
+      <nav class="bc-nav" id="bcNav">
+        <a class="on" href="https://beancraft.co.kr/ai">AI</a>
+        <a href="https://beancraft.co.kr/%EC%B0%BD%EC%97%85%EC%95%88%EB%82%B4">창업안내</a>
+        <a href="https://beancraft.co.kr/%EC%9D%B8%ED%85%8C%EB%A6%AC%EC%96%B4">인테리어</a>
+        <a href="https://beancraft.co.kr/%EA%B8%B0%EA%B8%B0%EC%84%A4%EC%B9%98">기기설치</a>
+        <a href="https://beancraft.co.kr/%EB%A9%94%EB%89%B4%EA%B0%9C%EB%B0%9C">메뉴개발</a>
+        <a href="https://beancraft.co.kr/%EC%9A%B4%EC%98%81%EA%B5%90%EC%9C%A1">운영교육</a>
+        <a href="https://beancraft.co.kr/%EB%94%94%EC%9E%90%EC%9D%B8">디자인</a>
+        <a href="https://beancraft.co.kr/%EC%9B%90%EB%91%90">원두</a>
+        <a href="https://beancraft.co.kr/%EC%83%81%EB%8B%B4">상담</a>
+      </nav>
+      <button class="bc-tog" id="bcTog" aria-label="메뉴 열기" aria-expanded="false"><i></i><i></i><i></i></button>
+    </div>
+  </header>
+    <iframe
     class="demo-frame"
     src="https://beancraft-sales.netlify.app/ai-demo/?v=19"
     title="빈크래프트 AI 상권분석 데모"
@@ -92,5 +160,15 @@
     loading="lazy"
     scrolling="no"
   ></iframe>
+  <script>
+  (function(){
+    var t=document.getElementById('bcTog'), n=document.getElementById('bcNav');
+    if(!t||!n) return;
+    t.addEventListener('click',function(){
+      var open=n.classList.toggle('open');
+      t.setAttribute('aria-expanded',open?'true':'false');
+    });
+  })();
+  </script>
 </body>
 </html>
