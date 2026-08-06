@@ -259,8 +259,80 @@ body{background:#000;color:#fff;font-family:'Pretendard','Apple SD Gothic Neo',s
 .hint{text-align:center;font-size:13px;color:rgba(255,255,255,.4);padding:8px 0;flex-shrink:0}
 .btn{display:inline-block;margin-top:4px;font-size:12px;color:#8bb8ff;cursor:pointer;border:1px solid rgba(139,184,255,.4);padding:6px 18px;border-radius:20px}
 
-/* 모바일(cw<640, --s=cw/400): 가시 범위 760~1160px 안에 shint 들어오도록 버튼 위쪽으로 이동 */
+/* ─────────────────────────────────────────────────────────────────────
+   모바일 (cw<640).  ★임계값 639 는 JS fit() 의 cw<640 과 반드시 같이 바꾼다.
+   좌표계: 설계 캔버스 1920 폭을 --s=cw/400 로 확대 크롭 → 세로폰에 보이는 창은
+           x 760~1160 (폭 400, 중심 960). 1 설계px ≈ 0.975 실제px 이라 사실상 1:1.
+   ⇒ 캔버스 좌우 끝(460, 1414, right:520 …)에 박힌 것들은 전부 이 창 안으로 옮긴다.
+   ───────────────────────────────────────────────────────────────────── */
 @media (max-width: 639px) {
+
+  /* ── ②③ 공용: 상단 검색바·반경 UI 를 가시창 안으로 (inner 1040→400 ⇒ 760~1160) ── */
+  .topbar .inner{max-width:400px}          /* 결과: .sbox = 780~1140 (폭 360) */
+  .topbar .rhead .lbl{font-size:13px}      /* 작은 폰(360px, s=0.9)에서 12px 은 실효 10.8px 로 안 읽힘 */
+  .searchspot{left:780px;width:360px}      /* 검색칸에 정확히 겹치게 */
+  .focusring {left:780px;width:360px}
+  .app.mguide .focusring{left:1091px;top:22px;width:44px;height:42px}   /* 돋보기 중심 (1113,43) */
+  /* 안내문구: 지도 위(상단바 아래)로 내리고 화살표를 ↑ 로 — 오른쪽 끝이 돋보기 밑에 온다.
+     지도(밝음) 위에 얹히므로 어두운 알약 배경을 깔아 어떤 배경에서도 읽히게 한다 */
+  .maghint{right:780px;top:170px;transform:none;font-size:17px;
+           background:rgba(10,10,10,.78);padding:5px 12px;border-radius:16px}
+  .maghint .mar{display:none}
+  .maghint::after{content:' ↑'}
+  .app.mguide .maghint{animation:gIn .5s .35s ease both, mBobMob 1.6s .9s ease-in-out infinite}
+
+  /* 지도 스크린샷에는 '자체 상단바(가짜 검색칸·반경선)'가 찍혀 있어 우리 상단바 아래로 샌다.
+     ★값은 눈대중이 아니라 휘도 게이트(scratchpad/band 측정)로 확정 — 상단바 바로 아래부터
+       평균휘도≥30·변화폭≥15(=진짜 지도)가 나오는 최소 이동량. 그림 교체 시 재측정 필요. */
+  .map{object-position:center -90px}
+
+  /* ── ② 검색창 확대(가운데로 나오며 타자) ── 원래 자리는 상단 검색칸과 겹쳐야 한다 */
+  .szbar{left:780px;width:360px}
+  .app.szgrow .szbar{left:770px;top:calc(50% - 36px);width:380px;height:72px}
+
+  /* ── ④ 분석 완료 안내 ── 예전엔 버튼 왼쪽 옆(right:100%+22)이라 화면 밖으로 나갔다.
+        버튼 위로 올리고 화살표를 ↓ 로. left:60px = '분석 완료' 버튼의 가로 중심. */
+  .lhint{right:auto;left:60px;top:-12px;transform:translate(-50%,-100%)}
+  .lhint .lar{display:none}
+  .lhint::before{content:'↓ '}
+  .app.ldone .lhint{animation:gIn .5s .3s ease both, lBobMob 1.6s .8s ease-in-out infinite}
+
+  /* ── ⑤ 대시보드 ── 좌우 2단(사이드바 238px)은 390px 폰에서 61% 를 먹어 리포트가 152px 만 남았다.
+        ⇒ 위쪽 가로 '카테고리 줄' + 아래 전폭 리포트로 바꾼다. 리포트 폭 152→390px(배율 0.11→0.29). */
+  .dashwrap{flex-direction:column}
+  .dside{flex:0 0 106px;width:100%;height:106px;border-right:0;
+         border-bottom:1px solid rgba(255,255,255,.09);padding:10px 12px 6px;overflow:hidden}
+  .dlogo{display:none}
+  .dsearch{margin-bottom:8px;padding-right:104px}
+  .dsearch-lbl{display:none}
+  .dsearch-q{font-size:18px}
+  .dsearch-sub{font-size:11px;margin-top:2px}
+  .dresearch{position:absolute;top:10px;right:12px;width:auto;height:32px;padding:0 12px;font-size:12px;margin:0}
+  #dcatAll,.dcat-hint,.dside .dgroup,.ddirector{display:none}
+  /* 14개 항목을 가로 스크롤 칩으로 (원본 .ditem 을 눌러주는 대리자 — 로직 중복 금지) */
+  .dchips{display:flex;gap:8px;overflow-x:auto;overflow-y:hidden;padding:0 0 6px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .dchips::-webkit-scrollbar{display:none}
+  .dchips .chip{flex:0 0 auto;font-size:13.5px;line-height:1;padding:10px 13px;background:transparent;
+                border:1px solid rgba(255,255,255,.18);border-radius:18px;
+                color:rgba(255,255,255,.88);white-space:nowrap;cursor:pointer;font-family:inherit}
+  .dchips .chip.sel{background:rgba(43,127,255,.14);border-color:rgba(43,127,255,.45);color:#9fc4ff}
+  .app.dguide .dchips .chip{animation:catGlow 1.9s ease-in-out infinite}
+  .dcontent{flex:1 1 auto;width:100%;height:auto;min-height:0}
+  .dspot{width:100%;height:106px}
+  .dveil{left:0;top:106px}
+  .dveil h2{font-size:20px;padding:0 20px}
+  .dveil p{font-size:13.5px;margin-top:8px;padding:0 20px}
+  .dv-pc{display:none}
+  .dv-mo{display:inline}
+  .dveil .darrow{left:50%;top:10px;transform:translateX(-50%);font-size:13.5px;animation:nudgeMob 1.4s ease-in-out infinite}
+  .darrow .dar{display:none}
+  .dveil .darrow::before{content:'↑ '}
+  .maphot{top:2px;height:18px}
+  .mapmodal-img{max-width:94%;max-height:78%}
+  .mapclose{top:10px;right:12px;width:40px;height:40px}
+  /* 리포트가 화면을 꽉 채우게 되면서 안내문(반투명)이 숫자와 겹쳐 지저분했다 → 불투명 띠로 */
+  .samplenote{background:rgba(10,10,10,.92);font-size:11.5px;bottom:8px}
+
   .shint {
     left: 1028px;              /* 검색 버튼 중심(958+70) */
     top: calc(50% + 30px);    /* 버튼 상단(50%+51px)보다 위 */
@@ -277,6 +349,10 @@ body{background:#000;color:#fff;font-family:'Pretendard','Apple SD Gothic Neo',s
   0%, 100% { transform: translate(-50%, -100%); }
   50%       { transform: translate(-50%, calc(-100% - 5px)); }
 }
+/* 모바일 전용 흔들림 — 기존 mBob/aBob 은 translateY(-50%) 를 덮어써서 자리를 망가뜨린다 */
+@keyframes mBobMob { 0%,100%{transform:translateY(0)}   50%{transform:translateY(4px)} }
+@keyframes lBobMob { 0%,100%{transform:translate(-50%,-100%)} 50%{transform:translate(-50%,calc(-100% - 5px))} }
+@keyframes nudgeMob { 0%,100%{transform:translateX(-50%) translateY(0)} 50%{transform:translateX(-50%) translateY(-6px)} }
 </style>
 </head>
 <body>
@@ -304,7 +380,7 @@ body{background:#000;color:#fff;font-family:'Pretendard','Apple SD Gothic Neo',s
       <div class="szbar"><span class="zph" id="szph">주소를 입력하세요</span><span class="zmag"><svg width="18" height="18" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="6" stroke="#fff" stroke-width="1.6"/><path d="M13.5 13.5L18 18" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg></span></div>
       <div class="searchspot"></div>
       <div class="focusring"></div>
-      <div class="maghint">검색해 보세요 &rarr;</div>
+      <div class="maghint">검색해 보세요 <span class="mar">&rarr;</span></div>
       <div class="line lnT"></div>
       <div class="line lnB"></div>
       <div class="content">
@@ -326,7 +402,7 @@ body{background:#000;color:#fff;font-family:'Pretendard','Apple SD Gothic Neo',s
             <img class="llogo-fill" id="llogofill" src="shots/logo.png" alt="BEANCRAFT">
           </div>
           <div class="lbtnrow">
-            <div class="lhint" id="lhint">분석 완료를 눌러보세요 &rarr;</div>
+            <div class="lhint" id="lhint">분석 완료를 눌러보세요 <span class="lar">&rarr;</span></div>
             <div class="lmbtn" id="lpctbtn">0%</div>
             <div class="lmbtn home">홈페이지</div>
           </div>
@@ -435,8 +511,8 @@ body{background:#000;color:#fff;font-family:'Pretendard','Apple SD Gothic Neo',s
         <div class="dspot" id="dspot"></div>
         <div class="dveil" id="dveil">
           <h2>어떤 정보가 궁금하세요?</h2>
-          <p>왼쪽 항목을 눌러 강남역 분석을 확인하세요</p>
-          <div class="darrow">&larr; 여기, 카테고리를 눌러보세요</div>
+          <p><span class="dv-pc">왼쪽 항목을</span><span class="dv-mo">위 카테고리를</span> 눌러 강남역 분석을 확인하세요</p>
+          <div class="darrow"><span class="dar">&larr;</span> 여기, 카테고리를 눌러보세요</div>
         </div>
         </div>
         <div class="mapmodal" id="mapmodal">
@@ -458,14 +534,16 @@ var maphot=document.getElementById('maphot'), mapmodal=document.getElementById('
 var timers=[], liv=null;
 function T(fn,ms){timers.push(setTimeout(fn,ms));}
 function clearAll(){timers.forEach(clearTimeout);timers=[];if(liv){clearInterval(liv);liv=null;}}
+/* ★모바일 임계값 640 은 CSS @media (max-width:639px) 와 **반드시 같이** 바꾼다.
+   한쪽만 바꾸면 좌표계(JS)와 보정(CSS)이 어긋나 화면이 통째로 깨진다. */
 function fit(){ var cw=stage.clientWidth, ch=stage.clientHeight; if(!cw||!ch) return;
   var dash=app.classList.contains('dash');
   var mob = (!dash && cw<640);
   var s = mob ? (cw/400) : (cw/1920);
   app.style.setProperty('--s', s.toFixed(4));
-  /* 높이도 무대에 맞춤(=ch/s). 940 고정이면 틀이 940보다 낮을 때 위아래가 잘려
-     상단 검색창·돋보기·안내문구가 화면 밖으로 밀림. 모바일(확대 크롭)만 940 유지. */
-  app.style.height = mob ? '940px' : (ch/s)+'px'; }
+  /* 높이는 항상 무대에 맞춤(=ch/s). 예전엔 모바일만 940 고정이라 위아래 66px 씩 잘려
+     상단 검색바·돋보기·반경 UI 가 화면 밖으로 밀렸다(대표 신고 "다 짤림"). */
+  app.style.height = (ch/s)+'px'; }
 
 function startZoom(){
   szph.classList.remove('typed'); szph.textContent='주소를 입력하세요';
@@ -496,7 +574,8 @@ function triggerSearch(){
   T(startZoom, 2900); // 지도 충분히 보여준 뒤 검색 줌
 }
 function placeLDoneRing(){
-  var cw=stage.clientWidth, s=cw<640 ? (cw/400) : (cw/1920);
+  /* 스케일 진실원은 --s 하나(fit 이 정한 값). 여기서 다시 계산하면 fit 조건이 바뀔 때 링이 튄다. */
+  var s=parseFloat(getComputedStyle(app).getPropertyValue('--s'))||1;
   var pr=lpctbtn.getBoundingClientRect(), ar=app.getBoundingClientRect();
   ldonering.style.width=((pr.width/s)+22)+'px'; ldonering.style.height=((pr.height/s)+16)+'px';
   ldonering.style.left=((pr.left+pr.width/2-ar.left)/s)+'px'; ldonering.style.top=((pr.top+pr.height/2-ar.top)/s)+'px';
@@ -520,11 +599,37 @@ function startLoading(){
   requestAnimationFrame(function(){ app.classList.add('lrun'); });
   T(lclimb, 1600);
 }
-function clearSel(){ document.querySelectorAll('.dcat-all.sel,.ditem.sel').forEach(function(x){x.classList.remove('sel');}); }
+function clearSel(){ document.querySelectorAll('.dcat-all.sel,.ditem.sel').forEach(function(x){x.classList.remove('sel');}); syncChips(); }
+/* ★모바일 카테고리 칩 — 좌우 2단이 폰에서 너무 좁아(리포트 152px) 위쪽 가로줄로 바꿨다.
+   칩은 **원본 항목을 대신 눌러줄 뿐**(src.click()) — 여기에 showReportAt 를 복붙하면
+   나중에 한쪽만 고치는 사고가 난다. 선택표시도 원본의 .sel 을 그대로 따라간다. */
+function buildChips(){
+  var side=document.querySelector('.dside');
+  if(!side || side.querySelector('.dchips')) return;
+  var box=document.createElement('div'); box.className='dchips';
+  var mk=function(name, src){
+    var c=document.createElement('button'); c.type='button'; c.className='chip'; c.textContent=name;
+    c._src=src; c.addEventListener('click', function(){ src.click(); }); box.appendChild(c);
+  };
+  mk('전체 보고서', dcatAll);
+  document.querySelectorAll('.dside .ditem').forEach(function(it){
+    var l=it.querySelector('.dlabel'); mk(l?l.textContent.trim():'항목', it);
+  });
+  side.appendChild(box);
+}
+function syncChips(){
+  document.querySelectorAll('.dchips .chip').forEach(function(c){
+    var on = !!(c._src && c._src.classList.contains('sel'));
+    c.classList.toggle('sel', on);
+    if(on && c.scrollIntoView) c.scrollIntoView({block:'nearest', inline:'center'});
+  });
+}
 /* ★화살표를 첫 카테고리 항목 옆에 정렬. 폭·높이가 바뀌어도 따라간다.
    (고정 px 로 박으면 화면 크기가 달라질 때 엉뚱한 데를 가리킨다) */
 function alignArrow(){
   var ar=document.querySelector('.darrow'), v=document.getElementById('dveil');
+  /* 모바일은 카테고리가 '위쪽 가로줄'이라 세로 정렬이 의미 없다 → CSS 에 맡기고 인라인 좌표를 안 박는다 */
+  if(ar && window.innerWidth<640){ ar.style.top=''; return; }
   var first=document.querySelector('.dside .ditem') || document.querySelector('.dside .dcat-all');
   if(!ar||!v||!first) return;
   var vr=v.getBoundingClientRect(), fr=first.getBoundingClientRect();
@@ -557,7 +662,7 @@ function showReportAt(cardKey, el){
   dcardImg.style.display='block';
   dveil.classList.add('dhidden'); dspot.classList.add('dhidden');
   app.classList.remove('dguide');   // 어둠 걷고 선명하게 (사이드바 유지)
-  clearSel(); if(el) el.classList.add('sel');
+  clearSel(); if(el) el.classList.add('sel'); syncChips();
   maphot.style.display='block'; mapmodal.classList.remove('on');
   scrollToSection(cardKey);
 }
@@ -586,7 +691,10 @@ function pressDone(){
   lpctbtn.style.transform='scale(0.94)'; setTimeout(function(){lpctbtn.style.transform='';},150);
   app.classList.add('lclosing');                       // 선 닫힘 + 콘텐츠 사라짐
   T(function(){ app.classList.add('lblackout'); }, 1200);   // 블랙아웃
-  T(function(){ app.classList.add('dash'); }, 1800);       // 대시보드 등장
+  /* ★dash 가 붙으면 fit() 의 mob 판정이 바뀐다(모바일 확대크롭 해제) → 반드시 다시 계산.
+     예전엔 재호출이 없어 모바일 대시보드가 통째로 화면 밖(x=-741)이라 새까맸다.
+     이 시점은 반드시 lblackout(검정) 상태여야 스케일 점프가 안 보인다. */
+  T(function(){ app.classList.add('dash'); fit(); requestAnimationFrame(alignArrow); }, 1800);       // 대시보드 등장
 }
 lpctbtn.addEventListener('click', pressDone);
 // 대시보드 사이드바 클릭 → 해당 리포트 화면
@@ -605,7 +713,7 @@ if(window.ResizeObserver){ try{ new ResizeObserver(function(){ fit(); if(app.cla
 var _rp=document.getElementById('replay'); if(_rp) _rp.addEventListener('click', play);
 /* 시작 조건: 예전엔 '모든 이미지 다 받은 뒤'(window load)라 첫 화면이 몇십 초간 새까맸다.
    첫 장면에 필요한 지도 그림만 준비되면 바로 시작하고, 늦어지면 4초 뒤 강제로 시작한다. */
-function boot(){ if(boot.done) return; boot.done = true; fit(); play(); }
+function boot(){ if(boot.done) return; boot.done = true; buildChips(); fit(); play(); }
 var _bootImg = document.querySelector('.map');
 if(_bootImg && _bootImg.complete && _bootImg.naturalHeight){ boot(); }
 else if(_bootImg){ _bootImg.addEventListener('load', boot, {once:true}); _bootImg.addEventListener('error', boot, {once:true}); }
