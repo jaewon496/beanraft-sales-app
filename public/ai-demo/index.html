@@ -246,7 +246,10 @@ body{background:#000;color:#fff;font-family:'Pretendard','Apple SD Gothic Neo',s
 .dveil h2{font-size:26px;font-weight:600;letter-spacing:-.01em;color:#fff}
 .dveil p{margin-top:12px;font-size:15px;color:rgba(255,255,255,.62)}
 /* 안내 화살표: 예전엔 제목과 같은 높이에 고정이라 폭이 좁아지면 제목과 겹쳤음 → 제목 아래로 흐르게(어느 폭에서도 안 겹침) */
-.dveil .darrow{position:relative;margin-top:18px;color:#9cc3ff;font-size:15px;font-weight:700;white-space:nowrap;text-shadow:0 2px 12px rgba(0,0,0,.75);animation:nudge 1.4s ease-in-out infinite}
+/* ★안내 화살표는 **왼쪽 카테고리 바로 옆**에 붙인다(대표 지시 2026-08-06).
+   예전엔 화면 한가운데라 사이드바에서 493px 떨어져 있어 "←"가 뭘 가리키는지 애매했다.
+   세로 위치는 JS 가 첫 카테고리 항목에 맞춰 잡는다(화면 크기 달라도 항상 옆에 붙음). */
+.dveil .darrow{position:absolute;left:14px;margin-top:0;color:#9cc3ff;font-size:15px;font-weight:700;white-space:nowrap;text-align:left;text-shadow:0 2px 12px rgba(0,0,0,.75);animation:nudge 1.4s ease-in-out infinite}
 /* 카테고리 강조: 안내막 떠 있는 동안 사이드바 항목이 파랗게 맥동 */
 .app.dguide .ditem .dlabel,.app.dguide .dcat-all .dc-name{animation:catGlow 1.9s ease-in-out infinite}
 @keyframes catGlow{0%,100%{color:rgba(255,255,255,.78)}50%{color:#8fbcff}}
@@ -518,11 +521,24 @@ function startLoading(){
   T(lclimb, 1600);
 }
 function clearSel(){ document.querySelectorAll('.dcat-all.sel,.ditem.sel').forEach(function(x){x.classList.remove('sel');}); }
+/* ★화살표를 첫 카테고리 항목 옆에 정렬. 폭·높이가 바뀌어도 따라간다.
+   (고정 px 로 박으면 화면 크기가 달라질 때 엉뚱한 데를 가리킨다) */
+function alignArrow(){
+  var ar=document.querySelector('.darrow'), v=document.getElementById('dveil');
+  var first=document.querySelector('.dside .ditem') || document.querySelector('.dside .dcat-all');
+  if(!ar||!v||!first) return;
+  var vr=v.getBoundingClientRect(), fr=first.getBoundingClientRect();
+  if(!vr.height||!fr.height) return;
+  var top=fr.top-vr.top+(fr.height-ar.offsetHeight)/2;
+  top=Math.max(8, Math.min(top, vr.height-ar.offsetHeight-8));   // 베일 밖으로 안 나가게
+  ar.style.top=Math.round(top)+'px';
+}
 function resetDash(){
   pickReport(); dcardImg.src=curRep.src; dcardImg.style.display='block'; dcontent.scrollTop=0;
   clearSel(); dveil.classList.remove('dhidden'); dspot.classList.remove('dhidden');
   app.classList.add('dguide');   // 카테고리 클릭 전: 어둡게 + 사이드바(강조)
   maphot.style.display='block'; mapmodal.classList.remove('on');
+  requestAnimationFrame(alignArrow);
 }
 // 화면 폭 따라 리포트 자동선택: 넓은 화면=넓은판(2285, 글씨 촘촘·꽉차게 커도 선명), 좁은 화면=좁은판(1352, 글씨 큰) → 어느 폭이든 앱 크기·선명·꽉 참
 var REP={
@@ -583,7 +599,7 @@ document.getElementById('dresearch').addEventListener('click', play);
 maphot.addEventListener('click', function(){ mapmodal.classList.add('on'); });
 document.getElementById('mapClose').addEventListener('click', function(){ mapmodal.classList.remove('on'); });
 mapmodal.addEventListener('click', function(e){ if(e.target===mapmodal) mapmodal.classList.remove('on'); });
-window.addEventListener('resize', function(){ fit(); if(app.classList.contains('ldone')) placeLDoneRing(); });
+window.addEventListener('resize', function(){ fit(); alignArrow(); if(app.classList.contains('ldone')) placeLDoneRing(); });
 // 안전장치: 틀(iframe) 크기가 로드 후 바뀌어도 항상 다시 꽉 차게 (임베드 중첩 프레임 대응)
 if(window.ResizeObserver){ try{ new ResizeObserver(function(){ fit(); if(app.classList.contains('ldone')) placeLDoneRing(); }).observe(document.body); }catch(e){} }
 var _rp=document.getElementById('replay'); if(_rp) _rp.addEventListener('click', play);
