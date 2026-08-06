@@ -16,7 +16,11 @@
     /* ★헤더가 위를 덮으므로 그만큼 뺀다 — 안 그러면 데모 윗부분이 메뉴바에 가린다 */
     .demo-frame { height: calc(100vh - var(--bc-hd)); height: calc(100svh - var(--bc-hd)); }
     .collect-frame { height: 800px; }
-    .steps-frame { height: 700px; }
+    /* ★창업 순서 카드도 첫 카드처럼 **화면을 꽉** 채운다(대표 지시 2026-08-06).
+       단 내용보다 작아지면 잘리므로 '화면-헤더'와 '내용 최소높이' 중 **큰 쪽**을 쓴다.
+       실측 필요높이: PC·태블릿 694px / 모바일 994px */
+    .steps-frame { height: max(calc(100vh - var(--bc-hd)), 700px);
+                   height: max(calc(100svh - var(--bc-hd)), 700px); }
 
     /* 크리에이터링크 구분선 블럭 (원본 그대로) */
     .container { width: 100%; max-width: 1170px; margin: 0 auto; padding: 0 15px; }
@@ -45,7 +49,9 @@
 
     @media (max-width: 760px) {
       .collect-frame { height: 700px; }
-      .steps-frame { height: 940px; }
+      /* 모바일은 내용이 994px 필요 — 940px 이던 것이 54px 잘리고 있었다(실측) */
+      .steps-frame { height: max(calc(100vh - var(--bc-hd)), 1000px);
+                     height: max(calc(100svh - var(--bc-hd)), 1000px); }
     }
 
     /* ───────── 홈페이지 상단 메뉴바 (2026-08-06 대표 지시)
