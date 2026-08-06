@@ -259,6 +259,13 @@ body{background:#000;color:#fff;font-family:'Pretendard','Apple SD Gothic Neo',s
 .hint{text-align:center;font-size:13px;color:rgba(255,255,255,.4);padding:8px 0;flex-shrink:0}
 .btn{display:inline-block;margin-top:4px;font-size:12px;color:#8bb8ff;cursor:pointer;border:1px solid rgba(139,184,255,.4);padding:6px 18px;border-radius:20px}
 
+/* ★모바일 전용으로 새로 만든 것들은 **기본이 숨김**이어야 한다.
+   (2026-08-06 사고: 칩 15개가 PC 사이드바에 스타일 없는 흰 테두리 버튼으로 그대로 노출됐다.
+    JS 가 화면 크기와 무관하게 DOM 을 만들기 때문에, 미디어쿼리 안에만 스타일을 두면 PC 에 샌다.) */
+.dchips{display:none}
+.dchipswrap{display:none}
+.dv-mo{display:none}
+
 /* ─────────────────────────────────────────────────────────────────────
    모바일 (cw<640).  ★임계값 639 는 JS fit() 의 cw<640 과 반드시 같이 바꾼다.
    좌표계: 설계 캔버스 1920 폭을 --s=cw/400 로 확대 크롭 → 세로폰에 보이는 창은
@@ -273,13 +280,15 @@ body{background:#000;color:#fff;font-family:'Pretendard','Apple SD Gothic Neo',s
   .searchspot{left:780px;width:360px}      /* 검색칸에 정확히 겹치게 */
   .focusring {left:780px;width:360px}
   .app.mguide .focusring{left:1091px;top:22px;width:44px;height:42px}   /* 돋보기 중심 (1113,43) */
-  /* 안내문구: 지도 위(상단바 아래)로 내리고 화살표를 ↑ 로 — 오른쪽 끝이 돋보기 밑에 온다.
-     지도(밝음) 위에 얹히므로 어두운 알약 배경을 깔아 어떤 배경에서도 읽히게 한다 */
-  .maghint{right:780px;top:170px;transform:none;font-size:17px;
-           background:rgba(10,10,10,.78);padding:5px 12px;border-radius:16px}
-  .maghint .mar{display:none}
-  .maghint::after{content:' ↑'}
+  /* 안내문구: 검색칸 **안**, 돋보기 바로 왼쪽에 붙인다(→ 가 돋보기를 정확히 가리킴).
+     지도 위(상단바 아래)에 두면 반경 UI 를 건너뛰어 가리켜 '뭘 누르라는지' 애매했다. */
+  .maghint{right:830px;top:30px;transform:none}
   .app.mguide .maghint{animation:gIn .5s .35s ease both, mBobMob 1.6s .9s ease-in-out infinite}
+  /* ★안내문구 3종(검색·돋보기·분석완료) 생김새 통일 — 상자·테두리 없이 파란 글씨+화살표만
+     (대표 지시 2026-08-06 "검색해 보세요 주변 테두리 지우자, UI 디자인은 통일해") */
+  .shint,.maghint,.lhint{font-size:16px;font-weight:700;color:#9cc3ff;
+                         background:none;padding:0;border:0;border-radius:0;
+                         text-shadow:0 2px 10px rgba(0,0,0,.6)}
 
   /* 지도 스크린샷에는 '자체 상단바(가짜 검색칸·반경선)'가 찍혀 있어 우리 상단바 아래로 샌다.
      ★값은 눈대중이 아니라 휘도 게이트(scratchpad/band 측정)로 확정 — 상단바 바로 아래부터
@@ -310,6 +319,11 @@ body{background:#000;color:#fff;font-family:'Pretendard','Apple SD Gothic Neo',s
   .dresearch{position:absolute;top:10px;right:12px;width:auto;height:32px;padding:0 12px;font-size:12px;margin:0}
   #dcatAll,.dcat-hint,.dside .dgroup,.ddirector{display:none}
   /* 14개 항목을 가로 스크롤 칩으로 (원본 .ditem 을 눌러주는 대리자 — 로직 중복 금지) */
+  .dchipswrap{display:block;position:relative;min-height:0}
+  /* 오른쪽 끝 그라데이션 = "옆으로 더 있다"는 신호. 터치는 통과시킨다(pointer-events:none) */
+  .dchipswrap::after{content:'';position:absolute;right:0;top:0;bottom:6px;width:42px;pointer-events:none;
+                     background:linear-gradient(90deg,rgba(10,10,10,0),#0A0A0A 76%);transition:opacity .25s}
+  .dchipswrap.atend::after{opacity:0}
   .dchips{display:flex;gap:8px;overflow-x:auto;overflow-y:hidden;padding:0 0 6px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
   .dchips::-webkit-scrollbar{display:none}
   .dchips .chip{flex:0 0 auto;font-size:13.5px;line-height:1;padding:10px 13px;background:transparent;
@@ -350,7 +364,7 @@ body{background:#000;color:#fff;font-family:'Pretendard','Apple SD Gothic Neo',s
   50%       { transform: translate(-50%, calc(-100% - 5px)); }
 }
 /* 모바일 전용 흔들림 — 기존 mBob/aBob 은 translateY(-50%) 를 덮어써서 자리를 망가뜨린다 */
-@keyframes mBobMob { 0%,100%{transform:translateY(0)}   50%{transform:translateY(4px)} }
+@keyframes mBobMob { 0%,100%{transform:translateX(0)}   50%{transform:translateX(4px)} }
 @keyframes lBobMob { 0%,100%{transform:translate(-50%,-100%)} 50%{transform:translate(-50%,calc(-100% - 5px))} }
 @keyframes nudgeMob { 0%,100%{transform:translateX(-50%) translateY(0)} 50%{transform:translateX(-50%) translateY(-6px)} }
 </style>
@@ -564,8 +578,8 @@ function endZoom(){
     app.classList.remove('szoom');
     phtext.classList.add('typed'); phtext.innerHTML='강남역 1번 출구';
     app.classList.add('mguide'); magbtn.classList.add('active');   // 돋보기 "검색하세요 →"
-    /* 안 눌러도 3초 뒤 대신 눌러준다(누르면 그 즉시 진행 — 기다리게 두지 않음) */
-    T(function(){ if(app.classList.contains('mguide')) pressMag(); }, 2600);
+    /* ★자동으로 대신 눌러주지 않는다(대표 지시 2026-08-06 "안 눌렀는데 지 멋대로 넘어가").
+       검색 버튼도 누를 때까지 기다리므로, 돋보기·분석완료도 똑같이 기다린다. */
   }, 1300);
 }
 function triggerSearch(){
@@ -587,8 +601,7 @@ function lclimb(){
     if(p>=100){ clearInterval(liv); liv=null;
       lpctbtn.textContent='분석 완료'; lpctbtn.classList.add('done'); lbtext.textContent='';
       T(function(){ placeLDoneRing(); app.classList.add('ldone'); }, 150);
-      /* 여기도 안 눌러도 3.4초 뒤 대신 눌러준다 */
-      T(function(){ if(app.classList.contains('ldone')) pressDone(); }, 3050);
+      /* 여기도 자동 진행 없음 — 사용자가 '분석 완료'를 눌러야 대시보드로 간다 */
     }
   },32);
 }
@@ -606,6 +619,7 @@ function clearSel(){ document.querySelectorAll('.dcat-all.sel,.ditem.sel').forEa
 function buildChips(){
   var side=document.querySelector('.dside');
   if(!side || side.querySelector('.dchips')) return;
+  var wrap=document.createElement('div'); wrap.className='dchipswrap';
   var box=document.createElement('div'); box.className='dchips';
   var mk=function(name, src){
     var c=document.createElement('button'); c.type='button'; c.className='chip'; c.textContent=name;
@@ -615,7 +629,11 @@ function buildChips(){
   document.querySelectorAll('.dside .ditem').forEach(function(it){
     var l=it.querySelector('.dlabel'); mk(l?l.textContent.trim():'항목', it);
   });
-  side.appendChild(box);
+  /* 오른쪽에 더 있다는 표시(그라데이션) — 끝까지 밀면 끈다. 대표 지시 2026-08-06 "옆으로 슬라이드 되게" */
+  box.addEventListener('scroll', function(){
+    wrap.classList.toggle('atend', box.scrollLeft >= box.scrollWidth - box.clientWidth - 4);
+  });
+  wrap.appendChild(box); side.appendChild(wrap);
 }
 function syncChips(){
   document.querySelectorAll('.dchips .chip').forEach(function(c){
