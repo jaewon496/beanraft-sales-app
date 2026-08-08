@@ -134,7 +134,7 @@ body.relay .step.lit .no,body.relay .step.lit .ico,body.relay .step.lit .lb{opac
       </div>
       <div class="cta-row">
         <span class="cta-note">매물 찾기부터 원두까지, 전 과정을 디렉터가 함께합니다.</span>
-        <a class="cta" href="#" data-cta>상담 신청하기 <span class="ar">→</span></a>
+        <a class="cta" href="https://beancraft.co.kr/%EC%83%81%EB%8B%B4" target="_top">상담 신청하기 <span class="ar">→</span></a>
       </div>
     </div>
 
@@ -149,7 +149,7 @@ body.relay .step.lit .no,body.relay .step.lit .ico,body.relay .step.lit .lb{opac
       </div>
       <div class="cta-row">
         <span class="cta-note">인테리어 · 기기설치 · 메뉴개발 · 운영교육 · 디자인 · 원두까지 &mdash; 따로 알아보지 않아도 됩니다.</span>
-        <a class="cta" href="#" data-cta>상담 신청하기 <span class="ar">→</span></a>
+        <a class="cta" href="https://beancraft.co.kr/%EC%83%81%EB%8B%B4" target="_top">상담 신청하기 <span class="ar">→</span></a>
       </div>
     </div>
   </div>
@@ -164,44 +164,11 @@ function move(b,squish){ ind.style.left=b.offsetLeft+'px'; ind.style.width=b.off
 function setActive(b){ active=b; btns.forEach(function(x){x.classList.toggle('active',x===b);}); var k=b.getAttribute('data-panel'); panels.forEach(function(p){p.classList.toggle('open',p.getAttribute('data-panel')===k);}); move(b,true); startRelay(); }
 btns.forEach(function(b){ b.addEventListener('mouseenter',function(){move(b,false);}); b.addEventListener('click',function(){setActive(b);}); });
 seg.addEventListener('mouseleave',function(){move(active,false);});
-/* ★상담 신청하기 — **지금 보던 화면 위에** 띄운다(대표 지시 2026-08-06).
-   예전엔 새 탭으로 넘어가 보던 내용이 사라졌다.
-   이 카드는 AI탭 안 iframe 이라, 이 안에서 열면 700px 칸에 갇힌다 →
-   같은 출처인 **최상위 창**에 전체화면 덮개를 만들어 그 위에 띄운다.
-   (자사 도메인이라 iframe 차단 헤더가 없는 것 확인함)
-   최상위에 손댈 수 없는 경우(다른 곳에 임베드 등)엔 같은 탭 이동으로 물러난다. */
-var CONSULT='https://beancraft.co.kr/%EC%83%81%EB%8B%B4';
-function openConsult(){
-  var top;
-  try{ top = window.top.document ? window.top : null; }catch(e){ top = null; }   // 다른 출처면 접근 불가
-  var doc = top ? top.document : null;
-  if(!doc){ try{ window.top.location.href = CONSULT; }catch(e){ location.href = CONSULT; } return; }
-  if(doc.getElementById('bcConsultOv')){ doc.getElementById('bcConsultOv').style.display='block'; return; }
-  var ov=doc.createElement('div'); ov.id='bcConsultOv';
-  ov.setAttribute('style','position:fixed;inset:0;z-index:99999;background:rgba(6,8,13,.92);'+
-    'backdrop-filter:blur(4px);display:flex;flex-direction:column');
-  var bar=doc.createElement('div');
-  bar.setAttribute('style','flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;'+
-    'padding:12px 16px;color:#fff;font:700 15px/1.2 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",sans-serif');
-  bar.innerHTML='<span>상담 신청</span>';
-  var x=doc.createElement('button'); x.textContent='✕ 닫기';
-  x.setAttribute('style','background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.25);'+
-    'color:#fff;border-radius:999px;padding:8px 16px;font:700 14px/1 inherit;cursor:pointer');
-  x.onclick=function(){ ov.remove(); doc.documentElement.style.overflow=''; };
-  bar.appendChild(x);
-  var fr=doc.createElement('iframe');
-  fr.src=CONSULT; fr.title='상담 신청';
-  fr.setAttribute('style','flex:1 1 auto;width:100%;border:0;background:#fff');
-  ov.appendChild(bar); ov.appendChild(fr); doc.body.appendChild(ov);
-  doc.documentElement.style.overflow='hidden';                       // 뒤 화면 스크롤 잠금
-  (top||window).addEventListener('keydown', function esc(e){
-    if(e.key==='Escape'){ ov.remove(); doc.documentElement.style.overflow=''; (top||window).removeEventListener('keydown',esc); }
-  });
-}
-document.querySelectorAll('[data-cta]').forEach(function(a){
-  a.href=CONSULT; a.removeAttribute('target'); a.rel='noopener noreferrer';
-  a.addEventListener('click',function(e){ e.preventDefault(); openConsult(); });
-});
+/* ★상담 신청하기 = 대표님이 주신 링크로 **그대로** 이동한다(2026-08-06 지시
+   "너가 왜 임의로 만들었어? 내가 준 링크 그대로 들어가서 작성하게 만들어").
+   예전엔 내가 만든 덧창(닫기 바 + iframe)으로 감쌌다 — 그건 우리가 만든 화면이라 폐기.
+   링크(href)는 마크업에 직접 박혀 있어 자바스크립트가 죽어도 눌리고, target=_top 이라
+   작은 틀(iframe) 안이 아니라 **페이지 전체**가 상담 페이지로 간다(새 탭 아님). */
 
 /* 선 순차 진행: 네이비 머리가 1칸→2칸→… 그려지고, 지나간 자리엔 흰선이 남음.
    도착하면 잠깐 뜸 후 다음 칸. 끝까지 흰선이 차면 잠깐 쉬었다가 흰선 사라지고 반복. */
