@@ -8461,6 +8461,9 @@ async function fetchOpenUBBuildingData(lat, lng, radiusMeters) {
    }
    return false;
  });
+ // Firebase Auth 리스너가 재구독 루프 없이 최신값을 읽게 하는 ref (loggedIn을 effect 의존성에 넣지 않기 위함)
+ const loggedInRef = useRef(loggedIn);
+ useEffect(() => { loggedInRef.current = loggedIn; }, [loggedIn]);
  const [user, setUser] = useState(() => {
    if (import.meta.env.DEV) {
      const devHosts = ['localhost', '127.0.0.1', '221.147.31.180'];
@@ -22818,7 +22821,7 @@ useEffect(() => {
  useEffect(() => {
 
  const unsubscribe = firebase.auth().onAuthStateChanged(async (firebaseUser) => {
- if (firebaseUser && !loggedIn) {
+ if (firebaseUser && !loggedInRef.current) {
  // Firebase 인증됨 - 자동 로그인
  const session = safeLocalStorage.getItem('bc_session', null);
  if (session && session.expiry > Date.now() && session.user) {
@@ -22907,7 +22910,7 @@ useEffect(() => {
  }
  localStorage.setItem('bc_session', JSON.stringify({ user: userData, expiry: Date.now() + (6 * 60 * 60 * 1000) }));
  console.log('Firebase 자동 로그인:', userData.name);
- } else if (!firebaseUser && loggedIn) {
+ } else if (!firebaseUser && loggedInRef.current) {
  // Firebase 로그아웃됨 - DEV 환경 가드 추가
  const isDevLocal = import.meta.env.DEV && ['localhost','127.0.0.1','221.147.31.180'].includes(window.location.hostname);
  if (!isDevLocal) {
@@ -22921,7 +22924,7 @@ useEffect(() => {
  });
  
  return () => unsubscribe();
- }, [loggedIn]);
+ }, []);
  useEffect(() => {
  const handlePopState = () => {
  if (tabHistory.length > 0) {
